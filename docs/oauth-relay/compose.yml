@@ -1,0 +1,35 @@
+services:
+  relay:
+    build: .
+    container_name: sauce-crm-oauth-relay
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"   # bind loopback only by default
+    env_file:
+      - .env
+    environment:
+      RELAY_PORT: 8787
+      REDIS_URL: redis://redis:6379
+      RELAY_DATA_DIR: /data
+    volumes:
+      - relay-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: sauce-crm-oauth-relay-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  relay-data:
+  redis-data:

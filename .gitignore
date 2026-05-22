@@ -1,0 +1,43 @@
+# Build outputs (re-created by `npm run build`)
+main.js
+main.js.map
+*.js.map
+
+# Dependencies
+node_modules/
+
+# Per-user plugin data (never publish)
+data.json
+data.json.bak
+
+# Test secrets
+test/.env
+test/.env.live
+test/env.tpl
+
+# Sauce framework state — local-only
+.sauce/
+
+# OAuth relay runtime data
+docs/oauth-relay/data/
+docs/oauth-relay/.env
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor noise
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test runner
+coverage/
+.vitest-cache/
+
+# Temporary files
+*.bak
+*.tmp
+*.tgz
+*.zip

@@ -1,0 +1,7 @@
+{
+  "id": "sauce-crm",
+  "name": "Sauce CRM",
+  "author": "Drew Fortini",
+  "description": "Relationship CRM for Obsidian. People, orgs, touches, addenda; encrypted KeyVault for OAuth + API keys; Copilot with live model indexing across Anthropic, OpenAI, Ollama, LM Studio, and NVIDIA NIM.",
+  "repo": "Diatonic-OS/sauce-crm"
+}

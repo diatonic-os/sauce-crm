@@ -1,0 +1,60 @@
+name: CI
+
+# Triggers only fire on the canonical main branch and PRs targeting it.
+# No untrusted inputs (issue/PR titles, commit messages, head_ref) are
+# interpolated into any run: step. Only github.sha (commit hex) is used,
+# which is machine-generated and safe to embed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-typecheck-test-build:
+    name: lint / typecheck / test / build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test (vitest)
+        run: npm test
+      - name: Build (esbuild)
+        run: npm run build
+      - name: Verify build artifacts
+        run: |
+          test -f main.js || (echo "main.js missing" && exit 1)
+          test -f manifest.json || (echo "manifest.json missing" && exit 1)
+          test -f styles.css || (echo "styles.css missing" && exit 1)
+          du -h main.js
+      - name: Upload build artifacts
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        env:
+          SHA: ${{ github.sha }}
+        with:
+          name: sauce-crm-build
+          path: |
+            main.js
+            manifest.json
+            styles.css
+          retention-days: 7

@@ -1,0 +1,35 @@
+{
+  "name": "sauce-graph",
+  "version": "0.1.0",
+  "description": "LSP-typed CRM + knowledge base for Obsidian.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc -noEmit -skipLibCheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
+  },
+  "keywords": ["obsidian", "crm", "knowledge-base", "graph", "lsp"],
+  "author": "Drew Fortini",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.20",
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
+    "@vitest/ui": "^1.6.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.20.1",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "jsdom": "^24.0.0",
+    "obsidian": "latest",
+    "prettier": "^3.2.5",
+    "tslib": "^2.6.2",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

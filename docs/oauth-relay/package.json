@@ -1,0 +1,18 @@
+{
+  "name": "sauce-crm-oauth-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted OAuth relay for Sauce CRM. Holds provider client credentials and proxies the PKCE flow on behalf of the plugin.",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "dev": "node --watch src/index.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.1",
+    "ioredis": "^5.4.1",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0"
+  }
+}
