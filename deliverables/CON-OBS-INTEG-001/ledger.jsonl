@@ -33,3 +33,5 @@
 {"_t":"ev","ts":"2026-05-23T00:06:03Z","actor":"orchestrator","action":"merge","entityId":"T-H-05","hash":"c13b77e","note":"release-beta.yml"}
 {"_t":"ev","ts":"2026-05-23T00:06:04Z","actor":"orchestrator","action":"merge","entityId":"T-H-06","hash":"c13b77e","note":"issue+PR templates"}
 {"_t":"ev","ts":"2026-05-23T00:06:05Z","actor":"orchestrator","action":"merge","entityId":"T-H-07","hash":"c13b77e","note":"README sponsors; SH-H complete"}
+{"_t":"ev","ts":"2026-05-23T00:07:01Z","actor":"orchestrator","action":"merge","entityId":"T-I-01","hash":"58d7f34","note":"community-plugins-entry synced"}
+{"_t":"ev","ts":"2026-05-23T00:07:02Z","actor":"orchestrator","action":"merge","entityId":"T-I-02","hash":"d083086","note":"PR-BODY rewritten; SH-I done (no external PR)"}
