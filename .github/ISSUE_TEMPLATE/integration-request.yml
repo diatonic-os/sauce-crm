@@ -1,0 +1,34 @@
+name: Integration request
+description: Request a new Obsidian core/community plugin adapter or external service integration.
+labels: ["integration", "triage"]
+body:
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin / service
+      description: Name + repo or community-plugin id.
+      placeholder: "obsidian-kanban (mgmeyers/obsidian-kanban)"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Community plugin adapter (IObsidianPluginIntegration)
+        - Core plugin wrapper (CW-*)
+        - External service (svcV1 touch source)
+    validations:
+      required: true
+  - type: textarea
+    id: optimize
+    attributes:
+      label: What should "Optimize for Sauce" do?
+      description: Which settings/data.json keys or registrations would Sauce apply?
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Public API surface (if any)
+      description: Does the plugin expose an apiV1 / api object Sauce could wrap? Link docs.
