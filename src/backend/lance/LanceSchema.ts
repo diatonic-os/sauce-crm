@@ -22,6 +22,7 @@ export const TABLES = {
   apiKeysEnc: "api_keys_enc",
   syncState: "sync_state",
   provenance: "provenance",
+  docChunks: "doc_chunks",
 } as const;
 
 export type TableName = (typeof TABLES)[keyof typeof TABLES];
@@ -101,6 +102,18 @@ export interface ProvenanceRow {
   signature: string; // HMAC over fp|op|subject|kind|ts|parent_fp
 }
 
+/** A harvested document chunk: embedded text from an uploaded file (PLAN T7).
+ *  Lives in LanceDB, fingerprinted via provenance (chunk ← document lineage). */
+export interface DocChunkRow {
+  chunk_id: string; // `${doc_id}#${ord}`
+  doc_id: string;
+  doc_name: string;
+  ord: number;
+  text: string;
+  vector: number[];
+  hash: string;
+}
+
 export interface ApiKeyEncRow {
   service: string;
   ciphertext: string; // base64
@@ -157,6 +170,10 @@ export function seedRows(embeddingDim: number): Record<TableName, Record<string,
       fp: SEED_ID, op: "", subject: "", kind: "", ts: 0,
       parent_fp: "", meta: "null", signature: "",
     }],
+    [TABLES.docChunks]: [{
+      chunk_id: SEED_ID, doc_id: "", doc_name: "", ord: 0, text: "",
+      vector: new Array(embeddingDim).fill(0), hash: "",
+    }],
   };
 }
 
@@ -180,5 +197,7 @@ export function seedDeletePredicate(table: TableName): string {
       return `integration = '${SEED_ID}'`;
     case TABLES.provenance:
       return `fp = '${SEED_ID}'`;
+    case TABLES.docChunks:
+      return `chunk_id = '${SEED_ID}'`;
   }
 }

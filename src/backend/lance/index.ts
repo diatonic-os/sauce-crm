@@ -12,6 +12,7 @@ import { LanceVectorIndex } from "./LanceVectorIndex";
 import { LanceFtsIndex } from "./LanceFtsIndex";
 import { LanceCheckpoints } from "./LanceCheckpoints";
 import { LanceProvenanceStore } from "./LanceProvenanceStore";
+import { LanceDocChunkStore } from "./LanceDocChunkStore";
 
 export * from "./LanceSchema";
 export * from "./LanceConnection";
@@ -22,6 +23,7 @@ export { LanceVectorIndex, type VectorHit } from "./LanceVectorIndex";
 export { LanceFtsIndex, type FtsHit } from "./LanceFtsIndex";
 export { LanceCheckpoints, type CheckpointInfo } from "./LanceCheckpoints";
 export { LanceProvenanceStore } from "./LanceProvenanceStore";
+export { LanceDocChunkStore, type ChunkHit } from "./LanceDocChunkStore";
 
 export interface InitLanceOpts {
   dataDir: string;
@@ -40,6 +42,8 @@ export interface LanceBackend {
   /** Append-only provenance store. Wrap in a ProvenanceService (crypto +
    *  master key) in v2-init for the full fingerprint/sign/trace API. */
   provenanceStore: LanceProvenanceStore;
+  /** Harvested document chunks (vector-indexed) for RAG document context. */
+  docChunks: LanceDocChunkStore;
   close(): Promise<void>;
 }
 
@@ -58,6 +62,7 @@ export async function initLanceBackend(opts: InitLanceOpts): Promise<LanceBacken
     ensureTable(db, TABLES.provenance, embeddingDim),
   ]);
   await ensureTable(db, TABLES.syncState, embeddingDim);
+  const docChunks = await ensureTable(db, TABLES.docChunks, embeddingDim);
 
   const fts = new LanceFtsIndex(entities);
   const mirrorTables: MirrorTables = { entities, edges, tags, touches, embeddings };
@@ -72,7 +77,9 @@ export async function initLanceBackend(opts: InitLanceOpts): Promise<LanceBacken
     fts,
     checkpoints: new LanceCheckpoints(db),
     provenanceStore: new LanceProvenanceStore(provenance),
+    docChunks: new LanceDocChunkStore(docChunks, embeddingDim),
     async close() {
+      // Release the native connection handle (prevents Rust-side handle leaks).
       if (db.isOpen()) db.close();
     },
   };

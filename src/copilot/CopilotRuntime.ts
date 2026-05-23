@@ -121,6 +121,27 @@ export class CopilotRuntime {
     return this.conversations.save(session, this.sessionTitle(firstMessage) ?? "");
   }
 
+  // ── Document RAG context (T7) + query provenance (T8) ───────────────
+  private docSearch: ((query: string, k: number) => Promise<{ docName: string; text: string }[]>) | null = null;
+  private traceSink: { record(op: string, subject: string, kind: string, content: string, opts?: { meta?: Record<string, unknown> | null }): Promise<unknown> } | null = null;
+
+  /** Inject harvested-document retrieval (embeds the query + searches LanceDB
+   *  doc chunks). Returns top chunk texts that ask() appends to the prompt. */
+  setDocumentSearch(fn: ((query: string, k: number) => Promise<{ docName: string; text: string }[]>) | null): void {
+    this.docSearch = fn;
+  }
+
+  /** Inject the provenance sink so queries are fingerprinted/traced (T8). */
+  setTraceSink(sink: typeof this.traceSink): void {
+    this.traceSink = sink;
+  }
+
+  /** Fingerprint + trace a copilot query. Best-effort; never throws. */
+  async recordQuery(query: string): Promise<void> {
+    try { await this.traceSink?.record("query", "copilot", "query", query, { meta: { len: query.length } }); }
+    catch { /* trace is best-effort */ }
+  }
+
   /** Embed text for LanceDB vector RAG. Uses the configured embedding provider
    *  when set; otherwise falls back to the chat provider's embeddings endpoint.
    *  Returns null when RAG is disabled, the provider lacks embeddings (e.g.
@@ -187,14 +208,26 @@ export class CopilotRuntime {
    * the provider again. Capped at MAX_TOOL_TURNS to prevent runaway loops.
    */
   async *ask(query: string, focus?: string, prior: ChatMessage[] = []): AsyncIterable<CompletionEvent> {
+    void this.recordQuery(query); // T8: fingerprint/trace the query (fire-and-forget)
     const ctx = await this.rag.assemble(query, focus);
     const centered = ctx.centered.length > 0
       ? ctx.centered
       : [...new Set([...ctx.pinned, ...(ctx.focus ? [ctx.focus] : []), ...ctx.graph, ...ctx.semantic])].slice(0, 12);
-    const systemPlus = this.composeSystemPrompt() + "\n\n## Context paths (read these via tool if needed)\n" +
+    let systemPlus = this.composeSystemPrompt() + "\n\n## Context paths (read these via tool if needed)\n" +
       centered.map((p) => `- ${p}`).join("\n") +
       `\n\n## Recent touches (${ctx.recentTouches.length})\n` +
       ctx.recentTouches.slice(0, 10).map((t) => `- ${t.date} · ${t.contactId}`).join("\n");
+
+    // T7: append harvested-document context when available.
+    if (this.docSearch) {
+      try {
+        const docs = await this.docSearch(query, 5);
+        if (docs.length) {
+          systemPlus += "\n\n## Document context (from uploaded files)\n" +
+            docs.map((d) => `### ${d.docName}\n${d.text}`).join("\n\n");
+        }
+      } catch { /* document context is best-effort */ }
+    }
 
     const provider = this.provider();
     const messages: ChatMessage[] = [...prior, { role: "user", content: query }];

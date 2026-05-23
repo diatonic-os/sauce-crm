@@ -37,6 +37,8 @@ fingerprint/trace ops covered by tests against real LanceDB.
 - ✅ **T4 DONE** (2026-05-23) — realtime embedding toggle now gates vault-event embeddings; manual "Rebuild LanceDB Index" still embeds by default.
 - ✅ **T5 DONE** (2026-05-23, worktree `feat/t5-t6-enrichment-prompts`) — `src/services/EnrichmentService.ts`: 3 independently-toggleable stages (classify/tag/graph), additive idempotent frontmatter writes (no self-loop), provenance-traced. Default heuristic stages (tags from #hashtags, edges from [[wikilinks]]); LLM classify stage injectable. Autostart on vault "changed" + "Enrich current note" command. Settings `sections/enrichment.ts`. 6 tests.
 - ✅ **T6 DONE** (2026-05-23, same worktree) — `CopilotRuntime`: global prompt prepend + per-session prompt override (`composeSystemPrompt`), session autonaming (`sessionTitle`/`persistSession`) gated by toggle. Settings `sections/prompts.ts`. 7 tests.
-- ⬜ T7 doc harvest · ⬜ T8 remaining trace sites.
+- ✅ **T7 DONE** (2026-05-23, worktree `feat/t7-t8-docs-trace`) — document upload + harvesting: `doc_chunks` LanceDB table + `LanceDocChunkStore`; `src/services/DocumentHarvest.ts` (txt/md built-in, pdf/docx lazy-required parsers; chunk→embed→store; chunk←document provenance lineage). "Harvest current file into RAG" command; harvested chunks injected into copilot context via `ask()`. Settings `sections/documents.ts`. 8 tests.
+- ✅ **T8 DONE** (2026-05-23, same worktree) — provenance threaded through query (`CopilotRuntime.recordQuery` in `ask()`), graph export (`exportGraphJson`), and harvest (T7). `setTraceSink` wired from `v2.provenance`. 3 tests.
+- 🛠 Test infra: `vitest.config.ts` → `forks/singleFork` (the LanceDB native addon panics under parallel workers); `_lance-tmp.ts` + facade `close()` now release the native handle.
 
-Gate (worktree): `tsc` 0 · **170 tests** · build OK. Branch based on main@fd7ee70; needs merge/rebase (main advanced via parallel agent).
+**PROGRAM COMPLETE — T1–T8 all done.** Gate (worktree): `tsc` 0 · **181 tests** · build OK. Branch based on main@81927ea.

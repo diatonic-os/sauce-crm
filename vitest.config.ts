@@ -15,6 +15,8 @@ export default defineConfig({
       // importing from "obsidian") resolve correctly under vite's loader.
       obsidian: resolve(__dirname, 'test/_stubs/obsidian.ts'),
     },
+    // singleFork (set above): the @lancedb/lancedb native addon panics when
+    // multiple vitest worker processes load/tear it down concurrently.
     include: ['test/**/*.test.ts', 'src/**/*.test.ts', 'sdk/**/*.test.ts'],
   },
 });

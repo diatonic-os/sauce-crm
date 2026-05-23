@@ -6,6 +6,7 @@ import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
 import { renderRagEmbeddings } from "./rag";
 import { renderEnrichment } from "./enrichment";
+import { renderDocuments } from "./documents";
 import { renderPrompts } from "./prompts";
 
 function markAdvanced(set: Setting): Setting {
@@ -110,6 +111,8 @@ export function renderCopilot(containerEl: HTMLElement, plugin: SauceGraphPlugin
   renderRagEmbeddings(containerEl, plugin);
   // Auto-enrichment (PLAN T5).
   renderEnrichment(containerEl, plugin);
+  // Document harvesting (PLAN T7).
+  renderDocuments(containerEl, plugin);
   // Prompts & sessions (PLAN T6).
   renderPrompts(containerEl, plugin);
 }

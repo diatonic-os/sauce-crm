@@ -5,6 +5,7 @@ import { QueryService } from "./services/QueryService";
 import { SearchService } from "./services/SearchService";
 import { MirrorSync } from "./services/MirrorSync";
 import { EnrichmentService, defaultHeuristicStages, type EnrichmentHost, type EnrichmentInput } from "./services/EnrichmentService";
+import { DocumentHarvestService, SUPPORTED_FORMATS, type DocFormat } from "./services/DocumentHarvest";
 import { SauceFeatureSettings, DEFAULT_FEATURE_SETTINGS, mergeFeatureSettings, activeEmbeddingProvider } from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
 import { ContractValidator } from "./contract/ContractValidator";
@@ -171,6 +172,7 @@ export default class SauceGraphPlugin extends Plugin {
   copilot: CopilotRuntime | null = null;
   mirrorSync: MirrorSync | null = null;
   enrichment: EnrichmentService | null = null;
+  documentHarvest: DocumentHarvestService | null = null;
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
   v2Registry: V2Registry = new V2Registry();
@@ -293,6 +295,24 @@ export default class SauceGraphPlugin extends Plugin {
       () => this.settings.features.enrichment,
       this.v2?.provenance ?? null,
     );
+    // Document harvesting (T7): upload → chunk → embed → LanceDB → RAG context.
+    if (this.v2?.lance) {
+      this.documentHarvest = new DocumentHarvestService(
+        this.v2.lance.docChunks,
+        (text) => this.copilot?.embed(text) ?? Promise.resolve(null),
+        { dim: this.v2.lance.embeddingDim },
+        this.v2.provenance ?? null,
+      );
+      // Feed harvested chunks into the copilot as document context (T7) and
+      // trace every query (T8).
+      this.copilot?.setDocumentSearch(async (query, k) => {
+        const vec = await this.copilot?.embed(query);
+        if (!vec || !this.documentHarvest) return [];
+        const hits = await this.documentHarvest.search(vec, k);
+        return hits.map((h) => ({ docName: h.docName, text: h.text }));
+      });
+      this.copilot?.setTraceSink(this.v2.provenance ?? null);
+    }
     this.skills = new SkillRuntime(this.app, this.entityService, this.search, this.query, () => this.copilot);
     if (this.copilot) this.skills.bindToCopilot(this.copilot.toolUse);
     // Route every Copilot tool call through the approval gate.
@@ -617,6 +637,14 @@ export default class SauceGraphPlugin extends Plugin {
       }
       return true;
     } });
+    this.addCommand({ id: "harvest-document", name: "Harvest current file into RAG (document)", checkCallback: (checking) => {
+      const file = this.app.workspace.getActiveFile();
+      if (!file) return false;
+      const fmt = file.extension.toLowerCase();
+      if (!SUPPORTED_FORMATS.includes(fmt as DocFormat)) return false;
+      if (!checking) void this.harvestDocument(file, fmt as DocFormat);
+      return true;
+    } });
     this.addCommand({ id: "export-graph-json", name: "Export Graph JSON", callback: () => this.exportGraphJson() });
     this.addCommand({ id: "rebuild-cache", name: "Rebuild Caches", callback: () => new Notice("Caches rebuilt") });
 
@@ -760,9 +788,14 @@ export default class SauceGraphPlugin extends Plugin {
       },
     };
     const path = `_graph-export-${todayIso()}.json`;
+    const json = JSON.stringify(graph, null, 2);
     const ex = this.app.vault.getAbstractFileByPath(path);
-    if (ex && ex instanceof TFile) await this.app.vault.modify(ex, JSON.stringify(graph, null, 2));
-    else await this.app.vault.create(path, JSON.stringify(graph, null, 2));
+    if (ex && ex instanceof TFile) await this.app.vault.modify(ex, json);
+    else await this.app.vault.create(path, json);
+    // T8: fingerprint + trace the export (data leaving the graph).
+    void this.provenance?.record("export", path, "export", json, {
+      meta: { people: graph.people.length, orgs: graph.orgs.length, touches: graph.touches.length },
+    }).catch(() => {});
     new Notice(`Exported → ${path}`);
   }
 
@@ -823,6 +856,26 @@ export default class SauceGraphPlugin extends Plugin {
       body: raw.replace(/^---\n[\s\S]*?\n---\n?/, ""),
     };
     await this.enrichment.enrich(input);
+  }
+
+  /** Harvest a file into the RAG document store (T7): extract → chunk → embed
+   *  → LanceDB, fingerprinted via provenance. Gated on LanceDB + RAG + the
+   *  documents toggle. */
+  async harvestDocument(file: TFile, format: DocFormat): Promise<void> {
+    if (!this.documentHarvest) { new Notice("LanceDB not installed — approve install first."); return; }
+    if (!this.settings.features.documents.enabled) { new Notice("Document harvesting is off — enable it in settings."); return; }
+    if (!this.settings.features.rag.enabled) { new Notice("Enable RAG (embeddings) first to harvest documents."); return; }
+    try {
+      new Notice(`Harvesting ${file.name}…`);
+      const isText = format === "txt" || format === "md";
+      const input = isText
+        ? { id: file.path, name: file.name, format, text: await this.app.vault.cachedRead(file) }
+        : { id: file.path, name: file.name, format, bytes: new Uint8Array(await this.app.vault.readBinary(file)) };
+      const r = await this.documentHarvest.harvest(input);
+      new Notice(`Harvested ${file.name}: ${r.chunks} chunks${r.skippedChunks ? ` (${r.skippedChunks} skipped)` : ""}.`);
+    } catch (e) {
+      new Notice(`Harvest failed: ${e}`);
+    }
   }
 
   private addCaptureCommand(id: string, name: string, kind: CaptureRecordKind): void {

@@ -20,6 +20,8 @@ export async function tmpLance(): Promise<TmpLance> {
     db,
     dir,
     table: (name: TableName, dim = DEFAULT_EMBEDDING_DIM) => ensureTable(db, name, dim),
+    // Close the native connection before removing the dir — leaked LanceDB
+    // handles across parallel vitest workers can trigger a Rust panic.
     cleanup: () => {
       if (db.isOpen()) db.close();
       rmSync(dir, { recursive: true, force: true });
