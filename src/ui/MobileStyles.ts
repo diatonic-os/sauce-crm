@@ -132,5 +132,7 @@ export function injectMobileStyles(doc: Document = document): () => void {
     doc.head.appendChild(el);
   }
   el.textContent = MOBILE_CSS;
-  return () => { el?.remove(); };
+  return () => {
+    el?.remove();
+  };
 }
