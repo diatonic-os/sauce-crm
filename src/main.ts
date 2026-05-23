@@ -23,6 +23,13 @@ import { initV2, teardownV2, V2Runtime } from "./v2-init";
 import { CopilotRuntime, CopilotSettings, COPILOT_DEFAULTS } from "./copilot/CopilotRuntime";
 import { CopilotChatView, VIEW_COPILOT_CHAT } from "./ui/views/v2/CopilotChatView";
 import { IconRegistry } from "./ui/icons/IconRegistry";
+import {
+  computeCapability,
+  DEFAULT_LANCEDB_DECISION,
+  type LanceDBInstallDecision,
+  type LanceDBCapability,
+} from "./services/LanceDBInstaller";
+import { LanceDBInstallModal } from "./ui/modals/LanceDBInstallModal";
 import { SkillRuntime } from "./skills/SkillRuntime";
 import { SkillPickerModal } from "./ui/modals/v2/SkillPickerModal";
 import { IntegrationRegistry } from "./integrations/IntegrationRegistry";
@@ -60,6 +67,9 @@ export interface SauceGraphSettings {
   };
   enums: Record<string, string[]>;
   copilot: CopilotSettings;
+  /** LanceDB install decision — persisted across reloads so we never
+   *  re-prompt after the user picks "Install" or "Skip". */
+  lancedb?: { installDecision: LanceDBInstallDecision };
   // Addendum A UI state — added by §K step 1
   activeTab?: string;
   hasInitialized?: boolean;
@@ -140,6 +150,11 @@ export default class SauceGraphPlugin extends Plugin {
   // Structured logger satisfying the Logger interface from telemetry/types.
   // Console-backed; v2 components reach for `event()` and `child()`.
   logger: import("./telemetry/types").Logger = makeConsoleLogger("sauce-crm");
+  // LanceDB capability — populated in onload. Read by VectorSearchService
+  // (when wired) and by the RAG semantic path. While `enabled` is false,
+  // the RAG falls back to graph + fuzzy.
+  lancedbCapability!: LanceDBCapability;
+
   // Credentials accessor — lazily wraps the v2 KeyVault in an
   // IntegrationCredentials surface, which is what v2 modals expect.
   private _credentialsCache: import("./integrations/IntegrationCredentials").IntegrationCredentials | null = null;
@@ -170,6 +185,14 @@ export default class SauceGraphPlugin extends Plugin {
     // Register custom CRM glyphs (sauce-person, sauce-org, sauce-touch,
     // sauce-copilot, …) before any view/ribbon/setIcon call. Idempotent.
     IconRegistry.register(this);
+
+    // LanceDB capability — pure detection at load. If unavailable + no
+    // operator decision yet, the install modal surfaces after the first
+    // workspace.onLayoutReady (so the UI isn't blocked while we boot).
+    this.lancedbCapability = computeCapability(
+      this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
+    );
+    this.app.workspace.onLayoutReady(() => this.maybePromptLanceDBInstall());
 
     try { this.v2 = await initV2(this.app, this); }
     catch (e) { console.warn("Sauce V2 init failed", { error: String(e) }); }
@@ -482,6 +505,29 @@ export default class SauceGraphPlugin extends Plugin {
     VIEW_AI_INBOX_REAL,
     VIEW_SYNC_STATUS_REAL,
   ]);
+
+  /** Surface the LanceDB install modal IFF detection says unavailable
+   *  AND the operator hasn't decided yet. Idempotent — safe to call on
+   *  every workspace.onLayoutReady. */
+  private maybePromptLanceDBInstall(): void {
+    if (!this.lancedbCapability.awaitingDecision) return;
+    const pluginDir = this.app.vault.adapter as unknown as { getBasePath?: () => string };
+    const base = typeof pluginDir.getBasePath === "function" ? pluginDir.getBasePath() : "";
+    const fullDir = base
+      ? `${base}/.obsidian/plugins/${this.manifest.id}`
+      : `.obsidian/plugins/${this.manifest.id}`;
+    new LanceDBInstallModal({
+      app: this.app,
+      pluginDir: fullDir,
+      initialDecision: this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
+      onDecision: async (next: LanceDBInstallDecision) => {
+        this.settings.lancedb = { installDecision: next };
+        await this.saveSettings();
+        // Re-detect after a successful install attempt.
+        this.lancedbCapability = computeCapability(next);
+      },
+    }).open();
+  }
 
   private async openView(type: string): Promise<void> {
     const leaves = this.app.workspace.getLeavesOfType(type);

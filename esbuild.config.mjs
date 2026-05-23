@@ -31,6 +31,7 @@ const ctx = await esbuild.context({
     "electron",
     "better-sqlite3",
     "sql.js",
+    "@lancedb/lancedb",
     "libsodium-wrappers",
     "argon2-browser",
     "@codemirror/autocomplete",

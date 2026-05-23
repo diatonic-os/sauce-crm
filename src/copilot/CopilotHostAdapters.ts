@@ -24,6 +24,43 @@ export class ObsidianProviderHost implements ProviderHost {
     for (const k of Object.keys(r.headers ?? {})) headers[k.toLowerCase()] = String((r.headers as any)[k]);
     return { status: r.status, headers, body: r.text };
   }
+
+  /**
+   * True-streaming fetch via the Electron renderer's native fetch(). Obsidian's
+   * `requestUrl` buffers the full body, so SSE / NDJSON would only land once
+   * the model finished generating. Native fetch streams the ReadableStream
+   * incrementally. Localhost (LM Studio, Ollama) has no CORS gate. Cloud
+   * providers (OpenAI, Anthropic) ship `Access-Control-Allow-Origin: *` on
+   * the streaming endpoints in modern Electron, so this works there too.
+   * If a provider can't reach this path it should fall back to batch fetch.
+   */
+  async fetchStream(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; headers: Record<string, string>; iter: AsyncIterable<string> }> {
+    const resp = await fetch(url, { method: init.method, headers: init.headers, body: init.body });
+    const headers: Record<string, string> = {};
+    resp.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
+    const body = resp.body;
+    const decoder = new TextDecoder();
+    async function* iter(): AsyncIterable<string> {
+      if (!body) {
+        const text = await resp.text();
+        if (text) yield text;
+        return;
+      }
+      const reader = body.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) yield decoder.decode(value, { stream: true });
+        }
+        const tail = decoder.decode();
+        if (tail) yield tail;
+      } finally {
+        try { reader.releaseLock(); } catch { /* ignore */ }
+      }
+    }
+    return { status: resp.status, headers, iter: iter() };
+  }
 }
 
 export class ObsidianRagHost implements RagAssemblerHost {

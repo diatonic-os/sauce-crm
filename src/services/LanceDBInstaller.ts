@@ -1,0 +1,196 @@
+// LanceDB auto-installer + capability detector for the Sauce CRM plugin.
+//
+// LanceDB ships as a native N-API binding and is only installable on
+// desktop Electron — iOS/Android Obsidian runs WebView-only with no
+// native module loader. Plugin manifest declares isDesktopOnly: true,
+// so this module focuses on desktop install paths while exposing a
+// clean fallback API the rest of the code can call without knowing
+// whether vector search is available.
+//
+// The detector runs at plugin onload. If LanceDB is not resolvable the
+// caller surfaces the install prompt (LanceDBInstallModal). The user
+// either approves the install (with explicit consent checkbox) or
+// skips — in which case VectorSearchService falls back to graph-RAG.
+//
+// Strategies (preferred → fallback):
+//   1. Already-resolvable via require() — no work needed.
+//   2. Operator-approved `npm install @lancedb/lancedb --prefix
+//      <pluginDir>` via Electron's child_process.
+//   3. Fallback: graph-RAG only (RagAssembler.semantic via fuzzy).
+
+export type LanceDBStatus =
+  | { state: "available"; version: string }
+  | { state: "unavailable"; reason: string }
+  | { state: "mobile-unsupported" }
+  | { state: "installing"; progress: string }
+  | { state: "install-failed"; error: string };
+
+export interface LanceDBCapability {
+  status: LanceDBStatus;
+  /** True iff the plugin should attempt to USE LanceDB. False means the
+   *  caller must use graph-RAG-only mode. */
+  enabled: boolean;
+  /** True iff the operator has not yet decided. UI surfaces the install
+   *  prompt iff this is true. */
+  awaitingDecision: boolean;
+}
+
+/** Pure detection — no install attempts. Returns mobile-unsupported on
+ *  any non-Electron host (which has no native module loader). */
+export function detectLanceDB(): LanceDBStatus {
+  const proc = (globalThis as unknown as { process?: { versions?: { electron?: string } } }).process;
+  if (typeof proc?.versions?.electron !== "string") {
+    return { state: "mobile-unsupported" };
+  }
+  // `@lancedb/lancedb` is declared as an esbuild external — a normal
+  // require() call resolves at runtime via Electron's CommonJS loader.
+  const req = (globalThis as unknown as { require?: NodeRequire }).require;
+  if (typeof req !== "function") {
+    return { state: "unavailable", reason: "require() unavailable in this environment" };
+  }
+  try {
+    const lance = req("@lancedb/lancedb") as { version?: string; default?: { version?: string } };
+    const version = lance.version ?? lance.default?.version ?? "unknown";
+    return { state: "available", version };
+  } catch (err) {
+    return { state: "unavailable", reason: (err as Error).message || String(err) };
+  }
+}
+
+/** Persisted decision shape — lives in plugin settings under
+ *  `lancedb.installDecision`. */
+export interface LanceDBInstallDecision {
+  /** "approved": user clicked install + checked consent.
+   *  "skipped": user clicked "Skip for now".
+   *  "pending": no decision yet (initial state). */
+  state: "approved" | "skipped" | "pending";
+  /** ISO date of the decision (for "remind me later" cadence). */
+  decidedAt?: string;
+  /** Last attempt outcome for transparency. */
+  lastAttempt?: { ok: boolean; error?: string; ts: string };
+}
+
+export const DEFAULT_LANCEDB_DECISION: LanceDBInstallDecision = { state: "pending" };
+
+/** Aggregator the plugin uses to decide whether to surface the install
+ *  modal on onload. */
+export function computeCapability(decision: LanceDBInstallDecision): LanceDBCapability {
+  const detect = detectLanceDB();
+  switch (detect.state) {
+    case "available":
+      return { status: detect, enabled: true, awaitingDecision: false };
+    case "mobile-unsupported":
+      // Never prompt on mobile — nothing the user could do.
+      return { status: detect, enabled: false, awaitingDecision: false };
+    case "unavailable":
+      return {
+        status: detect,
+        enabled: false,
+        awaitingDecision: decision.state === "pending",
+      };
+    case "installing":
+    case "install-failed":
+      return { status: detect, enabled: false, awaitingDecision: false };
+  }
+}
+
+// ---------- Installer ----------
+
+export interface InstallerHost {
+  /** Absolute path to the plugin's data directory. LanceDB is installed
+   *  here so it persists across plugin reloads without polluting npm
+   *  globals. */
+  pluginDir(): string;
+  /** Spawn a child process and stream output. Returns the exit code, or
+   *  null if spawning is unavailable (mobile or sandboxed Electron). */
+  spawn(
+    cmd: string,
+    args: string[],
+    cwd: string,
+    onLine: (stream: "stdout" | "stderr", line: string) => void,
+  ): Promise<number | null>;
+}
+
+export type InstallProgress =
+  | { kind: "start"; message: string }
+  | { kind: "line"; stream: "stdout" | "stderr"; line: string }
+  | { kind: "done"; ok: boolean; durationMs: number; error?: string };
+
+export class LanceDBInstaller {
+  constructor(private readonly host: InstallerHost) {}
+
+  /** Runs `npm install @lancedb/lancedb --prefix <pluginDir>`. Streams
+   *  output via onProgress so the modal can show live progress. Returns
+   *  true on exit code 0. */
+  async install(onProgress: (p: InstallProgress) => void): Promise<boolean> {
+    const t0 = Date.now();
+    const cwd = this.host.pluginDir();
+    onProgress({ kind: "start", message: `Installing @lancedb/lancedb to ${cwd}` });
+    const code = await this.host.spawn(
+      "npm",
+      ["install", "@lancedb/lancedb", "--prefix", cwd, "--no-audit", "--no-fund"],
+      cwd,
+      (stream, line) => onProgress({ kind: "line", stream, line }),
+    );
+    const ok = code === 0;
+    onProgress({
+      kind: "done",
+      ok,
+      durationMs: Date.now() - t0,
+      error: ok ? undefined : `npm install exited with code ${code ?? "null (spawn unavailable)"}`,
+    });
+    return ok;
+  }
+}
+
+// ---------- ObsidianInstallerHost ----------
+
+/** Wires the abstract InstallerHost to Electron desktop primitives. On
+ *  mobile, spawn() returns null and the installer short-circuits. */
+export class ObsidianInstallerHost implements InstallerHost {
+  constructor(private readonly _pluginDir: string) {}
+
+  pluginDir(): string {
+    return this._pluginDir;
+  }
+
+  async spawn(
+    cmd: string,
+    args: string[],
+    cwd: string,
+    onLine: (stream: "stdout" | "stderr", line: string) => void,
+  ): Promise<number | null> {
+    const proc = (globalThis as unknown as { process?: { versions?: { electron?: string } } }).process;
+    if (typeof proc?.versions?.electron !== "string") return null;
+    const req = (globalThis as unknown as { require?: NodeRequire }).require;
+    if (typeof req !== "function") return null;
+    let childProcess: typeof import("child_process");
+    try {
+      childProcess = req("child_process") as typeof import("child_process");
+    } catch {
+      return null;
+    }
+    return await new Promise<number | null>((resolve) => {
+      const child = childProcess.spawn(cmd, args, { cwd, shell: false });
+      const buf: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
+      const onChunk = (stream: "stdout" | "stderr") => (chunk: Buffer) => {
+        buf[stream] += chunk.toString("utf-8");
+        const lines = buf[stream].split("\n");
+        buf[stream] = lines.pop() ?? "";
+        for (const line of lines) if (line) onLine(stream, line);
+      };
+      child.stdout?.on("data", onChunk("stdout"));
+      child.stderr?.on("data", onChunk("stderr"));
+      child.on("close", (code) => {
+        for (const stream of ["stdout", "stderr"] as const) {
+          if (buf[stream]) onLine(stream, buf[stream]);
+        }
+        resolve(code);
+      });
+      child.on("error", (err) => {
+        onLine("stderr", `spawn error: ${err.message}`);
+        resolve(null);
+      });
+    });
+  }
+}

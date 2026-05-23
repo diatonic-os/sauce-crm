@@ -1,6 +1,7 @@
 // SPEC §19.1 — Ollama local. Endpoint defaults to http://localhost:11434 but is configurable;
 // optional bearer token for reverse-proxied setups (Caddy/Nginx with auth).
 import type { CompletionEvent, CompletionRequest, ICopilotProvider, ModelDescriptor, ProviderCapabilities, ProviderHost } from './ICopilotProvider';
+import { parseNdjson } from './StreamParsers';
 
 export interface OllamaConfig {
   endpoint: string;          // e.g. 'http://localhost:11434' or 'https://ollama.internal'
@@ -50,12 +51,61 @@ export class OllamaProvider implements ICopilotProvider {
 
   async *complete(req: CompletionRequest): AsyncIterable<CompletionEvent> {
     const messages = req.systemPrompt ? [{ role: 'system', content: req.systemPrompt }, ...req.messages] : req.messages;
-    const body = {
+    const body: Record<string, unknown> = {
       model: req.model || this.cfg.defaultModel || 'llama3',
       messages: messages.map((m) => ({ role: m.role === 'tool' ? 'user' : m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) })),
       options: { temperature: req.temperature ?? 0.7, num_predict: req.maxTokens ?? 4096 },
       stream: false,
     };
+
+    // ---- Streaming branch (NDJSON) ---------------------------------------------
+    // Ollama's /api/chat with stream:true emits one JSON object per line:
+    //   {message:{role,content}, done:false}
+    //   ...
+    //   {message:{role,content:''}, done:true, prompt_eval_count, eval_count, done_reason?}
+    if (req.stream && this.host.fetchStream) {
+      body.stream = true;
+      try {
+        const resp = await this.host.fetchStream(`${this.cfg.endpoint}/api/chat`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...this.authHeaders() },
+          body: JSON.stringify(body),
+        });
+        if (resp.status >= 400) {
+          let err = '';
+          for await (const c of resp.iter) { err += c; if (err.length > 4096) break; }
+          yield { type: 'done', reason: 'error', error: err || `HTTP ${resp.status}` };
+          return;
+        }
+        type Frame = { message?: { content?: string }; done?: boolean; prompt_eval_count?: number; eval_count?: number; done_reason?: string };
+        let promptTokens = 0;
+        let evalTokens = 0;
+        let doneReason: string | undefined;
+        try {
+          for await (const line of parseNdjson(resp.iter)) {
+            let frame: Frame;
+            try { frame = JSON.parse(line) as Frame; } catch { continue; }
+            const content = frame.message?.content;
+            if (content) yield { type: 'text', delta: content };
+            if (frame.done) {
+              promptTokens = frame.prompt_eval_count ?? promptTokens;
+              evalTokens = frame.eval_count ?? evalTokens;
+              doneReason = frame.done_reason;
+            }
+          }
+        } catch (e) {
+          yield { type: 'done', reason: 'error', error: e instanceof Error ? e.message : String(e) };
+          return;
+        }
+        yield { type: 'usage', inputTokens: promptTokens, outputTokens: evalTokens };
+        yield { type: 'done', reason: doneReason === 'length' ? 'max_tokens' : 'end_turn' };
+        return;
+      } catch (e) {
+        yield { type: 'done', reason: 'error', error: e instanceof Error ? e.message : String(e) };
+        return;
+      }
+    }
+
     const resp = await this.host.fetch(`${this.cfg.endpoint}/api/chat`, {
       method: 'POST', headers: { 'content-type': 'application/json', ...this.authHeaders() }, body: JSON.stringify(body),
     });

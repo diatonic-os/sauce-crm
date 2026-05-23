@@ -1,5 +1,6 @@
 // SPEC §19.1 — Anthropic Messages API. Defaults to claude-opus-4-7.
 import type { CompletionEvent, CompletionRequest, ICopilotProvider, ModelDescriptor, ProviderCapabilities, ProviderHost } from './ICopilotProvider';
+import { parseSse } from './StreamParsers';
 
 const MODELS: ModelDescriptor[] = [
   { id: 'claude-opus-4-7', label: 'Claude Opus 4.7', contextTokens: 1_000_000, vision: true },
@@ -15,7 +16,7 @@ export class AnthropicProvider implements ICopilotProvider {
 
   async *complete(req: CompletionRequest): AsyncIterable<CompletionEvent> {
     const key = await this.apiKey();
-    const body = {
+    const body: Record<string, unknown> = {
       model: req.model,
       max_tokens: req.maxTokens ?? 4096,
       temperature: req.temperature ?? 0.7,
@@ -24,6 +25,87 @@ export class AnthropicProvider implements ICopilotProvider {
       tools: req.tools?.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema })),
       stream: false,
     };
+
+    // ---- Streaming branch ------------------------------------------------------
+    // Anthropic's Messages stream is true SSE with `event:` + `data:` lines.
+    // Event taxonomy:
+    //   message_start                    → {message:{usage:{input_tokens}}}
+    //   content_block_start              → {index, content_block:{type:'text'|'tool_use', id?, name?}}
+    //   content_block_delta              → {index, delta:{type:'text_delta'|'input_json_delta', text?, partial_json?}}
+    //   content_block_stop               → {index}
+    //   message_delta                    → {delta:{stop_reason}, usage:{output_tokens}}
+    //   message_stop                     → end
+    if (req.stream && this.host.fetchStream) {
+      body.stream = true;
+      try {
+        const resp = await this.host.fetchStream(`${this.baseUrl}/messages`, {
+          method: 'POST',
+          headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', accept: 'text/event-stream' },
+          body: JSON.stringify(body),
+        });
+        if (resp.status >= 400) {
+          let err = '';
+          for await (const c of resp.iter) { err += c; if (err.length > 4096) break; }
+          yield { type: 'done', reason: 'error', error: err || `HTTP ${resp.status}` };
+          return;
+        }
+        // index → buffered tool_use (id, name, accumulated JSON string).
+        const toolBuf = new Map<number, { id: string; name: string; args: string }>();
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let stopReason: string | null = null;
+        try {
+          for await (const evt of parseSse(resp.iter)) {
+            let payload: any;
+            try { payload = JSON.parse(evt.data); } catch { continue; }
+            switch (evt.event) {
+              case 'message_start':
+                inputTokens = payload?.message?.usage?.input_tokens ?? 0;
+                break;
+              case 'content_block_start': {
+                const cb = payload?.content_block;
+                if (cb?.type === 'tool_use') {
+                  toolBuf.set(payload.index, { id: String(cb.id ?? ''), name: String(cb.name ?? ''), args: '' });
+                }
+                break;
+              }
+              case 'content_block_delta': {
+                const d = payload?.delta;
+                if (d?.type === 'text_delta' && typeof d.text === 'string') {
+                  yield { type: 'text', delta: d.text };
+                } else if (d?.type === 'input_json_delta' && typeof d.partial_json === 'string') {
+                  const cur = toolBuf.get(payload.index);
+                  if (cur) cur.args += d.partial_json;
+                }
+                break;
+              }
+              case 'message_delta':
+                if (payload?.delta?.stop_reason) stopReason = payload.delta.stop_reason;
+                if (payload?.usage?.output_tokens != null) outputTokens = payload.usage.output_tokens;
+                break;
+              case 'message_stop':
+              case 'content_block_stop':
+              default:
+                break;
+            }
+          }
+        } catch (e) {
+          yield { type: 'done', reason: 'error', error: e instanceof Error ? e.message : String(e) };
+          return;
+        }
+        for (const tc of toolBuf.values()) {
+          try { yield { type: 'tool_use', id: tc.id, name: tc.name, input: tc.args ? JSON.parse(tc.args) : {} }; }
+          catch { yield { type: 'tool_use', id: tc.id, name: tc.name, input: { _raw: tc.args } }; }
+        }
+        yield { type: 'usage', inputTokens, outputTokens };
+        yield { type: 'done', reason: stopReason === 'tool_use' ? 'tool_use' : stopReason === 'end_turn' ? 'end_turn' : 'stop' };
+        return;
+      } catch (e) {
+        yield { type: 'done', reason: 'error', error: e instanceof Error ? e.message : String(e) };
+        return;
+      }
+    }
+
     const resp = await this.host.fetch(`${this.baseUrl}/messages`, {
       method: 'POST',
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },

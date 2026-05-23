@@ -126,6 +126,94 @@ describe("LMStudioProvider — REGRESSION: LM Studio response must NOT be parsed
   });
 });
 
+describe("LMStudioProvider — SSE streaming", () => {
+  // Build an OpenAI-format SSE body: one chunk per delta, blank-line framed,
+  // terminated by `data: [DONE]\n\n`. Splitting across chunk boundaries is
+  // intentional — the parser must reassemble.
+  function sseFrames(): string[] {
+    const lines = [
+      `data: ${JSON.stringify({ choices: [{ delta: { role: "assistant" }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "Hel" }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "lo " }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "world" }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 3, completion_tokens: 5 } })}\n\n`,
+      `data: [DONE]\n\n`,
+    ];
+    // Re-slice across event boundaries to prove buffering works.
+    const joined = lines.join("");
+    const chunks: string[] = [];
+    const step = 17; // arbitrary, smaller than any single SSE event
+    for (let i = 0; i < joined.length; i += step) chunks.push(joined.slice(i, i + step));
+    return chunks;
+  }
+
+  it("yields token-by-token text deltas, then usage + done", async () => {
+    const host = new ProviderHostMock();
+    host.routeStream("/chat/completions", { status: 200, chunks: sseFrames() });
+    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
+    const events = await collect(provider.complete({
+      model: "qwen3-14b",
+      messages: [{ role: "user", content: "hi" }],
+      stream: true,
+    }));
+    const texts = events.filter((e) => e.type === "text") as Array<{ type: "text"; delta: string }>;
+    expect(texts.map((t) => t.delta)).toEqual(["Hel", "lo ", "world"]);
+    const usage = events.find((e) => e.type === "usage") as { type: "usage"; inputTokens: number; outputTokens: number };
+    expect(usage.inputTokens).toBe(3);
+    expect(usage.outputTokens).toBe(5);
+    const done = events.find((e) => e.type === "done") as { type: "done"; reason: string };
+    expect(done.reason).toBe("end_turn");
+  });
+
+  it("sets stream:true on the request body when stream=true", async () => {
+    const host = new ProviderHostMock();
+    host.routeStream("/chat/completions", { status: 200, chunks: sseFrames() });
+    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
+    await collect(provider.complete({
+      model: "qwen3-14b", messages: [{ role: "user", content: "hi" }], stream: true,
+    }));
+    const req = host.lastRequestTo("/chat/completions");
+    expect(req).toBeDefined();
+    const body = JSON.parse(req!.body!);
+    expect(body.stream).toBe(true);
+  });
+
+  it("assembles split-across-chunks tool_calls and emits a parsed tool_use event", async () => {
+    const host = new ProviderHostMock();
+    const lines = [
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "log_touch", arguments: "" } }] }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"con' } }] }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'tact":"alice"}' } }] }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }], usage: { prompt_tokens: 1, completion_tokens: 2 } })}\n\n`,
+      `data: [DONE]\n\n`,
+    ];
+    host.routeStream("/chat/completions", { status: 200, chunks: lines });
+    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1", toolUse: true });
+    const events = await collect(provider.complete({
+      model: "x", messages: [{ role: "user", content: "go" }], stream: true,
+      tools: [{ name: "log_touch", description: "", inputSchema: {} }],
+    }));
+    const tu = events.find((e) => e.type === "tool_use") as { type: "tool_use"; id: string; name: string; input: { contact: string } };
+    expect(tu.id).toBe("call_1");
+    expect(tu.name).toBe("log_touch");
+    expect(tu.input).toEqual({ contact: "alice" });
+    const done = events.find((e) => e.type === "done") as { type: "done"; reason: string };
+    expect(done.reason).toBe("tool_use");
+  });
+
+  it("yields done:error on HTTP 5xx in stream branch (does NOT throw)", async () => {
+    const host = new ProviderHostMock();
+    host.routeStream("/chat/completions", { status: 500, chunks: [JSON.stringify({ error: "boom" })] });
+    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
+    const events = await collect(provider.complete({
+      model: "x", messages: [{ role: "user", content: "x" }], stream: true,
+    }));
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("done");
+    expect((events[0] as { reason: string }).reason).toBe("error");
+  });
+});
+
 describe("LMStudioProvider — tool-call passthrough", () => {
   it("emits a tool_use event when the model returns a tool_calls entry", async () => {
     const host = new ProviderHostMock();
