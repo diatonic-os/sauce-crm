@@ -1,3 +1,4 @@
 {"_t":"ev","ts":"2026-05-23T00:00:00Z","actor":"orchestrator","action":"phase0-init","entityId":"CON-OBS-INTEG-001","note":"plan/obs-integ skeletons + 00-validate created; A-001/A-002/A-003 FALSE, A-004 TRUE, A-005/A-006 BLOCKED (CLI), A-007 PASS; awaiting operator decision on BLOCKER-1/2/3 + CONFLICT-1/2/3"}
 {"_t":"ev","ts":"2026-05-23T00:00:01Z","actor":"orchestrator","action":"merge","entityId":"T-A-01","hash":"f00bd8a","note":"IObsidianPluginIntegration"}
 {"_t":"ev","ts":"2026-05-23T00:00:02Z","actor":"orchestrator","action":"merge","entityId":"T-A-03","hash":"f00bd8a","note":"PluginStateMachine, 392 tests green"}
+{"_t":"ev","ts":"2026-05-23T00:00:03Z","actor":"orchestrator","action":"merge","entityId":"T-A-02","hash":"29463c1","note":"ObsidianPluginRegistry"}
