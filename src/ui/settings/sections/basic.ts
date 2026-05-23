@@ -19,6 +19,25 @@ export function renderBasic(containerEl: HTMLElement, plugin: SauceGraphPlugin):
   plugin.logger?.debug?.("settings.section_render", { section: "basic" });
   const s: any = plugin.settings as any;
 
+  // ── Sauce Plus hero (coming soon) — models the Copilot Plus hero card ──
+  const hero = containerEl.createDiv({ cls: "sauce-hero sauce-hero--plus" });
+  const heroHead = hero.createDiv({ cls: "sauce-hero-head" });
+  heroHead.createEl("h3", { text: "Sauce Plus", cls: "sauce-hero-title" });
+  heroHead.createEl("span", { text: "Coming soon", cls: "sauce-badge" });
+  hero.createEl("p", {
+    cls: "sauce-hero-body",
+    text: "Sauce Plus takes your vault CRM further: hosted sync, multi-vault federation at scale, shared OAuth relays, and premium Copilot models — without leaving Obsidian. Join the waitlist to lock in early-access pricing.",
+  });
+  const heroRow = hero.createDiv({ cls: "sauce-hero-row" });
+  const lic = heroRow.createEl("input", { cls: "sauce-input sauce-hero-input" });
+  lic.type = "text";
+  lic.placeholder = "Enter your license key";
+  lic.disabled = true;
+  const applyBtn = heroRow.createEl("button", { text: "Apply", cls: "sauce-btn sauce-btn--primary" });
+  applyBtn.disabled = true;
+  const joinBtn = heroRow.createEl("button", { text: "Join waitlist  ↗", cls: "sauce-btn sauce-btn--secondary" });
+  joinBtn.onclick = () => window.open("https://github.com/Diatonic-OS/sauce-crm", "_blank");
+
   // First-run banner
   if (s.hasDismissedFirstRun !== true && s.hasInitialized !== true) {
     const banner = containerEl.createDiv({ cls: "sg-first-run-banner" });

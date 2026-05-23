@@ -577,6 +577,73 @@
   overflow-wrap: anywhere;
 }
 
+/* ---------- Settings design language (Copilot-style) ---------- */
+.sg-tab-strip {
+  display: flex; flex-wrap: wrap; gap: var(--sg-gap-3);
+  border-bottom: 2px solid var(--background-modifier-border);
+  margin-block-end: var(--sg-gap-13); padding-block-end: var(--sg-gap-5);
+}
+.sg-tab {
+  background: transparent; border: none; border-radius: var(--radius-s);
+  padding: var(--sg-gap-5) var(--sg-gap-13); cursor: pointer;
+  color: var(--text-muted); font: inherit; font-weight: 500;
+  display: inline-flex; align-items: center; gap: var(--sg-gap-5);
+}
+.sg-tab:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.sg-tab[aria-selected="true"] { background: var(--interactive-accent); color: var(--text-on-accent); }
+.sg-version { color: var(--text-muted); font-size: 0.8em; margin-inline-start: var(--sg-gap-8); }
+.sg-tab-content { display: flex; flex-direction: column; }
+
+/* Hero card (gray box, models Copilot Plus) */
+.sauce-hero {
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m); padding: var(--sg-gap-21); margin-block-end: var(--sg-gap-21);
+  display: flex; flex-direction: column; gap: var(--sg-gap-8);
+}
+.sauce-hero-head { display: flex; align-items: center; gap: var(--sg-gap-8); }
+.sauce-hero-title { margin: 0; font-size: 1.3em; }
+.sauce-badge {
+  background: var(--interactive-accent); color: var(--text-on-accent); border-radius: 999px;
+  padding: 2px var(--sg-gap-8); font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+}
+.sauce-hero-body { margin: 0; color: var(--text-muted); line-height: 1.5; }
+.sauce-hero-row { display: flex; gap: var(--sg-gap-8); align-items: center; flex-wrap: wrap; margin-block-start: var(--sg-gap-5); }
+.sauce-hero-input { flex: 1 1 240px; }
+
+.sauce-input {
+  background: var(--background-primary); border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s); padding: var(--sg-gap-5) var(--sg-gap-8); color: var(--text-normal); font: inherit;
+}
+
+/* White + purple buttons */
+.sauce-btn {
+  border-radius: var(--radius-s); padding: var(--sg-gap-5) var(--sg-gap-13); cursor: pointer; font: inherit;
+  font-weight: 500; border: 1px solid var(--background-modifier-border); display: inline-flex; align-items: center; gap: var(--sg-gap-5);
+}
+.sauce-btn:disabled { opacity: 0.55; cursor: default; }
+.sauce-btn--primary { background: var(--interactive-accent); color: var(--text-on-accent); border-color: var(--interactive-accent); }
+.sauce-btn--primary:not(:disabled):hover { background: var(--interactive-accent-hover); }
+.sauce-btn--secondary { background: var(--background-primary); color: var(--text-normal); }
+.sauce-btn--secondary:hover { background: var(--background-modifier-hover); }
+
+/* Callout */
+.sauce-callout {
+  display: flex; gap: var(--sg-gap-8); align-items: flex-start;
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  border-inline-start: 3px solid var(--interactive-accent); border-radius: var(--radius-s);
+  padding: var(--sg-gap-8) var(--sg-gap-13); margin-block-end: var(--sg-gap-13); color: var(--text-muted); font-size: 0.9em;
+}
+
+/* Settings table (command-table style) */
+.sauce-settings-table { width: 100%; border-collapse: collapse; }
+.sauce-settings-table th {
+  text-align: start; font-size: 0.8em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em;
+  padding: var(--sg-gap-5) var(--sg-gap-8); border-bottom: 1px solid var(--background-modifier-border);
+}
+.sauce-settings-table td { padding: var(--sg-gap-5) var(--sg-gap-8); border-bottom: 1px solid var(--background-modifier-border); }
+.sauce-settings-table tr:hover td { background: var(--background-modifier-hover); }
+.sauce-settings-table .col-center { text-align: center; }
+
 /* ---------- Status bar ---------- */
 
 .sauce-statusbar {
