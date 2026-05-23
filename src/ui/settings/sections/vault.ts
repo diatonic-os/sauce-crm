@@ -1,12 +1,13 @@
 import { Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
+import type { VaultPaths } from "../../../services/EntityService";
 
 function markAdvanced(set: Setting): Setting {
   set.settingEl.addClass("sg-advanced");
   return set;
 }
 
-type PathKey = "people" | "orgs" | "touches" | "addenda" | "templates" | "playbooks" | "user" | "vaults";
+type PathKey = keyof VaultPaths;
 
 function pathSetting(
   containerEl: HTMLElement,
@@ -31,11 +32,21 @@ function pathSetting(
 
 export function renderVault(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
   plugin.logger?.debug?.("settings.section_render", { section: "vault" });
-  containerEl.createEl("h3", { text: "Vault paths" });
+  containerEl.createEl("h3", { text: "Core CRM folders" });
 
   pathSetting(containerEl, plugin, "people", "People folder", "Where person notes are stored.");
   pathSetting(containerEl, plugin, "orgs", "Organizations folder", "Where organization notes are stored.");
   pathSetting(containerEl, plugin, "touches", "Touches folder", "Where touch logs (interactions) are stored.");
+
+  containerEl.createEl("h3", { text: "User workspace folders" });
+
+  pathSetting(containerEl, plugin, "notes", "Notes folder", "Where modal-captured knowledge notes are stored.");
+  pathSetting(containerEl, plugin, "ideas", "Ideas folder", "Where ideas, hypotheses, and next-action seeds are stored.");
+  pathSetting(containerEl, plugin, "observations", "Observations folder", "Where relationship, opportunity, risk, timing, access, and pattern signals are stored.");
+  pathSetting(containerEl, plugin, "tasks", "Tasks folder", "Where follow-ups and internal tasks are stored.");
+  pathSetting(containerEl, plugin, "events", "Events folder", "Where meetings, calendar events, interviews, and planning events are stored.");
+  pathSetting(containerEl, plugin, "ledger", "Ledger folder", "Where ERP-lite ledger entries, commitments, AR/AP notes, and relationship balances are stored.");
+  pathSetting(containerEl, plugin, "pipeline", "Pipeline folder", "Where pipeline deal and opportunity records are stored.");
 
   containerEl.createEl("h3", { text: "Advanced paths" });
 

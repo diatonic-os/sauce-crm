@@ -31,7 +31,7 @@ export function renderBasic(containerEl: HTMLElement, plugin: SauceGraphPlugin):
       banner.remove();
     };
     banner.createEl("p", {
-      text: "Get started by bootstrapping your vault structure. This creates the folders for people, organizations, and touches.",
+      text: "Get started by bootstrapping your vault structure. This creates the folders for people, organizations, touches, notes, ideas, observations, tasks, events, ledger entries, pipeline deals, and your $user workspace.",
     });
     const startBtn = banner.createEl("button", { text: "Start", cls: "mod-cta" });
     startBtn.onclick = async () => {
