@@ -1,13 +1,14 @@
 <!-- GENERATED — aggregated from sdk/groups/**/*.md member contracts. Do not edit by hand. -->
 # Sauce CRM SDK — Registry
 
-Total members: 30
+Total members: 31
 
 ## actions
 
 | id | platform | summary |
 | --- | --- | --- |
 | `quick-capture` | [desktop, mobile] | Capture a note with merged frontmatter; register it as a command. |
+| `run-embedding-sync` | [desktop, mobile] | registerEmbeddingSync(plugin,run) command bound to running chainers/embedding-pipeline. |
 ## chainers
 
 | id | platform | summary |
