@@ -881,10 +881,82 @@
 .sauce-copilot-status.sauce-clickable:hover { color: var(--text-normal); }
 .sauce-copilot-actions {
   display: flex;
-  gap: var(--sg-gap-5);
+  gap: var(--sg-gap-3);
   flex-wrap: wrap;
   flex-shrink: 0;
+  align-items: center;
 }
+
+/* Inline model picker (provider → model + embeddings). */
+.sauce-cp-models {
+  display: flex;
+  gap: var(--sg-gap-8);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sauce-cp-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-gap-1);
+  min-width: 0;
+}
+.sauce-cp-field-label {
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.sauce-cp-select {
+  font-size: 0.85em;
+  max-width: var(--sg-w-233);
+}
+
+/* Icon-only toolbar buttons. */
+.sauce-cp-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sg-tap-min);
+  height: var(--sg-tap-min);
+  padding: 0;
+  border-radius: var(--sg-radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sauce-cp-icon:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.sauce-cp-send { color: var(--interactive-accent); }
+.sauce-copilot-mic.is-listening {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+/* Suggestions area (Relevant Notes + Suggested Skills) — shown when empty. */
+.sauce-cp-suggestions { display: flex; flex-direction: column; gap: var(--sg-gap-13); }
+.sauce-cp-sec { display: flex; flex-direction: column; gap: var(--sg-gap-5); }
+.sauce-cp-sec-title {
+  margin: 0;
+  font-size: 0.95em;
+  font-weight: 600;
+  padding-bottom: var(--sg-gap-3);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.sauce-cp-empty { color: var(--text-faint); font-size: 0.85em; margin: 0; }
+.sauce-cp-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-gap-8);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-md);
+  padding: var(--sg-gap-8);
+}
+.sauce-cp-card.sauce-clickable:hover { border-color: var(--interactive-accent); }
+.sauce-cp-card-main { flex: 1 1 auto; min-width: 0; }
+.sauce-cp-card-title { font-weight: 600; font-size: 0.9em; }
+.sauce-cp-card-sub { color: var(--text-muted); font-size: 0.8em; overflow-wrap: anywhere; }
+
 .sauce-copilot-transcript {
   flex: 1 1 auto;
   overflow-y: auto;
