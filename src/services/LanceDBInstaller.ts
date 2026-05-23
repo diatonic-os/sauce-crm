@@ -116,30 +116,113 @@ export type InstallProgress =
   | { kind: "line"; stream: "stdout" | "stderr"; line: string }
   | { kind: "done"; ok: boolean; durationMs: number; error?: string };
 
+/** Hook the installer can call to persist a single log line to disk. The
+ *  modal supplies this so install logs survive after the modal closes. */
+export type LogSink = (line: string) => void | Promise<void>;
+
 export class LanceDBInstaller {
   constructor(private readonly host: InstallerHost) {}
 
   /** Runs `npm install @lancedb/lancedb --prefix <pluginDir>`. Streams
-   *  output via onProgress so the modal can show live progress. Returns
+   *  output via onProgress AND through the optional persistent logSink
+   *  so failures can be diagnosed after the modal closes.
+   *
+   *  Resilience: Electron's PATH frequently omits the npm install dir
+   *  on macOS/Linux (especially when launched from .desktop / .app). We
+   *  try `npm` first, then fall back to common nvm/node paths. Returns
    *  true on exit code 0. */
-  async install(onProgress: (p: InstallProgress) => void): Promise<boolean> {
+  async install(
+    onProgress: (p: InstallProgress) => void,
+    logSink?: LogSink,
+  ): Promise<boolean> {
     const t0 = Date.now();
     const cwd = this.host.pluginDir();
+    const log = async (line: string): Promise<void> => {
+      if (logSink) await logSink(line);
+    };
+    await log(`[${new Date().toISOString()}] === LanceDB install ===`);
+    await log(`cwd=${cwd}`);
+    await log(`PATH=${this.peekEnv("PATH")}`);
+    await log(`HOME=${this.peekEnv("HOME")}`);
+    await log(`platform=${this.peekPlatform()} node=${this.peekEnv("npm_node_execpath") || "?"}`);
+
     onProgress({ kind: "start", message: `Installing @lancedb/lancedb to ${cwd}` });
-    const code = await this.host.spawn(
-      "npm",
-      ["install", "@lancedb/lancedb", "--prefix", cwd, "--no-audit", "--no-fund"],
-      cwd,
-      (stream, line) => onProgress({ kind: "line", stream, line }),
-    );
-    const ok = code === 0;
+
+    // Candidate npm command paths, tried in order. Each candidate is
+    // verified for existence (where path-shaped) before spawn.
+    const npmCandidates = this.candidateNpmPaths();
+    await log(`candidate npm executables: ${JSON.stringify(npmCandidates)}`);
+
+    let exitCode: number | null = null;
+    let lastError = "";
+    for (const npmCmd of npmCandidates) {
+      await log(`trying: ${npmCmd}`);
+      try {
+        exitCode = await this.host.spawn(
+          npmCmd,
+          ["install", "@lancedb/lancedb", "--prefix", cwd, "--no-audit", "--no-fund"],
+          cwd,
+          (stream, line) => {
+            onProgress({ kind: "line", stream, line });
+            void log(`[${stream}] ${line}`);
+          },
+        );
+        await log(`exit code: ${exitCode}`);
+        if (exitCode === 0) break;
+        if (exitCode === null) {
+          lastError = `spawn unavailable / ENOENT for "${npmCmd}"`;
+          await log(lastError);
+          continue;
+        }
+        lastError = `${npmCmd} exited with code ${exitCode}`;
+        break; // non-zero from a real run — don't try other paths
+      } catch (err) {
+        lastError = (err as Error).message;
+        await log(`spawn threw: ${lastError}`);
+      }
+    }
+
+    const ok = exitCode === 0;
+    const durationMs = Date.now() - t0;
+    await log(`=== install ${ok ? "SUCCEEDED" : "FAILED"} in ${(durationMs / 1000).toFixed(1)}s ===`);
     onProgress({
       kind: "done",
       ok,
-      durationMs: Date.now() - t0,
-      error: ok ? undefined : `npm install exited with code ${code ?? "null (spawn unavailable)"}`,
+      durationMs,
+      error: ok ? undefined : (lastError || "unknown install failure"),
     });
     return ok;
+  }
+
+  private peekEnv(key: string): string {
+    const proc = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process;
+    return proc?.env?.[key] ?? "(unset)";
+  }
+
+  private peekPlatform(): string {
+    const proc = (globalThis as unknown as { process?: { platform?: string; arch?: string } }).process;
+    return `${proc?.platform ?? "?"}/${proc?.arch ?? "?"}`;
+  }
+
+  private candidateNpmPaths(): string[] {
+    // Plain "npm" works when Electron inherits the user's shell PATH.
+    // The fallbacks cover macOS .app launches, Linux .desktop launches,
+    // and nvm-managed Node — the three most common "npm not found" cases.
+    const proc = (globalThis as unknown as {
+      process?: { env?: Record<string, string | undefined>; platform?: string };
+    }).process;
+    const env = proc?.env ?? {};
+    const home = env.HOME ?? "/home";
+    const candidates = [
+      "npm",
+      "/usr/local/bin/npm",
+      "/opt/homebrew/bin/npm",
+      `${home}/.nvm/versions/node/${env.NODE_VERSION ?? "v24.15.0"}/bin/npm`,
+      `${home}/.npm-global/bin/npm`,
+      `${home}/.local/bin/npm`,
+    ];
+    // De-dup while preserving order.
+    return [...new Set(candidates)];
   }
 }
 

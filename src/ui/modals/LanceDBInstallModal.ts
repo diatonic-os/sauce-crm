@@ -115,7 +115,28 @@ export class LanceDBInstallModal extends Modal {
           else append(`✗ install failed: ${p.error ?? "unknown error"}`);
         }
       };
-      const ok = await this.installer.install(onProgress);
+      // Persist a copy of the install log to .sauce/logs/ so the operator
+      // can diagnose failures after the modal closes. We append line-by-
+      // line so the log is durable even if the modal crashes mid-install.
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const logPath = `.sauce/logs/lancedb-install-${ts}.log`;
+      const vault = this.opts.app.vault;
+      const adapter = vault.adapter;
+      try { await adapter.mkdir(".sauce/logs"); } catch { /* exists */ }
+      const logSink = async (line: string): Promise<void> => {
+        try {
+          const existing = (await adapter.exists(logPath))
+            ? await adapter.read(logPath)
+            : "";
+          await adapter.write(logPath, existing + line + "\n");
+        } catch {
+          // Persistence is best-effort — failure to log must not abort
+          // the install.
+        }
+      };
+      append(`▶ persisting log to ${logPath}`);
+      const ok = await this.installer.install(onProgress, logSink);
+      append(`(install log saved at ${logPath})`);
       await this.opts.onDecision({
         state: ok ? "approved" : "skipped",
         decidedAt: new Date().toISOString(),
