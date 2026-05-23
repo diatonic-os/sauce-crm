@@ -267,7 +267,11 @@ export class CopilotRuntime {
     }
 
     const provider = this.provider();
-    const messages: ChatMessage[] = [...prior, { role: "user", content: query }];
+    // Honor the contextTurns setting: keep only the most recent N turns of
+    // prior history (a turn ≈ a user+assistant pair). 0 ⇒ no prior context.
+    const maxTurns = this.settings.contextTurns ?? 15;
+    const trimmedPrior = maxTurns > 0 ? prior.slice(-maxTurns * 2) : [];
+    const messages: ChatMessage[] = [...trimmedPrior, { role: "user", content: query }];
 
     const MAX_TOOL_TURNS = 8;
     for (let turn = 0; turn <= MAX_TOOL_TURNS; turn++) {
@@ -285,11 +289,10 @@ export class CopilotRuntime {
         temperature: this.settings.temperature,
         maxTokens: this.settings.maxTokens,
         tools: this.toolUse.asTools(),
-        // Opt into token-by-token streaming when the host supports it.
-        // Providers fall back to batch when fetchStream is unavailable
-        // (e.g. legacy ObsidianProviderHost via requestUrl), so this is
-        // safe to set unconditionally.
-        stream: true,
+        // Honor the "Stream responses" setting (default on). Providers fall
+        // back to batch when fetchStream is unavailable (e.g. legacy
+        // ObsidianProviderHost via requestUrl), so this is safe either way.
+        stream: this.settings.stream !== false,
       })) {
         if (ev.type === 'text') {
           assistantTextParts.push(ev.delta);

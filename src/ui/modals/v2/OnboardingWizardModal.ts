@@ -1,6 +1,10 @@
 // V2-LANE-2 — Onboarding Wizard. Multi-step modal that walks the operator
-// through vault role selection, scaffolding, copilot config, skill enable,
-// and first-person creation. Safe: no dynamic regex, no exec, no ReDoS.
+// through vault scaffolding, copilot config, skill enable, and first-person
+// creation. Safe: no dynamic regex, no exec, no ReDoS.
+//
+// The plugin works standalone — no parent vault required. Federation (parent /
+// sub-vaults) is intentionally NOT part of onboarding; it's an opt-in function
+// available later via the "Register SubVault" command.
 
 import { App, Modal, Notice, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
@@ -8,29 +12,27 @@ import { TemplateService } from "../../../services/TemplateService";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
 
-type VaultRole = "subvault" | "parent" | "both";
 type Provider = "anthropic" | "openai" | "ollama";
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 6;
 
 export class OnboardingWizardModal extends Modal {
   private step = 0;
-  private role: VaultRole = "subvault";
 
-  // Step 3 results
-  private initResult: { subCreated: number; subExisting: number; parentRan: boolean } | null = null;
+  // Step 2 results — standard vault scaffolding (no federation role).
+  private initResult: { created: number; existing: number } | null = null;
 
-  // Step 4 — copilot draft
+  // Step 3 — copilot draft
   private cpProvider: Provider = "anthropic";
   private cpModel = "";
   private cpApiKey = "";
   private cpConfigured = false;
 
-  // Step 5 — skills draft (id -> enabled)
+  // Step 4 — skills draft (id -> enabled)
   private skillEnabled = new Map<string, boolean>();
   private skillsConfigured = false;
 
-  // Step 6 — first person
+  // Step 5 — first person
   private personName = "";
   private personEmail = "";
   private personPrimaryType = "";
@@ -70,12 +72,11 @@ export class OnboardingWizardModal extends Modal {
     c.createEl("div", { cls: "sauce-onboarding-step-indicator", text: `Step ${idx + 1} of ${TOTAL_STEPS}` });
     switch (idx) {
       case 0: this.renderWelcome(c); break;
-      case 1: this.renderRole(c); break;
-      case 2: this.renderInitialize(c); break;
-      case 3: this.renderCopilot(c); break;
-      case 4: this.renderSkills(c); break;
-      case 5: this.renderFirstPerson(c); break;
-      case 6: this.renderDone(c); break;
+      case 1: this.renderInitialize(c); break;
+      case 2: this.renderCopilot(c); break;
+      case 3: this.renderSkills(c); break;
+      case 4: this.renderFirstPerson(c); break;
+      case 5: this.renderDone(c); break;
       default: this.renderDone(c);
     }
   }
@@ -85,53 +86,22 @@ export class OnboardingWizardModal extends Modal {
     c.createEl("h2", { text: "Welcome to Sauce Graph" });
     const ul = c.createEl("ul", { cls: "sauce-onboarding-bullets" });
     ul.createEl("li", { text: "Capture relationships, orgs, and touches as first-class entities in your vault." });
-    ul.createEl("li", { text: "Federate sub-vaults under a parent vault for multi-context graph work." });
-    ul.createEl("li", { text: "Augment with optional Copilot + Skills runtimes (anthropic / openai / ollama)." });
+    ul.createEl("li", { text: "Works standalone — no parent vault needed. Federate with other vaults later via the “Register SubVault” command if you want." });
+    ul.createEl("li", { text: "Augment with optional Copilot + Skills runtimes (anthropic / openai / ollama / LM Studio)." });
 
     const btns = c.createDiv({ cls: "sauce-buttons" });
     btns.createEl("button", { text: "Start", cls: "sauce-button" }).onclick = () => this.next();
     btns.createEl("button", { text: "Cancel", cls: "sauce-button sauce-button-secondary" }).onclick = () => this.close();
   }
 
-  // ---------- Step 2: Vault role ----------
-  private renderRole(c: HTMLElement): void {
-    c.createEl("h2", { text: "Vault role" });
-    c.createEl("p", { text: "How will this vault participate in the Sauce Graph federation?" });
-
-    const wrap = c.createDiv({ cls: "sauce-onboarding-radio-group" });
-    const opts: Array<{ id: VaultRole; label: string }> = [
-      { id: "subvault", label: "This vault is a SubVault" },
-      { id: "parent",   label: "This vault is the ParentVault" },
-      { id: "both",     label: "Both (initialize parent + first subvault here)" },
-    ];
-    for (const opt of opts) {
-      const row = wrap.createDiv({ cls: "sauce-onboarding-radio-row" });
-      const input = row.createEl("input", { type: "radio" }) as HTMLInputElement;
-      input.name = "sauce-onboarding-role";
-      input.value = opt.id;
-      input.checked = this.role === opt.id;
-      input.addEventListener("change", () => { if (input.checked) this.role = opt.id; });
-      const label = row.createEl("label", { text: " " + opt.label });
-      label.prepend(input.cloneNode(true) as Node);
-      // Replace the inserted clone with the live input so events still fire.
-      row.empty();
-      row.appendChild(input);
-      row.appendChild(document.createTextNode(" " + opt.label));
-    }
-
-    const btns = c.createDiv({ cls: "sauce-buttons" });
-    btns.createEl("button", { text: "Back", cls: "sauce-button sauce-button-secondary" }).onclick = () => this.back();
-    btns.createEl("button", { text: "Next", cls: "sauce-button" }).onclick = () => this.next();
-  }
-
-  // ---------- Step 3: Initialize scaffolding ----------
+  // ---------- Step 2: Initialize scaffolding ----------
   private renderInitialize(c: HTMLElement): void {
-    c.createEl("h2", { text: "Initialize scaffolding" });
-    c.createEl("p", { text: `Role: ${this.role}. Click Run Initialize to create folders, seed docs, and registries.` });
+    c.createEl("h2", { text: "Initialize your vault" });
+    c.createEl("p", { text: "Create the folders, seed docs, and registries this vault needs. Safe to re-run — existing files are left untouched." });
 
     const status = c.createEl("pre", { cls: "sauce-onboarding-status" });
     status.setText(this.initResult
-      ? `Sub-bootstrap: ${this.initResult.subCreated} created, ${this.initResult.subExisting} existing\nParent-bootstrap: ${this.initResult.parentRan ? "ran" : "skipped"}`
+      ? `Folders: ${this.initResult.created} created, ${this.initResult.existing} existing`
       : "(not yet run)");
 
     const btns = c.createDiv({ cls: "sauce-buttons" });
@@ -139,18 +109,9 @@ export class OnboardingWizardModal extends Modal {
     const runBtn = btns.createEl("button", { text: "Run Initialize", cls: "sauce-button" });
     runBtn.onclick = async () => {
       try {
-        let subCreated = 0, subExisting = 0, parentRan = false;
-        if (this.role === "subvault" || this.role === "both") {
-          const r = await this.plugin.bootstrap.ensure();
-          subCreated = r.created.length;
-          subExisting = r.existing.length;
-        }
-        if (this.role === "parent" || this.role === "both") {
-          await this.plugin.parentBootstrap.ensure();
-          parentRan = true;
-        }
-        this.initResult = { subCreated, subExisting, parentRan };
-        new Notice(`Initialize complete: ${subCreated} created, ${subExisting} existing${parentRan ? ", parent ran" : ""}`);
+        const r = await this.plugin.bootstrap.ensure();
+        this.initResult = { created: r.created.length, existing: r.existing.length };
+        new Notice(`Initialize complete: ${this.initResult.created} created, ${this.initResult.existing} existing`);
         this.renderStep(this.step);
       } catch (e: any) {
         new Notice(`Initialize failed: ${e?.message ?? e}`);
@@ -159,7 +120,7 @@ export class OnboardingWizardModal extends Modal {
     btns.createEl("button", { text: "Next", cls: "sauce-button" }).onclick = () => this.next();
   }
 
-  // ---------- Step 4: Copilot ----------
+  // ---------- Step 3: Copilot ----------
   private renderCopilot(c: HTMLElement): void {
     c.createEl("h2", { text: "Configure Copilot (optional)" });
     c.createEl("p", { text: "Pick a provider and paste an API key. You can change this later in plugin settings." });
@@ -209,7 +170,7 @@ export class OnboardingWizardModal extends Modal {
     };
   }
 
-  // ---------- Step 5: Skills ----------
+  // ---------- Step 4: Skills ----------
   private renderSkills(c: HTMLElement): void {
     c.createEl("h2", { text: "Enable Skills (optional)" });
     const skills = this.plugin.skills?.list() ?? [];
@@ -253,7 +214,7 @@ export class OnboardingWizardModal extends Modal {
     };
   }
 
-  // ---------- Step 6: First person ----------
+  // ---------- Step 5: First person ----------
   private renderFirstPerson(c: HTMLElement): void {
     c.createEl("h2", { text: "Create your first Person (optional)" });
     c.createEl("p", { text: "Seed the graph with one contact. You can skip and add people later." });
@@ -300,19 +261,17 @@ export class OnboardingWizardModal extends Modal {
     };
   }
 
-  // ---------- Step 7: Done ----------
+  // ---------- Step 6: Done ----------
   private renderDone(c: HTMLElement): void {
     c.createEl("h2", { text: "All set" });
     const ul = c.createEl("ul", { cls: "sauce-onboarding-summary" });
-    ul.createEl("li", { text: `Vault role: ${this.role}` });
-    if (this.initResult) {
-      ul.createEl("li", { text: `Scaffolding: ${this.initResult.subCreated} folders created, ${this.initResult.subExisting} existing${this.initResult.parentRan ? "; parent vault initialized" : ""}` });
-    } else {
-      ul.createEl("li", { text: "Scaffolding: not run" });
-    }
+    ul.createEl("li", { text: this.initResult
+      ? `Vault initialized: ${this.initResult.created} folders created, ${this.initResult.existing} existing`
+      : "Vault: not initialized" });
     ul.createEl("li", { text: `Copilot: ${this.cpConfigured ? `configured (${this.cpProvider})` : "skipped"}` });
     ul.createEl("li", { text: `Skills: ${this.skillsConfigured ? "saved" : "skipped"}` });
     ul.createEl("li", { text: `First person: ${this.personCreated ?? "skipped"}` });
+    ul.createEl("li", { text: "Tip: use the “Register SubVault” command to federate this vault later." });
 
     const btns = c.createDiv({ cls: "sauce-buttons" });
     btns.createEl("button", { text: "Back", cls: "sauce-button sauce-button-secondary" }).onclick = () => this.back();
