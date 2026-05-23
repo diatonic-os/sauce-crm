@@ -7,7 +7,7 @@ import esbuildSvelte from "esbuild-svelte";
 // svelte-preprocess imported lazily inside the plugin config so v6+
 // missing-submodule errors don't fail the whole build.
 
-const SUBVAULT_PLUGIN_DIR = "../Sauce_Relationship_Graph/.obsidian/plugins/sauce-graph";
+const SUBVAULT_PLUGIN_DIR = "../Sauce_Relationship_Graph/.obsidian/plugins/sauce-crm";
 const reinstallToSubVault = () => {
   if (!existsSync(SUBVAULT_PLUGIN_DIR)) return;
   for (const f of ["main.js", "manifest.json", "versions.json", "styles.css"]) {
