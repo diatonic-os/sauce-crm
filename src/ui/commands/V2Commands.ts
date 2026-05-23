@@ -42,10 +42,10 @@ export function registerV2Commands(opts: {
   handler: V2CommandHandler;
 }): void {
   for (const c of V2_COMMANDS) {
+    // No default hotkeys — Obsidian plugin policy: users assign their own.
     opts.addCommand({
       id: c.id,
       name: c.name,
-      hotkeys: c.defaultHotkey ? [parseHotkey(c.defaultHotkey)] : undefined,
       callback: () => opts.handler(c.id),
     });
   }

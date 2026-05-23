@@ -516,12 +516,12 @@ export default class SauceGraphPlugin extends Plugin {
   }
 
   registerCommands(): void {
-    this.addCommand({ id: "new-person", name: "New Person", hotkeys: [{ modifiers: ["Mod","Shift"], key: "p" }], callback: () => new PersonModal(this.app, this).open() });
-    this.addCommand({ id: "new-org", name: "New Org", hotkeys: [{ modifiers: ["Mod","Shift"], key: "o" }], callback: () => new OrgModal(this.app, this).open() });
-    this.addCommand({ id: "log-touch", name: "Log Touch", hotkeys: [{ modifiers: ["Mod","Shift"], key: "t" }], callback: () => new TouchModal(this.app, this).open() });
-    this.addCommand({ id: "new-addendum", name: "New Addendum", hotkeys: [{ modifiers: ["Mod","Shift"], key: "a" }], callback: () => new AddendumModal(this.app, this, this.activeFile()).open() });
-    this.addCommand({ id: "new-intro", name: "New Intro", hotkeys: [{ modifiers: ["Mod","Shift"], key: "i" }], callback: () => new IntroModal(this.app, this).open() });
-    this.addCommand({ id: "edit-current", name: "Edit Current Note", hotkeys: [{ modifiers: ["Mod"], key: "e" }], callback: () => this.editActive() });
+    this.addCommand({ id: "new-person", name: "New person", callback: () => new PersonModal(this.app, this).open() });
+    this.addCommand({ id: "new-org", name: "New org", callback: () => new OrgModal(this.app, this).open() });
+    this.addCommand({ id: "log-touch", name: "Log touch", callback: () => new TouchModal(this.app, this).open() });
+    this.addCommand({ id: "new-addendum", name: "New addendum", callback: () => new AddendumModal(this.app, this, this.activeFile()).open() });
+    this.addCommand({ id: "new-intro", name: "New intro", callback: () => new IntroModal(this.app, this).open() });
+    this.addCommand({ id: "edit-current", name: "Edit current note", callback: () => this.editActive() });
 
     this.addCaptureCommand("new-note", "New Knowledge Note", "knowledge-note");
     this.addCaptureCommand("new-idea", "New Idea", "idea");
@@ -551,7 +551,7 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCommand({ id: "run-skill", name: "Run Skill…", callback: () => new SkillPickerModal(this.app, this).open() });
     this.addCommand({ id: "open-map", name: "Open Map", callback: () => this.openView(VIEW_MAP_REAL) });
     this.addCommand({ id: "open-ai-inbox", name: "Open AI Inbox", callback: () => this.openView(VIEW_AI_INBOX_REAL) });
-    this.addCommand({ id: "quick-capture", name: "Quick Capture (CDEL)", hotkeys: [{ modifiers: ["Mod"], key: "k" }], callback: () => new QuickCaptureModal(this.app, this).open() });
+    this.addCommand({ id: "quick-capture", name: "Quick capture (CDEL)", callback: () => new QuickCaptureModal(this.app, this).open() });
     this.addCommand({ id: "import", name: "Import (CSV/vCard/ICS/JSON)", callback: () => new ImportMappingModal(this.app, this).open() });
     this.addCommand({ id: "open-sync-status", name: "Open Sync Status", callback: () => this.openView(VIEW_SYNC_STATUS_REAL) });
     this.addCommand({ id: "run-backup", name: "Run Backup Now", callback: async () => {
@@ -649,7 +649,7 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCommand({ id: "rebuild-cache", name: "Rebuild Caches", callback: () => new Notice("Caches rebuilt") });
 
     this.addCommand({ id: "run-path-query", name: "Run Path Query", callback: () => this.runPathPrompt() });
-    this.addCommand({ id: "fuzzy-search", name: "Sauce Fuzzy Search", hotkeys: [{ modifiers: ["Mod"], key: "p" }], callback: () => new Notice("Use the Sauce Dashboard or DQL block.") });
+    this.addCommand({ id: "fuzzy-search", name: "Fuzzy search", callback: () => new Notice("Use the Sauce Dashboard or DQL block.") });
   }
 
   private activeFile(): TFile | null {
@@ -692,9 +692,10 @@ export default class SauceGraphPlugin extends Plugin {
     if (!this.lancedbCapability.awaitingDecision) return;
     const pluginDir = this.app.vault.adapter as unknown as { getBasePath?: () => string };
     const base = typeof pluginDir.getBasePath === "function" ? pluginDir.getBasePath() : "";
+    const configDir = this.app.vault.configDir; // not hardcoded ".obsidian" — may be customized
     const fullDir = base
-      ? `${base}/.obsidian/plugins/${this.manifest.id}`
-      : `.obsidian/plugins/${this.manifest.id}`;
+      ? `${base}/${configDir}/plugins/${this.manifest.id}`
+      : `${configDir}/plugins/${this.manifest.id}`;
     new LanceDBInstallModal({
       app: this.app,
       pluginDir: fullDir,

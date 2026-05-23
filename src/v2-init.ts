@@ -1,7 +1,7 @@
 // V2 initialization layer. Full mount: backend + security + sync + inference + scopes.
 // Each mount step is best-effort — V2 stays functional under partial init (e.g. no SQLite).
 
-import { App, Plugin, normalizePath } from "obsidian";
+import { App, Plugin, normalizePath, requestUrl } from "obsidian";
 import { initLanceBackend, type LanceBackend } from "./backend/lance";
 import { detectLanceDB } from "./services/LanceDBInstaller";
 import {
@@ -186,11 +186,9 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
       hmacHex: async (key: string, msg: string) => hmacHex(new TextEncoder().encode(key), msg),
       sha256Hex,
       fetch: async (url, init) => {
-        const r = await fetch(url, { method: init.method, headers: init.headers, body: init.body });
-        const text = await r.text();
-        const h: Record<string, string> = {};
-        r.headers.forEach((v, k) => { h[k] = v; });
-        return { status: r.status, headers: h, body: text };
+        // Obsidian's requestUrl (no CORS, works on mobile) instead of global fetch.
+        const r = await requestUrl({ url, method: init.method, headers: init.headers, body: init.body, throw: false });
+        return { status: r.status, headers: r.headers, body: r.text };
       },
     },
     { enabled: false, baseUrl: "", sharedSecret: "" } as ProxyConfig,

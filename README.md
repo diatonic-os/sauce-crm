@@ -88,6 +88,17 @@ Reload Obsidian (Cmd/Ctrl+R) after each `npm run dev` rebuild.
 - **Credentials are encrypted.** OAuth refresh tokens and API keys live in an AES-256-GCM KeyVault behind a master password. The plain `data.json` only stores non-secret config.
 - **Bring-your-own OAuth.** The plugin does not contain a shared Sauce-CRM OAuth client. You register your own apps in each provider's developer console (see [`docs/oauth-byo/`](docs/oauth-byo/README.md)).
 
+## Disclosures
+
+Per the [Obsidian Developer Policies](https://docs.obsidian.md/Developer+policies#Disclosures):
+
+- **Network use.** The plugin makes outbound network requests **only to services you explicitly configure**, and **only** through Obsidian's `requestUrl` API (no raw `fetch`/`axios`). Endpoints are: LLM/Copilot providers you enable (Anthropic, OpenAI, Ollama, LM Studio, NVIDIA NIM), integration providers you connect (Google Workspace, Microsoft 365, Notion, Twilio), optional geocoding (OpenStreetMap Nominatim / Mapbox), and optional web search. No network calls are made until you turn a feature on and supply credentials.
+- **Account requirements.** No "Sauce CRM" account exists — there is no sign-up and no shared backend. Integrations use **your own** OAuth apps and API keys (bring-your-own; see [`docs/oauth-byo/`](docs/oauth-byo/README.md)).
+- **Credentials & external file access.** API keys and OAuth refresh tokens are encrypted (AES-256-GCM) in a local KeyVault behind a master password. The plugin reads/writes **only your vault files** plus, on **desktop only**, a local LanceDB store under your vault's config directory (offered via an opt-in install prompt).
+- **Telemetry.** **No client-side/remote telemetry.** The only "telemetry" is a structured event log written **locally** to `.sauce/memory/TRACE-LOG.jsonl` in your vault. Nothing is sent to the author or any third party.
+- **Payments / ads.** None.
+- **Source.** Open source (MIT). Desktop-only (`isDesktopOnly: true`) because the LanceDB vector backend is a native module; mobile support is on the roadmap.
+
 ## Contributing
 
 PRs welcome. Before submitting:
