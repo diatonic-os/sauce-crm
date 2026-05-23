@@ -172,7 +172,9 @@ export class Plugin {
   constructor(app: App = new App(), _manifest?: unknown) {
     this.app = app;
   }
-  addCommand(_cmd: unknown): void {}
+  addCommand(cmd: unknown): unknown {
+    return cmd;
+  }
   addRibbonIcon(_n: string, _t: string, _cb: (e: MouseEvent) => void): HTMLElement {
     return document.createElement("div");
   }
