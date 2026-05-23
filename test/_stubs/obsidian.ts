@@ -2,6 +2,23 @@
 // App / Vault / DataAdapter / TFile / TFolder for EntityService and the
 // other services under test to round-trip frontmatter + body strings.
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const _yaml = require("js-yaml");
+export function parseYaml(s: string): unknown {
+  return _yaml.load(s);
+}
+export function stringifyYaml(o: unknown): string {
+  return _yaml.dump(o);
+}
+
+export function arrayBufferToBase64(buf: ArrayBuffer): string {
+  return Buffer.from(buf).toString("base64");
+}
+export function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const b = Buffer.from(b64, "base64");
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+}
+
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
 }
@@ -110,6 +127,11 @@ export class Vault {
   async modify(file: TFile, contents: string): Promise<void> {
     file.contents = contents;
   }
+  async process(file: TFile, fn: (data: string) => string): Promise<string> {
+    const next = fn(file.contents ?? "");
+    file.contents = next;
+    return next;
+  }
   async delete(file: TFile): Promise<void> {
     this.files.delete(file.path);
   }
@@ -192,11 +214,16 @@ export class Plugin {
   constructor(app: App = new App(), _manifest?: unknown) {
     this.app = app;
   }
-  addCommand(_cmd: unknown): void {}
+  addCommand(cmd: unknown): unknown {
+    return cmd;
+  }
   addRibbonIcon(_n: string, _t: string, _cb: (e: MouseEvent) => void): HTMLElement {
     return document.createElement("div");
   }
   registerView(_t: string, _f: unknown): void {}
+  registerInterval(id: number): number {
+    return id;
+  }
   addSettingTab(_t: unknown): void {}
   async loadData(): Promise<unknown> { return {}; }
   async saveData(_d: unknown): Promise<void> {}
@@ -270,6 +297,28 @@ export class Menu {
 
 export function addIcon(_name: string, _svg: string): void {}
 export function setIcon(_el: HTMLElement, _name: string): void {}
-export async function requestUrl(_init: unknown): Promise<{ status: number; text: string; json: unknown; headers: Record<string, string> }> {
-  return { status: 200, text: "", json: {}, headers: {} };
+
+export const Platform = {
+  isDesktop: true,
+  isMobile: false,
+  isDesktopApp: true,
+  isMobileApp: false,
+  isIosApp: false,
+  isAndroidApp: false,
+  isPhone: false,
+  isTablet: false,
+  isMacOS: false,
+  isWin: false,
+  isLinux: true,
+  isSafari: false,
+  resourcePathPrefix: "",
+};
+export async function requestUrl(
+  init: unknown,
+): Promise<{ status: number; text: string; json: unknown; headers: Record<string, string> }> {
+  const url = typeof init === "string" ? init : ((init as { url?: string })?.url ?? "");
+  const method = typeof init === "object" && init ? ((init as { method?: string }).method ?? "GET") : "GET";
+  // Echo into headers (back-compat: status/text/json unchanged) so wrappers can
+  // assert request pass-through in tests.
+  return { status: 200, text: "", json: {}, headers: { "x-echo-url": url, "x-echo-method": method } };
 }

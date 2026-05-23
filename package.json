@@ -10,6 +10,8 @@
     "typecheck": "tsc -noEmit -skipLibCheck",
     "test": "vitest run",
     "test:watch": "vitest",
+    "sdk:gen": "esbuild sdk/generator/generate.ts --bundle --platform=node --format=esm | node --input-type=module",
+    "sdk:check": "npm run sdk:gen && git diff --exit-code -- sdk/generated",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [
