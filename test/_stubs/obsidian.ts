@@ -172,6 +172,9 @@ export class Plugin {
     return document.createElement("div");
   }
   registerView(_t: string, _f: unknown): void {}
+  registerInterval(id: number): number {
+    return id;
+  }
   addSettingTab(_t: unknown): void {}
   async loadData(): Promise<unknown> { return {}; }
   async saveData(_d: unknown): Promise<void> {}
