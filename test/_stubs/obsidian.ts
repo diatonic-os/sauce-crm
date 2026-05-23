@@ -85,6 +85,11 @@ export class Vault {
   async modify(file: TFile, contents: string): Promise<void> {
     file.contents = contents;
   }
+  async process(file: TFile, fn: (data: string) => string): Promise<string> {
+    const next = fn(file.contents ?? "");
+    file.contents = next;
+    return next;
+  }
   async delete(file: TFile): Promise<void> {
     this.files.delete(file.path);
   }
