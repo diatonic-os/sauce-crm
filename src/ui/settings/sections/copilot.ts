@@ -5,6 +5,8 @@ import type SauceGraphPlugin from "../../../main";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
 import { renderRagEmbeddings } from "./rag";
+import { renderEnrichment } from "./enrichment";
+import { renderPrompts } from "./prompts";
 
 function markAdvanced(set: Setting): Setting {
   set.settingEl.addClass("sg-advanced");
@@ -106,4 +108,8 @@ export function renderCopilot(containerEl: HTMLElement, plugin: SauceGraphPlugin
 
   // RAG & embeddings (PLAN T3) — embedding provider parity + master toggle.
   renderRagEmbeddings(containerEl, plugin);
+  // Auto-enrichment (PLAN T5).
+  renderEnrichment(containerEl, plugin);
+  // Prompts & sessions (PLAN T6).
+  renderPrompts(containerEl, plugin);
 }

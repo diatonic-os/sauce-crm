@@ -4,6 +4,7 @@ import { EdgeSyncService, DEFAULT_EDGE_RULES, EdgeRule } from "./services/EdgeSy
 import { QueryService } from "./services/QueryService";
 import { SearchService } from "./services/SearchService";
 import { MirrorSync } from "./services/MirrorSync";
+import { EnrichmentService, defaultHeuristicStages, type EnrichmentHost, type EnrichmentInput } from "./services/EnrichmentService";
 import { SauceFeatureSettings, DEFAULT_FEATURE_SETTINGS, mergeFeatureSettings, activeEmbeddingProvider } from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
 import { ContractValidator } from "./contract/ContractValidator";
@@ -168,6 +169,7 @@ export default class SauceGraphPlugin extends Plugin {
   get v2Proxy() { return this.v2?.proxy ?? null; }
   copilot: CopilotRuntime | null = null;
   mirrorSync: MirrorSync | null = null;
+  enrichment: EnrichmentService | null = null;
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
   v2Registry: V2Registry = new V2Registry();
@@ -276,6 +278,20 @@ export default class SauceGraphPlugin extends Plugin {
         { realtimeEmbeddings: () => this.settings.features.rag.realtimeEmbeddings },
       );
     }
+    // Auto-enrichment (T5): classify/tag/graph stages writing vault frontmatter
+    // (which re-mirrors to LanceDB via the "changed" handler) + provenance.
+    const enrichHost: EnrichmentHost = {
+      applyFrontmatter: async (path, mutate) => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof TFile) await this.entityService.updateFrontmatter(file, (fm) => { mutate(fm); });
+      },
+    };
+    this.enrichment = new EnrichmentService(
+      defaultHeuristicStages(),
+      enrichHost,
+      () => this.settings.features.enrichment,
+      this.v2?.provenance ?? null,
+    );
     this.skills = new SkillRuntime(this.app, this.entityService, this.search, this.query, () => this.copilot);
     if (this.copilot) this.skills.bindToCopilot(this.copilot.toolUse);
     // Route every Copilot tool call through the approval gate.
@@ -438,6 +454,11 @@ export default class SauceGraphPlugin extends Plugin {
       // Keep the LanceDB mirror + embeddings in step (frontmatter is parsed by
       // the time "changed" fires, so entity type/tags/edges are available).
       if (f instanceof TFile) void this.mirrorSync?.syncFile(f).catch(() => {});
+      // Auto-enrichment when enabled + autostart. Idempotent, so it can't loop
+      // on its own frontmatter write.
+      if (f instanceof TFile && this.settings.features.enrichment.autostart) {
+        void this.runEnrichment(f).catch(() => {});
+      }
       this.scheduleOpenViewRefresh();
     }));
     this.registerEvent(this.app.vault.on("delete", (f) => {
@@ -586,6 +607,15 @@ export default class SauceGraphPlugin extends Plugin {
       const n = await this.mirrorSync.fullResync();
       new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
     } });
+    this.addCommand({ id: "enrich-current-note", name: "Enrich current note (classify / tag / graph)", checkCallback: (checking) => {
+      const file = this.app.workspace.getActiveFile();
+      if (!file) return false;
+      if (!checking) {
+        if (!this.settings.features.enrichment.enabled) { new Notice("Enrichment is off — enable it in settings."); return; }
+        void this.runEnrichment(file).then(() => new Notice("Enrichment applied.")).catch((e) => new Notice(`Enrichment failed: ${e}`));
+      }
+      return true;
+    } });
     this.addCommand({ id: "export-graph-json", name: "Export Graph JSON", callback: () => this.exportGraphJson() });
     this.addCommand({ id: "rebuild-cache", name: "Rebuild Caches", callback: () => new Notice("Caches rebuilt") });
 
@@ -728,8 +758,8 @@ export default class SauceGraphPlugin extends Plugin {
     this.syncEmbeddingConfig();
   }
 
-  /** Push the RAG/embedding settings into the Copilot runtime. Called after
-   *  construction and on every settings save so toggles take effect live. */
+  /** Push the RAG/embedding + prompt settings into the Copilot runtime. Called
+   *  after construction and on every settings save so toggles take effect live. */
   syncEmbeddingConfig(): void {
     if (!this.copilot) return;
     const active = activeEmbeddingProvider(this.settings.features);
@@ -745,6 +775,28 @@ export default class SauceGraphPlugin extends Plugin {
           }
         : { enabled: false, provider: this.settings.features.rag.provider, endpoint: "", model: "" },
     );
+    // Prompt + session management (T6).
+    this.copilot.setPromptConfig({
+      globalSystemPrompt: this.settings.features.prompts.globalSystemPrompt,
+      sessionAutoNaming: this.settings.features.prompts.sessionAutoNaming,
+    });
+  }
+
+  /** Run auto-enrichment on a single typed entity file (T5). No-op when the
+   *  service is off or the file has no entity type. */
+  async runEnrichment(file: TFile): Promise<void> {
+    if (!this.enrichment || !this.settings.features.enrichment.enabled) return;
+    const fm = (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) as Record<string, unknown>;
+    const type = String(fm["type"] ?? "");
+    if (!type) return;
+    const raw = await this.app.vault.cachedRead(file);
+    const input: EnrichmentInput = {
+      path: file.path,
+      type,
+      frontmatter: fm,
+      body: raw.replace(/^---\n[\s\S]*?\n---\n?/, ""),
+    };
+    await this.enrichment.enrich(input);
   }
 
   private addCaptureCommand(id: string, name: string, kind: CaptureRecordKind): void {

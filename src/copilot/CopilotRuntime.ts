@@ -7,6 +7,7 @@ import {
 } from "./index";
 import { LMStudioProvider } from "./LMStudioProvider";
 import type { ChatMessage, ICopilotProvider, CompletionEvent } from "./ICopilotProvider";
+import type { CopilotSession } from "./ConversationStore";
 import { ObsidianProviderHost, ObsidianRagHost, ObsidianConversationHost } from "./CopilotHostAdapters";
 import { App } from "obsidian";
 import { EntityService } from "../services/EntityService";
@@ -81,6 +82,45 @@ export class CopilotRuntime {
     this.embedConfig = cfg;
   }
 
+  // ── Prompt + session management (PLAN T6) ──────────────────────────
+  private promptConfig: { globalSystemPrompt: string; sessionAutoNaming: boolean } = {
+    globalSystemPrompt: "",
+    sessionAutoNaming: true,
+  };
+  private sessionPrompt: string | null = null;
+
+  setPromptConfig(cfg: { globalSystemPrompt: string; sessionAutoNaming: boolean }): void {
+    this.promptConfig = cfg;
+  }
+
+  /** Per-session system prompt override (null ⇒ use the copilot's base prompt). */
+  setSessionPrompt(prompt: string | null): void {
+    this.sessionPrompt = prompt && prompt.trim() ? prompt : null;
+  }
+  getSessionPrompt(): string | null { return this.sessionPrompt; }
+
+  /** Effective system prompt: global prefix + (session override ?? base). */
+  composeSystemPrompt(): string {
+    return [this.promptConfig.globalSystemPrompt, this.sessionPrompt ?? this.settings.systemPrompt]
+      .filter((p) => p && p.trim())
+      .join("\n\n");
+  }
+
+  /** Auto-derived session title from the first user message, or null when
+   *  session autonaming is off (caller keeps its own/default name). */
+  sessionTitle(firstMessage: string): string | null {
+    if (!this.promptConfig.sessionAutoNaming) return null;
+    const firstLine = (firstMessage ?? "").trim().split("\n")[0].trim();
+    if (!firstLine) return null;
+    return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
+  }
+
+  /** Persist a session, applying autonaming (the first user message names it
+   *  when the toggle is on). Returns the saved path. */
+  async persistSession(session: CopilotSession, firstMessage = ""): Promise<string> {
+    return this.conversations.save(session, this.sessionTitle(firstMessage) ?? "");
+  }
+
   /** Embed text for LanceDB vector RAG. Uses the configured embedding provider
    *  when set; otherwise falls back to the chat provider's embeddings endpoint.
    *  Returns null when RAG is disabled, the provider lacks embeddings (e.g.
@@ -151,7 +191,7 @@ export class CopilotRuntime {
     const centered = ctx.centered.length > 0
       ? ctx.centered
       : [...new Set([...ctx.pinned, ...(ctx.focus ? [ctx.focus] : []), ...ctx.graph, ...ctx.semantic])].slice(0, 12);
-    const systemPlus = this.settings.systemPrompt + "\n\n## Context paths (read these via tool if needed)\n" +
+    const systemPlus = this.composeSystemPrompt() + "\n\n## Context paths (read these via tool if needed)\n" +
       centered.map((p) => `- ${p}`).join("\n") +
       `\n\n## Recent touches (${ctx.recentTouches.length})\n` +
       ctx.recentTouches.slice(0, 10).map((t) => `- ${t.date} · ${t.contactId}`).join("\n");

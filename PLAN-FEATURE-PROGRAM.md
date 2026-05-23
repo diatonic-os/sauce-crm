@@ -35,4 +35,8 @@ fingerprint/trace ops covered by tests against real LanceDB.
 - ✅ **T2 DONE** (2026-05-23) — `provenance` LanceDB table; `src/services/Provenance.ts` (`ProvenanceService`: fingerprint/record/verify/lineage/bySubject) + `src/backend/lance/LanceProvenanceStore.ts`; SHA-256 fingerprints, HMAC-signed via KeyVault master key (bootstrap-key fallback pre-unlock), mirrored to AuditLog. Exposed on `V2Runtime.provenance` + `plugin.provenance`. `MirrorSync` now fingerprints every entity index + embedding (embedding links to entity via `parentFp` lineage). 6 tests, real LanceDB. `tsc` 0 · tests green · build OK.
 - ✅ **T3 DONE** (2026-05-23) — RAG master toggle plus LM Studio / Ollama / OpenAI embedding provider config; `CopilotRuntime.embed` uses the selected embedding provider independently of the chat provider.
 - ✅ **T4 DONE** (2026-05-23) — realtime embedding toggle now gates vault-event embeddings; manual "Rebuild LanceDB Index" still embeds by default.
-- ⬜ T5 enrichment · ⬜ T6 prompts/session · ⬜ T7 doc harvest · ⬜ T8 remaining trace sites.
+- ✅ **T5 DONE** (2026-05-23, worktree `feat/t5-t6-enrichment-prompts`) — `src/services/EnrichmentService.ts`: 3 independently-toggleable stages (classify/tag/graph), additive idempotent frontmatter writes (no self-loop), provenance-traced. Default heuristic stages (tags from #hashtags, edges from [[wikilinks]]); LLM classify stage injectable. Autostart on vault "changed" + "Enrich current note" command. Settings `sections/enrichment.ts`. 6 tests.
+- ✅ **T6 DONE** (2026-05-23, same worktree) — `CopilotRuntime`: global prompt prepend + per-session prompt override (`composeSystemPrompt`), session autonaming (`sessionTitle`/`persistSession`) gated by toggle. Settings `sections/prompts.ts`. 7 tests.
+- ⬜ T7 doc harvest · ⬜ T8 remaining trace sites.
+
+Gate (worktree): `tsc` 0 · **170 tests** · build OK. Branch based on main@fd7ee70; needs merge/rebase (main advanced via parallel agent).
