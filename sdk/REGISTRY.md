@@ -1,7 +1,7 @@
 <!-- GENERATED — aggregated from sdk/groups/**/*.md member contracts. Do not edit by hand. -->
 # Sauce CRM SDK — Registry
 
-Total members: 25
+Total members: 27
 
 ## actions
 
@@ -52,6 +52,8 @@ Total members: 25
 | `command-register` | universal | Register an Obsidian command (Plugin.addCommand) — the substrate for actions/. |
 | `data-iembedder` | [desktop, mobile] | Embedding seam — desktop local/remote vs mobile remote, plus a deterministic hash reference. |
 | `data-ivectorstore` | [desktop, mobile] | Vector-store seam — desktop native vs mobile WASM/remote, plus an in-memory reference. |
+| `file-rename` | universal | Link-safe rename/move of a file (FileManager.renameFile) at a normalized path. |
+| `hotkey-register` | desktop | Register a keyboard shortcut on a Scope (Scope.register). |
 | `interval-register` | universal | Register a recurring callback tied to plugin lifecycle (Component.registerInterval). |
 | `metadata-read` | universal | Read a note's cached metadata / frontmatter (MetadataCache.getFileCache). |
 | `platform-detect` | universal | Wrap Obsidian Platform flags — the gates the mobile fork depends on. |
