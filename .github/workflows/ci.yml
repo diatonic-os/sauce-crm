@@ -38,6 +38,8 @@ jobs:
         run: npm run typecheck
       - name: Test (vitest)
         run: npm test
+      - name: SDK codegen up-to-date (sdk:check)
+        run: npm run sdk:check
       - name: Build (esbuild)
         run: npm run build
       - name: Verify build artifacts
