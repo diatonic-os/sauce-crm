@@ -1,5 +1,5 @@
 // SPEC §19.3 — Token counting for RagAssembler trim decisions.
-import type { LMStudioClientLike } from './LMStudioClientFactory';
+import type { LMStudioClientLike } from "./LMStudioClientFactory";
 
 export class LMStudioTokenizer {
   constructor(private readonly client: LMStudioClientLike) {}

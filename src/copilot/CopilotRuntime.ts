@@ -2,13 +2,25 @@
 // Keeps the chat surface (CopilotView) thin.
 
 import {
-  AnthropicProvider, OpenAIProvider, OllamaProvider,
-  RagAssembler, ConversationStore, ToolUseAdapter,
+  AnthropicProvider,
+  OpenAIProvider,
+  OllamaProvider,
+  RagAssembler,
+  ConversationStore,
+  ToolUseAdapter,
 } from "./index";
 import { LMStudioProvider } from "./LMStudioProvider";
-import type { ChatMessage, ICopilotProvider, CompletionEvent } from "./ICopilotProvider";
+import type {
+  ChatMessage,
+  ICopilotProvider,
+  CompletionEvent,
+} from "./ICopilotProvider";
 import type { CopilotSession } from "./ConversationStore";
-import { ObsidianProviderHost, ObsidianRagHost, ObsidianConversationHost } from "./CopilotHostAdapters";
+import {
+  ObsidianProviderHost,
+  ObsidianRagHost,
+  ObsidianConversationHost,
+} from "./CopilotHostAdapters";
 import { App } from "obsidian";
 import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
@@ -18,8 +30,8 @@ import { SlashCommand, defaultSlashCommands } from "./SlashCommands";
 export interface CopilotSettings {
   provider: "anthropic" | "openai" | "ollama" | "lmstudio";
   model: string;
-  apiKey: string;             // P15 swaps for KeyVault lookup
-  baseUrl?: string;           // ollama override / proxy URL / LM Studio endpoint
+  apiKey: string; // P15 swaps for KeyVault lookup
+  baseUrl?: string; // ollama override / proxy URL / LM Studio endpoint
   temperature: number;
   maxTokens: number;
   systemPrompt: string;
@@ -83,9 +95,18 @@ export class CopilotRuntime {
   ) {
     const embedFn = ragVectorIndex ? (text: string) => this.embed(text) : null;
     this.rag = new RagAssembler(
-      new ObsidianRagHost(app, entities, search, () => [], ragVectorIndex, embedFn),
+      new ObsidianRagHost(
+        app,
+        entities,
+        search,
+        () => [],
+        ragVectorIndex,
+        embedFn,
+      ),
     );
-    this.conversations = new ConversationStore(new ObsidianConversationHost(app));
+    this.conversations = new ConversationStore(
+      new ObsidianConversationHost(app),
+    );
     this.toolUse = new ToolUseAdapter();
   }
 
@@ -98,13 +119,19 @@ export class CopilotRuntime {
   }
 
   // ── Prompt + session management (PLAN T6) ──────────────────────────
-  private promptConfig: { globalSystemPrompt: string; sessionAutoNaming: boolean } = {
+  private promptConfig: {
+    globalSystemPrompt: string;
+    sessionAutoNaming: boolean;
+  } = {
     globalSystemPrompt: "",
     sessionAutoNaming: true,
   };
   private sessionPrompt: string | null = null;
 
-  setPromptConfig(cfg: { globalSystemPrompt: string; sessionAutoNaming: boolean }): void {
+  setPromptConfig(cfg: {
+    globalSystemPrompt: string;
+    sessionAutoNaming: boolean;
+  }): void {
     this.promptConfig = cfg;
   }
 
@@ -112,11 +139,16 @@ export class CopilotRuntime {
   setSessionPrompt(prompt: string | null): void {
     this.sessionPrompt = prompt && prompt.trim() ? prompt : null;
   }
-  getSessionPrompt(): string | null { return this.sessionPrompt; }
+  getSessionPrompt(): string | null {
+    return this.sessionPrompt;
+  }
 
   /** Effective system prompt: global prefix + (session override ?? base). */
   composeSystemPrompt(): string {
-    return [this.promptConfig.globalSystemPrompt, this.sessionPrompt ?? this.settings.systemPrompt]
+    return [
+      this.promptConfig.globalSystemPrompt,
+      this.sessionPrompt ?? this.settings.systemPrompt,
+    ]
       .filter((p) => p && p.trim())
       .join("\n\n");
   }
@@ -132,17 +164,43 @@ export class CopilotRuntime {
 
   /** Persist a session, applying autonaming (the first user message names it
    *  when the toggle is on). Returns the saved path. */
-  async persistSession(session: CopilotSession, firstMessage = ""): Promise<string> {
-    return this.conversations.save(session, this.sessionTitle(firstMessage) ?? "");
+  async persistSession(
+    session: CopilotSession,
+    firstMessage = "",
+  ): Promise<string> {
+    return this.conversations.save(
+      session,
+      this.sessionTitle(firstMessage) ?? "",
+    );
   }
 
   // ── Document RAG context (T7) + query provenance (T8) ───────────────
-  private docSearch: ((query: string, k: number) => Promise<{ docName: string; text: string }[]>) | null = null;
-  private traceSink: { record(op: string, subject: string, kind: string, content: string, opts?: { meta?: Record<string, unknown> | null }): Promise<unknown> } | null = null;
+  private docSearch:
+    | ((
+        query: string,
+        k: number,
+      ) => Promise<{ docName: string; text: string }[]>)
+    | null = null;
+  private traceSink: {
+    record(
+      op: string,
+      subject: string,
+      kind: string,
+      content: string,
+      opts?: { meta?: Record<string, unknown> | null },
+    ): Promise<unknown>;
+  } | null = null;
 
   /** Inject harvested-document retrieval (embeds the query + searches LanceDB
    *  doc chunks). Returns top chunk texts that ask() appends to the prompt. */
-  setDocumentSearch(fn: ((query: string, k: number) => Promise<{ docName: string; text: string }[]>) | null): void {
+  setDocumentSearch(
+    fn:
+      | ((
+          query: string,
+          k: number,
+        ) => Promise<{ docName: string; text: string }[]>)
+      | null,
+  ): void {
     this.docSearch = fn;
   }
 
@@ -153,8 +211,13 @@ export class CopilotRuntime {
 
   /** Fingerprint + trace a copilot query. Best-effort; never throws. */
   async recordQuery(query: string): Promise<void> {
-    try { await this.traceSink?.record("query", "copilot", "query", query, { meta: { len: query.length } }); }
-    catch { /* trace is best-effort */ }
+    try {
+      await this.traceSink?.record("query", "copilot", "query", query, {
+        meta: { len: query.length },
+      });
+    } catch {
+      /* trace is best-effort */
+    }
   }
 
   /** Embed text for LanceDB vector RAG. Uses the configured embedding provider
@@ -182,7 +245,11 @@ export class CopilotRuntime {
   private embedProvider(c: EmbeddingRuntimeConfig): ICopilotProvider {
     switch (c.provider) {
       case "openai":
-        return new OpenAIProvider(this.providerHost, async () => c.apiKey ?? "", c.endpoint);
+        return new OpenAIProvider(
+          this.providerHost,
+          async () => c.apiKey ?? "",
+          c.endpoint,
+        );
       case "ollama":
         return new OllamaProvider(this.providerHost, c.endpoint);
       case "lmstudio":
@@ -199,12 +266,18 @@ export class CopilotRuntime {
     this.settings = { ...this.settings, ...s };
   }
 
-  getSettings(): CopilotSettings { return this.settings; }
+  getSettings(): CopilotSettings {
+    return this.settings;
+  }
 
   /** Single-shot completion (no RAG, no tools, no streaming surface) for
    *  structured background tasks like enrichment classification. Accumulates
    *  the streamed text and returns it; null on any provider error. */
-  async completeOnce(systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<string | null> {
+  async completeOnce(
+    systemPrompt: string,
+    userPrompt: string,
+    opts: { maxTokens?: number; temperature?: number } = {},
+  ): Promise<string | null> {
     try {
       let text = "";
       for await (const ev of this.provider().complete({
@@ -226,15 +299,30 @@ export class CopilotRuntime {
   provider(): ICopilotProvider {
     const key = async () => this.settings.apiKey;
     switch (this.settings.provider) {
-      case "openai":   return new OpenAIProvider(this.providerHost, key, this.settings.baseUrl);
-      case "ollama":   return new OllamaProvider(this.providerHost, this.settings.baseUrl ?? "http://localhost:11434");
-      case "lmstudio": return new LMStudioProvider(this.providerHost, {
-        endpoint: this.settings.baseUrl ?? "http://localhost:1234/v1",
-        apiKey: this.settings.apiKey || undefined,
-        defaultModel: this.settings.model,
-      });
+      case "openai":
+        return new OpenAIProvider(
+          this.providerHost,
+          key,
+          this.settings.baseUrl,
+        );
+      case "ollama":
+        return new OllamaProvider(
+          this.providerHost,
+          this.settings.baseUrl ?? "http://localhost:11434",
+        );
+      case "lmstudio":
+        return new LMStudioProvider(this.providerHost, {
+          endpoint: this.settings.baseUrl ?? "http://localhost:1234/v1",
+          apiKey: this.settings.apiKey || undefined,
+          defaultModel: this.settings.model,
+        });
       case "anthropic":
-      default:         return new AnthropicProvider(this.providerHost, key, this.settings.baseUrl);
+      default:
+        return new AnthropicProvider(
+          this.providerHost,
+          key,
+          this.settings.baseUrl,
+        );
     }
   }
 
@@ -244,26 +332,46 @@ export class CopilotRuntime {
    * append the assistant tool_use message + a tool result message, and call
    * the provider again. Capped at MAX_TOOL_TURNS to prevent runaway loops.
    */
-  async *ask(query: string, focus?: string, prior: ChatMessage[] = []): AsyncIterable<CompletionEvent> {
+  async *ask(
+    query: string,
+    focus?: string,
+    prior: ChatMessage[] = [],
+  ): AsyncIterable<CompletionEvent> {
     void this.recordQuery(query); // T8: fingerprint/trace the query (fire-and-forget)
     const ctx = await this.rag.assemble(query, focus);
-    const centered = ctx.centered.length > 0
-      ? ctx.centered
-      : [...new Set([...ctx.pinned, ...(ctx.focus ? [ctx.focus] : []), ...ctx.graph, ...ctx.semantic])].slice(0, 12);
-    let systemPlus = this.composeSystemPrompt() + "\n\n## Context paths (read these via tool if needed)\n" +
+    const centered =
+      ctx.centered.length > 0
+        ? ctx.centered
+        : [
+            ...new Set([
+              ...ctx.pinned,
+              ...(ctx.focus ? [ctx.focus] : []),
+              ...ctx.graph,
+              ...ctx.semantic,
+            ]),
+          ].slice(0, 12);
+    let systemPlus =
+      this.composeSystemPrompt() +
+      "\n\n## Context paths (read these via tool if needed)\n" +
       centered.map((p) => `- ${p}`).join("\n") +
       `\n\n## Recent touches (${ctx.recentTouches.length})\n` +
-      ctx.recentTouches.slice(0, 10).map((t) => `- ${t.date} · ${t.contactId}`).join("\n");
+      ctx.recentTouches
+        .slice(0, 10)
+        .map((t) => `- ${t.date} · ${t.contactId}`)
+        .join("\n");
 
     // T7: append harvested-document context when available.
     if (this.docSearch) {
       try {
         const docs = await this.docSearch(query, 5);
         if (docs.length) {
-          systemPlus += "\n\n## Document context (from uploaded files)\n" +
+          systemPlus +=
+            "\n\n## Document context (from uploaded files)\n" +
             docs.map((d) => `### ${d.docName}\n${d.text}`).join("\n\n");
         }
-      } catch { /* document context is best-effort */ }
+      } catch {
+        /* document context is best-effort */
+      }
     }
 
     const provider = this.provider();
@@ -271,15 +379,25 @@ export class CopilotRuntime {
     // prior history (a turn ≈ a user+assistant pair). 0 ⇒ no prior context.
     const maxTurns = this.settings.contextTurns ?? 15;
     const trimmedPrior = maxTurns > 0 ? prior.slice(-maxTurns * 2) : [];
-    const messages: ChatMessage[] = [...trimmedPrior, { role: "user", content: query }];
+    const messages: ChatMessage[] = [
+      ...trimmedPrior,
+      { role: "user", content: query },
+    ];
 
     const MAX_TOOL_TURNS = 8;
     for (let turn = 0; turn <= MAX_TOOL_TURNS; turn++) {
       // Collect tool_use calls + assistant text emitted this round so we can
       // append them to the message history before the next round.
-      const pendingCalls: Array<{ id: string; name: string; input: unknown }> = [];
+      const pendingCalls: Array<{ id: string; name: string; input: unknown }> =
+        [];
       const assistantTextParts: string[] = [];
-      let endReason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop' | 'error' | null = null;
+      let endReason:
+        | "end_turn"
+        | "tool_use"
+        | "max_tokens"
+        | "stop"
+        | "error"
+        | null = null;
       let endError: string | undefined;
 
       for await (const ev of provider.complete({
@@ -294,13 +412,13 @@ export class CopilotRuntime {
         // ObsidianProviderHost via requestUrl), so this is safe either way.
         stream: this.settings.stream !== false,
       })) {
-        if (ev.type === 'text') {
+        if (ev.type === "text") {
           assistantTextParts.push(ev.delta);
           yield ev;
-        } else if (ev.type === 'tool_use') {
+        } else if (ev.type === "tool_use") {
           pendingCalls.push({ id: ev.id, name: ev.name, input: ev.input });
           yield ev;
-        } else if (ev.type === 'done') {
+        } else if (ev.type === "done") {
           endReason = ev.reason;
           endError = ev.error;
         } else {
@@ -310,30 +428,48 @@ export class CopilotRuntime {
 
       // No tool calls — terminal turn. Forward the done event and exit.
       if (pendingCalls.length === 0) {
-        yield { type: 'done', reason: endReason ?? 'end_turn', ...(endError ? { error: endError } : {}) };
+        yield {
+          type: "done",
+          reason: endReason ?? "end_turn",
+          ...(endError ? { error: endError } : {}),
+        };
         return;
       }
 
       // Cap hit: we have tool calls but no more turns budgeted.
       if (turn >= MAX_TOOL_TURNS) {
-        yield { type: 'done', reason: 'max_tokens', error: 'tool-turn cap reached' };
+        yield {
+          type: "done",
+          reason: "max_tokens",
+          error: "tool-turn cap reached",
+        };
         return;
       }
 
       // Append the assistant message (text + tool_use blocks) and each tool
       // result so the next provider.complete sees the full turn.
-      const assistantBlocks: Array<{ type: 'text' | 'tool_use'; [k: string]: unknown }> = [];
+      const assistantBlocks: Array<{
+        type: "text" | "tool_use";
+        [k: string]: unknown;
+      }> = [];
       const joinedText = assistantTextParts.join("");
-      if (joinedText.length > 0) assistantBlocks.push({ type: 'text', text: joinedText });
+      if (joinedText.length > 0)
+        assistantBlocks.push({ type: "text", text: joinedText });
       for (const c of pendingCalls) {
-        assistantBlocks.push({ type: 'tool_use', id: c.id, name: c.name, input: c.input });
+        assistantBlocks.push({
+          type: "tool_use",
+          id: c.id,
+          name: c.name,
+          input: c.input,
+        });
       }
-      messages.push({ role: 'assistant', content: assistantBlocks });
+      messages.push({ role: "assistant", content: assistantBlocks });
 
       for (const c of pendingCalls) {
         const result = await this.toolUse.runTool(c.name, c.input, this.app);
-        const content = typeof result === 'string' ? result : JSON.stringify(result);
-        messages.push({ role: 'tool', toolCallId: c.id, content });
+        const content =
+          typeof result === "string" ? result : JSON.stringify(result);
+        messages.push({ role: "tool", toolCallId: c.id, content });
       }
     }
   }

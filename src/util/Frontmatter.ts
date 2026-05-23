@@ -11,7 +11,9 @@ export type ObsidianFrontmatterValue =
 /** Convert arbitrary modal/import output into values Obsidian's frontmatter
  * API can safely stringify and round-trip. Undefined keys are omitted; dates
  * become ISO strings; non-finite numbers become null. */
-export function normalizeObsidianFrontmatter(input: Record<string, unknown>): Record<string, ObsidianFrontmatterValue> {
+export function normalizeObsidianFrontmatter(
+  input: Record<string, unknown>,
+): Record<string, ObsidianFrontmatterValue> {
   const out: Record<string, ObsidianFrontmatterValue> = {};
   for (const [key, value] of Object.entries(input)) {
     if (key === "constrains" && Array.isArray(value)) {
@@ -24,21 +26,27 @@ export function normalizeObsidianFrontmatter(input: Record<string, unknown>): Re
   return out;
 }
 
-export function serializeObsidianFrontmatter(input: Record<string, unknown>): string {
+export function serializeObsidianFrontmatter(
+  input: Record<string, unknown>,
+): string {
   return `---\n${stringifyYaml(normalizeObsidianFrontmatter(input)).trimEnd()}\n---`;
 }
 
 export function formatInvariant(item: unknown): string {
   if (typeof item === "string") return item;
   if (item && typeof item === "object" && !Array.isArray(item)) {
-    const [name, predicate] = Object.entries(item as Record<string, unknown>)[0] ?? [];
+    const [name, predicate] =
+      Object.entries(item as Record<string, unknown>)[0] ?? [];
     if (!name) return "";
     return `${name}: ${String(predicate ?? "")}`;
   }
   return "";
 }
 
-export function parseInvariantString(item: string): { name: string; predicate: string } {
+export function parseInvariantString(item: string): {
+  name: string;
+  predicate: string;
+} {
   const ix = item.indexOf(":");
   if (ix < 0) return { name: item, predicate: item };
   const name = item.slice(0, ix).trim();

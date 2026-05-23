@@ -3,7 +3,9 @@ import { Semiring } from "./Semiring";
 export type Matrix<T> = T[][];
 
 export function zeroMatrix<T>(sr: Semiring<T>, n: number): Matrix<T> {
-  return Array.from({ length: n }, () => Array.from({ length: n }, () => sr.zero));
+  return Array.from({ length: n }, () =>
+    Array.from({ length: n }, () => sr.zero),
+  );
 }
 
 export function identityMatrix<T>(sr: Semiring<T>, n: number): Matrix<T> {
@@ -15,7 +17,8 @@ export function identityMatrix<T>(sr: Semiring<T>, n: number): Matrix<T> {
 export function add<T>(sr: Semiring<T>, a: Matrix<T>, b: Matrix<T>): Matrix<T> {
   const n = a.length;
   const out = zeroMatrix(sr, n);
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) out[i][j] = sr.add(a[i][j], b[i][j]);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++) out[i][j] = sr.add(a[i][j], b[i][j]);
   return out;
 }
 
@@ -32,9 +35,14 @@ export function mul<T>(sr: Semiring<T>, a: Matrix<T>, b: Matrix<T>): Matrix<T> {
   return out;
 }
 
-export function eqMatrix<T>(sr: Semiring<T>, a: Matrix<T>, b: Matrix<T>): boolean {
+export function eqMatrix<T>(
+  sr: Semiring<T>,
+  a: Matrix<T>,
+  b: Matrix<T>,
+): boolean {
   const n = a.length;
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (!sr.eq(a[i][j], b[i][j])) return false;
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++) if (!sr.eq(a[i][j], b[i][j])) return false;
   return true;
 }
 
@@ -59,7 +67,12 @@ export function closure<T>(sr: Semiring<T>, h: Matrix<T>): Matrix<T> {
  * Reconstruct one best path between i and j via predecessor matrix.
  * Uses Dijkstra-style relaxation under the semiring.
  */
-export function bestPath<T>(sr: Semiring<T>, h: Matrix<T>, i: number, j: number): number[] | null {
+export function bestPath<T>(
+  sr: Semiring<T>,
+  h: Matrix<T>,
+  i: number,
+  j: number,
+): number[] | null {
   const n = h.length;
   const dist: T[] = Array.from({ length: n }, () => sr.zero);
   const prev: number[] = Array.from({ length: n }, () => -1);
@@ -72,7 +85,8 @@ export function bestPath<T>(sr: Semiring<T>, h: Matrix<T>, i: number, j: number)
       if (visited.has(v)) continue;
       if (u === -1 || !sr.eq(sr.add(best, dist[v]), best)) {
         if (u === -1 || dominates(sr, dist[v], best)) {
-          u = v; best = dist[v];
+          u = v;
+          best = dist[v];
         }
       }
     }
@@ -83,13 +97,20 @@ export function bestPath<T>(sr: Semiring<T>, h: Matrix<T>, i: number, j: number)
       if (visited.has(v)) continue;
       const alt = sr.mul(dist[u], h[u][v]);
       const merged = sr.add(dist[v], alt);
-      if (!sr.eq(merged, dist[v])) { dist[v] = merged; prev[v] = u; }
+      if (!sr.eq(merged, dist[v])) {
+        dist[v] = merged;
+        prev[v] = u;
+      }
     }
   }
   if (prev[j] === -1 && i !== j) return null;
   const path: number[] = [];
   let cur = j;
-  while (cur !== -1) { path.unshift(cur); if (cur === i) break; cur = prev[cur]; }
+  while (cur !== -1) {
+    path.unshift(cur);
+    if (cur === i) break;
+    cur = prev[cur];
+  }
   return path[0] === i ? path : null;
 }
 

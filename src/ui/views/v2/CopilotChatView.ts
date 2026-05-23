@@ -8,11 +8,23 @@
 //                 Skills (our analogue of "suggested prompts")
 //   footer      — textarea + mic + send
 
-import { ItemView, Modal, Menu, Notice, Setting, setIcon, TFile, WorkspaceLeaf } from "obsidian";
+import {
+  ItemView,
+  Modal,
+  Menu,
+  Notice,
+  Setting,
+  setIcon,
+  TFile,
+  WorkspaceLeaf,
+} from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import type { ChatMessage } from "../../../copilot/ICopilotProvider";
 import type { CopilotSession } from "../../../copilot/ConversationStore";
-import { sharedModelCatalog, type CatalogModel } from "../../../copilot/ModelCatalog";
+import {
+  sharedModelCatalog,
+  type CatalogModel,
+} from "../../../copilot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 
 export const VIEW_COPILOT_CHAT = "sauce-copilot-chat";
@@ -28,15 +40,26 @@ const EMBED_PROVIDERS: EmbedProviderId[] = ["lmstudio", "ollama", "openai"];
 
 // Web Speech API surface (Electron/Chromium). Mobile unsupported per manifest.
 interface SpeechRecognitionLike {
-  lang: string; continuous: boolean; interimResults: boolean;
-  start(): void; stop(): void;
-  onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>>; resultIndex: number }) => void) | null;
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  onresult:
+    | ((ev: {
+        results: ArrayLike<ArrayLike<{ transcript: string }>>;
+        resultIndex: number;
+      }) => void)
+    | null;
   onerror: ((ev: { error: string }) => void) | null;
   onend: (() => void) | null;
 }
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 function getSpeechRecognition(): SpeechRecognitionCtor | null {
-  const w = window as unknown as { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor };
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
@@ -59,19 +82,34 @@ export class CopilotChatView extends ItemView {
   private sessionCreatedTs = Date.now();
   private firstUserMsg = "";
 
-  constructor(leaf: WorkspaceLeaf, public plugin: SauceGraphPlugin) { super(leaf); }
+  constructor(
+    leaf: WorkspaceLeaf,
+    public plugin: SauceGraphPlugin,
+  ) {
+    super(leaf);
+  }
 
-  getViewType(): string { return VIEW_COPILOT_CHAT; }
-  getDisplayText(): string { return "Sauce: Copilot"; }
-  getIcon(): string { return "message-circle"; }
+  getViewType(): string {
+    return VIEW_COPILOT_CHAT;
+  }
+  getDisplayText(): string {
+    return "Sauce: Copilot";
+  }
+  getIcon(): string {
+    return "message-circle";
+  }
 
   async onOpen(): Promise<void> {
     const root = this.contentEl;
-    root.empty(); root.addClass("sauce-view"); root.addClass("sauce-copilot");
+    root.empty();
+    root.addClass("sauce-view");
+    root.addClass("sauce-copilot");
 
     this.buildHeader(root);
     this.transcriptEl = root.createDiv({ cls: "sauce-copilot-transcript" });
-    this.suggestionsEl = this.transcriptEl.createDiv({ cls: "sauce-cp-suggestions" });
+    this.suggestionsEl = this.transcriptEl.createDiv({
+      cls: "sauce-cp-suggestions",
+    });
     this.buildInput(root);
     void this.renderSuggestions();
   }
@@ -85,22 +123,35 @@ export class CopilotChatView extends ItemView {
 
     // Provider → Model (two-stage). Model options carry a status hint.
     this.providerSel = this.labeledSelect(models, "Provider");
-    for (const p of CHAT_PROVIDERS) this.option(this.providerSel, p.id, p.label);
+    for (const p of CHAT_PROVIDERS)
+      this.option(this.providerSel, p.id, p.label);
     this.providerSel.value = (cur?.provider as ChatProvider) ?? "anthropic";
-    this.providerSel.onchange = () => { void this.onProviderChange(); };
+    this.providerSel.onchange = () => {
+      void this.onProviderChange();
+    };
 
     this.modelSel = this.labeledSelect(models, "Model");
-    this.modelSel.onchange = () => { void this.onModelChange(); };
+    this.modelSel.onchange = () => {
+      void this.onModelChange();
+    };
 
     // Embeddings model (RAG) — separate provider/model resolved from settings.
     this.embedSel = this.labeledSelect(models, "Embeddings");
-    this.embedSel.onchange = () => { void this.onEmbedChange(); };
+    this.embedSel.onchange = () => {
+      void this.onEmbedChange();
+    };
 
     const actions = bar.createDiv({ cls: "sauce-copilot-actions" });
-    this.iconButton(actions, "circle-plus", "New chat", () => this.newSession());
-    this.iconButton(actions, "settings-2", "Chat settings", () => this.openChatSettings());
+    this.iconButton(actions, "circle-plus", "New chat", () =>
+      this.newSession(),
+    );
+    this.iconButton(actions, "settings-2", "Chat settings", () =>
+      this.openChatSettings(),
+    );
     this.iconButton(actions, "history", "History", () => this.openHistory());
-    this.iconButton(actions, "more-horizontal", "More", (ev) => this.openMoreMenu(ev));
+    this.iconButton(actions, "more-horizontal", "More", (ev) =>
+      this.openMoreMenu(ev),
+    );
 
     void this.refreshModelOptions();
     void this.refreshEmbedOptions();
@@ -111,12 +162,28 @@ export class CopilotChatView extends ItemView {
     wrap.createEl("label", { cls: "sauce-cp-field-label", text: label });
     return wrap.createEl("select", { cls: "sauce-cp-select dropdown" });
   }
-  private option(sel: HTMLSelectElement, value: string, text: string, selected = false): void {
-    const o = sel.createEl("option", { text }); o.value = value; if (selected) o.selected = true;
+  private option(
+    sel: HTMLSelectElement,
+    value: string,
+    text: string,
+    selected = false,
+  ): void {
+    const o = sel.createEl("option", { text });
+    o.value = value;
+    if (selected) o.selected = true;
   }
-  private iconButton(parent: HTMLElement, icon: string, tip: string, onClick: (ev: MouseEvent) => void): HTMLButtonElement {
-    const b = parent.createEl("button", { cls: "sauce-cp-icon clickable-icon" });
-    setIcon(b, icon); b.setAttribute("aria-label", tip); b.title = tip;
+  private iconButton(
+    parent: HTMLElement,
+    icon: string,
+    tip: string,
+    onClick: (ev: MouseEvent) => void,
+  ): HTMLButtonElement {
+    const b = parent.createEl("button", {
+      cls: "sauce-cp-icon clickable-icon",
+    });
+    setIcon(b, icon);
+    b.setAttribute("aria-label", tip);
+    b.title = tip;
     b.onclick = (ev) => onClick(ev);
     return b;
   }
@@ -136,14 +203,29 @@ export class CopilotChatView extends ItemView {
     let models: CatalogModel[] = [];
     try {
       models = await sharedModelCatalog(this.plugin.logger ?? null).list({
-        provider, endpoint: cur?.baseUrl, apiKey: cur?.apiKey, logger: this.plugin.logger ?? null,
+        provider,
+        endpoint: cur?.baseUrl,
+        apiKey: cur?.apiKey,
+        logger: this.plugin.logger ?? null,
       });
-    } catch { /* fall through to empty */ }
+    } catch {
+      /* fall through to empty */
+    }
     this.modelSel.empty();
     const hint = this.needsKey(provider) ? "  · needs API key" : "";
-    if (!models.length) { this.modelSel.createEl("option", { text: "— no models —" }).value = ""; return; }
-    for (const m of models) this.option(this.modelSel, m.id, `${m.label}${hint}`, m.id === cur?.model);
-    if (!models.some((m) => m.id === cur?.model)) this.modelSel.value = models[0].id;
+    if (!models.length) {
+      this.modelSel.createEl("option", { text: "— no models —" }).value = "";
+      return;
+    }
+    for (const m of models)
+      this.option(
+        this.modelSel,
+        m.id,
+        `${m.label}${hint}`,
+        m.id === cur?.model,
+      );
+    if (!models.some((m) => m.id === cur?.model))
+      this.modelSel.value = models[0].id;
   }
 
   private async refreshEmbedOptions(): Promise<void> {
@@ -154,15 +236,27 @@ export class CopilotChatView extends ItemView {
     let models: CatalogModel[] = [];
     try {
       models = await sharedModelCatalog(this.plugin.logger ?? null).list({
-        provider, endpoint: pc.endpoint, apiKey: this.plugin.settings.copilot.apiKey, kind: "embedding",
+        provider,
+        endpoint: pc.endpoint,
+        apiKey: this.plugin.settings.copilot.apiKey,
+        kind: "embedding",
         logger: this.plugin.logger ?? null,
       });
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
     // Prefix with the embed provider so it's clear which provider supplies them.
-    const head = this.embedSel.createEl("option", { text: `${provider} ▾` }); head.value = ""; head.disabled = true;
-    if (!models.length) { this.option(this.embedSel, pc.model || "", pc.model || "— none —", true); return; }
-    for (const m of models) this.option(this.embedSel, m.id, m.label, m.id === pc.model);
-    if (pc.model && !models.some((m) => m.id === pc.model)) this.option(this.embedSel, pc.model, `${pc.model} (custom)`, true);
+    const head = this.embedSel.createEl("option", { text: `${provider} ▾` });
+    head.value = "";
+    head.disabled = true;
+    if (!models.length) {
+      this.option(this.embedSel, pc.model || "", pc.model || "— none —", true);
+      return;
+    }
+    for (const m of models)
+      this.option(this.embedSel, m.id, m.label, m.id === pc.model);
+    if (pc.model && !models.some((m) => m.id === pc.model))
+      this.option(this.embedSel, pc.model, `${pc.model} (custom)`, true);
   }
 
   private async onProviderChange(): Promise<void> {
@@ -186,47 +280,80 @@ export class CopilotChatView extends ItemView {
     const rag = this.plugin.settings.features.rag;
     rag.providers[rag.provider].model = model;
     await this.plugin.saveSettings();
-    (this.plugin as unknown as { syncEmbeddingConfig?: () => void }).syncEmbeddingConfig?.();
+    (
+      this.plugin as unknown as { syncEmbeddingConfig?: () => void }
+    ).syncEmbeddingConfig?.();
   }
 
   // ---------- Suggestions: Relevant Notes + Suggested Skills ----------
   private async renderSuggestions(): Promise<void> {
     const c = this.suggestionsEl;
     c.empty();
-    if (this.history.length > 0) { c.hide(); return; }
+    if (this.history.length > 0) {
+      c.hide();
+      return;
+    }
     c.show();
 
     if (this.showRelevant) {
       const sec = c.createDiv({ cls: "sauce-cp-sec" });
       sec.createEl("h4", { cls: "sauce-cp-sec-title", text: "Relevant Notes" });
       const active = this.app.workspace.getActiveFile();
-      const related = active instanceof TFile ? this.plugin.search?.related(active, 5) ?? [] : [];
+      const related =
+        active instanceof TFile
+          ? (this.plugin.search?.related(active, 5) ?? [])
+          : [];
       if (!related.length) {
-        sec.createEl("p", { cls: "sauce-cp-empty", text: active ? "No relevant notes found." : "Open a note to see related entities." });
+        sec.createEl("p", {
+          cls: "sauce-cp-empty",
+          text: active
+            ? "No relevant notes found."
+            : "Open a note to see related entities.",
+        });
       } else {
         for (const hit of related) {
           const row = sec.createDiv({ cls: "sauce-cp-card sauce-clickable" });
-          row.createEl("div", { cls: "sauce-cp-card-title", text: hit.file.basename });
-          row.createEl("div", { cls: "sauce-cp-card-sub", text: hit.file.path });
-          row.onclick = () => void this.app.workspace.getLeaf(false).openFile(hit.file as TFile);
+          row.createEl("div", {
+            cls: "sauce-cp-card-title",
+            text: hit.file.basename,
+          });
+          row.createEl("div", {
+            cls: "sauce-cp-card-sub",
+            text: hit.file.path,
+          });
+          row.onclick = () =>
+            void this.app.workspace.getLeaf(false).openFile(hit.file as TFile);
         }
       }
     }
 
     if (this.showSuggested) {
       const sec = c.createDiv({ cls: "sauce-cp-sec" });
-      sec.createEl("h4", { cls: "sauce-cp-sec-title", text: "Suggested Skills" });
+      sec.createEl("h4", {
+        cls: "sauce-cp-sec-title",
+        text: "Suggested Skills",
+      });
       const skills = this.plugin.skills?.list() ?? [];
       if (!skills.length) {
-        sec.createEl("p", { cls: "sauce-cp-empty", text: "No skills enabled — turn some on in Settings → Skills." });
+        sec.createEl("p", {
+          cls: "sauce-cp-empty",
+          text: "No skills enabled — turn some on in Settings → Skills.",
+        });
       } else {
         for (const s of skills.slice(0, 8)) {
           const row = sec.createDiv({ cls: "sauce-cp-card" });
           const body = row.createDiv({ cls: "sauce-cp-card-main" });
           body.createEl("div", { cls: "sauce-cp-card-title", text: s.id });
-          if (s.description) body.createEl("div", { cls: "sauce-cp-card-sub", text: s.description });
-          const add = row.createEl("button", { cls: "sauce-cp-icon clickable-icon" });
-          setIcon(add, "plus"); add.title = "Insert into prompt";
+          if (s.description)
+            body.createEl("div", {
+              cls: "sauce-cp-card-sub",
+              text: s.description,
+            });
+          const add = row.createEl("button", {
+            cls: "sauce-cp-icon clickable-icon",
+          });
+          setIcon(add, "plus");
+          add.title = "Insert into prompt";
           add.onclick = () => {
             const active = this.app.workspace.getActiveFile()?.basename;
             const ref = active ? ` for [[${active}]]` : "";
@@ -243,17 +370,32 @@ export class CopilotChatView extends ItemView {
     const inputRow = root.createDiv({ cls: "sauce-copilot-input" });
     this.inputEl = inputRow.createEl("textarea", {
       cls: "sauce-copilot-textarea",
-      attr: { placeholder: "Ask about your graph…  ( ⌘/Ctrl + Enter to send )" },
+      attr: {
+        placeholder: "Ask about your graph…  ( ⌘/Ctrl + Enter to send )",
+      },
     });
     const SR = getSpeechRecognition();
     if (SR) {
-      this.micButton = this.iconButton(inputRow, "mic", "Dictate (Web Speech API)", () => this.toggleVoice(SR));
+      this.micButton = this.iconButton(
+        inputRow,
+        "mic",
+        "Dictate (Web Speech API)",
+        () => this.toggleVoice(SR),
+      );
       this.micButton.addClass("sauce-copilot-mic");
     }
-    const send = this.iconButton(inputRow, "send", "Send  ( ⌘/Ctrl + Enter )", () => void this.askNow());
+    const send = this.iconButton(
+      inputRow,
+      "send",
+      "Send  ( ⌘/Ctrl + Enter )",
+      () => void this.askNow(),
+    );
     send.addClass("sauce-cp-send");
     this.inputEl.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); void this.askNow(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        void this.askNow();
+      }
     });
   }
 
@@ -264,7 +406,9 @@ export class CopilotChatView extends ItemView {
     this.sessionCreatedTs = Date.now();
     this.firstUserMsg = "";
     this.transcriptEl.empty();
-    this.suggestionsEl = this.transcriptEl.createDiv({ cls: "sauce-cp-suggestions" });
+    this.suggestionsEl = this.transcriptEl.createDiv({
+      cls: "sauce-cp-suggestions",
+    });
     void this.renderSuggestions();
   }
 
@@ -284,8 +428,11 @@ export class CopilotChatView extends ItemView {
       tokenIn: 0,
       tokenOut: 0,
     };
-    try { await this.plugin.copilot.persistSession(session, this.firstUserMsg); }
-    catch { /* persistence is best-effort */ }
+    try {
+      await this.plugin.copilot.persistSession(session, this.firstUserMsg);
+    } catch {
+      /* persistence is best-effort */
+    }
   }
 
   // ---------- Chat Settings popover (real, bound settings only) ----------
@@ -295,21 +442,65 @@ export class CopilotChatView extends ItemView {
     modal.modalEl.addClass("sauce-modal");
     modal.titleEl.setText("Chat settings");
     const c = modal.contentEl.createDiv({ cls: "sauce-section" });
-    const save = async () => { await this.plugin.saveSettings(); this.plugin.copilot?.updateSettings?.(cfg); };
+    const save = async () => {
+      await this.plugin.saveSettings();
+      this.plugin.copilot?.updateSettings?.(cfg);
+    };
 
-    new Setting(c).setName("Temperature").setDesc("Lower = more deterministic.")
-      .addSlider((s) => s.setLimits(0, 1, 0.05).setDynamicTooltip().setValue(cfg.temperature ?? 0.4)
-        .onChange(async (v) => { cfg.temperature = v; await save(); }));
-    new Setting(c).setName("Token limit").setDesc("Max tokens per response.")
-      .addSlider((s) => s.setLimits(256, 8192, 128).setDynamicTooltip().setValue(cfg.maxTokens ?? 4096)
-        .onChange(async (v) => { cfg.maxTokens = v; await save(); }));
-    new Setting(c).setName("Context turns").setDesc("Prior turns to include (0 = none).")
-      .addSlider((s) => s.setLimits(0, 50, 1).setDynamicTooltip().setValue(cfg.contextTurns ?? 15)
-        .onChange(async (v) => { cfg.contextTurns = v; await save(); }));
-    new Setting(c).setName("Stream responses")
-      .addToggle((t) => t.setValue(cfg.stream !== false).onChange(async (v) => { cfg.stream = v; await save(); }));
-    new Setting(c).setName("System prompt").setDesc("Sent before every conversation.")
-      .addTextArea((t) => t.setValue(cfg.systemPrompt ?? "").onChange(async (v) => { cfg.systemPrompt = v; await save(); }));
+    new Setting(c)
+      .setName("Temperature")
+      .setDesc("Lower = more deterministic.")
+      .addSlider((s) =>
+        s
+          .setLimits(0, 1, 0.05)
+          .setDynamicTooltip()
+          .setValue(cfg.temperature ?? 0.4)
+          .onChange(async (v) => {
+            cfg.temperature = v;
+            await save();
+          }),
+      );
+    new Setting(c)
+      .setName("Token limit")
+      .setDesc("Max tokens per response.")
+      .addSlider((s) =>
+        s
+          .setLimits(256, 8192, 128)
+          .setDynamicTooltip()
+          .setValue(cfg.maxTokens ?? 4096)
+          .onChange(async (v) => {
+            cfg.maxTokens = v;
+            await save();
+          }),
+      );
+    new Setting(c)
+      .setName("Context turns")
+      .setDesc("Prior turns to include (0 = none).")
+      .addSlider((s) =>
+        s
+          .setLimits(0, 50, 1)
+          .setDynamicTooltip()
+          .setValue(cfg.contextTurns ?? 15)
+          .onChange(async (v) => {
+            cfg.contextTurns = v;
+            await save();
+          }),
+      );
+    new Setting(c).setName("Stream responses").addToggle((t) =>
+      t.setValue(cfg.stream !== false).onChange(async (v) => {
+        cfg.stream = v;
+        await save();
+      }),
+    );
+    new Setting(c)
+      .setName("System prompt")
+      .setDesc("Sent before every conversation.")
+      .addTextArea((t) =>
+        t.setValue(cfg.systemPrompt ?? "").onChange(async (v) => {
+          cfg.systemPrompt = v;
+          await save();
+        }),
+      );
 
     modal.open();
   }
@@ -324,16 +515,29 @@ export class CopilotChatView extends ItemView {
     const adapter = this.app.vault.adapter;
     let files: string[] = [];
     try {
-      if (await adapter.exists(root)) files = (await adapter.list(root)).files.filter((f) => f.endsWith(".md"));
-    } catch { /* ignore */ }
-    if (!files.length) { c.createEl("p", { cls: "sauce-cp-empty", text: "No saved sessions yet." }); }
-    else {
+      if (await adapter.exists(root))
+        files = (await adapter.list(root)).files.filter((f) =>
+          f.endsWith(".md"),
+        );
+    } catch {
+      /* ignore */
+    }
+    if (!files.length) {
+      c.createEl("p", {
+        cls: "sauce-cp-empty",
+        text: "No saved sessions yet.",
+      });
+    } else {
       for (const path of files.sort().reverse().slice(0, 50)) {
         const row = c.createDiv({ cls: "sauce-cp-card sauce-clickable" });
-        row.createEl("div", { cls: "sauce-cp-card-title", text: path.split("/").pop()?.replace(/\.md$/, "") ?? path });
+        row.createEl("div", {
+          cls: "sauce-cp-card-title",
+          text: path.split("/").pop()?.replace(/\.md$/, "") ?? path,
+        });
         row.onclick = () => {
           const f = this.app.vault.getAbstractFileByPath(path);
-          if (f instanceof TFile) void this.app.workspace.getLeaf(false).openFile(f);
+          if (f instanceof TFile)
+            void this.app.workspace.getLeaf(false).openFile(f);
           modal.close();
         };
       }
@@ -344,49 +548,117 @@ export class CopilotChatView extends ItemView {
   // ---------- More menu ----------
   private openMoreMenu(ev: MouseEvent): void {
     const m = new Menu();
-    m.addItem((i) => i.setTitle("Suggested Skills").setIcon("sparkles").setChecked(this.showSuggested)
-      .onClick(() => { this.showSuggested = !this.showSuggested; void this.renderSuggestions(); }));
-    m.addItem((i) => i.setTitle("Relevant Notes").setIcon("file-text").setChecked(this.showRelevant)
-      .onClick(() => { this.showRelevant = !this.showRelevant; void this.renderSuggestions(); }));
+    m.addItem((i) =>
+      i
+        .setTitle("Suggested Skills")
+        .setIcon("sparkles")
+        .setChecked(this.showSuggested)
+        .onClick(() => {
+          this.showSuggested = !this.showSuggested;
+          void this.renderSuggestions();
+        }),
+    );
+    m.addItem((i) =>
+      i
+        .setTitle("Relevant Notes")
+        .setIcon("file-text")
+        .setChecked(this.showRelevant)
+        .onClick(() => {
+          this.showRelevant = !this.showRelevant;
+          void this.renderSuggestions();
+        }),
+    );
     m.addSeparator();
-    m.addItem((i) => i.setTitle("Refresh suggestions").setIcon("refresh-cw").onClick(() => void this.renderSuggestions()));
-    m.addItem((i) => i.setTitle("Rebuild LanceDB index").setIcon("database").onClick(() => {
-      const ms = (this.plugin as unknown as { mirrorSync?: { fullResync: () => Promise<number> } }).mirrorSync;
-      if (!ms) { new Notice("LanceDB not installed."); return; }
-      new Notice("Rebuilding index…");
-      void ms.fullResync().then((n) => new Notice(`Index rebuilt: ${n} entities.`));
-    }));
+    m.addItem((i) =>
+      i
+        .setTitle("Refresh suggestions")
+        .setIcon("refresh-cw")
+        .onClick(() => void this.renderSuggestions()),
+    );
+    m.addItem((i) =>
+      i
+        .setTitle("Rebuild LanceDB index")
+        .setIcon("database")
+        .onClick(() => {
+          const ms = (
+            this.plugin as unknown as {
+              mirrorSync?: { fullResync: () => Promise<number> };
+            }
+          ).mirrorSync;
+          if (!ms) {
+            new Notice("LanceDB not installed.");
+            return;
+          }
+          new Notice("Rebuilding index…");
+          void ms
+            .fullResync()
+            .then((n) => new Notice(`Index rebuilt: ${n} entities.`));
+        }),
+    );
     m.showAtMouseEvent(ev);
   }
 
   // ---------- Voice ----------
   private toggleVoice(SR: SpeechRecognitionCtor): void {
-    if (this.isListening && this.recognition) { try { this.recognition.stop(); } catch { /* */ } return; }
+    if (this.isListening && this.recognition) {
+      try {
+        this.recognition.stop();
+      } catch {
+        /* */
+      }
+      return;
+    }
     const rec = new SR();
-    rec.lang = navigator.language || "en-US"; rec.continuous = true; rec.interimResults = true;
-    let baseValue = this.inputEl.value; if (baseValue && !baseValue.endsWith(" ")) baseValue += " ";
+    rec.lang = navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    let baseValue = this.inputEl.value;
+    if (baseValue && !baseValue.endsWith(" ")) baseValue += " ";
     rec.onresult = (ev) => {
-      let finalText = "", interim = "";
+      let finalText = "",
+        interim = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const res = ev.results[i] as ArrayLike<{ transcript: string }> & { isFinal?: boolean };
-        if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript;
+        const res = ev.results[i] as ArrayLike<{ transcript: string }> & {
+          isFinal?: boolean;
+        };
+        if (res.isFinal) finalText += res[0].transcript;
+        else interim += res[0].transcript;
       }
       if (finalText) baseValue += finalText;
       this.inputEl.value = baseValue + interim;
     };
-    rec.onerror = (ev) => { new Notice(`Speech recognition error: ${ev.error}`); this.stopRecognition(); };
+    rec.onerror = (ev) => {
+      new Notice(`Speech recognition error: ${ev.error}`);
+      this.stopRecognition();
+    };
     rec.onend = () => this.stopRecognition();
-    this.recognition = rec; this.isListening = true;
-    if (this.micButton) { this.micButton.addClass("is-listening"); }
-    try { rec.start(); } catch (e) { new Notice(`Could not start dictation: ${(e as Error).message}`); this.stopRecognition(); }
+    this.recognition = rec;
+    this.isListening = true;
+    if (this.micButton) {
+      this.micButton.addClass("is-listening");
+    }
+    try {
+      rec.start();
+    } catch (e) {
+      new Notice(`Could not start dictation: ${(e as Error).message}`);
+      this.stopRecognition();
+    }
   }
   private stopRecognition(): void {
-    this.isListening = false; this.recognition = null;
+    this.isListening = false;
+    this.recognition = null;
     if (this.micButton) this.micButton.removeClass("is-listening");
   }
 
   async onClose(): Promise<void> {
-    if (this.recognition) { try { this.recognition.stop(); } catch { /* */ } this.recognition = null; }
+    if (this.recognition) {
+      try {
+        this.recognition.stop();
+      } catch {
+        /* */
+      }
+      this.recognition = null;
+    }
     this.isListening = false;
     await this.persistCurrentSession();
   }
@@ -394,7 +666,10 @@ export class CopilotChatView extends ItemView {
   // ---------- Ask ----------
   private async askNow(): Promise<void> {
     const copilot = this.plugin.copilot;
-    if (!copilot) { new Notice("Copilot not initialized"); return; }
+    if (!copilot) {
+      new Notice("Copilot not initialized");
+      return;
+    }
     const q = this.inputEl.value.trim();
     if (!q) return;
     if (!this.firstUserMsg) this.firstUserMsg = q;
@@ -407,10 +682,12 @@ export class CopilotChatView extends ItemView {
       const activePath = this.plugin.app.workspace.getActiveFile()?.path;
       for await (const ev of copilot.ask(q, activePath, this.history)) {
         if (ev.type === "text") {
-          text += ev.delta; assistantEl.setText(text);
+          text += ev.delta;
+          assistantEl.setText(text);
           this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
         } else if (ev.type === "done") {
-          if (ev.reason === "error") assistantEl.setText(text + `\n\n[error: ${ev.error ?? "unknown"}]`);
+          if (ev.reason === "error")
+            assistantEl.setText(text + `\n\n[error: ${ev.error ?? "unknown"}]`);
         }
       }
       this.history.push({ role: "user", content: q });
@@ -420,8 +697,13 @@ export class CopilotChatView extends ItemView {
     }
   }
 
-  private appendMessage(role: "user" | "assistant", text: string): HTMLDivElement {
-    const wrap = this.transcriptEl.createDiv({ cls: `sauce-copilot-msg sauce-copilot-${role}` });
+  private appendMessage(
+    role: "user" | "assistant",
+    text: string,
+  ): HTMLDivElement {
+    const wrap = this.transcriptEl.createDiv({
+      cls: `sauce-copilot-msg sauce-copilot-${role}`,
+    });
     wrap.createEl("strong", { text: role === "user" ? "you" : "copilot" });
     return wrap.createDiv({ cls: "sauce-copilot-body", text });
   }

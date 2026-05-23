@@ -19,7 +19,9 @@ interface CaptureDef {
   title: string;
   folder: (plugin: SauceGraphPlugin) => string;
   icon: string;
-  template: (input: Partial<Record<string, unknown>>) => Record<string, unknown>;
+  template: (
+    input: Partial<Record<string, unknown>>,
+  ) => Record<string, unknown>;
   bodyHeading: string;
 }
 
@@ -88,7 +90,11 @@ export class CaptureRecordModal extends Modal {
   };
   private body = "";
 
-  constructor(public app: App, public plugin: SauceGraphPlugin, private kind: CaptureRecordKind) {
+  constructor(
+    public app: App,
+    public plugin: SauceGraphPlugin,
+    private kind: CaptureRecordKind,
+  ) {
     super(app);
   }
 
@@ -99,95 +105,208 @@ export class CaptureRecordModal extends Modal {
     contentEl.addClass("sauce-capture-modal");
     contentEl.createEl("h2", { text: `New ${def.title}` });
 
-    new Setting(contentEl).setName("Title").setDesc("Used as the note name and frontmatter title.").addText((t) => t
-      .setPlaceholder(`${def.title} title`)
-      .onChange((v) => (this.fm.title = v)));
+    new Setting(contentEl)
+      .setName("Title")
+      .setDesc("Used as the note name and frontmatter title.")
+      .addText((t) =>
+        t
+          .setPlaceholder(`${def.title} title`)
+          .onChange((v) => (this.fm.title = v)),
+      );
 
-    new Setting(contentEl).setName("Date").setDesc("YYYY-MM-DD").addText((t) => t
-      .setValue(String(this.fm.date ?? todayIso()))
-      .onChange((v) => (this.fm.date = v)));
+    new Setting(contentEl)
+      .setName("Date")
+      .setDesc("YYYY-MM-DD")
+      .addText((t) =>
+        t
+          .setValue(String(this.fm.date ?? todayIso()))
+          .onChange((v) => (this.fm.date = v)),
+      );
 
     this.renderRelationshipPickers(contentEl);
     this.renderKindFields(contentEl);
 
-    new Setting(contentEl).setName("Tags").setDesc("Comma-separated tags without #.").addText((t) => t
-      .onChange((v) => (this.fm.tags = splitCsv(v))));
+    new Setting(contentEl)
+      .setName("Tags")
+      .setDesc("Comma-separated tags without #.")
+      .addText((t) => t.onChange((v) => (this.fm.tags = splitCsv(v))));
 
-    new Setting(contentEl).setName(def.bodyHeading).addTextArea((t) => t
-      .setPlaceholder("Write the human-readable body here. Frontmatter stays structured.")
-      .onChange((v) => (this.body = v)));
+    new Setting(contentEl)
+      .setName(def.bodyHeading)
+      .addTextArea((t) =>
+        t
+          .setPlaceholder(
+            "Write the human-readable body here. Frontmatter stays structured.",
+          )
+          .onChange((v) => (this.body = v)),
+      );
 
     const btns = contentEl.createDiv({ cls: "sauce-buttons" });
-    btns.createEl("button", { text: "Create", cls: "sauce-button" }).onclick = () => void this.save();
-    btns.createEl("button", { text: "Cancel", cls: "sauce-button sauce-button-secondary" }).onclick = () => this.close();
+    btns.createEl("button", { text: "Create", cls: "sauce-button" }).onclick =
+      () => void this.save();
+    btns.createEl("button", {
+      text: "Cancel",
+      cls: "sauce-button sauce-button-secondary",
+    }).onclick = () => this.close();
   }
 
   private renderRelationshipPickers(contentEl: HTMLElement): void {
-    new Setting(contentEl).setName("Contact").addButton((b) => b
-      .setButtonText(String(this.fm.contact ?? "Pick person"))
-      .onClick(() => new WikilinkSuggest(this.app, [this.plugin.settings.paths.people], (_f, raw) => {
-        this.fm.contact = wrapWikilink(raw);
-        b.setButtonText(String(this.fm.contact));
-      }, false).open()));
+    new Setting(contentEl).setName("Contact").addButton((b) =>
+      b.setButtonText(String(this.fm.contact ?? "Pick person")).onClick(() =>
+        new WikilinkSuggest(
+          this.app,
+          [this.plugin.settings.paths.people],
+          (_f, raw) => {
+            this.fm.contact = wrapWikilink(raw);
+            b.setButtonText(String(this.fm.contact));
+          },
+          false,
+        ).open(),
+      ),
+    );
 
-    new Setting(contentEl).setName("Org").addButton((b) => b
-      .setButtonText(String(this.fm.org ?? "Pick org"))
-      .onClick(() => new WikilinkSuggest(this.app, [this.plugin.settings.paths.orgs], (_f, raw) => {
-        this.fm.org = wrapWikilink(raw);
-        b.setButtonText(String(this.fm.org));
-      }, false).open()));
+    new Setting(contentEl).setName("Org").addButton((b) =>
+      b.setButtonText(String(this.fm.org ?? "Pick org")).onClick(() =>
+        new WikilinkSuggest(
+          this.app,
+          [this.plugin.settings.paths.orgs],
+          (_f, raw) => {
+            this.fm.org = wrapWikilink(raw);
+            b.setButtonText(String(this.fm.org));
+          },
+          false,
+        ).open(),
+      ),
+    );
   }
 
   private renderKindFields(contentEl: HTMLElement): void {
     if (this.kind === "task") {
       new Setting(contentEl).setName("Status").addDropdown((d) => {
-        for (const v of ["todo", "in_progress", "blocked", "done", "cancelled"]) d.addOption(v, v);
+        for (const v of ["todo", "in_progress", "blocked", "done", "cancelled"])
+          d.addOption(v, v);
         d.setValue("todo").onChange((v) => (this.fm.status = v));
       });
       new Setting(contentEl).setName("Priority").addDropdown((d) => {
         for (const v of ["low", "medium", "high", "urgent"]) d.addOption(v, v);
         d.setValue("medium").onChange((v) => (this.fm.priority = v));
       });
-      new Setting(contentEl).setName("Due").setDesc("YYYY-MM-DD, optional.").addText((t) => t.onChange((v) => (this.fm.due = v || null)));
-      new Setting(contentEl).setName("Approval required").addToggle((t) => t.onChange((v) => (this.fm.approval_required = v)));
+      new Setting(contentEl)
+        .setName("Due")
+        .setDesc("YYYY-MM-DD, optional.")
+        .addText((t) => t.onChange((v) => (this.fm.due = v || null)));
+      new Setting(contentEl)
+        .setName("Approval required")
+        .addToggle((t) => t.onChange((v) => (this.fm.approval_required = v)));
     } else if (this.kind === "idea") {
       new Setting(contentEl).setName("Stage").addDropdown((d) => {
-        for (const v of ["seed", "shaping", "planned", "active", "shipped", "archived"]) d.addOption(v, v);
+        for (const v of [
+          "seed",
+          "shaping",
+          "planned",
+          "active",
+          "shipped",
+          "archived",
+        ])
+          d.addOption(v, v);
         d.setValue("seed").onChange((v) => (this.fm.stage = v));
       });
       new Setting(contentEl).setName("Impact").addDropdown((d) => {
         for (const v of ["low", "medium", "high"]) d.addOption(v, v);
         d.setValue("medium").onChange((v) => (this.fm.impact = v));
       });
-      new Setting(contentEl).setName("Next action").addText((t) => t.onChange((v) => (this.fm.next_action = v || null)));
+      new Setting(contentEl)
+        .setName("Next action")
+        .addText((t) => t.onChange((v) => (this.fm.next_action = v || null)));
     } else if (this.kind === "observation") {
       new Setting(contentEl).setName("Signal").addDropdown((d) => {
-        for (const v of ["relationship", "opportunity", "risk", "timing", "access", "pattern"]) d.addOption(v, v);
+        for (const v of [
+          "relationship",
+          "opportunity",
+          "risk",
+          "timing",
+          "access",
+          "pattern",
+        ])
+          d.addOption(v, v);
         d.setValue("relationship").onChange((v) => (this.fm.signal = v));
       });
-      new Setting(contentEl).setName("Evidence").addTextArea((t) => t.onChange((v) => (this.fm.evidence = v || null)));
+      new Setting(contentEl)
+        .setName("Evidence")
+        .addTextArea((t) => t.onChange((v) => (this.fm.evidence = v || null)));
     } else if (this.kind === "event") {
-      new Setting(contentEl).setName("Start").setDesc("Local time, optional.").addText((t) => t.setPlaceholder("09:30").onChange((v) => (this.fm.start = v || null)));
-      new Setting(contentEl).setName("End").setDesc("Local time, optional.").addText((t) => t.setPlaceholder("10:00").onChange((v) => (this.fm.end = v || null)));
-      new Setting(contentEl).setName("Attendees").setDesc("Comma-separated wikilinks or names.").addText((t) => t.onChange((v) => (this.fm.attendees = splitCsv(v))));
+      new Setting(contentEl)
+        .setName("Start")
+        .setDesc("Local time, optional.")
+        .addText((t) =>
+          t
+            .setPlaceholder("09:30")
+            .onChange((v) => (this.fm.start = v || null)),
+        );
+      new Setting(contentEl)
+        .setName("End")
+        .setDesc("Local time, optional.")
+        .addText((t) =>
+          t.setPlaceholder("10:00").onChange((v) => (this.fm.end = v || null)),
+        );
+      new Setting(contentEl)
+        .setName("Attendees")
+        .setDesc("Comma-separated wikilinks or names.")
+        .addText((t) => t.onChange((v) => (this.fm.attendees = splitCsv(v))));
     } else if (this.kind === "ledger-entry") {
-      new Setting(contentEl).setName("Category").addText((t) => t.setValue("relationship").onChange((v) => (this.fm.category = v || "relationship")));
+      new Setting(contentEl)
+        .setName("Category")
+        .addText((t) =>
+          t
+            .setValue("relationship")
+            .onChange((v) => (this.fm.category = v || "relationship")),
+        );
       new Setting(contentEl).setName("Direction").addDropdown((d) => {
         d.addOption("out", "out").addOption("in", "in");
         d.setValue("out").onChange((v) => (this.fm.direction = v));
       });
-      new Setting(contentEl).setName("Amount").addText((t) => t.setValue("0").onChange((v) => (this.fm.amount = Number(v) || 0)));
-      new Setting(contentEl).setName("Currency").addText((t) => t.setValue("USD").onChange((v) => (this.fm.currency = v || "USD")));
+      new Setting(contentEl)
+        .setName("Amount")
+        .addText((t) =>
+          t.setValue("0").onChange((v) => (this.fm.amount = Number(v) || 0)),
+        );
+      new Setting(contentEl)
+        .setName("Currency")
+        .addText((t) =>
+          t.setValue("USD").onChange((v) => (this.fm.currency = v || "USD")),
+        );
     } else if (this.kind === "pipeline-deal") {
       new Setting(contentEl).setName("Stage").addDropdown((d) => {
-        for (const v of ["prospect", "first-touch", "discovery", "proposal", "closed-won", "closed-lost"]) d.addOption(v, v);
+        for (const v of [
+          "prospect",
+          "first-touch",
+          "discovery",
+          "proposal",
+          "closed-won",
+          "closed-lost",
+        ])
+          d.addOption(v, v);
         d.setValue("prospect").onChange((v) => (this.fm.stage = v));
       });
-      new Setting(contentEl).setName("Value").addText((t) => t.onChange((v) => (this.fm.value = v ? Number(v) : null)));
-      new Setting(contentEl).setName("Probability").addSlider((s) => s.setLimits(0, 1, 0.05).setValue(0.25).setDynamicTooltip().onChange((v) => (this.fm.probability = v)));
-      new Setting(contentEl).setName("Next action").addText((t) => t.onChange((v) => (this.fm.next_action = v || null)));
+      new Setting(contentEl)
+        .setName("Value")
+        .addText((t) =>
+          t.onChange((v) => (this.fm.value = v ? Number(v) : null)),
+        );
+      new Setting(contentEl).setName("Probability").addSlider((s) =>
+        s
+          .setLimits(0, 1, 0.05)
+          .setValue(0.25)
+          .setDynamicTooltip()
+          .onChange((v) => (this.fm.probability = v)),
+      );
+      new Setting(contentEl)
+        .setName("Next action")
+        .addText((t) => t.onChange((v) => (this.fm.next_action = v || null)));
     } else {
-      new Setting(contentEl).setName("Topic").addText((t) => t.onChange((v) => (this.fm.topic = v || null)));
+      new Setting(contentEl)
+        .setName("Topic")
+        .addText((t) => t.onChange((v) => (this.fm.topic = v || null)));
       new Setting(contentEl).setName("Confidence").addDropdown((d) => {
         for (const v of ["low", "medium", "high"]) d.addOption(v, v);
         d.setValue("medium").onChange((v) => (this.fm.confidence = v));
@@ -197,24 +316,40 @@ export class CaptureRecordModal extends Modal {
 
   private async save(): Promise<void> {
     const title = String(this.fm.title ?? "").trim();
-    if (!title) { new Notice("Title is required"); return; }
+    if (!title) {
+      new Notice("Title is required");
+      return;
+    }
     const date = String(this.fm.date ?? "");
-    if (date && !parseIsoSafe(date)) { new Notice("Invalid date. Use YYYY-MM-DD."); return; }
+    if (date && !parseIsoSafe(date)) {
+      new Notice("Invalid date. Use YYYY-MM-DD.");
+      return;
+    }
 
     const def = CAPTURE_DEFS[this.kind];
     const fm = def.template(this.fm);
     const slug = slugify(`${date || todayIso()} ${title}`);
     const body = bodyFor(def.bodyHeading, this.body);
-    await this.plugin.entityService.createEntity(def.folder(this.plugin), slug, fm, body);
+    await this.plugin.entityService.createEntity(
+      def.folder(this.plugin),
+      slug,
+      fm,
+      body,
+    );
     new Notice(`Created ${def.title}: ${title}`);
     this.close();
   }
 
-  onClose(): void { this.contentEl.empty(); }
+  onClose(): void {
+    this.contentEl.empty();
+  }
 }
 
 function splitCsv(value: string): string[] {
-  return value.split(",").map((s) => s.trim()).filter(Boolean);
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function bodyFor(heading: string, body: string): string {

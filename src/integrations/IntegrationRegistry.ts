@@ -1,7 +1,12 @@
 // SPEC §22-27 — Aggregate registry of all integrations + resource list per provider.
 
 import { App, requestUrl } from "obsidian";
-import type { IIntegration, SyncResource, SyncFrequency, IntegrationId } from "./IIntegration";
+import type {
+  IIntegration,
+  SyncResource,
+  SyncFrequency,
+  IntegrationId,
+} from "./IIntegration";
 import type { OAuthFlow } from "../security/OAuthFlow";
 import { GoogleWorkspaceIntegration } from "./google";
 import { Microsoft365Integration } from "./microsoft";
@@ -12,13 +17,31 @@ import { SmtpImapIntegration } from "./smtpimap";
 import type { FetchHost, TokenResolver } from "./google/types";
 import type { AppleAuth } from "./apple/types";
 import type { TwilioAuth } from "./twilio/TwilioClient";
-import type { SmtpImapHost, ImapCredentials, SmtpCredentials } from "./smtpimap/types";
+import type {
+  SmtpImapHost,
+  ImapCredentials,
+  SmtpCredentials,
+} from "./smtpimap/types";
 
 export class ObsidianFetchHost implements FetchHost {
-  async fetch(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-    const r = await requestUrl({ url, method: init.method, headers: init.headers, body: init.body, throw: false });
+  async fetch(
+    url: string,
+    init: { method: string; headers: Record<string, string>; body?: string },
+  ): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    body: string;
+  }> {
+    const r = await requestUrl({
+      url,
+      method: init.method,
+      headers: init.headers,
+      body: init.body,
+      throw: false,
+    });
     const headers: Record<string, string> = {};
-    for (const k of Object.keys(r.headers ?? {})) headers[k.toLowerCase()] = String((r.headers as any)[k]);
+    for (const k of Object.keys(r.headers ?? {}))
+      headers[k.toLowerCase()] = String((r.headers as any)[k]);
     return { status: r.status, headers, body: r.text };
   }
 }
@@ -44,29 +67,51 @@ export class IntegrationRegistry {
 
   oauth: OAuthFlow | null = null;
 
-  constructor(public app: App, public tokens: IntegrationTokens, public fetch: FetchHost = new ObsidianFetchHost(), oauth?: OAuthFlow) {
+  constructor(
+    public app: App,
+    public tokens: IntegrationTokens,
+    public fetch: FetchHost = new ObsidianFetchHost(),
+    oauth?: OAuthFlow,
+  ) {
     this.oauth = oauth ?? null;
     const scopes: any = {
-      require: (_i: string, _s: string) => { /* P15 wires ScopeRegistry */ },
+      require: (_i: string, _s: string) => {
+        /* P15 wires ScopeRegistry */
+      },
     };
     const proxy: any = {};
     this.google = new GoogleWorkspaceIntegration({
-      scopes, proxy, fetch: this.fetch, token: tokens.google ?? noToken,
+      scopes,
+      proxy,
+      fetch: this.fetch,
+      token: tokens.google ?? noToken,
       // OAuthFlow handle so connect()/disconnect() actually run PKCE + revoke.
       ...(this.oauth ? { oauth: this.oauth } : {}),
     } as never);
     this.microsoft = new Microsoft365Integration({
-      scopes, proxy, fetch: this.fetch, token: tokens.microsoft ?? noToken,
+      scopes,
+      proxy,
+      fetch: this.fetch,
+      token: tokens.microsoft ?? noToken,
       ...(this.oauth ? { oauth: this.oauth } : {}),
     } as never);
     this.apple = new AppleIntegration({
-      scopes, proxy, fetch: this.fetch, auth: tokens.apple,
+      scopes,
+      proxy,
+      fetch: this.fetch,
+      auth: tokens.apple,
     });
     this.notion = new NotionIntegration({
-      scopes, proxy, fetch: this.fetch, token: tokens.notion ?? noToken,
+      scopes,
+      proxy,
+      fetch: this.fetch,
+      token: tokens.notion ?? noToken,
     });
     this.twilio = new TwilioIntegration({
-      scopes, proxy, fetch: this.fetch, auth: tokens.twilio,
+      scopes,
+      proxy,
+      fetch: this.fetch,
+      auth: tokens.twilio,
     });
     this.resources.set("google_workspace", defaultGoogleResources());
     this.resources.set("microsoft_365", defaultMicrosoftResources());
@@ -103,13 +148,25 @@ export class IntegrationRegistry {
     return this.resources.get(id) ?? [];
   }
 
-  async syncAll(): Promise<{ id: string; resource: string; pulled: number; errors: number }[]> {
-    const out: { id: string; resource: string; pulled: number; errors: number }[] = [];
+  async syncAll(): Promise<
+    { id: string; resource: string; pulled: number; errors: number }[]
+  > {
+    const out: {
+      id: string;
+      resource: string;
+      pulled: number;
+      errors: number;
+    }[] = [];
     for (const integ of this.list()) {
       for (const res of this.resourcesFor(integ.id as IntegrationId)) {
         if (!res.enabled) continue;
         const r = await integ.syncResource(res.id);
-        out.push({ id: integ.id, resource: res.id, pulled: r.pulled, errors: r.errors });
+        out.push({
+          id: integ.id,
+          resource: res.id,
+          pulled: r.pulled,
+          errors: r.errors,
+        });
       }
     }
     return out;
@@ -120,10 +177,23 @@ export class IntegrationRegistry {
   }
 }
 
-const noToken: TokenResolver = async () => { throw new Error("integration token not configured"); };
+const noToken: TokenResolver = async () => {
+  throw new Error("integration token not configured");
+};
 
 function defaultGoogleResources(): SyncResource[] {
-  const mk = (id: string, label: string, frequency: SyncFrequency): SyncResource => ({ id, label, frequency, enabled: false, lastPullTs: null, cursor: null });
+  const mk = (
+    id: string,
+    label: string,
+    frequency: SyncFrequency,
+  ): SyncResource => ({
+    id,
+    label,
+    frequency,
+    enabled: false,
+    lastPullTs: null,
+    cursor: null,
+  });
   return [
     mk("calendar", "Calendar (events)", "15m"),
     mk("gmail", "Gmail (recent)", "1h"),
@@ -133,7 +203,18 @@ function defaultGoogleResources(): SyncResource[] {
 }
 
 function defaultMicrosoftResources(): SyncResource[] {
-  const mk = (id: string, label: string, frequency: SyncFrequency): SyncResource => ({ id, label, frequency, enabled: false, lastPullTs: null, cursor: null });
+  const mk = (
+    id: string,
+    label: string,
+    frequency: SyncFrequency,
+  ): SyncResource => ({
+    id,
+    label,
+    frequency,
+    enabled: false,
+    lastPullTs: null,
+    cursor: null,
+  });
   return [
     mk("calendar", "Calendar (events)", "15m"),
     mk("outlook", "Outlook (mail)", "1h"),
@@ -142,7 +223,18 @@ function defaultMicrosoftResources(): SyncResource[] {
 }
 
 function defaultAppleResources(): SyncResource[] {
-  const mk = (id: string, label: string, frequency: SyncFrequency): SyncResource => ({ id, label, frequency, enabled: false, lastPullTs: null, cursor: null });
+  const mk = (
+    id: string,
+    label: string,
+    frequency: SyncFrequency,
+  ): SyncResource => ({
+    id,
+    label,
+    frequency,
+    enabled: false,
+    lastPullTs: null,
+    cursor: null,
+  });
   return [
     mk("calendar", "iCloud Calendar (CalDAV)", "15m"),
     mk("contacts", "iCloud Contacts (CardDAV)", "manual"),
@@ -150,14 +242,34 @@ function defaultAppleResources(): SyncResource[] {
 }
 
 function defaultNotionResources(): SyncResource[] {
-  const mk = (id: string, label: string, frequency: SyncFrequency): SyncResource => ({ id, label, frequency, enabled: false, lastPullTs: null, cursor: null });
-  return [
-    mk("databases", "Notion Databases (discovery)", "daily"),
-  ];
+  const mk = (
+    id: string,
+    label: string,
+    frequency: SyncFrequency,
+  ): SyncResource => ({
+    id,
+    label,
+    frequency,
+    enabled: false,
+    lastPullTs: null,
+    cursor: null,
+  });
+  return [mk("databases", "Notion Databases (discovery)", "daily")];
 }
 
 function defaultTwilioResources(): SyncResource[] {
-  const mk = (id: string, label: string, frequency: SyncFrequency): SyncResource => ({ id, label, frequency, enabled: false, lastPullTs: null, cursor: null });
+  const mk = (
+    id: string,
+    label: string,
+    frequency: SyncFrequency,
+  ): SyncResource => ({
+    id,
+    label,
+    frequency,
+    enabled: false,
+    lastPullTs: null,
+    cursor: null,
+  });
   return [
     mk("calls", "Twilio calls", "1h"),
     mk("messages", "Twilio SMS", "1h"),

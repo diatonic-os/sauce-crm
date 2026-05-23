@@ -43,8 +43,12 @@ export class LanceEntityMirror {
     private readonly fts: MirrorFtsHook | null = null,
   ) {}
 
-  async onCreate(f: MirrorFile): Promise<void> { await this.upsert(f); }
-  async onModify(f: MirrorFile): Promise<void> { await this.upsert(f); }
+  async onCreate(f: MirrorFile): Promise<void> {
+    await this.upsert(f);
+  }
+  async onModify(f: MirrorFile): Promise<void> {
+    await this.upsert(f);
+  }
 
   async onDelete(path: string): Promise<void> {
     const id = sqlStr(path);
@@ -58,12 +62,30 @@ export class LanceEntityMirror {
 
   async onRename(oldPath: string, newPath: string): Promise<void> {
     const oldId = sqlStr(oldPath);
-    await this.t.entities.update({ where: `id = ${oldId}`, values: { id: newPath } });
-    await this.t.edges.update({ where: `from_id = ${oldId}`, values: { from_id: newPath } });
-    await this.t.edges.update({ where: `to_id = ${oldId}`, values: { to_id: newPath } });
-    await this.t.tags.update({ where: `entity_id = ${oldId}`, values: { entity_id: newPath } });
-    await this.t.touches.update({ where: `contact_id = ${oldId}`, values: { contact_id: newPath } });
-    await this.t.embeddings.update({ where: `entity_id = ${oldId}`, values: { entity_id: newPath } });
+    await this.t.entities.update({
+      where: `id = ${oldId}`,
+      values: { id: newPath },
+    });
+    await this.t.edges.update({
+      where: `from_id = ${oldId}`,
+      values: { from_id: newPath },
+    });
+    await this.t.edges.update({
+      where: `to_id = ${oldId}`,
+      values: { to_id: newPath },
+    });
+    await this.t.tags.update({
+      where: `entity_id = ${oldId}`,
+      values: { entity_id: newPath },
+    });
+    await this.t.touches.update({
+      where: `contact_id = ${oldId}`,
+      values: { contact_id: newPath },
+    });
+    await this.t.embeddings.update({
+      where: `entity_id = ${oldId}`,
+      values: { entity_id: newPath },
+    });
   }
 
   /** True iff the entity's body hash differs from what's stored (or it's new). */
@@ -90,7 +112,9 @@ export class LanceEntityMirror {
       body_hash: f.bodyHash,
       mtime: f.mtime,
       ctime: f.ctime,
-      lat: 0, lon: 0, geo_acc_m: 0,
+      lat: 0,
+      lon: 0,
+      geo_acc_m: 0,
     };
     await this.t.entities
       .mergeInsert("id")
@@ -101,23 +125,35 @@ export class LanceEntityMirror {
     // Re-derive tags + manual edges from frontmatter — simpler than diffing.
     await this.t.tags.delete(`entity_id = ${sqlStr(f.path)}`);
     if (f.tags.length) {
-      const tagRows: TagRow[] = f.tags.map((tag) => ({ entity_id: f.path, tag }));
+      const tagRows: TagRow[] = f.tags.map((tag) => ({
+        entity_id: f.path,
+        tag,
+      }));
       await this.t.tags.add(tagRows.map(rec));
     }
 
-    await this.t.edges.delete(`from_id = ${sqlStr(f.path)} AND source = 'manual'`);
+    await this.t.edges.delete(
+      `from_id = ${sqlStr(f.path)} AND source = 'manual'`,
+    );
     if (f.edges.length) {
       const now = Date.now();
       const edgeRows: EdgeRow[] = f.edges.map((e) => ({
-        from_id: f.path, to_id: e.to, edge_type: e.edgeType,
-        directed: e.directed ? 1 : 0, weight: 1.0, source: "manual",
-        inferred_conf: 0, ts: now,
+        from_id: f.path,
+        to_id: e.to,
+        edge_type: e.edgeType,
+        directed: e.directed ? 1 : 0,
+        weight: 1.0,
+        source: "manual",
+        inferred_conf: 0,
+        ts: now,
       }));
       await this.t.edges.add(edgeRows.map(rec));
     }
 
     if (changed && this.fts) {
-      const title = String(f.frontmatter["name"] ?? f.frontmatter["title"] ?? f.path);
+      const title = String(
+        f.frontmatter["name"] ?? f.frontmatter["title"] ?? f.path,
+      );
       await this.fts.index(f.path, title, f.body);
     }
   }
@@ -129,7 +165,11 @@ export class LanceEntityMirror {
   // we re-point to latest. Refreshing before reads keeps the mirror coherent
   // with checkpoints; it's a cheap manifest read.
   private async refresh(tbl: LanceTable): Promise<void> {
-    try { await tbl.checkoutLatest(); } catch { /* not checked out / already latest */ }
+    try {
+      await tbl.checkoutLatest();
+    } catch {
+      /* not checked out / already latest */
+    }
   }
 
   async getEntity(path: string): Promise<EntityRow | null> {

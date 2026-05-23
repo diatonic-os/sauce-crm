@@ -15,7 +15,10 @@ export class Subsidiary extends Org {
 
   // LSP: subsidiary cannot be defunct while parent is active without an addendum.
   isStatusValidGivenParent(parentStatus: string): boolean {
-    if (this.status === "defunct" && ["active", "customer", "vendor"].includes(parentStatus)) {
+    if (
+      this.status === "defunct" &&
+      ["active", "customer", "vendor"].includes(parentStatus)
+    ) {
       return false;
     }
     return true;

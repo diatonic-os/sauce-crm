@@ -2,7 +2,11 @@
 // no sticky decision exists for the requested action class.
 
 import { Modal, type App } from "obsidian";
-import type { ApprovalRequest, ApprovalUI, ApprovalVerdict } from "../../contract/ApprovalGate";
+import type {
+  ApprovalRequest,
+  ApprovalUI,
+  ApprovalVerdict,
+} from "../../contract/ApprovalGate";
 
 const RISK_COLOR: Record<"low" | "medium" | "high", string> = {
   low: "ok",
@@ -25,7 +29,9 @@ class ApprovalModal extends Modal {
     app: App,
     private readonly req: ApprovalRequest,
     private readonly resolve: (v: ApprovalVerdict) => void,
-  ) { super(app); }
+  ) {
+    super(app);
+  }
 
   private decided = false;
 
@@ -48,20 +54,26 @@ class ApprovalModal extends Modal {
     head.createEl("p", { text: this.req.summary });
     if (this.req.details) {
       const pre = head.createEl("pre", {
-        attr: { style: "max-height: 200px; overflow: auto; font-size: 0.85em;" },
+        attr: {
+          style: "max-height: 200px; overflow: auto; font-size: 0.85em;",
+        },
       });
       pre.setText(this.req.details);
     }
 
     const footer = c.createDiv({ cls: "sauce-modal-footer sauce-button-row" });
-    const mkBtn = (label: string, cls: string, verdict: ApprovalVerdict): void => {
+    const mkBtn = (
+      label: string,
+      cls: string,
+      verdict: ApprovalVerdict,
+    ): void => {
       const btn = footer.createEl("button", { cls, text: label });
       btn.onclick = () => this.decide(verdict);
     };
-    mkBtn("Approve once",  "sauce-button",            "approve-once");
-    mkBtn("Approve always", "sauce-button",           "approve-always");
-    mkBtn("Deny once",     "sauce-button-secondary",  "deny-once");
-    mkBtn("Deny always",   "sauce-button-danger",     "deny-always");
+    mkBtn("Approve once", "sauce-button", "approve-once");
+    mkBtn("Approve always", "sauce-button", "approve-always");
+    mkBtn("Deny once", "sauce-button-secondary", "deny-once");
+    mkBtn("Deny always", "sauce-button-danger", "deny-always");
   }
 
   private decide(v: ApprovalVerdict): void {

@@ -151,9 +151,19 @@ const EDGE_COLORS: Record<string, string> = {
 };
 
 export class GraphAtlasService {
-  constructor(public app: App, public entities: EntityService) {}
+  constructor(
+    public app: App,
+    public entities: EntityService,
+  ) {}
 
-  snapshot(opts: { now?: number; width?: number; height?: number; focusId?: string | null } = {}): GraphSnapshot {
+  snapshot(
+    opts: {
+      now?: number;
+      width?: number;
+      height?: number;
+      focusId?: string | null;
+    } = {},
+  ): GraphSnapshot {
     const now = opts.now ?? Date.now();
     const entities = this.collectEntities();
     const nodeById = new Map<string, GraphNode>();
@@ -162,7 +172,13 @@ export class GraphAtlasService {
 
     const edges = this.collectEdges(nodes, nodeById);
     this.scoreNodes(nodes, edges, now);
-    this.layout(nodes, edges, opts.width ?? 1200, opts.height ?? 800, opts.focusId ?? null);
+    this.layout(
+      nodes,
+      edges,
+      opts.width ?? 1200,
+      opts.height ?? 800,
+      opts.focusId ?? null,
+    );
     return { nodes, edges, nodeById };
   }
 
@@ -180,8 +196,14 @@ export class GraphAtlasService {
     const style = STYLE_BY_KIND[kind];
     const label = this.labelFor(entity);
     const fm = entity.frontmatter;
-    const lat = typeof fm.lat === "number" && Number.isFinite(fm.lat) ? fm.lat : undefined;
-    const lon = typeof fm.lon === "number" && Number.isFinite(fm.lon) ? fm.lon : undefined;
+    const lat =
+      typeof fm.lat === "number" && Number.isFinite(fm.lat)
+        ? fm.lat
+        : undefined;
+    const lon =
+      typeof fm.lon === "number" && Number.isFinite(fm.lon)
+        ? fm.lon
+        : undefined;
     const recent = this.recencyScore(fm, now, entity.file);
     const geo = lat != null && lon != null ? 1 : 0;
     const degree = 0;
@@ -212,7 +234,10 @@ export class GraphAtlasService {
     };
   }
 
-  private collectEdges(nodes: GraphNode[], nodeById: Map<string, GraphNode>): GraphEdge[] {
+  private collectEdges(
+    nodes: GraphNode[],
+    nodeById: Map<string, GraphNode>,
+  ): GraphEdge[] {
     const edges: GraphEdge[] = [];
     const seen = new Set<string>();
     const byName = new Map<string, GraphNode>();
@@ -223,7 +248,8 @@ export class GraphAtlasService {
     }
 
     for (const node of nodes) {
-      const fm = this.app.metadataCache.getFileCache(node.file)?.frontmatter ?? {};
+      const fm =
+        this.app.metadataCache.getFileCache(node.file)?.frontmatter ?? {};
       const rels = this.extractRelations(node, fm as Record<string, unknown>);
       for (const rel of rels) {
         const target = this.resolveTarget(rel.target, nodeById, byName);
@@ -232,7 +258,12 @@ export class GraphAtlasService {
         const directed = !rel.symmetric;
         if (seen.has(id)) continue;
         seen.add(id);
-        const base = relationWeight(rel.relation, rel.symmetric, node.kind, target.kind);
+        const base = relationWeight(
+          rel.relation,
+          rel.symmetric,
+          node.kind,
+          target.kind,
+        );
         const distance = rel.distance ?? 1;
         const weight = base * distance;
         edges.push({
@@ -251,7 +282,8 @@ export class GraphAtlasService {
     const geoNodes = nodes.filter((n) => n.lat != null && n.lon != null);
     if (geoNodes.length > 1) {
       const geoIndex = new GeoIndex(5);
-      for (const n of geoNodes) geoIndex.add({ id: n.id, lat: n.lat!, lon: n.lon! });
+      for (const n of geoNodes)
+        geoIndex.add({ id: n.id, lat: n.lat!, lon: n.lon! });
       for (const n of geoNodes) {
         const nearest = geoIndex.nearest(n.lat!, n.lon!, 4, 80_000);
         for (const hit of nearest) {
@@ -259,7 +291,7 @@ export class GraphAtlasService {
           const id = `${n.id}::geo::${hit.point.id}`;
           if (seen.has(id)) continue;
           seen.add(id);
-          const weight = clamp(1.6 - (hit.distanceM / 80_000), 0.35, 1.6);
+          const weight = clamp(1.6 - hit.distanceM / 80_000, 0.35, 1.6);
           edges.push({
             id,
             source: n.id,
@@ -277,8 +309,21 @@ export class GraphAtlasService {
     return edges;
   }
 
-  private extractRelations(node: GraphNode, fm: Record<string, unknown>): Array<{ relation: string; target: string; symmetric: boolean; distance?: number }> {
-    const out: Array<{ relation: string; target: string; symmetric: boolean; distance?: number }> = [];
+  private extractRelations(
+    node: GraphNode,
+    fm: Record<string, unknown>,
+  ): Array<{
+    relation: string;
+    target: string;
+    symmetric: boolean;
+    distance?: number;
+  }> {
+    const out: Array<{
+      relation: string;
+      target: string;
+      symmetric: boolean;
+      distance?: number;
+    }> = [];
     const directTargets = new Set<string>();
 
     for (const [key, value] of Object.entries(fm)) {
@@ -297,7 +342,10 @@ export class GraphAtlasService {
         out.push({
           relation: key,
           target,
-          symmetric: key === "knows" || key === "worked_with" || key === "related_contacts",
+          symmetric:
+            key === "knows" ||
+            key === "worked_with" ||
+            key === "related_contacts",
         });
       }
     }
@@ -311,14 +359,20 @@ export class GraphAtlasService {
         const raw = fm[key];
         for (const item of this.asStringList(raw)) {
           const target = this.extractTargetString(item);
-          if (target) out.push({ relation: key, target, symmetric: key === "blocked_by" });
+          if (target)
+            out.push({
+              relation: key,
+              target,
+              symmetric: key === "blocked_by",
+            });
         }
       }
     }
     if (node.kind === "idea") {
       for (const item of this.asStringList(fm.related_contacts)) {
         const target = this.extractTargetString(item);
-        if (target) out.push({ relation: "related_contacts", target, symmetric: true });
+        if (target)
+          out.push({ relation: "related_contacts", target, symmetric: true });
       }
     }
     if (node.kind === "ledger") {
@@ -327,7 +381,8 @@ export class GraphAtlasService {
     }
     if (node.kind === "event") {
       const contact = this.extractTargetString(String(fm.contact ?? ""));
-      if (contact) out.push({ relation: "contact", target: contact, symmetric: false });
+      if (contact)
+        out.push({ relation: "contact", target: contact, symmetric: false });
       const org = this.extractTargetString(String(fm.org ?? ""));
       if (org) out.push({ relation: "org", target: org, symmetric: false });
     }
@@ -352,18 +407,38 @@ export class GraphAtlasService {
   private extractLinkishTargetString(raw: string): string | null {
     const trimmed = raw.trim();
     if (!trimmed) return null;
-    if (trimmed.startsWith("[[") && trimmed.endsWith("]]")) return this.extractTargetString(trimmed);
-    if (trimmed.includes("/") || trimmed.endsWith(".md") || trimmed.includes("|")) return this.extractTargetString(trimmed);
+    if (trimmed.startsWith("[[") && trimmed.endsWith("]]"))
+      return this.extractTargetString(trimmed);
+    if (
+      trimmed.includes("/") ||
+      trimmed.endsWith(".md") ||
+      trimmed.includes("|")
+    )
+      return this.extractTargetString(trimmed);
     return null;
   }
 
-  private resolveTarget(target: string, nodeById: Map<string, GraphNode>, byName: Map<string, GraphNode>): GraphNode | null {
-    const exact = nodeById.get(target) ?? nodeById.get(target.endsWith(".md") ? target : `${target}.md`);
+  private resolveTarget(
+    target: string,
+    nodeById: Map<string, GraphNode>,
+    byName: Map<string, GraphNode>,
+  ): GraphNode | null {
+    const exact =
+      nodeById.get(target) ??
+      nodeById.get(target.endsWith(".md") ? target : `${target}.md`);
     if (exact) return exact;
-    return byName.get(target.toLowerCase()) ?? byName.get(target.replace(/\.md$/i, "").toLowerCase()) ?? null;
+    return (
+      byName.get(target.toLowerCase()) ??
+      byName.get(target.replace(/\.md$/i, "").toLowerCase()) ??
+      null
+    );
   }
 
-  private scoreNodes(nodes: GraphNode[], edges: GraphEdge[], now: number): void {
+  private scoreNodes(
+    nodes: GraphNode[],
+    edges: GraphEdge[],
+    now: number,
+  ): void {
     const degreeById = new Map<string, number>();
     const interactionById = new Map<string, number>();
     const edgeAdj = new Map<string, GraphEdge[]>();
@@ -371,13 +446,16 @@ export class GraphAtlasService {
       degreeById.set(edge.source, (degreeById.get(edge.source) ?? 0) + 1);
       degreeById.set(edge.target, (degreeById.get(edge.target) ?? 0) + 1);
       const a = edgeAdj.get(edge.source) ?? [];
-      a.push(edge); edgeAdj.set(edge.source, a);
+      a.push(edge);
+      edgeAdj.set(edge.source, a);
       const b = edgeAdj.get(edge.target) ?? [];
-      b.push(edge); edgeAdj.set(edge.target, b);
+      b.push(edge);
+      edgeAdj.set(edge.target, b);
     }
 
     for (const node of nodes) {
-      const fm = this.app.metadataCache.getFileCache(node.file)?.frontmatter ?? {};
+      const fm =
+        this.app.metadataCache.getFileCache(node.file)?.frontmatter ?? {};
       const degree = degreeById.get(node.id) ?? 0;
       const interactions = this.interactionScore(node.kind, fm);
       const recency = this.recencyScore(fm, now, node.file);
@@ -385,7 +463,13 @@ export class GraphAtlasService {
       const tagCount = Array.isArray(fm.tags) ? fm.tags.length : 0;
       const relationBoost = Math.sqrt(degree + 1) * 1.2;
       const base = KIND_WEIGHTS[node.kind];
-      const score = base + relationBoost + interactions * 0.35 + recency * 1.6 + geo * 0.7 + tagCount * 0.08;
+      const score =
+        base +
+        relationBoost +
+        interactions * 0.35 +
+        recency * 1.6 +
+        geo * 0.7 +
+        tagCount * 0.08;
       node.degree = degree;
       node.interactions = interactions;
       node.recency = recency;
@@ -404,22 +488,42 @@ export class GraphAtlasService {
     }
   }
 
-  private interactionScore(kind: GraphKind, fm: Record<string, unknown>): number {
+  private interactionScore(
+    kind: GraphKind,
+    fm: Record<string, unknown>,
+  ): number {
     if (kind === "touch") return 3;
     if (kind === "event") return 2.5;
-    if (kind === "task") return String(fm.status ?? "todo") === "done" ? 0.5 : 2;
-    if (kind === "idea") return String(fm.status ?? "open") === "shipped" ? 0.8 : 1.6;
-    if (kind === "ledger") return Math.min(4, Math.log10(Math.abs(Number(fm.amount ?? 0)) + 10));
-    if (kind === "note" || kind === "observation") return (Array.isArray(fm.tags) ? fm.tags.length : 0) * 0.4 + 1;
-    if (kind === "person" || kind === "org") return 1.5 + (Array.isArray(fm.tags) ? fm.tags.length * 0.2 : 0);
+    if (kind === "task")
+      return String(fm.status ?? "todo") === "done" ? 0.5 : 2;
+    if (kind === "idea")
+      return String(fm.status ?? "open") === "shipped" ? 0.8 : 1.6;
+    if (kind === "ledger")
+      return Math.min(4, Math.log10(Math.abs(Number(fm.amount ?? 0)) + 10));
+    if (kind === "note" || kind === "observation")
+      return (Array.isArray(fm.tags) ? fm.tags.length : 0) * 0.4 + 1;
+    if (kind === "person" || kind === "org")
+      return 1.5 + (Array.isArray(fm.tags) ? fm.tags.length * 0.2 : 0);
     return 1;
   }
 
-  private recencyScore(fm: Record<string, unknown>, now: number, file: TFile): number {
+  private recencyScore(
+    fm: Record<string, unknown>,
+    now: number,
+    file: TFile,
+  ): number {
     const dates: string[] = [];
-    for (const key of ["date", "due", "last_touch", "created", "updated", "modified"]) {
+    for (const key of [
+      "date",
+      "due",
+      "last_touch",
+      "created",
+      "updated",
+      "modified",
+    ]) {
       const value = fm[key];
-      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) dates.push(value.slice(0, 10));
+      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value))
+        dates.push(value.slice(0, 10));
     }
     const latest = dates.sort().at(-1);
     if (!latest) return 0.15;
@@ -429,15 +533,25 @@ export class GraphAtlasService {
     return clamp(1.6 / (1 + daysOld / 21), 0.1, 1.6);
   }
 
-  private layout(nodes: GraphNode[], edges: GraphEdge[], width: number, height: number, focusId: string | null): void {
+  private layout(
+    nodes: GraphNode[],
+    edges: GraphEdge[],
+    width: number,
+    height: number,
+    focusId: string | null,
+  ): void {
     if (nodes.length === 0) return;
     const w = Math.max(640, width);
     const h = Math.max(420, height);
     const centerX = w / 2;
     const centerY = h / 2;
     const minDim = Math.min(w, h);
-    const layerRadius = [0, 0.22, 0.35, 0.5, 0.62].map((ratio) => ratio * minDim);
-    const focus = focusId ? nodes.find((n) => n.id === focusId) ?? null : null;
+    const layerRadius = [0, 0.22, 0.35, 0.5, 0.62].map(
+      (ratio) => ratio * minDim,
+    );
+    const focus = focusId
+      ? (nodes.find((n) => n.id === focusId) ?? null)
+      : null;
     const focusSet = focus
       ? new Set<string>([
           focus.id,
@@ -450,7 +564,8 @@ export class GraphAtlasService {
     for (const node of nodes) {
       const seed = hash(node.id);
       const angle = ((seed % 3600) / 3600) * Math.PI * 2;
-      const radius = layerRadius[node.layer] ?? layerRadius[layerRadius.length - 1];
+      const radius =
+        layerRadius[node.layer] ?? layerRadius[layerRadius.length - 1];
       node.x = centerX + Math.cos(angle) * (radius + (node.geo ? 22 : 0));
       node.y = centerY + Math.sin(angle) * (radius + (node.geo ? 22 : 0));
       node.vx = 0;
@@ -458,19 +573,36 @@ export class GraphAtlasService {
     }
 
     const geoNodes = nodes.filter((n) => n.lat != null && n.lon != null);
-    const geoMinLat = geoNodes.length ? Math.min(...geoNodes.map((n) => n.lat!)) : 0;
-    const geoMaxLat = geoNodes.length ? Math.max(...geoNodes.map((n) => n.lat!)) : 1;
-    const geoMinLon = geoNodes.length ? Math.min(...geoNodes.map((n) => n.lon!)) : 0;
-    const geoMaxLon = geoNodes.length ? Math.max(...geoNodes.map((n) => n.lon!)) : 1;
+    const geoMinLat = geoNodes.length
+      ? Math.min(...geoNodes.map((n) => n.lat!))
+      : 0;
+    const geoMaxLat = geoNodes.length
+      ? Math.max(...geoNodes.map((n) => n.lat!))
+      : 1;
+    const geoMinLon = geoNodes.length
+      ? Math.min(...geoNodes.map((n) => n.lon!))
+      : 0;
+    const geoMaxLon = geoNodes.length
+      ? Math.max(...geoNodes.map((n) => n.lon!))
+      : 1;
 
     const geoAnchor = (n: GraphNode): { x: number; y: number } | null => {
       if (n.lat == null || n.lon == null) return null;
-      const gx = 28 + ((n.lon - geoMinLon) / Math.max(0.001, geoMaxLon - geoMinLon)) * (w - 56);
-      const gy = 28 + (1 - (n.lat - geoMinLat) / Math.max(0.001, geoMaxLat - geoMinLat)) * (h - 56);
+      const gx =
+        28 +
+        ((n.lon - geoMinLon) / Math.max(0.001, geoMaxLon - geoMinLon)) *
+          (w - 56);
+      const gy =
+        28 +
+        (1 - (n.lat - geoMinLat) / Math.max(0.001, geoMaxLat - geoMinLat)) *
+          (h - 56);
       return { x: gx, y: gy };
     };
 
-    const iterations = Math.min(90, Math.max(30, Math.round(180 / Math.sqrt(nodes.length))));
+    const iterations = Math.min(
+      90,
+      Math.max(30, Math.round(180 / Math.sqrt(nodes.length))),
+    );
     const repulsion = 1400;
     const damping = 0.82;
     for (let step = 0; step < iterations; step++) {
@@ -486,17 +618,20 @@ export class GraphAtlasService {
           const minDist = a.radius + b.radius + 10;
           if (dist < minDist) {
             const push = ((minDist - dist) / minDist) * 1.8;
-            dx /= dist; dy /= dist;
+            dx /= dist;
+            dy /= dist;
             a.vx -= dx * push * (b.mass / (a.mass + b.mass));
             a.vy -= dy * push * (b.mass / (a.mass + b.mass));
             b.vx += dx * push * (a.mass / (a.mass + b.mass));
             b.vy += dy * push * (a.mass / (a.mass + b.mass));
           }
-          const force = repulsion * (a.mass * b.mass) / dist2;
+          const force = (repulsion * (a.mass * b.mass)) / dist2;
           const fx = (dx / dist) * force * 0.00008;
           const fy = (dy / dist) * force * 0.00008;
-          a.vx -= fx; a.vy -= fy;
-          b.vx += fx; b.vy += fy;
+          a.vx -= fx;
+          a.vy -= fy;
+          b.vx += fx;
+          b.vy += fy;
         }
       }
 
@@ -511,7 +646,8 @@ export class GraphAtlasService {
         const desired = edge.length;
         const delta = dist - desired;
         const spring = (delta / desired) * edge.weight * 0.08;
-        dx /= dist; dy /= dist;
+        dx /= dist;
+        dy /= dist;
         source.vx += dx * spring;
         source.vy += dy * spring;
         target.vx -= dx * spring;
@@ -519,8 +655,10 @@ export class GraphAtlasService {
       }
 
       for (const node of nodes) {
-        const anchorRadius = layerRadius[node.layer] ?? layerRadius[layerRadius.length - 1];
-        const angle = ((hash(`${node.kind}:${node.id}`) % 3600) / 3600) * Math.PI * 2;
+        const anchorRadius =
+          layerRadius[node.layer] ?? layerRadius[layerRadius.length - 1];
+        const angle =
+          ((hash(`${node.kind}:${node.id}`) % 3600) / 3600) * Math.PI * 2;
         const ax = centerX + Math.cos(angle) * anchorRadius;
         const ay = centerY + Math.sin(angle) * anchorRadius;
         node.vx += (ax - node.x) * 0.004;
@@ -528,7 +666,8 @@ export class GraphAtlasService {
 
         const g = geoAnchor(node);
         if (g) {
-          const geoBlend = node.kind === "person" || node.kind === "org" ? 0.08 : 0.03;
+          const geoBlend =
+            node.kind === "person" || node.kind === "org" ? 0.08 : 0.03;
           node.vx += (g.x - node.x) * geoBlend;
           node.vy += (g.y - node.y) * geoBlend;
         }
@@ -572,38 +711,50 @@ export class GraphAtlasService {
   private labelFor(entity: Entity): string {
     const fm = entity.frontmatter;
     for (const key of ["name", "title", "label"]) {
-      if (typeof fm[key] === "string" && String(fm[key]).trim()) return String(fm[key]);
+      if (typeof fm[key] === "string" && String(fm[key]).trim())
+        return String(fm[key]);
     }
     return entity.file.basename;
   }
 
   private asStringList(value: unknown): string[] {
     if (value == null) return [];
-    if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
+    if (Array.isArray(value))
+      return value.filter((v): v is string => typeof v === "string");
     return typeof value === "string" ? [value] : [];
   }
 }
 
-function relationWeight(relation: string, symmetric: boolean, sourceKind: GraphKind, targetKind: GraphKind): number {
-  const base = {
-    knows: 2.5,
-    worked_with: 2.3,
-    intro_via: 1.8,
-    family_of: 1.7,
-    parent: 3.0,
-    contact: 1.9,
-    org: 1.8,
-    related_contacts: 1.6,
-    blocked_by: 1.4,
-    addends: 1.2,
-    geo: 1.1,
-    link: 1.0,
-  }[relation] ?? 1;
+function relationWeight(
+  relation: string,
+  symmetric: boolean,
+  sourceKind: GraphKind,
+  targetKind: GraphKind,
+): number {
+  const base =
+    {
+      knows: 2.5,
+      worked_with: 2.3,
+      intro_via: 1.8,
+      family_of: 1.7,
+      parent: 3.0,
+      contact: 1.9,
+      org: 1.8,
+      related_contacts: 1.6,
+      blocked_by: 1.4,
+      addends: 1.2,
+      geo: 1.1,
+      link: 1.0,
+    }[relation] ?? 1;
   const kindBoost = (KIND_WEIGHTS[sourceKind] + KIND_WEIGHTS[targetKind]) / 2;
   return base * kindBoost * (symmetric ? 1.08 : 1);
 }
 
-function desiredLength(weight: number, source: GraphNode, target: GraphNode): number {
+function desiredLength(
+  weight: number,
+  source: GraphNode,
+  target: GraphNode,
+): number {
   const mass = (source.mass + target.mass) / 2;
   return clamp(250 - weight * 42 - mass * 5, 58, 260);
 }

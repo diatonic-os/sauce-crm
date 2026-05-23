@@ -3,11 +3,15 @@
  * when V(A) > ρ_adm AND V(B) > ρ_adm, where V is the representativity value
  * of each entity's characteristic vector.
  */
-export function representativity(entity: Record<string, any>, fields: string[]): number {
+export function representativity(
+  entity: Record<string, any>,
+  fields: string[],
+): number {
   let filled = 0;
   for (const f of fields) {
     const v = entity[f];
-    if (v != null && !(Array.isArray(v) && v.length === 0) && v !== "") filled++;
+    if (v != null && !(Array.isArray(v) && v.length === 0) && v !== "")
+      filled++;
   }
   return fields.length === 0 ? 0 : filled / fields.length;
 }
@@ -18,5 +22,7 @@ export function clearsThreshold(
   fields: string[],
   rhoAdm: number,
 ): boolean {
-  return representativity(a, fields) > rhoAdm && representativity(b, fields) > rhoAdm;
+  return (
+    representativity(a, fields) > rhoAdm && representativity(b, fields) > rhoAdm
+  );
 }

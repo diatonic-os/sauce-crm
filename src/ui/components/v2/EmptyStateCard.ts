@@ -13,9 +13,11 @@ export interface EmptyStateInput {
 
 export function renderEmptyStateCard(
   parent: HTMLElement,
-  input: EmptyStateInput
+  input: EmptyStateInput,
 ): HTMLDivElement {
-  const card = parent.createDiv({ cls: `sg-empty-state sg-empty-state-${input.state.toLowerCase()}` });
+  const card = parent.createDiv({
+    cls: `sg-empty-state sg-empty-state-${input.state.toLowerCase()}`,
+  });
   card.setAttribute("role", "status");
   card.setAttribute("data-state", input.state);
 

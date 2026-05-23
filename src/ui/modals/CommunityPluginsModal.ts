@@ -42,7 +42,9 @@ export class CommunityPluginsModal extends Modal {
         "any row to jump to its install page.",
     });
 
-    const statuses = detectCommunityPlugins(this.opts.app as unknown as Parameters<typeof detectCommunityPlugins>[0]);
+    const statuses = detectCommunityPlugins(
+      this.opts.app as unknown as Parameters<typeof detectCommunityPlugins>[0],
+    );
     const list = c.createDiv({ cls: "sauce-card-grid" });
     for (const s of statuses) {
       this.renderRow(list, s);
@@ -70,16 +72,18 @@ export class CommunityPluginsModal extends Modal {
     const head = card.createDiv({ cls: "sauce-section-header" });
     head.createEl("h4", { cls: "sauce-card-title", text: s.spec.name });
     const badge = head.createSpan({
-      cls: s.installed && s.enabled
-        ? "sauce-badge sauce-badge--ok"
-        : s.installed
-        ? "sauce-badge sauce-badge--warn"
-        : "sauce-badge sauce-badge--error",
-      text: s.installed && s.enabled
-        ? "active"
-        : s.installed
-        ? "installed (disabled)"
-        : "not installed",
+      cls:
+        s.installed && s.enabled
+          ? "sauce-badge sauce-badge--ok"
+          : s.installed
+            ? "sauce-badge sauce-badge--warn"
+            : "sauce-badge sauce-badge--error",
+      text:
+        s.installed && s.enabled
+          ? "active"
+          : s.installed
+            ? "installed (disabled)"
+            : "not installed",
     });
     badge.setAttr("aria-label", "plugin status");
     card.createEl("p", { cls: "sauce-card-meta", text: s.spec.purpose });
@@ -91,7 +95,12 @@ export class CommunityPluginsModal extends Modal {
         text: "Open install page",
       });
       install.onclick = () => {
-        openCommunityPluginsPage(this.opts.app as unknown as Parameters<typeof openCommunityPluginsPage>[0], s.spec.id);
+        openCommunityPluginsPage(
+          this.opts.app as unknown as Parameters<
+            typeof openCommunityPluginsPage
+          >[0],
+          s.spec.id,
+        );
         new Notice(`Opening community plugins → ${s.spec.name}`);
       };
     } else if (!s.enabled) {
@@ -100,10 +109,17 @@ export class CommunityPluginsModal extends Modal {
         text: "Enable in Settings",
       });
       enable.onclick = () => {
-        openCommunityPluginsPage(this.opts.app as unknown as Parameters<typeof openCommunityPluginsPage>[0]);
+        openCommunityPluginsPage(
+          this.opts.app as unknown as Parameters<
+            typeof openCommunityPluginsPage
+          >[0],
+        );
       };
     } else {
-      const ok = actions.createEl("span", { cls: "sauce-field-help", text: "✓ ready" });
+      const ok = actions.createEl("span", {
+        cls: "sauce-field-help",
+        text: "✓ ready",
+      });
       ok.setAttr("aria-label", "ready");
     }
   }

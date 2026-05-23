@@ -5,13 +5,13 @@ export type ContractId = string;
 
 // State of a contract lock
 export enum LockState {
-  OPEN = 'OPEN',
-  LOCKED = 'LOCKED',
-  FROZEN = 'FROZEN',
+  OPEN = "OPEN",
+  LOCKED = "LOCKED",
+  FROZEN = "FROZEN",
 }
 
 // Vote cast by a voter
-export type Vote = 'aye' | 'nay' | 'abstain';
+export type Vote = "aye" | "nay" | "abstain";
 
 // Information about a voter
 export interface Voter {
@@ -72,7 +72,7 @@ export interface LSPViolation {
 
 // Kinds of LSP violations
 export enum LSPViolationKind {
-  PRECONDITION_STRENGTHENED = 'PRECONDITION_STRENGTHENED',
-  POSTCONDITION_WEAKENED = 'POSTCONDITION_WEAKENED',
-  LSP_SUBTYPE_VIOLATION = 'LSP_SUBTYPE_VIOLATION',
+  PRECONDITION_STRENGTHENED = "PRECONDITION_STRENGTHENED",
+  POSTCONDITION_WEAKENED = "POSTCONDITION_WEAKENED",
+  LSP_SUBTYPE_VIOLATION = "LSP_SUBTYPE_VIOLATION",
 }

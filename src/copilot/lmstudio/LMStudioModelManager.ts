@@ -1,11 +1,22 @@
 // SPEC §19.1 — Model lifecycle. List downloaded, list loaded, JIT load, unload, get info.
-import type { LMStudioClientLike, LMStudioModelInstanceInfo } from './LMStudioClientFactory';
+import type {
+  LMStudioClientLike,
+  LMStudioModelInstanceInfo,
+} from "./LMStudioClientFactory";
 
-export interface DownloadedModel { modelKey: string; path?: string; type?: string; sizeBytes?: number; }
-export interface LoadedModel { identifier: string; path?: string; }
+export interface DownloadedModel {
+  modelKey: string;
+  path?: string;
+  type?: string;
+  sizeBytes?: number;
+}
+export interface LoadedModel {
+  identifier: string;
+  path?: string;
+}
 
 export interface LoadOptions {
-  ttlSeconds?: number;             // auto-unload after idle
+  ttlSeconds?: number; // auto-unload after idle
   contextLength?: number;
   gpuLayers?: number;
   signal?: AbortSignal;
@@ -17,7 +28,7 @@ export class LMStudioModelManager {
   async listDownloaded(): Promise<DownloadedModel[]> {
     const rows = await this.client.system.listDownloadedModels();
     return rows.map((r) => ({
-      modelKey: r.modelKey ?? r.path ?? 'unknown',
+      modelKey: r.modelKey ?? r.path ?? "unknown",
       path: r.path,
       type: r.type,
       sizeBytes: r.sizeBytes,
@@ -26,7 +37,10 @@ export class LMStudioModelManager {
 
   async listLoaded(): Promise<LoadedModel[]> {
     const rows = await this.client.llm.listLoaded();
-    return rows.map((r) => ({ identifier: r.identifier ?? r.path ?? 'unknown', path: r.path }));
+    return rows.map((r) => ({
+      identifier: r.identifier ?? r.path ?? "unknown",
+      path: r.path,
+    }));
   }
 
   async load(modelKey: string, opts: LoadOptions = {}): Promise<LoadedModel> {
@@ -47,7 +61,9 @@ export class LMStudioModelManager {
     await handle.unload();
   }
 
-  async getInfo(modelId: string): Promise<LMStudioModelInstanceInfo | undefined> {
+  async getInfo(
+    modelId: string,
+  ): Promise<LMStudioModelInstanceInfo | undefined> {
     const handle = await this.client.llm.model(modelId);
     return handle.getModelInfo();
   }
@@ -59,6 +75,10 @@ export class LMStudioModelManager {
 
   async lmStudioVersion(): Promise<{ version: string; build?: string } | null> {
     if (!this.client.system.getLMStudioVersion) return null;
-    try { return await this.client.system.getLMStudioVersion(); } catch { return null; }
+    try {
+      return await this.client.system.getLMStudioVersion();
+    } catch {
+      return null;
+    }
   }
 }

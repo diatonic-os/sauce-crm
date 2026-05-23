@@ -11,7 +11,10 @@ export class ParentVaultBootstrapper {
     if (!addenda) await this.app.vault.createFolder("_addenda");
     const pv = this.app.vault.getAbstractFileByPath("PARENT-VAULT.md");
     if (!(pv instanceof TFile)) {
-      await this.app.vault.create("PARENT-VAULT.md", PARENT_VAULT_SEED.replace("{{date}}", todayIso()));
+      await this.app.vault.create(
+        "PARENT-VAULT.md",
+        PARENT_VAULT_SEED.replace("{{date}}", todayIso()),
+      );
     }
   }
 }

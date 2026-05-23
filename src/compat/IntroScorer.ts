@@ -2,7 +2,7 @@ import { computeCompatibleSet } from "./CompatibleSet";
 import { clearsThreshold } from "./InfoDensity";
 
 export interface IntroScore {
-  score: number;             // 0..1
+  score: number; // 0..1
   passes_threshold: boolean;
   missing_for_threshold: string[];
 }

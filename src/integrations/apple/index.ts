@@ -1,14 +1,18 @@
-import type { ConnectionState, IIntegration, SyncResource } from '../IIntegration';
-import type { OAuthFlow } from '../../security/OAuthFlow';
-import type { ScopeRegistry } from '../../security/ScopeRegistry';
-import type { ProxyClient } from '../../security/ProxyClient';
-import type { FetchHost, AppleAuth } from './types';
-import { CalDAVClient } from './CalDAVClient';
-import { CardDAVClient } from './CardDAVClient';
+import type {
+  ConnectionState,
+  IIntegration,
+  SyncResource,
+} from "../IIntegration";
+import type { OAuthFlow } from "../../security/OAuthFlow";
+import type { ScopeRegistry } from "../../security/ScopeRegistry";
+import type { ProxyClient } from "../../security/ProxyClient";
+import type { FetchHost, AppleAuth } from "./types";
+import { CalDAVClient } from "./CalDAVClient";
+import { CardDAVClient } from "./CardDAVClient";
 
-export * from './types';
-export { CalDAVClient } from './CalDAVClient';
-export { CardDAVClient } from './CardDAVClient';
+export * from "./types";
+export { CalDAVClient } from "./CalDAVClient";
+export { CardDAVClient } from "./CardDAVClient";
 
 export interface AppleIntegrationHost {
   readonly oauth?: OAuthFlow;
@@ -19,8 +23,8 @@ export interface AppleIntegrationHost {
 }
 
 export class AppleIntegration implements IIntegration {
-  readonly id = 'apple';
-  readonly label = 'Apple (iCloud)';
+  readonly id = "apple";
+  readonly label = "Apple (iCloud)";
   private resources: SyncResource[] = [];
   private connection: ConnectionState = { connected: false };
 
@@ -28,7 +32,7 @@ export class AppleIntegration implements IIntegration {
 
   async connect(): Promise<ConnectionState> {
     if (this.host.oauth) {
-      const ts = await this.host.oauth.authorize('apple', []);
+      const ts = await this.host.oauth.authorize("apple", []);
       this.connection = { connected: true, expiresAt: ts.expiresAt };
     } else {
       this.connection = { connected: true };
@@ -37,14 +41,20 @@ export class AppleIntegration implements IIntegration {
   }
 
   async disconnect(): Promise<void> {
-    if (this.host.oauth) await this.host.oauth.revoke('apple');
+    if (this.host.oauth) await this.host.oauth.revoke("apple");
     this.connection = { connected: false };
   }
 
-  async state(): Promise<ConnectionState> { return this.connection; }
-  async listResources(): Promise<SyncResource[]> { return this.resources; }
+  async state(): Promise<ConnectionState> {
+    return this.connection;
+  }
+  async listResources(): Promise<SyncResource[]> {
+    return this.resources;
+  }
 
-  setResources(rs: SyncResource[]): void { this.resources = rs; }
+  setResources(rs: SyncResource[]): void {
+    this.resources = rs;
+  }
 
   private _caldav: CalDAVClient | null = null;
   private _carddav: CardDAVClient | null = null;
@@ -52,18 +62,30 @@ export class AppleIntegration implements IIntegration {
 
   caldav(): CalDAVClient | null {
     if (!this.host.fetch || !this.host.auth) return null;
-    if (!this._caldav) this._caldav = new CalDAVClient({ fetch: this.host.fetch, auth: this.host.auth });
+    if (!this._caldav)
+      this._caldav = new CalDAVClient({
+        fetch: this.host.fetch,
+        auth: this.host.auth,
+      });
     return this._caldav;
   }
   carddav(): CardDAVClient | null {
     if (!this.host.fetch || !this.host.auth) return null;
-    if (!this._carddav) this._carddav = new CardDAVClient({ fetch: this.host.fetch, auth: this.host.auth });
+    if (!this._carddav)
+      this._carddav = new CardDAVClient({
+        fetch: this.host.fetch,
+        auth: this.host.auth,
+      });
     return this._carddav;
   }
 
-  async syncResource(id: string): Promise<{ pulled: number; pushed: number; errors: number }> {
-    if (!this.host.fetch || !this.host.auth) return { pulled: 0, pushed: 0, errors: 0 };
-    let pulled = 0, errors = 0;
+  async syncResource(
+    id: string,
+  ): Promise<{ pulled: number; pushed: number; errors: number }> {
+    if (!this.host.fetch || !this.host.auth)
+      return { pulled: 0, pushed: 0, errors: 0 };
+    let pulled = 0,
+      errors = 0;
     try {
       if (id === "calendar") {
         const c = this.caldav()!;
@@ -71,8 +93,12 @@ export class AppleIntegration implements IIntegration {
         if (!principal) return { pulled: 0, pushed: 0, errors: 1 };
         const cals = await c.listCalendars(principal);
         const now = new Date();
-        const start = new Date(now.getTime() - this.daysWindow * 86400_000).toISOString();
-        const end = new Date(now.getTime() + this.daysWindow * 86400_000).toISOString();
+        const start = new Date(
+          now.getTime() - this.daysWindow * 86400_000,
+        ).toISOString();
+        const end = new Date(
+          now.getTime() + this.daysWindow * 86400_000,
+        ).toISOString();
         for (const cal of cals) {
           const events = await c.listEvents(cal, start, end);
           pulled += events.length;
@@ -87,7 +113,9 @@ export class AppleIntegration implements IIntegration {
           pulled += contacts.length;
         }
       }
-    } catch { errors++; }
+    } catch {
+      errors++;
+    }
     return { pulled, pushed: 0, errors };
   }
 }

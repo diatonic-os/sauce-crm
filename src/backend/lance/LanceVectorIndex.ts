@@ -12,14 +12,30 @@ export interface VectorHit {
 }
 
 export class LanceVectorIndex {
-  constructor(private readonly table: LanceTable, readonly dim: number) {}
+  constructor(
+    private readonly table: LanceTable,
+    readonly dim: number,
+  ) {}
 
   /** Insert-or-replace the embedding for an entity (keyed by entity_id). */
-  async store(entityId: string, vector: number[], model: string, hash: string): Promise<void> {
+  async store(
+    entityId: string,
+    vector: number[],
+    model: string,
+    hash: string,
+  ): Promise<void> {
     if (vector.length !== this.dim) {
-      throw new Error(`embedding dim ${vector.length} != table dim ${this.dim}`);
+      throw new Error(
+        `embedding dim ${vector.length} != table dim ${this.dim}`,
+      );
     }
-    const row: EmbeddingRow = { entity_id: entityId, model, dim: this.dim, vector, hash };
+    const row: EmbeddingRow = {
+      entity_id: entityId,
+      model,
+      dim: this.dim,
+      vector,
+      hash,
+    };
     await this.table
       .mergeInsert("entity_id")
       .whenMatchedUpdateAll()
@@ -28,7 +44,12 @@ export class LanceVectorIndex {
   }
 
   /** mergeInsert already upserts; kept for API parity with the old VectorDB. */
-  async upsert(entityId: string, vector: number[], model: string, hash: string): Promise<void> {
+  async upsert(
+    entityId: string,
+    vector: number[],
+    model: string,
+    hash: string,
+  ): Promise<void> {
     await this.store(entityId, vector, model, hash);
   }
 

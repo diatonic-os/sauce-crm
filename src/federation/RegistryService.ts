@@ -30,7 +30,12 @@ export class RegistryService {
     return out;
   }
 
-  async registerSubVault(input: { vault_id: string; path: string; role?: string; spec_version?: string }): Promise<TFile> {
+  async registerSubVault(input: {
+    vault_id: string;
+    path: string;
+    role?: string;
+    spec_version?: string;
+  }): Promise<TFile> {
     const targetPath = normalizePath(`vaults/${input.vault_id}.md`);
     const folder = this.app.vault.getAbstractFileByPath("vaults");
     if (!folder) await this.app.vault.createFolder("vaults");
@@ -67,7 +72,9 @@ tags: [sub-vault, registry-entry]
   }
 
   async unregisterSubVault(vault_id: string): Promise<void> {
-    const f = this.app.vault.getAbstractFileByPath(normalizePath(`vaults/${vault_id}.md`));
+    const f = this.app.vault.getAbstractFileByPath(
+      normalizePath(`vaults/${vault_id}.md`),
+    );
     if (!(f instanceof TFile)) return;
     await this.app.fileManager.processFrontMatter(f, (fm) => {
       fm.enabled = false;

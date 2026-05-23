@@ -15,7 +15,11 @@
 // Settings persistence: gate.decisions[<class>] = "approve-always" | "deny-always"
 // — anything else means "prompt every time."
 
-export type ApprovalVerdict = "approve-once" | "approve-always" | "deny-once" | "deny-always";
+export type ApprovalVerdict =
+  | "approve-once"
+  | "approve-always"
+  | "deny-once"
+  | "deny-always";
 
 export type ActionClass =
   | "edit-file"
@@ -115,8 +119,12 @@ export class ApprovalGate {
 /** In-memory store for tests. */
 export class MemoryApprovalStore implements ApprovalStore {
   private record: ApprovalRecord = { decisions: {} };
-  async read(): Promise<ApprovalRecord> { return JSON.parse(JSON.stringify(this.record)); }
-  async write(r: ApprovalRecord): Promise<void> { this.record = JSON.parse(JSON.stringify(r)); }
+  async read(): Promise<ApprovalRecord> {
+    return JSON.parse(JSON.stringify(this.record));
+  }
+  async write(r: ApprovalRecord): Promise<void> {
+    this.record = JSON.parse(JSON.stringify(r));
+  }
 }
 
 /** Always-approve UI for tests; never prompts. */

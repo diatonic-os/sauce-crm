@@ -71,12 +71,30 @@ export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
     provider: "lmstudio",
     realtimeEmbeddings: false,
     providers: {
-      lmstudio: { enabled: true, endpoint: "http://localhost:1234/v1", model: "" },
-      openai: { enabled: false, endpoint: "https://api.openai.com/v1", model: "text-embedding-3-small" },
-      ollama: { enabled: false, endpoint: "http://localhost:11434", model: "nomic-embed-text" },
+      lmstudio: {
+        enabled: true,
+        endpoint: "http://localhost:1234/v1",
+        model: "",
+      },
+      openai: {
+        enabled: false,
+        endpoint: "https://api.openai.com/v1",
+        model: "text-embedding-3-small",
+      },
+      ollama: {
+        enabled: false,
+        endpoint: "http://localhost:11434",
+        model: "nomic-embed-text",
+      },
     },
   },
-  enrichment: { enabled: false, autostart: false, classify: true, tag: true, graph: true },
+  enrichment: {
+    enabled: false,
+    autostart: false,
+    classify: true,
+    tag: true,
+    graph: true,
+  },
   prompts: { globalSystemPrompt: "", sessionAutoNaming: true },
   documents: { enabled: false, formats: ["txt", "md", "pdf", "docx"] },
   localLLM: {
@@ -87,7 +105,9 @@ export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
 
 /** Deep-merge persisted feature settings over defaults (used in loadSettings).
  *  Tolerates partial/legacy blobs and never drops a default sub-key. */
-export function mergeFeatureSettings(loaded: Partial<SauceFeatureSettings> | undefined): SauceFeatureSettings {
+export function mergeFeatureSettings(
+  loaded: Partial<SauceFeatureSettings> | undefined,
+): SauceFeatureSettings {
   const d = DEFAULT_FEATURE_SETTINGS;
   const l = loaded ?? {};
   return {
@@ -95,9 +115,18 @@ export function mergeFeatureSettings(loaded: Partial<SauceFeatureSettings> | und
       ...d.rag,
       ...(l.rag ?? {}),
       providers: {
-        lmstudio: { ...d.rag.providers.lmstudio, ...(l.rag?.providers?.lmstudio ?? {}) },
-        openai: { ...d.rag.providers.openai, ...(l.rag?.providers?.openai ?? {}) },
-        ollama: { ...d.rag.providers.ollama, ...(l.rag?.providers?.ollama ?? {}) },
+        lmstudio: {
+          ...d.rag.providers.lmstudio,
+          ...(l.rag?.providers?.lmstudio ?? {}),
+        },
+        openai: {
+          ...d.rag.providers.openai,
+          ...(l.rag?.providers?.openai ?? {}),
+        },
+        ollama: {
+          ...d.rag.providers.ollama,
+          ...(l.rag?.providers?.ollama ?? {}),
+        },
       },
     },
     enrichment: { ...d.enrichment, ...(l.enrichment ?? {}) },

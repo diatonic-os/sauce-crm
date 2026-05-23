@@ -22,19 +22,80 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: "TAB-BASIC",        label: "Basic",        tooltip: "Get started; pick your vault layout; daily actions",                                       icon: "settings",     render: renderBasic },
-  { id: "TAB-VAULT",        label: "Vault",        tooltip: "Where your notes live and how sub-vaults connect",                                          icon: "folder-tree",  render: renderVault },
-  { id: "TAB-CONTRACTS",    label: "Validation",   tooltip: "Rules that keep your data clean and consistent",                                            icon: "shield-check", render: renderContracts },
-  { id: "TAB-COPILOT",      label: "Copilot",      tooltip: "Your AI assistant — pick a provider and tune it",                                           icon: "sparkles",     render: renderCopilot },
-  { id: "TAB-COMMAND",      label: "Commands",     tooltip: "Slash commands and editor menu actions — toggle, edit, and add prompts",                   icon: "terminal",     render: renderCommand },
-  { id: "TAB-SKILLS",       label: "Skills",       tooltip: "AI helpers that run when you ask — turn on what you need",                                  icon: "zap",          render: renderSkills },
-  { id: "TAB-INTEGRATIONS", label: "Integrations", tooltip: "AI providers, 3rd-party tools (Google / Microsoft / Notion / Twilio …), and community plugins", icon: "plug",         render: renderIntegrations },
-  { id: "TAB-DATA",         label: "Data",         tooltip: "Backups; import; export; map; database; sync schedule",                                     icon: "database",     render: renderData },
-  { id: "TAB-ADVANCED",     label: "Advanced",     tooltip: "Security; AI inference tuning; diagnostics; about",                                         icon: "wrench",       render: renderAdvanced },
+  {
+    id: "TAB-BASIC",
+    label: "Basic",
+    tooltip: "Get started; pick your vault layout; daily actions",
+    icon: "settings",
+    render: renderBasic,
+  },
+  {
+    id: "TAB-VAULT",
+    label: "Vault",
+    tooltip: "Where your notes live and how sub-vaults connect",
+    icon: "folder-tree",
+    render: renderVault,
+  },
+  {
+    id: "TAB-CONTRACTS",
+    label: "Validation",
+    tooltip: "Rules that keep your data clean and consistent",
+    icon: "shield-check",
+    render: renderContracts,
+  },
+  {
+    id: "TAB-COPILOT",
+    label: "Copilot",
+    tooltip: "Your AI assistant — pick a provider and tune it",
+    icon: "sparkles",
+    render: renderCopilot,
+  },
+  {
+    id: "TAB-COMMAND",
+    label: "Commands",
+    tooltip:
+      "Slash commands and editor menu actions — toggle, edit, and add prompts",
+    icon: "terminal",
+    render: renderCommand,
+  },
+  {
+    id: "TAB-SKILLS",
+    label: "Skills",
+    tooltip: "AI helpers that run when you ask — turn on what you need",
+    icon: "zap",
+    render: renderSkills,
+  },
+  {
+    id: "TAB-INTEGRATIONS",
+    label: "Integrations",
+    tooltip:
+      "AI providers, 3rd-party tools (Google / Microsoft / Notion / Twilio …), and community plugins",
+    icon: "plug",
+    render: renderIntegrations,
+  },
+  {
+    id: "TAB-DATA",
+    label: "Data",
+    tooltip: "Backups; import; export; map; database; sync schedule",
+    icon: "database",
+    render: renderData,
+  },
+  {
+    id: "TAB-ADVANCED",
+    label: "Advanced",
+    tooltip: "Security; AI inference tuning; diagnostics; about",
+    icon: "wrench",
+    render: renderAdvanced,
+  },
 ];
 
 export class SauceGraphSettingTab extends PluginSettingTab {
-  constructor(app: App, public plugin: SauceGraphPlugin) { super(app, plugin); }
+  constructor(
+    app: App,
+    public plugin: SauceGraphPlugin,
+  ) {
+    super(app, plugin);
+  }
 
   display(): void {
     const { containerEl } = this;
@@ -55,7 +116,10 @@ export class SauceGraphSettingTab extends PluginSettingTab {
     body.setAttribute("role", "tabpanel");
 
     for (const t of TABS) {
-      const tab = stripWrap.createEl("button", { cls: "sg-tab", text: t.label });
+      const tab = stripWrap.createEl("button", {
+        cls: "sg-tab",
+        text: t.label,
+      });
       tab.setAttribute("role", "tab");
       tab.setAttribute("title", t.tooltip);
       tab.setAttribute("aria-label", t.label);
@@ -65,7 +129,8 @@ export class SauceGraphSettingTab extends PluginSettingTab {
         this.plugin.settings.activeTab = t.id;
         await this.plugin.saveSettings();
         // re-render in place (avoid full close/reopen — keeps scroll position elsewhere)
-        for (const c of Array.from(stripWrap.children)) c.setAttribute("aria-selected", "false");
+        for (const c of Array.from(stripWrap.children))
+          c.setAttribute("aria-selected", "false");
         tab.setAttribute("aria-selected", "true");
         this.renderTabBody(body, t);
       };
@@ -79,10 +144,13 @@ export class SauceGraphSettingTab extends PluginSettingTab {
     // Keyboard nav (A11Y-01 — arrow keys)
     stripWrap.addEventListener("keydown", (ev) => {
       const tabs = Array.from(stripWrap.children) as HTMLElement[];
-      const cur = tabs.findIndex((el) => el.getAttribute("aria-selected") === "true");
+      const cur = tabs.findIndex(
+        (el) => el.getAttribute("aria-selected") === "true",
+      );
       let next = cur;
       if (ev.key === "ArrowRight") next = (cur + 1) % tabs.length;
-      else if (ev.key === "ArrowLeft") next = (cur - 1 + tabs.length) % tabs.length;
+      else if (ev.key === "ArrowLeft")
+        next = (cur - 1 + tabs.length) % tabs.length;
       else if (ev.key === "Home") next = 0;
       else if (ev.key === "End") next = tabs.length - 1;
       else return;
@@ -103,7 +171,9 @@ export class SauceGraphSettingTab extends PluginSettingTab {
       tab.render(body, this.plugin);
     } catch (e: any) {
       const err = body.createDiv({ cls: "sauce-error" });
-      err.setText(`Section ${tab.id} failed to render: ${e?.message ?? String(e)}`);
+      err.setText(
+        `Section ${tab.id} failed to render: ${e?.message ?? String(e)}`,
+      );
     }
   }
 }

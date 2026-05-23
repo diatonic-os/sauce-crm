@@ -12,7 +12,11 @@ export interface SettingsHost {
   setConfig<T>(key: string, value: T): Promise<void>;
 }
 
-export function el(tag: string, attrs: Record<string, string> = {}, text?: string): HTMLElement {
+export function el(
+  tag: string,
+  attrs: Record<string, string> = {},
+  text?: string,
+): HTMLElement {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   if (text !== undefined) e.textContent = text;

@@ -3,8 +3,8 @@
 // CalendarView without needing svelte type-shim plumbing.
 
 export interface CalendarEvent {
-  date: string;            // ISO YYYY-MM-DD
+  date: string; // ISO YYYY-MM-DD
   kind: "touch" | "task" | "followup" | "event";
   label: string;
-  path?: string;           // optional vault path for click-through
+  path?: string; // optional vault path for click-through
 }

@@ -7,15 +7,15 @@
 
 export interface ImapCredentials {
   host: string;
-  port: number;        // typically 993 (TLS) or 143 (STARTTLS)
+  port: number; // typically 993 (TLS) or 143 (STARTTLS)
   username: string;
-  password: string;    // app-specific password or OAuth XOAUTH2 token
+  password: string; // app-specific password or OAuth XOAUTH2 token
   tls: boolean;
 }
 
 export interface SmtpCredentials {
   host: string;
-  port: number;        // 465 SMTPS, 587 STARTTLS
+  port: number; // 465 SMTPS, 587 STARTTLS
   username: string;
   password: string;
   tls: boolean;
@@ -44,18 +44,51 @@ export interface ImapWatchHandle {
  */
 export interface SmtpImapHost {
   imapListMailboxes(creds: ImapCredentials): Promise<string[]>;
-  imapList(creds: ImapCredentials, mailbox: string, opts: { since?: string; limit?: number }): Promise<ImapMessageMeta[]>;
-  imapFetchBody(creds: ImapCredentials, mailbox: string, uid: number): Promise<{ raw: string }>;
+  imapList(
+    creds: ImapCredentials,
+    mailbox: string,
+    opts: { since?: string; limit?: number },
+  ): Promise<ImapMessageMeta[]>;
+  imapFetchBody(
+    creds: ImapCredentials,
+    mailbox: string,
+    uid: number,
+  ): Promise<{ raw: string }>;
   /** Opens an IMAP IDLE watch; calls onMessage on new arrivals. */
-  imapIdle?(creds: ImapCredentials, mailbox: string, onMessage: (m: ImapMessageMeta) => void): Promise<ImapWatchHandle>;
-  smtpSend(creds: SmtpCredentials, msg: { from: string; to: string[]; subject: string; body: string; html?: string }): Promise<{ accepted: string[]; messageId: string }>;
+  imapIdle?(
+    creds: ImapCredentials,
+    mailbox: string,
+    onMessage: (m: ImapMessageMeta) => void,
+  ): Promise<ImapWatchHandle>;
+  smtpSend(
+    creds: SmtpCredentials,
+    msg: {
+      from: string;
+      to: string[];
+      subject: string;
+      body: string;
+      html?: string;
+    },
+  ): Promise<{ accepted: string[]; messageId: string }>;
 }
 
 /** Default host used until a real bridge is wired — every call throws a clear error. */
 export class UnconfiguredSmtpImapHost implements SmtpImapHost {
-  private err(name: string): never { throw new Error(`smtp/imap host not configured (${name}). Inject a SmtpImapHost via plugin.integrations.setSmtpImapHost().`); }
-  async imapListMailboxes(): Promise<string[]> { this.err("imapListMailboxes"); }
-  async imapList(): Promise<ImapMessageMeta[]> { this.err("imapList"); }
-  async imapFetchBody(): Promise<{ raw: string }> { this.err("imapFetchBody"); }
-  async smtpSend(): Promise<{ accepted: string[]; messageId: string }> { this.err("smtpSend"); }
+  private err(name: string): never {
+    throw new Error(
+      `smtp/imap host not configured (${name}). Inject a SmtpImapHost via plugin.integrations.setSmtpImapHost().`,
+    );
+  }
+  async imapListMailboxes(): Promise<string[]> {
+    this.err("imapListMailboxes");
+  }
+  async imapList(): Promise<ImapMessageMeta[]> {
+    this.err("imapList");
+  }
+  async imapFetchBody(): Promise<{ raw: string }> {
+    this.err("imapFetchBody");
+  }
+  async smtpSend(): Promise<{ accepted: string[]; messageId: string }> {
+    this.err("smtpSend");
+  }
 }

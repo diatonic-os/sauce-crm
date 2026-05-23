@@ -8,7 +8,11 @@
 // Sauce-CRM OAuth app.
 
 import type { KeyVault } from "../security/KeyVault";
-import { OAuthFlow, type OAuthProviderConfig, type TokenSet } from "../security/OAuthFlow";
+import {
+  OAuthFlow,
+  type OAuthProviderConfig,
+  type TokenSet,
+} from "../security/OAuthFlow";
 import { ObsidianOAuthHost } from "../security/ObsidianOAuthHost";
 import type { Logger } from "../telemetry";
 
@@ -26,12 +30,17 @@ export interface ProviderManifest {
   label: string;
   /** OAuth providers expose a PKCE flow; key-only providers just need API tokens. */
   kind: "oauth" | "key" | "key-pair";
-  oauthDefaults?: Omit<OAuthProviderConfig, "clientId" | "clientSecret"> & { defaultScopes: string[] };
+  oauthDefaults?: Omit<OAuthProviderConfig, "clientId" | "clientSecret"> & {
+    defaultScopes: string[];
+  };
   /** Labels for key-pair providers (Twilio: SID + token). */
   keyFields?: { id: string; label: string; secret: boolean }[];
 }
 
-export const PROVIDER_MANIFESTS: Record<CredentialProviderId, ProviderManifest> = {
+export const PROVIDER_MANIFESTS: Record<
+  CredentialProviderId,
+  ProviderManifest
+> = {
   google_workspace: {
     id: "google_workspace",
     label: "Google Workspace",
@@ -54,7 +63,8 @@ export const PROVIDER_MANIFESTS: Record<CredentialProviderId, ProviderManifest> 
     label: "Microsoft 365",
     kind: "oauth",
     oauthDefaults: {
-      authorizeUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+      authorizeUrl:
+        "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
       tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
       defaultScopes: [
         "offline_access",
@@ -70,7 +80,9 @@ export const PROVIDER_MANIFESTS: Record<CredentialProviderId, ProviderManifest> 
     id: "notion",
     label: "Notion",
     kind: "key",
-    keyFields: [{ id: "token", label: "Internal Integration Token", secret: true }],
+    keyFields: [
+      { id: "token", label: "Internal Integration Token", secret: true },
+    ],
   },
   twilio: {
     id: "twilio",
@@ -127,19 +139,27 @@ export class IntegrationCredentials {
   }
 
   /** Returns true iff this build can actually run an OAuth flow (desktop). */
-  oauthAvailable(): boolean { return this.host.available(); }
+  oauthAvailable(): boolean {
+    return this.host.available();
+  }
 
   /** Register a provider's OAuth config using the user-supplied client credentials. */
-  async configureOAuth(provider: CredentialProviderId, clientId: string, clientSecret?: string): Promise<void> {
+  async configureOAuth(
+    provider: CredentialProviderId,
+    clientId: string,
+    clientSecret?: string,
+  ): Promise<void> {
     const m = PROVIDER_MANIFESTS[provider];
-    if (!m.oauthDefaults) throw new Error(`${provider} is not an OAuth provider`);
+    if (!m.oauthDefaults)
+      throw new Error(`${provider} is not an OAuth provider`);
     this.oauth.registerProvider(provider, {
       ...m.oauthDefaults,
       clientId,
       clientSecret,
     });
     await this.vault.put(vaultKey(provider, "client_id"), clientId);
-    if (clientSecret) await this.vault.put(vaultKey(provider, "client_secret"), clientSecret);
+    if (clientSecret)
+      await this.vault.put(vaultKey(provider, "client_secret"), clientSecret);
     this.logger?.event("creds.oauth.configured", { provider });
   }
 
@@ -148,9 +168,13 @@ export class IntegrationCredentials {
     for (const m of Object.values(PROVIDER_MANIFESTS)) {
       if (!m.oauthDefaults) continue;
       try {
-        const cid = await this.vault.get(vaultKey(m.id, "client_id")).catch(() => "");
+        const cid = await this.vault
+          .get(vaultKey(m.id, "client_id"))
+          .catch(() => "");
         if (!cid) continue;
-        const cs = await this.vault.get(vaultKey(m.id, "client_secret")).catch(() => "");
+        const cs = await this.vault
+          .get(vaultKey(m.id, "client_secret"))
+          .catch(() => "");
         this.oauth.registerProvider(m.id, {
           ...m.oauthDefaults,
           clientId: cid,
@@ -158,30 +182,53 @@ export class IntegrationCredentials {
         });
         this.logger?.event("creds.oauth.hydrated", { provider: m.id });
       } catch (e) {
-        this.logger?.event("creds.oauth.hydrate_error", { provider: m.id, error: String(e) });
+        this.logger?.event("creds.oauth.hydrate_error", {
+          provider: m.id,
+          error: String(e),
+        });
       }
     }
   }
 
   /** Persist a single key-field (Notion token, Twilio SID, etc.). */
-  async putKey(provider: CredentialProviderId, field: string, value: string): Promise<void> {
+  async putKey(
+    provider: CredentialProviderId,
+    field: string,
+    value: string,
+  ): Promise<void> {
     await this.vault.put(vaultKey(provider, field), value);
     this.logger?.event("creds.key.put", { provider, field });
   }
 
   /** Read a single key-field. Returns null when absent (vault returns "no secret"). */
-  async getKey(provider: CredentialProviderId, field: string): Promise<string | null> {
-    try { return await this.vault.get(vaultKey(provider, field)); }
-    catch { return null; }
+  async getKey(
+    provider: CredentialProviderId,
+    field: string,
+  ): Promise<string | null> {
+    try {
+      return await this.vault.get(vaultKey(provider, field));
+    } catch {
+      return null;
+    }
   }
 
   /** Kick off an OAuth flow (must have configureOAuth'd first). */
-  async connectOAuth(provider: CredentialProviderId, scopes?: string[]): Promise<TokenSet> {
+  async connectOAuth(
+    provider: CredentialProviderId,
+    scopes?: string[],
+  ): Promise<TokenSet> {
     const m = PROVIDER_MANIFESTS[provider];
-    if (!m.oauthDefaults) throw new Error(`${provider} is not an OAuth provider`);
+    if (!m.oauthDefaults)
+      throw new Error(`${provider} is not an OAuth provider`);
     this.logger?.event("creds.oauth.connect_start", { provider });
-    const ts = await this.oauth.authorize(provider, scopes ?? m.oauthDefaults.defaultScopes);
-    this.logger?.event("creds.oauth.connect_ok", { provider, expiresAt: ts.expiresAt });
+    const ts = await this.oauth.authorize(
+      provider,
+      scopes ?? m.oauthDefaults.defaultScopes,
+    );
+    this.logger?.event("creds.oauth.connect_ok", {
+      provider,
+      expiresAt: ts.expiresAt,
+    });
     return ts;
   }
 

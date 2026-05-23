@@ -6,7 +6,7 @@ import type { Setting } from "obsidian";
 export function attachResetLink(
   setting: Setting,
   onReset: () => void,
-  label = "reset to recommended"
+  label = "reset to recommended",
 ): Setting {
   try {
     const anySetting = setting as unknown as {
@@ -17,7 +17,7 @@ export function attachResetLink(
       anySetting.descEl ??
       (anySetting.settingEl
         ? (anySetting.settingEl.querySelector(
-            ".setting-item-description"
+            ".setting-item-description",
           ) as HTMLElement | null)
         : null);
     if (!host) return setting;

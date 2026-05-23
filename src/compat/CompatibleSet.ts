@@ -9,7 +9,7 @@ export interface CompatibleSetResult {
   shared: string[];
   unique_a: string[];
   unique_b: string[];
-  density: number;       // |Cms| / |X ∪ Y|, normalized 0..1
+  density: number; // |Cms| / |X ∪ Y|, normalized 0..1
   symmetric: boolean;
 }
 
@@ -45,6 +45,7 @@ export function computeCompatibleSet(
 
 function toTokenSet(v: any): string[] {
   if (v == null) return [];
-  if (Array.isArray(v)) return v.map((x) => String(x).toLowerCase()).filter(Boolean);
+  if (Array.isArray(v))
+    return v.map((x) => String(x).toLowerCase()).filter(Boolean);
   return [String(v).toLowerCase()].filter(Boolean);
 }

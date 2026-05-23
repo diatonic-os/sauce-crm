@@ -131,49 +131,127 @@ export interface ApiKeyEncRow {
 export const DEFAULT_EMBEDDING_DIM = 768;
 
 /** Typed sentinel rows used to fix each table's inferred schema. */
-export function seedRows(embeddingDim: number): Record<TableName, Record<string, unknown>[]> {
+export function seedRows(
+  embeddingDim: number,
+): Record<TableName, Record<string, unknown>[]> {
   return {
-    [TABLES.entities]: [{
-      id: SEED_ID, type: "", primary_type: "", frontmatter: "{}", body_md: "",
-      body_hash: "", mtime: 0, ctime: 0, lat: 0, lon: 0, geo_acc_m: 0,
-    }],
-    [TABLES.edges]: [{
-      from_id: SEED_ID, to_id: "", edge_type: "", directed: 0, weight: 0,
-      source: "", inferred_conf: 0, ts: 0,
-    }],
+    [TABLES.entities]: [
+      {
+        id: SEED_ID,
+        type: "",
+        primary_type: "",
+        frontmatter: "{}",
+        body_md: "",
+        body_hash: "",
+        mtime: 0,
+        ctime: 0,
+        lat: 0,
+        lon: 0,
+        geo_acc_m: 0,
+      },
+    ],
+    [TABLES.edges]: [
+      {
+        from_id: SEED_ID,
+        to_id: "",
+        edge_type: "",
+        directed: 0,
+        weight: 0,
+        source: "",
+        inferred_conf: 0,
+        ts: 0,
+      },
+    ],
     [TABLES.tags]: [{ entity_id: SEED_ID, tag: "" }],
-    [TABLES.touches]: [{
-      id: SEED_ID, contact_id: "", date: "", channel: "", playbook: "",
-      outcome_tags: "", attendees: "", source: "", author_id: "",
-    }],
-    [TABLES.addenda]: [{
-      id: SEED_ID, target_id: "", date: "", kind: "", author_id: "",
-      body_md: "", signature: "",
-    }],
-    [TABLES.embeddings]: [{
-      entity_id: SEED_ID, model: "", dim: embeddingDim,
-      vector: new Array(embeddingDim).fill(0), hash: "",
-    }],
-    [TABLES.auditLog]: [{
-      ts: 0, op: SEED_ID, entity_id: "", agent_id: "", integration: "",
-      before_hash: "", after_hash: "", details: "null", signature: "",
-    }],
-    [TABLES.apiKeysEnc]: [{
-      service: SEED_ID, ciphertext: "", nonce: "", kdf_salt: "",
-      kdf_iters: 0, created_ts: 0, rotated_ts: -1,
-    }],
-    [TABLES.syncState]: [{
-      integration: SEED_ID, resource: "", cursor: "",
-      last_pull_ts: 0, last_push_ts: 0,
-    }],
-    [TABLES.provenance]: [{
-      fp: SEED_ID, op: "", subject: "", kind: "", ts: 0,
-      parent_fp: "", meta: "null", signature: "",
-    }],
-    [TABLES.docChunks]: [{
-      chunk_id: SEED_ID, doc_id: "", doc_name: "", ord: 0, text: "",
-      vector: new Array(embeddingDim).fill(0), hash: "",
-    }],
+    [TABLES.touches]: [
+      {
+        id: SEED_ID,
+        contact_id: "",
+        date: "",
+        channel: "",
+        playbook: "",
+        outcome_tags: "",
+        attendees: "",
+        source: "",
+        author_id: "",
+      },
+    ],
+    [TABLES.addenda]: [
+      {
+        id: SEED_ID,
+        target_id: "",
+        date: "",
+        kind: "",
+        author_id: "",
+        body_md: "",
+        signature: "",
+      },
+    ],
+    [TABLES.embeddings]: [
+      {
+        entity_id: SEED_ID,
+        model: "",
+        dim: embeddingDim,
+        vector: new Array(embeddingDim).fill(0),
+        hash: "",
+      },
+    ],
+    [TABLES.auditLog]: [
+      {
+        ts: 0,
+        op: SEED_ID,
+        entity_id: "",
+        agent_id: "",
+        integration: "",
+        before_hash: "",
+        after_hash: "",
+        details: "null",
+        signature: "",
+      },
+    ],
+    [TABLES.apiKeysEnc]: [
+      {
+        service: SEED_ID,
+        ciphertext: "",
+        nonce: "",
+        kdf_salt: "",
+        kdf_iters: 0,
+        created_ts: 0,
+        rotated_ts: -1,
+      },
+    ],
+    [TABLES.syncState]: [
+      {
+        integration: SEED_ID,
+        resource: "",
+        cursor: "",
+        last_pull_ts: 0,
+        last_push_ts: 0,
+      },
+    ],
+    [TABLES.provenance]: [
+      {
+        fp: SEED_ID,
+        op: "",
+        subject: "",
+        kind: "",
+        ts: 0,
+        parent_fp: "",
+        meta: "null",
+        signature: "",
+      },
+    ],
+    [TABLES.docChunks]: [
+      {
+        chunk_id: SEED_ID,
+        doc_id: "",
+        doc_name: "",
+        ord: 0,
+        text: "",
+        vector: new Array(embeddingDim).fill(0),
+        hash: "",
+      },
+    ],
   };
 }
 

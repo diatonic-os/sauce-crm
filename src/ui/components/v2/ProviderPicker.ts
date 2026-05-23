@@ -5,7 +5,13 @@
 // provider+model pairs users actually pick.
 
 import type SauceGraphPlugin from "../../../main";
-import { ModelCatalog, sharedModelCatalog, type CatalogContext, type CatalogModel, type ProviderId } from "../../../copilot/ModelCatalog";
+import {
+  ModelCatalog,
+  sharedModelCatalog,
+  type CatalogContext,
+  type CatalogModel,
+  type ProviderId,
+} from "../../../copilot/ModelCatalog";
 
 export interface ProviderPickerOptions {
   /** Container DOM to render into (caller owns the parent). */
@@ -52,7 +58,8 @@ export class ProviderPicker {
   constructor(private readonly opts: ProviderPickerOptions) {
     this.provider = opts.lockedProvider ?? opts.initialProvider ?? "anthropic";
     this.model = opts.initialModel ?? "";
-    this.catalog = opts.catalog ?? sharedModelCatalog(opts.plugin.logger ?? null);
+    this.catalog =
+      opts.catalog ?? sharedModelCatalog(opts.plugin.logger ?? null);
   }
 
   render(): void {
@@ -117,12 +124,16 @@ export class ProviderPicker {
   }
 
   private endpointFromSettings(): string | undefined {
-    const cp = this.opts.plugin.settings.copilot as { baseUrl?: string } | undefined;
+    const cp = this.opts.plugin.settings.copilot as
+      | { baseUrl?: string }
+      | undefined;
     return cp?.baseUrl;
   }
 
   private apiKeyFromSettings(): string | undefined {
-    const cp = this.opts.plugin.settings.copilot as { apiKey?: string } | undefined;
+    const cp = this.opts.plugin.settings.copilot as
+      | { apiKey?: string }
+      | undefined;
     return cp?.apiKey;
   }
 
@@ -152,7 +163,10 @@ export class ProviderPicker {
     for (const m of models) {
       const opt = sel.createEl("option", { text: m.label });
       opt.value = m.id;
-      if (m.id === this.model) { opt.selected = true; matched = true; }
+      if (m.id === this.model) {
+        opt.selected = true;
+        matched = true;
+      }
     }
     if (!matched) {
       // Pre-select the first option and propagate so the consumer's settings

@@ -10,10 +10,16 @@ import { uniq } from "../../../util/Yaml";
 
 export const VIEW_AI_INBOX = "sauce-ai-inbox";
 
-interface Row { ix: number; proposal: InferenceEntity; el: HTMLDivElement; }
+interface Row {
+  ix: number;
+  proposal: InferenceEntity;
+  el: HTMLDivElement;
+}
 
 // Parse "from--edgeType-->to" without regex.
-function parseEdgeTarget(s: string): { from: string; edgeType: string; to: string } | null {
+function parseEdgeTarget(
+  s: string,
+): { from: string; edgeType: string; to: string } | null {
   const arrow = "-->";
   const arrowAt = s.indexOf(arrow);
   if (arrowAt < 0) return null;
@@ -33,28 +39,57 @@ export class AIInboxView extends ItemView {
   private rows: Row[] = [];
   private selected = new Set<number>();
 
-  constructor(leaf: WorkspaceLeaf, public plugin: SauceGraphPlugin) { super(leaf); }
-  getViewType(): string { return VIEW_AI_INBOX; }
-  getDisplayText(): string { return "Sauce: AI Inbox"; }
-  getIcon(): string { return "inbox"; }
+  constructor(
+    leaf: WorkspaceLeaf,
+    public plugin: SauceGraphPlugin,
+  ) {
+    super(leaf);
+  }
+  getViewType(): string {
+    return VIEW_AI_INBOX;
+  }
+  getDisplayText(): string {
+    return "Sauce: AI Inbox";
+  }
+  getIcon(): string {
+    return "inbox";
+  }
 
   async onOpen(): Promise<void> {
     const root = this.contentEl;
-    root.empty(); root.addClass("sauce-view"); root.addClass("sauce-ai-inbox");
+    root.empty();
+    root.addClass("sauce-view");
+    root.addClass("sauce-ai-inbox");
     root.createEl("h2", { text: "AI Inbox — Proposed Inferences" });
 
     const proposals = this.gatherProposals();
-    root.createEl("p", { cls: "sauce-view-desc", text: `${proposals.length} proposals` });
+    root.createEl("p", {
+      cls: "sauce-view-desc",
+      text: `${proposals.length} proposals`,
+    });
 
     const toolbar = root.createDiv({ cls: "sauce-inbox-toolbar" });
-    const selectAll = toolbar.createEl("button", { cls: "sauce-button sauce-button-secondary", text: "Select all" });
-    const acceptSel = toolbar.createEl("button", { cls: "sauce-button", text: "Accept selected" });
-    const rejectSel = toolbar.createEl("button", { cls: "sauce-button sauce-button-secondary", text: "Reject selected" });
+    const selectAll = toolbar.createEl("button", {
+      cls: "sauce-button sauce-button-secondary",
+      text: "Select all",
+    });
+    const acceptSel = toolbar.createEl("button", {
+      cls: "sauce-button",
+      text: "Accept selected",
+    });
+    const rejectSel = toolbar.createEl("button", {
+      cls: "sauce-button sauce-button-secondary",
+      text: "Reject selected",
+    });
 
     const list = root.createDiv({ cls: "sauce-inbox-list" });
 
     proposals.sort((a, b) => b.confidence - a.confidence);
-    this.rows = proposals.map((p, i) => ({ ix: i, proposal: p, el: this.renderRow(list, i, p) }));
+    this.rows = proposals.map((p, i) => ({
+      ix: i,
+      proposal: p,
+      el: this.renderRow(list, i, p),
+    }));
 
     selectAll.onclick = () => {
       const next = this.selected.size < this.rows.length;
@@ -69,37 +104,76 @@ export class AIInboxView extends ItemView {
   async onClose(): Promise<void> {}
 
   private gatherProposals(): InferenceEntity[] {
-    const touches: TouchRecord[] = this.plugin.entityService.allTouches().map((t) => {
-      const fm = t.frontmatter as any;
-      const attendees: string[] = Array.isArray(fm.attendees) ? fm.attendees.map((a: string) => parseWikilink(String(a)) ?? String(a)) : [];
-      return { id: t.file.path, contactId: String(fm.contact ?? ""), date: String(fm.date ?? ""), attendees };
-    });
+    const touches: TouchRecord[] = this.plugin.entityService
+      .allTouches()
+      .map((t) => {
+        const fm = t.frontmatter as any;
+        const attendees: string[] = Array.isArray(fm.attendees)
+          ? fm.attendees.map(
+              (a: string) => parseWikilink(String(a)) ?? String(a),
+            )
+          : [];
+        return {
+          id: t.file.path,
+          contactId: String(fm.contact ?? ""),
+          date: String(fm.date ?? ""),
+          attendees,
+        };
+      });
     const edgeProposals = this.engine.edgeProposals(touches);
     const mergeProposals = this.engine.mergeProposals(
       this.plugin.entityService.allPeople().map((p) => {
         const fm = p.frontmatter as any;
         const emails = fm.email ? [String(fm.email)] : [];
         const phones = fm.phone ? [String(fm.phone)] : [];
-        return { id: p.file.basename, name: p.file.basename, emails, phones, type: "person" as const };
+        return {
+          id: p.file.basename,
+          name: p.file.basename,
+          emails,
+          phones,
+          type: "person" as const,
+        };
       }),
     );
     return [...edgeProposals, ...mergeProposals];
   }
 
-  private renderRow(list: HTMLDivElement, ix: number, p: InferenceEntity): HTMLDivElement {
+  private renderRow(
+    list: HTMLDivElement,
+    ix: number,
+    p: InferenceEntity,
+  ): HTMLDivElement {
     const row = list.createDiv({ cls: "sauce-inbox-row" });
     const cb = row.createEl("input", { type: "checkbox" }) as HTMLInputElement;
-    cb.onchange = () => { cb.checked ? this.selected.add(ix) : this.selected.delete(ix); };
+    cb.onchange = () => {
+      cb.checked ? this.selected.add(ix) : this.selected.delete(ix);
+    };
 
     const info = row.createDiv({ cls: "sauce-inbox-info" });
-    info.createEl("div", { cls: "sauce-inbox-kind", text: `${p.inference_kind}  ·  ${(p.confidence * 100).toFixed(0)}%` });
+    info.createEl("div", {
+      cls: "sauce-inbox-kind",
+      text: `${p.inference_kind}  ·  ${(p.confidence * 100).toFixed(0)}%`,
+    });
     info.createEl("div", { cls: "sauce-inbox-target", text: p.target });
-    info.createEl("div", { cls: "sauce-inbox-value", text: JSON.stringify(p.proposed_value).slice(0, 200) });
-    if (p.sources.length) info.createEl("div", { cls: "sauce-inbox-sources", text: `sources: ${p.sources.slice(0, 3).join(", ")}` });
+    info.createEl("div", {
+      cls: "sauce-inbox-value",
+      text: JSON.stringify(p.proposed_value).slice(0, 200),
+    });
+    if (p.sources.length)
+      info.createEl("div", {
+        cls: "sauce-inbox-sources",
+        text: `sources: ${p.sources.slice(0, 3).join(", ")}`,
+      });
 
-    const accept = row.createEl("button", { cls: "sauce-button", text: "Accept" });
+    const accept = row.createEl("button", {
+      cls: "sauce-button",
+      text: "Accept",
+    });
     accept.onclick = () => void this.applyOne(p);
-    const reject = row.createEl("button", { cls: "sauce-button sauce-button-secondary", text: "Reject" });
+    const reject = row.createEl("button", {
+      cls: "sauce-button sauce-button-secondary",
+      text: "Reject",
+    });
     reject.onclick = () => row.remove();
 
     return row;
@@ -107,7 +181,9 @@ export class AIInboxView extends ItemView {
 
   private refreshSelection(): void {
     for (const r of this.rows) {
-      const cb = r.el.querySelector("input[type=checkbox]") as HTMLInputElement | null;
+      const cb = r.el.querySelector(
+        "input[type=checkbox]",
+      ) as HTMLInputElement | null;
       if (cb) cb.checked = this.selected.has(r.ix);
     }
   }
@@ -132,17 +208,25 @@ export class AIInboxView extends ItemView {
       if (!file) return;
       const dst = wrapWikilink(parsed.to);
       await this.plugin.entityService.updateFrontmatter(file, (fm) => {
-        const cur = Array.isArray(fm[parsed.edgeType]) ? fm[parsed.edgeType] : fm[parsed.edgeType] ? [fm[parsed.edgeType]] : [];
+        const cur = Array.isArray(fm[parsed.edgeType])
+          ? fm[parsed.edgeType]
+          : fm[parsed.edgeType]
+            ? [fm[parsed.edgeType]]
+            : [];
         fm[parsed.edgeType] = uniq([...cur, dst]);
       });
       this.plugin.edgeSync.scheduleReconcile(file);
     } else if (p.inference_kind === "merge") {
-      new Notice(`Merge proposed: ${p.target} → ${JSON.stringify(p.proposed_value)} (manual review required)`);
+      new Notice(
+        `Merge proposed: ${p.target} → ${JSON.stringify(p.proposed_value)} (manual review required)`,
+      );
     } else if (p.inference_kind === "attribute") {
       const file = this.app.metadataCache.getFirstLinkpathDest(p.target, "");
       if (!file) return;
       const val = p.proposed_value as { attribute: string; value: any };
-      await this.plugin.entityService.updateFrontmatter(file, (fm) => { fm[val.attribute] = val.value; });
+      await this.plugin.entityService.updateFrontmatter(file, (fm) => {
+        fm[val.attribute] = val.value;
+      });
     }
   }
 }

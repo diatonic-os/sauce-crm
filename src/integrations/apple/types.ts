@@ -1,12 +1,15 @@
 // SPEC §24 — Apple ecosystem types. CalDAV/CardDAV use HTTP + WebDAV verbs (PROPFIND, REPORT).
 
 export interface FetchHost {
-  fetch(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; headers: Record<string, string>; body: string }>;
+  fetch(
+    url: string,
+    init: { method: string; headers: Record<string, string>; body?: string },
+  ): Promise<{ status: number; headers: Record<string, string>; body: string }>;
 }
 
 export interface AppleAuth {
   appleId: string;
-  appPassword: string;        // app-specific password
+  appPassword: string; // app-specific password
 }
 
 export interface DAVOpts {
@@ -18,7 +21,10 @@ export interface DAVOpts {
 
 export function basicAuthHeader(auth: AppleAuth): string {
   // Electron renderer has btoa
-  const enc = typeof btoa === "function" ? btoa : (s: string) => Buffer.from(s, "utf-8").toString("base64");
+  const enc =
+    typeof btoa === "function"
+      ? btoa
+      : (s: string) => Buffer.from(s, "utf-8").toString("base64");
   return "Basic " + enc(`${auth.appleId}:${auth.appPassword}`);
 }
 
@@ -46,7 +52,10 @@ export function extractTagContents(xml: string, tagName: string): string[] {
     } else {
       // back up to the `<`
       const lt = xml.lastIndexOf("<", start);
-      if (lt === -1) { i = start + 1; continue; }
+      if (lt === -1) {
+        i = start + 1;
+        continue;
+      }
       const gt = xml.indexOf(">", start);
       if (gt === -1) break;
       openLen = gt - lt + 1;

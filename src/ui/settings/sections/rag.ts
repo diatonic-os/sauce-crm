@@ -16,7 +16,10 @@ const PROVIDER_LABELS: Record<EmbedProviderId, string> = {
   openai: "OpenAI",
 };
 
-export function renderRagEmbeddings(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
+export function renderRagEmbeddings(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
   const rag = plugin.settings.features.rag;
   const save = () => plugin.saveSettings();
 
@@ -30,24 +33,37 @@ export function renderRagEmbeddings(containerEl: HTMLElement, plugin: SauceGraph
     name: "Enable RAG",
     desc: "Master switch for embeddings + semantic search.",
     value: rag.enabled,
-    onChange: async (v) => { rag.enabled = v; await save(); },
+    onChange: async (v) => {
+      rag.enabled = v;
+      await save();
+    },
   });
 
   new Setting(containerEl)
     .setName("Embedding provider")
-    .setDesc("Which provider generates embeddings — independent of your chat model.")
-    .addDropdown((d) => d
-      .addOption("lmstudio", "LM Studio")
-      .addOption("ollama", "Ollama")
-      .addOption("openai", "OpenAI")
-      .setValue(rag.provider)
-      .onChange(async (v) => { rag.provider = v as EmbedProviderId; await save(); }));
+    .setDesc(
+      "Which provider generates embeddings — independent of your chat model.",
+    )
+    .addDropdown((d) =>
+      d
+        .addOption("lmstudio", "LM Studio")
+        .addOption("ollama", "Ollama")
+        .addOption("openai", "OpenAI")
+        .setValue(rag.provider)
+        .onChange(async (v) => {
+          rag.provider = v as EmbedProviderId;
+          await save();
+        }),
+    );
 
   addToggleRow(containerEl, {
     name: "Realtime embeddings",
-    desc: "Embed on every vault change. Off ⇒ embed only on manual \"Rebuild LanceDB Index\".",
+    desc: 'Embed on every vault change. Off ⇒ embed only on manual "Rebuild LanceDB Index".',
     value: rag.realtimeEmbeddings,
-    onChange: async (v) => { rag.realtimeEmbeddings = v; await save(); },
+    onChange: async (v) => {
+      rag.realtimeEmbeddings = v;
+      await save();
+    },
   });
 
   // Per-provider endpoint + model. The selected provider above is the one
@@ -58,12 +74,20 @@ export function renderRagEmbeddings(containerEl: HTMLElement, plugin: SauceGraph
     addToggleRow(containerEl, {
       name: `Enable ${PROVIDER_LABELS[id]}`,
       value: pc.enabled,
-      onChange: async (v) => { pc.enabled = v; await save(); },
+      onChange: async (v) => {
+        pc.enabled = v;
+        await save();
+      },
     });
     new Setting(containerEl)
       .setName("Endpoint")
       .setDesc("Change this then hit Refresh to re-list models.")
-      .addText((t) => t.setValue(pc.endpoint).onChange(async (v) => { pc.endpoint = v; await save(); }));
+      .addText((t) =>
+        t.setValue(pc.endpoint).onChange(async (v) => {
+          pc.endpoint = v;
+          await save();
+        }),
+      );
     // Live embedding-model dropdown (catalog filtered to embedding models).
     // OpenAI lists live with the copilot API key; local providers list from
     // their endpoint. Must match the LanceDB vector dimension.
@@ -77,7 +101,10 @@ export function renderRagEmbeddings(containerEl: HTMLElement, plugin: SauceGraph
       initialModel: pc.model,
       endpoint: pc.endpoint,
       apiKey: plugin.settings.copilot.apiKey,
-      onChange: async ({ model }) => { pc.model = model; await save(); },
+      onChange: async ({ model }) => {
+        pc.model = model;
+        await save();
+      },
     }).render();
   }
 }

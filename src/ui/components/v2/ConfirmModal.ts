@@ -48,7 +48,10 @@ export class ConfirmModal extends Modal {
       });
       typeInput = wrap.createEl("input", { cls: "sg-confirm-type-input" });
       typeInput.type = "text";
-      typeInput.setAttribute("aria-label", `Type ${requireTypeWord} to confirm`);
+      typeInput.setAttribute(
+        "aria-label",
+        `Type ${requireTypeWord} to confirm`,
+      );
     }
 
     const actions = contentEl.createDiv({ cls: "sg-confirm-actions" });

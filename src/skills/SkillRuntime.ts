@@ -5,7 +5,13 @@
 //   - ToolUseAdapter binding (every enabled skill exposed to the copilot)
 
 import { App, Notice } from "obsidian";
-import { SkillRegistry, Skill, SkillCtx, SkillResult, AutonomyLevel } from "./index";
+import {
+  SkillRegistry,
+  Skill,
+  SkillCtx,
+  SkillResult,
+  AutonomyLevel,
+} from "./index";
 import { CopilotRuntime } from "../copilot/CopilotRuntime";
 import { ToolUseAdapter } from "../copilot/ToolUseAdapter";
 import { EntityService } from "../services/EntityService";
@@ -33,9 +39,15 @@ export class SkillRuntime {
     this.registry = new SkillRegistry();
   }
 
-  list(): Skill[] { return this.registry.list(); }
-  enabled(): Skill[] { return this.registry.enabled(); }
-  get(id: string): Skill | undefined { return this.registry.get(id); }
+  list(): Skill[] {
+    return this.registry.list();
+  }
+  enabled(): Skill[] {
+    return this.registry.enabled();
+  }
+  get(id: string): Skill | undefined {
+    return this.registry.get(id);
+  }
 
   /**
    * Register every enabled skill as a Copilot tool. Re-call on settings change.
@@ -48,7 +60,10 @@ export class SkillRuntime {
         description: s.description,
         contract: {
           inputs: s.contract.inputs.map((i) => ({
-            name: i.name, type: i.type, description: i.description, required: i.required,
+            name: i.name,
+            type: i.type,
+            description: i.description,
+            required: i.required,
           })),
           level: s.contract.level,
         },
@@ -60,7 +75,11 @@ export class SkillRuntime {
     }
   }
 
-  async run(id: string, args: Record<string, unknown>, opts: SkillRunOptions = {}): Promise<SkillResult> {
+  async run(
+    id: string,
+    args: Record<string, unknown>,
+    opts: SkillRunOptions = {},
+  ): Promise<SkillResult> {
     const skill = this.registry.get(id);
     if (!skill) return { ok: false, reason: `unknown skill ${id}` };
     const skillCfg = this.registry.getSettings(id);
@@ -71,22 +90,33 @@ export class SkillRuntime {
       autonomy,
       agentId: opts.agentId ?? "$user/_default-A1",
       providerHint: opts.providerHint ?? skillCfg.providerOverride,
-      call: <T>(serviceId: string, callArgs: unknown) => this.dispatch<T>(serviceId, callArgs ?? args),
+      call: <T>(serviceId: string, callArgs: unknown) =>
+        this.dispatch<T>(serviceId, callArgs ?? args),
       audit: async (op, entityId, details) => {
-        // P15 → write to AuditLog; for now log to console only
-        console.log("Sauce skill audit", { op, entityId, ...details, skill: id });
+        // P15 → write to AuditLog; for now log to console only.
+        // eslint-disable-next-line no-restricted-syntax -- intentional placeholder until P15 AuditLog wiring
+        console.log("Sauce skill audit", {
+          op,
+          entityId,
+          ...details,
+          skill: id,
+        });
       },
       scope: {
         require: (integration: string, scope: string) => {
           // P15 → check ScopeRegistry; for now permissive
-          void integration; void scope;
+          void integration;
+          void scope;
         },
       },
     };
 
     let result: SkillResult;
-    try { result = await skill.execute(args, ctx); }
-    catch (e: any) { result = { ok: false, reason: `skill threw: ${e?.message ?? String(e)}` }; }
+    try {
+      result = await skill.execute(args, ctx);
+    } catch (e: any) {
+      result = { ok: false, reason: `skill threw: ${e?.message ?? String(e)}` };
+    }
 
     // P15: push every run into the in-memory ring buffer for the Skill Run Log view.
     // Lazy-import to avoid a static cycle (the view imports back into the runtime indirectly).
@@ -99,12 +129,20 @@ export class SkillRuntime {
         reason: result.ok ? undefined : result.reason,
         mutatedCount: result.ok ? result.mutated.length : 0,
       });
-    } catch { /* ring is best-effort */ }
+    } catch {
+      /* ring is best-effort */
+    }
 
     // Mutation threshold gate: if a successful run mutated more than the threshold,
     // and autonomy was 'autonomous', surface a notice that the threshold was exceeded.
-    if (result.ok && autonomy === "autonomous" && result.mutated.length > this.mutationThreshold) {
-      new Notice(`Skill ${id} mutated ${result.mutated.length} entities — exceeded threshold, surfacing for review.`);
+    if (
+      result.ok &&
+      autonomy === "autonomous" &&
+      result.mutated.length > this.mutationThreshold
+    ) {
+      new Notice(
+        `Skill ${id} mutated ${result.mutated.length} entities — exceeded threshold, surfacing for review.`,
+      );
     }
     return result;
   }
@@ -144,14 +182,20 @@ export class SkillRuntime {
       case "import-contacts":
       case "verify-email":
         // External integrations — wired in P11/P12. Return a structured "pending" payload.
-        return { pending: serviceId, reason: "external integration not yet wired (P11/P12)" } as T;
+        return {
+          pending: serviceId,
+          reason: "external integration not yet wired (P11/P12)",
+        } as T;
 
       default:
         return { pending: serviceId, reason: "unhandled serviceId" } as T;
     }
   }
 
-  private async runLlm(skillId: string, args: Record<string, unknown>): Promise<unknown> {
+  private async runLlm(
+    skillId: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
     const copilot = this.copilot();
     if (!copilot) return { error: "copilot not initialized" };
     const skill = this.registry.get(skillId);
@@ -159,36 +203,74 @@ export class SkillRuntime {
     let text = "";
     for await (const ev of copilot.ask(prompt)) {
       if (ev.type === "text") text += ev.delta;
-      if (ev.type === "done" && ev.reason === "error") return { error: ev.error ?? "unknown" };
+      if (ev.type === "done" && ev.reason === "error")
+        return { error: ev.error ?? "unknown" };
     }
     return { text };
   }
 
-  private routeIntroduction(args: Record<string, unknown>): { path: string[] | null; metric: number | null; from?: string; to?: string; error?: string } {
+  private routeIntroduction(args: Record<string, unknown>): {
+    path: string[] | null;
+    metric: number | null;
+    from?: string;
+    to?: string;
+    error?: string;
+  } {
     const from = String(args.from ?? args.a ?? "");
     const to = String(args.to ?? args.b ?? "");
-    if (!from || !to) return { path: null, metric: null, error: "missing from/to" };
+    if (!from || !to)
+      return { path: null, metric: null, error: "missing from/to" };
     const nodes = this.query.collectNodeBasenames();
     const edges = this.query.collectAdjacency();
-    const r = runPath(nodes, edges, from, to, ["knows", "worked_with"], { mode: "MAXIMIZE", metric: "warmth" });
+    const r = runPath(nodes, edges, from, to, ["knows", "worked_with"], {
+      mode: "MAXIMIZE",
+      metric: "warmth",
+    });
     if (!r) return { path: null, metric: null, from, to };
     return { path: r.nodes, metric: r.metric, from, to };
   }
 
-  private inferEdges(): { proposals: { from: string; to: string; edge: string; confidence: number; reason: string }[] } {
+  private inferEdges(): {
+    proposals: {
+      from: string;
+      to: string;
+      edge: string;
+      confidence: number;
+      reason: string;
+    }[];
+  } {
     // Heuristic: co-attendance in touches → 'knows' proposal between attendees (excluding contact).
-    const proposals: { from: string; to: string; edge: string; confidence: number; reason: string }[] = [];
+    const proposals: {
+      from: string;
+      to: string;
+      edge: string;
+      confidence: number;
+      reason: string;
+    }[] = [];
     const seen = new Set<string>();
     for (const t of this.entities.allTouches()) {
-      const attendees = Array.isArray((t.frontmatter as any).attendees) ? (t.frontmatter as any).attendees : [];
-      const names: string[] = attendees.map((a: string) => String(a).replace(/\[\[|\]\]/g, "").split("|")[0]);
+      const attendees = Array.isArray((t.frontmatter as any).attendees)
+        ? (t.frontmatter as any).attendees
+        : [];
+      const names: string[] = attendees.map(
+        (a: string) =>
+          String(a)
+            .replace(/\[\[|\]\]/g, "")
+            .split("|")[0],
+      );
       for (let i = 0; i < names.length; i++) {
         for (let j = i + 1; j < names.length; j++) {
-          const key = names[i] < names[j] ? `${names[i]}|${names[j]}` : `${names[j]}|${names[i]}`;
+          const key =
+            names[i] < names[j]
+              ? `${names[i]}|${names[j]}`
+              : `${names[j]}|${names[i]}`;
           if (seen.has(key)) continue;
           seen.add(key);
           proposals.push({
-            from: names[i], to: names[j], edge: "knows", confidence: 0.6,
+            from: names[i],
+            to: names[j],
+            edge: "knows",
+            confidence: 0.6,
             reason: `co-attended ${t.file.basename}`,
           });
         }
@@ -197,12 +279,25 @@ export class SkillRuntime {
     return { proposals };
   }
 
-  private mergeDuplicates(): { candidates: { a: string; b: string; similarity: number; reasons: string[] }[] } {
-    const out: { a: string; b: string; similarity: number; reasons: string[] }[] = [];
+  private mergeDuplicates(): {
+    candidates: {
+      a: string;
+      b: string;
+      similarity: number;
+      reasons: string[];
+    }[];
+  } {
+    const out: {
+      a: string;
+      b: string;
+      similarity: number;
+      reasons: string[];
+    }[] = [];
     const people = this.entities.allPeople();
     for (let i = 0; i < people.length; i++) {
       for (let j = i + 1; j < people.length; j++) {
-        const a = people[i], b = people[j];
+        const a = people[i],
+          b = people[j];
         const reasons: string[] = [];
         const aEmail = String((a.frontmatter as any).email ?? "").toLowerCase();
         const bEmail = String((b.frontmatter as any).email ?? "").toLowerCase();
@@ -213,7 +308,13 @@ export class SkillRuntime {
         const aBn = a.file.basename.toLowerCase().replace(/[^a-z]/g, "");
         const bBn = b.file.basename.toLowerCase().replace(/[^a-z]/g, "");
         if (aBn === bBn && aBn) reasons.push("name match");
-        if (reasons.length > 0) out.push({ a: a.file.basename, b: b.file.basename, similarity: reasons.length / 3, reasons });
+        if (reasons.length > 0)
+          out.push({
+            a: a.file.basename,
+            b: b.file.basename,
+            similarity: reasons.length / 3,
+            reasons,
+          });
       }
     }
     return { candidates: out.sort((x, y) => y.similarity - x.similarity) };
@@ -221,15 +322,22 @@ export class SkillRuntime {
 
   private exportGraph(): { entities: number; edges: number; pathHint: string } {
     return {
-      entities: this.entities.allPeople().length + this.entities.allOrgs().length,
+      entities:
+        this.entities.allPeople().length + this.entities.allOrgs().length,
       edges: this.query.collectAdjacency().length,
       pathHint: "Run `Sauce: Export Graph JSON` command to write to disk.",
     };
   }
 }
 
-function renderSkillPrompt(skillId: string, args: Record<string, unknown>, skill: Skill | undefined): string {
-  const argList = Object.entries(args).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n");
+function renderSkillPrompt(
+  skillId: string,
+  args: Record<string, unknown>,
+  skill: Skill | undefined,
+): string {
+  const argList = Object.entries(args)
+    .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+    .join("\n");
   const desc = skill?.description ?? skillId;
   return `Skill: ${skillId}\n${desc}\n\nInputs:\n${argList}\n\nReturn a concise structured response. If proposing changes, list them as a bulleted plan.`;
 }

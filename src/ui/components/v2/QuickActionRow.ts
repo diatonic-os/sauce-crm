@@ -9,7 +9,7 @@ export interface QuickActionInput {
 
 export function renderQuickActionRow(
   parent: HTMLElement,
-  input: QuickActionInput
+  input: QuickActionInput,
 ): HTMLDivElement {
   const row = parent.createDiv({ cls: "sg-quick-actions" });
   row.setAttribute("role", "group");

@@ -9,7 +9,7 @@ export interface FirstRunBannerInput {
 
 export function renderFirstRunBanner(
   parent: HTMLElement,
-  input: FirstRunBannerInput
+  input: FirstRunBannerInput,
 ): HTMLDivElement | null {
   if (!input.visible) return null;
 

@@ -3,7 +3,12 @@
 // Sauce owns authoring + status changes. Encoding lives in TasksEmitter.
 
 import type { App } from "obsidian";
-import { toCheckbox, parseTasksFromText, setLineStatus, type SauceTask } from "./TasksEmitter";
+import {
+  toCheckbox,
+  parseTasksFromText,
+  setLineStatus,
+  type SauceTask,
+} from "./TasksEmitter";
 
 export interface TaskRef {
   task: SauceTask;
@@ -12,7 +17,10 @@ export interface TaskRef {
 }
 
 export class TasksService {
-  constructor(private readonly app: App, private readonly tasksPath = "_TASKS.md") {}
+  constructor(
+    private readonly app: App,
+    private readonly tasksPath = "_TASKS.md",
+  ) {}
 
   /** All tasks across the tasks note + any note under a _Tasks/ folder. */
   async listTasks(): Promise<TaskRef[]> {
@@ -20,7 +28,8 @@ export class TasksService {
     for (const path of await this.taskFiles()) {
       const text = await this.read(path);
       if (text == null) continue;
-      for (const { task, line } of parseTasksFromText(text)) out.push({ task, path, line });
+      for (const { task, line } of parseTasksFromText(text))
+        out.push({ task, path, line });
     }
     return out;
   }
@@ -33,7 +42,11 @@ export class TasksService {
   }
 
   /** Flip a task line's status, preserving its other metadata. */
-  async setStatus(path: string, line: number, status: SauceTask["status"]): Promise<void> {
+  async setStatus(
+    path: string,
+    line: number,
+    status: SauceTask["status"],
+  ): Promise<void> {
     const text = await this.read(path);
     if (text == null) return;
     const lines = text.split("\n");
@@ -48,16 +61,23 @@ export class TasksService {
     if (await a.exists(this.tasksPath)) files.add(this.tasksPath);
     try {
       if (await a.exists("_Tasks")) {
-        for (const f of (await a.list("_Tasks")).files) if (f.endsWith(".md")) files.add(f);
+        for (const f of (await a.list("_Tasks")).files)
+          if (f.endsWith(".md")) files.add(f);
       }
-    } catch { /* no _Tasks folder */ }
+    } catch {
+      /* no _Tasks folder */
+    }
     return [...files];
   }
 
   private async read(path: string): Promise<string | null> {
     try {
-      return (await this.app.vault.adapter.exists(path)) ? await this.app.vault.adapter.read(path) : null;
-    } catch { return null; }
+      return (await this.app.vault.adapter.exists(path))
+        ? await this.app.vault.adapter.read(path)
+        : null;
+    } catch {
+      return null;
+    }
   }
   private async write(path: string, text: string): Promise<void> {
     await this.app.vault.adapter.write(path, text);

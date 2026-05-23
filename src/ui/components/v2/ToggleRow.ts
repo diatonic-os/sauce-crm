@@ -13,10 +13,17 @@ export interface ToggleRowOpts {
   advanced?: boolean;
 }
 
-export function addToggleRow(container: HTMLElement, opts: ToggleRowOpts): Setting {
+export function addToggleRow(
+  container: HTMLElement,
+  opts: ToggleRowOpts,
+): Setting {
   const s = new Setting(container).setName(opts.name);
   if (opts.desc) s.setDesc(opts.desc);
   if (opts.advanced) s.settingEl.addClass("sg-advanced");
-  s.addToggle((t) => t.setValue(opts.value).onChange((v) => { void opts.onChange(v); }));
+  s.addToggle((t) =>
+    t.setValue(opts.value).onChange((v) => {
+      void opts.onChange(v);
+    }),
+  );
   return s;
 }

@@ -1,11 +1,18 @@
-import { Skill, validateInputs, type SkillArgs, type SkillContract, type SkillCtx, type SkillResult } from './Skill';
+import {
+  Skill,
+  validateInputs,
+  type SkillArgs,
+  type SkillContract,
+  type SkillCtx,
+  type SkillResult,
+} from "./Skill";
 
 export class VerifyEmailSkill extends Skill {
-  readonly id = 'verify-email';
-  readonly description = 'MX lookup + SMTP probe';
+  readonly id = "verify-email";
+  readonly description = "MX lookup + SMTP probe";
   readonly contract: SkillContract = {
-    level: 'simple',
-    inputs: [{ name: 'email', type: 'string', required: true }, ],
+    level: "simple",
+    inputs: [{ name: "email", type: "string", required: true }],
     mutable: [],
     requires: [],
     ensures: [],
@@ -15,10 +22,11 @@ export class VerifyEmailSkill extends Skill {
 
   async execute(args: SkillArgs, ctx: SkillCtx): Promise<SkillResult> {
     const v = validateInputs(args, this.contract);
-    if (!v.ok) return { ok: false, reason: 'missing_inputs: ' + v.missing.join(',') };
+    if (!v.ok)
+      return { ok: false, reason: "missing_inputs: " + v.missing.join(",") };
     try {
       const payload = await ctx.call<unknown>(this.id, args);
-      await ctx.audit('skill', null, { skill: this.id, args });
+      await ctx.audit("skill", null, { skill: this.id, args });
       return { ok: true, mutated: [], payload };
     } catch (e) {
       return { ok: false, reason: e instanceof Error ? e.message : String(e) };

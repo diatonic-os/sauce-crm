@@ -14,30 +14,33 @@
 export interface CommunityPluginSpec {
   id: string;
   name: string;
-  purpose: string;       // why Sauce CRM uses it
-  required: boolean;     // hard dep vs nice-to-have
-  url: string;           // marketplace URL fallback
+  purpose: string; // why Sauce CRM uses it
+  required: boolean; // hard dep vs nice-to-have
+  url: string; // marketplace URL fallback
 }
 
 export const KNOWN_COMMUNITY_PLUGINS: ReadonlyArray<CommunityPluginSpec> = [
   {
     id: "dataview",
     name: "Dataview",
-    purpose: "Query frontmatter as tables, used by the Pipeline and Heatmap views.",
+    purpose:
+      "Query frontmatter as tables, used by the Pipeline and Heatmap views.",
     required: false,
     url: "obsidian://show-plugin?id=dataview",
   },
   {
     id: "templater-obsidian",
     name: "Templater",
-    purpose: "Renders entity templates (person, org, touch) with dynamic frontmatter.",
+    purpose:
+      "Renders entity templates (person, org, touch) with dynamic frontmatter.",
     required: false,
     url: "obsidian://show-plugin?id=templater-obsidian",
   },
   {
     id: "obsidian-tasks-plugin",
     name: "Tasks",
-    purpose: "Surfaces follow-up actions in the Overdue Queue + Tasks dashboard.",
+    purpose:
+      "Surfaces follow-up actions in the Overdue Queue + Tasks dashboard.",
     required: false,
     url: "obsidian://show-plugin?id=obsidian-tasks-plugin",
   },
@@ -51,7 +54,8 @@ export const KNOWN_COMMUNITY_PLUGINS: ReadonlyArray<CommunityPluginSpec> = [
   {
     id: "graphify",
     name: "Graphify",
-    purpose: "Build a knowledge graph from your vault; complements the Sauce relationship graph.",
+    purpose:
+      "Build a knowledge graph from your vault; complements the Sauce relationship graph.",
     required: false,
     url: "obsidian://show-plugin?id=graphify",
   },
@@ -79,7 +83,9 @@ export interface PluginHostShape {
  *  Reads `app.plugins.manifests` (for installed) and
  *  `app.plugins.enabledPlugins` (for enabled). Both are non-public but
  *  stable across Obsidian releases. */
-export function detectCommunityPlugins(app: PluginHostShape): CommunityPluginStatus[] {
+export function detectCommunityPlugins(
+  app: PluginHostShape,
+): CommunityPluginStatus[] {
   const manifests = app.plugins?.manifests ?? {};
   const enabled = app.plugins?.enabledPlugins ?? new Set<string>();
   return KNOWN_COMMUNITY_PLUGINS.map((spec) => ({
@@ -92,14 +98,20 @@ export function detectCommunityPlugins(app: PluginHostShape): CommunityPluginSta
 /** Open the Obsidian Settings → Community plugins page so the user can
  *  install the targeted plugins. We do NOT silently install — that
  *  would bypass Obsidian's review + sandbox model. */
-export function openCommunityPluginsPage(app: PluginHostShape, focusPluginId?: string): void {
+export function openCommunityPluginsPage(
+  app: PluginHostShape,
+  focusPluginId?: string,
+): void {
   app.setting?.open?.();
   app.setting?.openTabById?.("community-plugins");
   if (focusPluginId) {
     // Open the per-plugin page via the public URI scheme. Obsidian
     // handles this URL even when the settings pane is already open.
     try {
-      window.open(`obsidian://show-plugin?id=${encodeURIComponent(focusPluginId)}`, "_self");
+      window.open(
+        `obsidian://show-plugin?id=${encodeURIComponent(focusPluginId)}`,
+        "_self",
+      );
     } catch {
       // Ignore — the settings page is already open as a fallback.
     }
@@ -108,6 +120,8 @@ export function openCommunityPluginsPage(app: PluginHostShape, focusPluginId?: s
 
 /** True iff any required plugin is missing OR disabled. Used to decide
  *  whether to surface the prompt on plugin load. */
-export function hasMissingRequiredPlugins(statuses: CommunityPluginStatus[]): boolean {
+export function hasMissingRequiredPlugins(
+  statuses: CommunityPluginStatus[],
+): boolean {
   return statuses.some((s) => s.spec.required && (!s.installed || !s.enabled));
 }

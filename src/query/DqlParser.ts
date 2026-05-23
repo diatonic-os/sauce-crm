@@ -1,10 +1,18 @@
 import { DqlTok, lexDql } from "./DqlLexer";
 
 export interface DqlQuery {
-  shape: "TABLE" | "LIST" | "TASK" | "PATH" | "COMPATIBLE" | "GRAPH" | "HEATMAP" | "MATRIX";
-  columns?: string[];        // for TABLE
-  from?: string;             // folder source
-  where?: string;            // raw filter expr, passed to PropositionEvaluator
+  shape:
+    | "TABLE"
+    | "LIST"
+    | "TASK"
+    | "PATH"
+    | "COMPATIBLE"
+    | "GRAPH"
+    | "HEATMAP"
+    | "MATRIX";
+  columns?: string[]; // for TABLE
+  from?: string; // folder source
+  where?: string; // raw filter expr, passed to PropositionEvaluator
   sort?: { field: string; dir: "ASC" | "DESC" }[];
   groupBy?: string;
   limit?: number;
@@ -37,34 +45,56 @@ export class DqlParser {
     this.toks = lexDql(src);
     this.pos = 0;
     const first = this.peek();
-    if (!first || first.kind !== "kw") throw new Error("expected query keyword");
+    if (!first || first.kind !== "kw")
+      throw new Error("expected query keyword");
     switch (first.value) {
-      case "TABLE":      return this.parseTabular("TABLE");
-      case "LIST":       return this.parseTabular("LIST");
-      case "TASK":       return this.parseTabular("TASK");
-      case "PATH":       return this.parsePath();
-      case "COMPATIBLE": return this.parseCompat();
-      case "GRAPH":      return this.parseGraph();
-      case "HEATMAP":    return this.parseHeatmap();
-      case "MATRIX":     return this.parseMatrix();
-      default: throw new Error(`unknown query shape: ${first.value}`);
+      case "TABLE":
+        return this.parseTabular("TABLE");
+      case "LIST":
+        return this.parseTabular("LIST");
+      case "TASK":
+        return this.parseTabular("TASK");
+      case "PATH":
+        return this.parsePath();
+      case "COMPATIBLE":
+        return this.parseCompat();
+      case "GRAPH":
+        return this.parseGraph();
+      case "HEATMAP":
+        return this.parseHeatmap();
+      case "MATRIX":
+        return this.parseMatrix();
+      default:
+        throw new Error(`unknown query shape: ${first.value}`);
     }
   }
 
-  private peek(k = 0): DqlTok | null { return this.toks[this.pos + k] ?? null; }
-  private eat(): DqlTok { return this.toks[this.pos++]; }
+  private peek(k = 0): DqlTok | null {
+    return this.toks[this.pos + k] ?? null;
+  }
+  private eat(): DqlTok {
+    return this.toks[this.pos++];
+  }
   private matchKw(k: string): boolean {
     const t = this.peek();
-    if (t && t.kind === "kw" && t.value === k) { this.eat(); return true; }
+    if (t && t.kind === "kw" && t.value === k) {
+      this.eat();
+      return true;
+    }
     return false;
   }
-  private expectKw(k: string): void { if (!this.matchKw(k)) throw new Error(`expected ${k}`); }
+  private expectKw(k: string): void {
+    if (!this.matchKw(k)) throw new Error(`expected ${k}`);
+  }
 
   private parseTabular(shape: "TABLE" | "LIST" | "TASK"): DqlQuery {
     this.eat(); // shape keyword
     const cols: string[] = [];
     if (shape === "TABLE") {
-      while (this.peek() && !(this.peek()!.kind === "kw" && (this.peek() as any).value === "FROM")) {
+      while (
+        this.peek() &&
+        !(this.peek()!.kind === "kw" && (this.peek() as any).value === "FROM")
+      ) {
         const t = this.eat();
         if (t.kind === "ident" || t.kind === "str") cols.push(t.value);
         if (t.kind === "punct" && t.value === ",") continue;
@@ -81,10 +111,17 @@ export class DqlParser {
     const from = this.eatLiteralOrLink();
     this.expectKw("TO");
     const to = this.eatLiteralOrLink();
-    const q: DqlQuery = { shape: "PATH", pathFrom: from, pathTo: to, pathOver: [] };
+    const q: DqlQuery = {
+      shape: "PATH",
+      pathFrom: from,
+      pathTo: to,
+      pathOver: [],
+    };
     if (this.matchKw("OVER")) q.pathOver = this.eatIdentList();
-    if (this.matchKw("MAXIMIZE")) q.pathObjective = { mode: "MAXIMIZE", metric: this.eatIdent() };
-    else if (this.matchKw("MINIMIZE")) q.pathObjective = { mode: "MINIMIZE", metric: this.eatIdent() };
+    if (this.matchKw("MAXIMIZE"))
+      q.pathObjective = { mode: "MAXIMIZE", metric: this.eatIdent() };
+    else if (this.matchKw("MINIMIZE"))
+      q.pathObjective = { mode: "MINIMIZE", metric: this.eatIdent() };
     if (this.matchKw("LIMIT")) q.limit = this.eatNumber();
     return q;
   }
@@ -93,7 +130,11 @@ export class DqlParser {
     this.eat(); // COMPATIBLE
     this.expectKw("WITH");
     const target = this.eatLiteralOrLink();
-    const q: DqlQuery = { shape: "COMPATIBLE", compatWith: target, compatOver: [] };
+    const q: DqlQuery = {
+      shape: "COMPATIBLE",
+      compatWith: target,
+      compatOver: [],
+    };
     if (this.matchKw("OVER")) q.compatOver = this.eatIdentList();
     if (this.matchKw("WHERE")) {
       // expect: DENSITY > N
@@ -104,7 +145,10 @@ export class DqlParser {
         void op;
       }
     }
-    if (this.matchKw("SORT")) q.sort = [{ field: this.eatIdent(), dir: this.matchKw("DESC") ? "DESC" : "ASC" }];
+    if (this.matchKw("SORT"))
+      q.sort = [
+        { field: this.eatIdent(), dir: this.matchKw("DESC") ? "DESC" : "ASC" },
+      ];
     return q;
   }
 
@@ -125,7 +169,11 @@ export class DqlParser {
     const field = this.eatIdent();
     this.matchKw("BY");
     const bucket = this.eatIdent();
-    const q: DqlQuery = { shape: "HEATMAP", heatmapField: field, heatmapBucket: bucket };
+    const q: DqlQuery = {
+      shape: "HEATMAP",
+      heatmapField: field,
+      heatmapBucket: bucket,
+    };
     this.parseCommonClauses(q);
     return q;
   }
@@ -146,7 +194,11 @@ export class DqlParser {
       const buf: string[] = [];
       while (this.peek()) {
         const t = this.peek()!;
-        if (t.kind === "kw" && ["SORT","GROUP","FLATTEN","LIMIT"].includes(t.value)) break;
+        if (
+          t.kind === "kw" &&
+          ["SORT", "GROUP", "FLATTEN", "LIMIT"].includes(t.value)
+        )
+          break;
         this.eat();
         if (t.kind === "str") buf.push(`"${t.value}"`);
         else if (t.kind === "wikilink") buf.push(`"[[${t.target}]]"`);
@@ -160,7 +212,11 @@ export class DqlParser {
       q.sort = [];
       while (this.peek() && this.peek()!.kind === "ident") {
         const f = this.eatIdent();
-        const dir = this.matchKw("DESC") ? "DESC" : (this.matchKw("ASC") ? "ASC" : "ASC");
+        const dir = this.matchKw("DESC")
+          ? "DESC"
+          : this.matchKw("ASC")
+            ? "ASC"
+            : "ASC";
         q.sort.push({ field: f, dir });
         if (!this.matchPunct(",")) break;
       }
@@ -170,7 +226,10 @@ export class DqlParser {
 
   private matchPunct(p: string): boolean {
     const t = this.peek();
-    if (t && t.kind === "punct" && t.value === p) { this.eat(); return true; }
+    if (t && t.kind === "punct" && t.value === p) {
+      this.eat();
+      return true;
+    }
     return false;
   }
   private eatLiteralOrLink(): string {
@@ -200,7 +259,10 @@ export class DqlParser {
   }
   private eatStringList(): string[] {
     const out: string[] = [];
-    while (this.peek() && (this.peek()!.kind === "str" || this.peek()!.kind === "ident")) {
+    while (
+      this.peek() &&
+      (this.peek()!.kind === "str" || this.peek()!.kind === "ident")
+    ) {
       const t = this.eat();
       out.push((t as any).value);
       if (!this.matchPunct(",")) break;

@@ -3,7 +3,11 @@ import { isIso, todayIso } from "../../util/DateUtil";
 
 export class DateField {
   public input: HTMLInputElement;
-  constructor(container: HTMLElement, defaultValue: string | null, private onChange: (iso: string) => void) {
+  constructor(
+    container: HTMLElement,
+    defaultValue: string | null,
+    private onChange: (iso: string) => void,
+  ) {
     const text = new TextComponent(container);
     text.setValue(defaultValue ?? todayIso());
     text.setPlaceholder("YYYY-MM-DD");

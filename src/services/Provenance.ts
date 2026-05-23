@@ -42,8 +42,13 @@ export type MasterKeyProvider = () => Promise<Uint8Array>;
 /** Minimal AuditLog shape — provenance optionally mirrors high-level ops here. */
 export interface ProvenanceAuditSink {
   append(row: {
-    ts: number; op: string; entityId: string | null; agentId: string | null;
-    integration: string | null; beforeHash: string | null; afterHash: string | null;
+    ts: number;
+    op: string;
+    entityId: string | null;
+    agentId: string | null;
+    integration: string | null;
+    beforeHash: string | null;
+    afterHash: string | null;
     details: Record<string, unknown> | null;
   }): Promise<unknown>;
 }
@@ -69,25 +74,54 @@ export class ProvenanceService {
     return this.crypto.sha256Hex(content);
   }
 
-  private payload(r: Pick<ProvenanceRecord, "fp" | "op" | "subject" | "kind" | "ts" | "parentFp">): string {
+  private payload(
+    r: Pick<
+      ProvenanceRecord,
+      "fp" | "op" | "subject" | "kind" | "ts" | "parentFp"
+    >,
+  ): string {
     return [r.fp, r.op, r.subject, r.kind, r.ts, r.parentFp].join("|");
   }
 
   /** Fingerprint + sign + persist + (optionally) trace to AuditLog. */
-  async record(op: string, subject: string, kind: string, content: string, opts: RecordOpts = {}): Promise<ProvenanceRecord> {
+  async record(
+    op: string,
+    subject: string,
+    kind: string,
+    content: string,
+    opts: RecordOpts = {},
+  ): Promise<ProvenanceRecord> {
     const fp = opts.fp ?? (await this.fingerprint(content));
     const ts = Date.now();
     const parentFp = opts.parentFp ?? "";
     const meta = opts.meta ?? null;
     const key = await this.masterKey();
-    const signature = await this.crypto.hmacHex(key, this.payload({ fp, op, subject, kind, ts, parentFp }));
-    const rec: ProvenanceRecord = { fp, op, subject, kind, ts, parentFp, meta, signature };
+    const signature = await this.crypto.hmacHex(
+      key,
+      this.payload({ fp, op, subject, kind, ts, parentFp }),
+    );
+    const rec: ProvenanceRecord = {
+      fp,
+      op,
+      subject,
+      kind,
+      ts,
+      parentFp,
+      meta,
+      signature,
+    };
     await this.store.append(rec);
     if (this.audit) {
       try {
         await this.audit.append({
-          ts, op: "provenance", entityId: subject, agentId: null, integration: null,
-          beforeHash: parentFp || null, afterHash: fp, details: { op, kind },
+          ts,
+          op: "provenance",
+          entityId: subject,
+          agentId: null,
+          integration: null,
+          beforeHash: parentFp || null,
+          afterHash: fp,
+          details: { op, kind },
         });
       } catch {
         /* audit is best-effort; provenance row is the source of truth */

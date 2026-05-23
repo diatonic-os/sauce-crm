@@ -3,21 +3,36 @@
 // reads filter + sort in JS. Provenance volume can grow; subject/fp lookups use
 // `where` predicates so LanceDB scans are pushed down where possible.
 
-import type { IProvenanceStore, ProvenanceRecord } from "../../services/Provenance";
+import type {
+  IProvenanceStore,
+  ProvenanceRecord,
+} from "../../services/Provenance";
 import type { ProvenanceRow } from "./LanceSchema";
 import { sqlStr, type LanceTable } from "./LanceConnection";
 
 function toRow(r: ProvenanceRecord): ProvenanceRow {
   return {
-    fp: r.fp, op: r.op, subject: r.subject, kind: r.kind, ts: r.ts,
-    parent_fp: r.parentFp, meta: JSON.stringify(r.meta ?? null), signature: r.signature,
+    fp: r.fp,
+    op: r.op,
+    subject: r.subject,
+    kind: r.kind,
+    ts: r.ts,
+    parent_fp: r.parentFp,
+    meta: JSON.stringify(r.meta ?? null),
+    signature: r.signature,
   };
 }
 
 function fromRow(r: ProvenanceRow): ProvenanceRecord {
   return {
-    fp: r.fp, op: r.op, subject: r.subject, kind: r.kind, ts: r.ts,
-    parentFp: r.parent_fp, meta: r.meta === "null" ? null : JSON.parse(r.meta), signature: r.signature,
+    fp: r.fp,
+    op: r.op,
+    subject: r.subject,
+    kind: r.kind,
+    ts: r.ts,
+    parentFp: r.parent_fp,
+    meta: r.meta === "null" ? null : JSON.parse(r.meta),
+    signature: r.signature,
   };
 }
 
@@ -45,7 +60,9 @@ export class LanceProvenanceStore implements IProvenanceStore {
   }
 
   async all(): Promise<ProvenanceRecord[]> {
-    const rows = (await this.table.query().toArray()) as unknown as ProvenanceRow[];
+    const rows = (await this.table
+      .query()
+      .toArray()) as unknown as ProvenanceRow[];
     return rows.map(fromRow).sort((a, b) => a.ts - b.ts);
   }
 }

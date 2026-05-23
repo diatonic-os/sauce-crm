@@ -56,7 +56,11 @@ export class LocalFastVoter implements VoterAgent {
       (this.backend === "ollama"
         ? "http://127.0.0.1:11434/api/generate"
         : "http://127.0.0.1:1234/v1/chat/completions");
-    this.model = cfg.model ?? (this.backend === "ollama" ? "qwen2.5:3b" : "lmstudio-community/Qwen2.5-3B-Instruct");
+    this.model =
+      cfg.model ??
+      (this.backend === "ollama"
+        ? "qwen2.5:3b"
+        : "lmstudio-community/Qwen2.5-3B-Instruct");
     this.sys = cfg.systemPrompt ?? DEFAULT_SYS;
   }
 
@@ -93,7 +97,11 @@ export class LocalFastVoter implements VoterAgent {
       const text = extractText(res, this.backend);
       const parsed = parseJsonWithProseTolerance(text) as LocalResponse | null;
       if (!parsed) {
-        return abstain(this.voter, `unparseable response: ${truncate(text)}`, start);
+        return abstain(
+          this.voter,
+          `unparseable response: ${truncate(text)}`,
+          start,
+        );
       }
       const v = coerceVote(parsed.vote);
       const rationale =
@@ -127,7 +135,7 @@ export function buildUserMessage(
   ];
   if (ctx.diff) parts.push(`Diff:\n${ctx.diff}`);
   if (ctx.metadata) parts.push(`Metadata:\n${JSON.stringify(ctx.metadata)}`);
-  parts.push('Reply JSON only.');
+  parts.push("Reply JSON only.");
   return parts.join("\n\n");
 }
 
@@ -137,16 +145,16 @@ interface ObsidianResp {
   json: unknown;
 }
 
-export function extractText(
-  res: unknown,
-  backend: LocalBackend,
-): string {
+export function extractText(res: unknown, backend: LocalBackend): string {
   const r = res as ObsidianResp;
   const j = r.json as Record<string, unknown> | null;
   if (j && typeof j === "object") {
-    if (backend === "ollama" && typeof j.response === "string") return j.response;
+    if (backend === "ollama" && typeof j.response === "string")
+      return j.response;
     if (backend === "lmstudio") {
-      const choices = j.choices as Array<{ message?: { content?: unknown } }> | undefined;
+      const choices = j.choices as
+        | Array<{ message?: { content?: unknown } }>
+        | undefined;
       const c = choices?.[0]?.message?.content;
       if (typeof c === "string") return c;
     }
@@ -154,7 +162,11 @@ export function extractText(
   return r.text ?? "";
 }
 
-function abstain(voter: Voter, rationale: string, start: number): VoterDecision {
+function abstain(
+  voter: Voter,
+  rationale: string,
+  start: number,
+): VoterDecision {
   return { voter, vote: "abstain", rationale, latencyMs: Date.now() - start };
 }
 

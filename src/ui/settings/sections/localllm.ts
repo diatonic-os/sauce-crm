@@ -17,8 +17,15 @@ const LOCAL: { id: LocalProviderId; label: string }[] = [
 
 /** When `id` is the active copilot provider, mirror its endpoint/model into the
  *  live copilot settings + runtime. */
-function syncActiveProvider(plugin: SauceGraphPlugin, id: LocalProviderId): void {
-  const cfg = plugin.settings.copilot as { provider?: string; baseUrl?: string; model?: string };
+function syncActiveProvider(
+  plugin: SauceGraphPlugin,
+  id: LocalProviderId,
+): void {
+  const cfg = plugin.settings.copilot as {
+    provider?: string;
+    baseUrl?: string;
+    model?: string;
+  };
   if (cfg.provider !== id) return;
   const lc = plugin.settings.features.localLLM[id];
   cfg.baseUrl = lc.endpoint || undefined;
@@ -26,10 +33,16 @@ function syncActiveProvider(plugin: SauceGraphPlugin, id: LocalProviderId): void
   plugin.copilot?.updateSettings?.(plugin.settings.copilot);
 }
 
-export function renderLocalLLM(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
+export function renderLocalLLM(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
   const ll = plugin.settings.features.localLLM;
 
-  containerEl.createEl("h3", { text: "Local LLM providers", cls: "sauce-settings-section-title" });
+  containerEl.createEl("h3", {
+    text: "Local LLM providers",
+    cls: "sauce-settings-section-title",
+  });
   containerEl.createDiv({ cls: "sauce-callout" }).createSpan({
     text: "Configure Ollama and LM Studio endpoints and default chat models. The model list loads live from each endpoint. When a provider is your active Copilot provider, changes here apply to it immediately.",
   });
@@ -40,14 +53,18 @@ export function renderLocalLLM(containerEl: HTMLElement, plugin: SauceGraphPlugi
 
     new Setting(containerEl)
       .setName("Endpoint")
-      .setDesc(id === "lmstudio" ? "OpenAI-compatible base, e.g. http://localhost:1234/v1" : "e.g. http://localhost:11434")
-      .addText((t) => t
-        .setValue(lc.endpoint)
-        .onChange(async (v) => {
+      .setDesc(
+        id === "lmstudio"
+          ? "OpenAI-compatible base, e.g. http://localhost:1234/v1"
+          : "e.g. http://localhost:11434",
+      )
+      .addText((t) =>
+        t.setValue(lc.endpoint).onChange(async (v) => {
           lc.endpoint = v;
           syncActiveProvider(plugin, id);
           await plugin.saveSettings();
-        }));
+        }),
+      );
 
     // Live chat-model dropdown for this provider (Refresh shows reachability).
     const pickerHost = containerEl.createDiv({ cls: "sg-section-row" });

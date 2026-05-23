@@ -8,7 +8,7 @@ export interface VaultStatsStripInput {
 
 export function renderVaultStatsStrip(
   parent: HTMLElement,
-  input: VaultStatsStripInput
+  input: VaultStatsStripInput,
 ): HTMLDivElement {
   const strip = parent.createDiv({ cls: "sg-stats-strip" });
   strip.setAttribute("role", "group");

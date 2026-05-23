@@ -2,10 +2,20 @@
 export interface RagAssemblerHost {
   pinned(): Promise<string[]>;
   oneHop(path: string): Promise<string[]>;
-  semantic(query: string, topK: number): Promise<{ path: string; score: number }[]>;
-  recentTouches(days: number): Promise<{ id: string; date: string; contactId: string }[]>;
-  addendaTail(path: string, n: number): Promise<{ id: string; date: string; body: string }[]>;
-  readFile(path: string): Promise<{ frontmatter: Record<string, unknown>; body: string }>;
+  semantic(
+    query: string,
+    topK: number,
+  ): Promise<{ path: string; score: number }[]>;
+  recentTouches(
+    days: number,
+  ): Promise<{ id: string; date: string; contactId: string }[]>;
+  addendaTail(
+    path: string,
+    n: number,
+  ): Promise<{ id: string; date: string; body: string }[]>;
+  readFile(
+    path: string,
+  ): Promise<{ frontmatter: Record<string, unknown>; body: string }>;
   estimateTokens(text: string): number;
 }
 
@@ -32,11 +42,20 @@ export interface RagAssemblerOpts {
   centerTop?: number;
 }
 
-const DEFAULT_OPTS: RagAssemblerOpts = { topK: 8, touchDays: 30, addendaTail: 5, tokenCeiling: 80_000, centerTop: 12 };
+const DEFAULT_OPTS: RagAssemblerOpts = {
+  topK: 8,
+  touchDays: 30,
+  addendaTail: 5,
+  tokenCeiling: 80_000,
+  centerTop: 12,
+};
 
 export class RagAssembler {
   private readonly opts: RagAssemblerOpts;
-  constructor(private readonly host: RagAssemblerHost, opts: Partial<RagAssemblerOpts> = {}) {
+  constructor(
+    private readonly host: RagAssemblerHost,
+    opts: Partial<RagAssemblerOpts> = {},
+  ) {
     this.opts = { ...DEFAULT_OPTS, ...opts };
   }
 
@@ -45,7 +64,9 @@ export class RagAssembler {
     const graph = focus ? await this.host.oneHop(focus) : [];
     const semanticHits = await this.host.semantic(query, this.opts.topK);
     const semantic = semanticHits.map((r) => r.path);
-    const semanticScore = new Map<string, number>(semanticHits.map((h) => [h.path, h.score]));
+    const semanticScore = new Map<string, number>(
+      semanticHits.map((h) => [h.path, h.score]),
+    );
     const recentTouches = await this.host.recentTouches(this.opts.touchDays);
 
     // Centering: score each candidate path by semantic × pin-boost × recency-boost.
@@ -76,7 +97,12 @@ export class RagAssembler {
       return 1.0;
     };
 
-    const allPaths = new Set<string>([...pinned, ...(focus ? [focus] : []), ...graph, ...semantic]);
+    const allPaths = new Set<string>([
+      ...pinned,
+      ...(focus ? [focus] : []),
+      ...graph,
+      ...semantic,
+    ]);
     const scores = new Map<string, number>();
     for (const p of allPaths) {
       const sem = semanticScore.get(p) ?? 0.1; // small floor so pinned/graph paths aren't zeroed
@@ -88,15 +114,35 @@ export class RagAssembler {
       .slice(0, this.opts.centerTop ?? 12)
       .map(([p]) => p);
 
-    const addenda: Record<string, { id: string; date: string; body: string }[]> = {};
+    const addenda: Record<
+      string,
+      { id: string; date: string; body: string }[]
+    > = {};
     let estimatedTokens = 0;
     let trimmed = false;
     for (const p of centered) {
       const tail = await this.host.addendaTail(p, this.opts.addendaTail);
       addenda[p] = tail;
-      estimatedTokens += tail.reduce((s, a) => s + this.host.estimateTokens(a.body), 0);
-      if (estimatedTokens > this.opts.tokenCeiling) { trimmed = true; break; }
+      estimatedTokens += tail.reduce(
+        (s, a) => s + this.host.estimateTokens(a.body),
+        0,
+      );
+      if (estimatedTokens > this.opts.tokenCeiling) {
+        trimmed = true;
+        break;
+      }
     }
-    return { pinned, focus: focus ?? null, graph, semantic, recentTouches, addenda, estimatedTokens, trimmed, centered, scores };
+    return {
+      pinned,
+      focus: focus ?? null,
+      graph,
+      semantic,
+      recentTouches,
+      addenda,
+      estimatedTokens,
+      trimmed,
+      centered,
+      scores,
+    };
   }
 }

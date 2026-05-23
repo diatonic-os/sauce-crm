@@ -10,13 +10,23 @@ export class MapViewReal extends ItemView {
   constructor(leaf: WorkspaceLeaf, _plugin: Plugin) {
     super(leaf);
   }
-  getViewType(): string { return VIEW_MAP_REAL; }
-  getDisplayText(): string { return "Sauce CRM — Map"; }
-  getIcon(): string { return "map"; }
+  getViewType(): string {
+    return VIEW_MAP_REAL;
+  }
+  getDisplayText(): string {
+    return "Sauce CRM — Map";
+  }
+  getIcon(): string {
+    return "map";
+  }
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.createEl("h3", { text: "Sauce CRM Map" });
-    this.contentEl.createEl("p", { text: "Map view — implementation pending." });
+    this.contentEl.createEl("p", {
+      text: "Map view — implementation pending.",
+    });
   }
-  async onClose(): Promise<void> { /* nothing to clean up */ }
+  async onClose(): Promise<void> {
+    /* nothing to clean up */
+  }
 }

@@ -25,20 +25,32 @@ export interface CredentialSource {
  * If the vault is locked, `get` returns null (caller decides whether to prompt unlock).
  */
 export class KeyVaultCredentialSource implements CredentialSource {
-  readonly label = 'KeyVault';
-  constructor(private readonly vault: {
-    isLocked(): boolean;
-    get(service: string): Promise<string>;
-    put(service: string, value: string): Promise<void>;
-    list(): Promise<string[]>;
-  }) {}
-  available(): boolean { return !this.vault.isLocked(); }
+  readonly label = "KeyVault";
+  constructor(
+    private readonly vault: {
+      isLocked(): boolean;
+      get(service: string): Promise<string>;
+      put(service: string, value: string): Promise<void>;
+      list(): Promise<string[]>;
+    },
+  ) {}
+  available(): boolean {
+    return !this.vault.isLocked();
+  }
   async get(service: string): Promise<string | null> {
     if (this.vault.isLocked()) return null;
-    try { return await this.vault.get(service); } catch { return null; }
+    try {
+      return await this.vault.get(service);
+    } catch {
+      return null;
+    }
   }
-  async put(service: string, value: string): Promise<void> { await this.vault.put(service, value); }
-  async clear(service: string): Promise<void> { await this.vault.put(service, ''); }
+  async put(service: string, value: string): Promise<void> {
+    await this.vault.put(service, value);
+  }
+  async clear(service: string): Promise<void> {
+    await this.vault.put(service, "");
+  }
 }
 
 /**
@@ -48,9 +60,11 @@ export class KeyVaultCredentialSource implements CredentialSource {
 export class ChainedCredentialSource implements CredentialSource {
   readonly label: string;
   constructor(private readonly sources: CredentialSource[]) {
-    this.label = sources.map((s) => s.label).join(' → ');
+    this.label = sources.map((s) => s.label).join(" → ");
   }
-  available(): boolean { return this.sources.some((s) => s.available()); }
+  available(): boolean {
+    return this.sources.some((s) => s.available());
+  }
   async get(service: string): Promise<string | null> {
     for (const s of this.sources) {
       if (!s.available()) continue;
@@ -61,12 +75,14 @@ export class ChainedCredentialSource implements CredentialSource {
   }
   async put(service: string, value: string): Promise<void> {
     const writable = this.sources.find((s) => s.available());
-    if (!writable) throw new Error('no available credential source for write');
+    if (!writable) throw new Error("no available credential source for write");
     await writable.put(service, value);
   }
   async clear(service: string): Promise<void> {
     for (const s of this.sources) {
-      if (s.available()) { await s.clear(service); }
+      if (s.available()) {
+        await s.clear(service);
+      }
     }
   }
 }
@@ -75,8 +91,8 @@ export class ChainedCredentialSource implements CredentialSource {
  * Redact a secret for log display. Shows first 8 and last 4 chars; minimum 12 chars total.
  */
 export function redactSecret(s: string | null | undefined): string {
-  if (!s) return '(none)';
-  if (s.length < 12) return '****';
+  if (!s) return "(none)";
+  if (s.length < 12) return "****";
   return `${s.slice(0, 8)}…${s.slice(-4)}`;
 }
 
@@ -84,10 +100,16 @@ export function redactSecret(s: string | null | undefined): string {
  * Helper to build an apiKey getter that *only* reads from a CredentialSource.
  * Throws if no value is available — providers must surface this to the user, not silently fail.
  */
-export function apiKeyGetter(source: CredentialSource, service: string): () => Promise<string> {
+export function apiKeyGetter(
+  source: CredentialSource,
+  service: string,
+): () => Promise<string> {
   return async () => {
     const v = await source.get(service);
-    if (!v) throw new Error(`${service}: no credential available (label=${source.label}). Set the key in Settings → AI Copilot.`);
+    if (!v)
+      throw new Error(
+        `${service}: no credential available (label=${source.label}). Set the key in Settings → AI Copilot.`,
+      );
     return v;
   };
 }

@@ -45,7 +45,20 @@ export class ContractParser {
       return { type: "ident", name: trimmed };
     }
     // Binary op (lowest-precedence first; this is intentionally naive)
-    for (const op of ["==", "!=", ">=", "<=", ">", "<", "&&", "||", "+", "-", "*", "/"]) {
+    for (const op of [
+      "==",
+      "!=",
+      ">=",
+      "<=",
+      ">",
+      "<",
+      "&&",
+      "||",
+      "+",
+      "-",
+      "*",
+      "/",
+    ]) {
       const ix = trimmed.indexOf(op);
       if (ix > 0) {
         return {

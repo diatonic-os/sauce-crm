@@ -32,7 +32,9 @@ export class LanceDBInstallModal extends Modal {
 
   constructor(private readonly opts: LanceDBInstallModalOpts) {
     super(opts.app);
-    this.installer = new LanceDBInstaller(new ObsidianInstallerHost(opts.pluginDir));
+    this.installer = new LanceDBInstaller(
+      new ObsidianInstallerHost(opts.pluginDir),
+    );
   }
 
   onOpen(): void {
@@ -64,7 +66,7 @@ export class LanceDBInstallModal extends Modal {
     const cbInput = cb.createEl("input", { type: "checkbox" });
     cb.appendText(
       " I understand this will run `npm install @lancedb/lancedb` inside the " +
-      "plugin directory and download a native binary appropriate for my OS.",
+        "plugin directory and download a native binary appropriate for my OS.",
     );
 
     // Output pane — fills during install.
@@ -98,7 +100,9 @@ export class LanceDBInstallModal extends Modal {
         state: "skipped",
         decidedAt: new Date().toISOString(),
       });
-      new Notice("Sauce CRM: using graph-RAG only. You can install LanceDB later from Settings.");
+      new Notice(
+        "Sauce CRM: using graph-RAG only. You can install LanceDB later from Settings.",
+      );
       this.close();
     };
 
@@ -111,7 +115,8 @@ export class LanceDBInstallModal extends Modal {
       if (this.opts.approvalGate) {
         const r = await this.opts.approvalGate.ask({
           actionClass: "install-package",
-          summary: "Install @lancedb/lancedb (native module) into the plugin directory",
+          summary:
+            "Install @lancedb/lancedb (native module) into the plugin directory",
           details: `npm install @lancedb/lancedb --prefix ${this.opts.pluginDir}\n\nDownloads a native binary (~30MB) appropriate for your OS/arch.`,
           risk: "medium",
         });
@@ -120,7 +125,11 @@ export class LanceDBInstallModal extends Modal {
           await this.opts.onDecision({
             state: "skipped",
             decidedAt: new Date().toISOString(),
-            lastAttempt: { ok: false, error: `approval gate: ${r.verdict}`, ts: new Date().toISOString() },
+            lastAttempt: {
+              ok: false,
+              error: `approval gate: ${r.verdict}`,
+              ts: new Date().toISOString(),
+            },
           });
           this.close();
           return;
@@ -138,7 +147,10 @@ export class LanceDBInstallModal extends Modal {
         if (p.kind === "start") append("▶ " + p.message);
         else if (p.kind === "line") append(`[${p.stream}] ${p.line}`);
         else if (p.kind === "done") {
-          if (p.ok) append(`✓ install complete in ${(p.durationMs / 1000).toFixed(1)}s`);
+          if (p.ok)
+            append(
+              `✓ install complete in ${(p.durationMs / 1000).toFixed(1)}s`,
+            );
           else append(`✗ install failed: ${p.error ?? "unknown error"}`);
         }
       };
@@ -149,7 +161,11 @@ export class LanceDBInstallModal extends Modal {
       const logPath = `.sauce/logs/lancedb-install-${ts}.log`;
       const vault = this.opts.app.vault;
       const adapter = vault.adapter;
-      try { await adapter.mkdir(".sauce/logs"); } catch { /* exists */ }
+      try {
+        await adapter.mkdir(".sauce/logs");
+      } catch {
+        /* exists */
+      }
       const logSink = async (line: string): Promise<void> => {
         try {
           const existing = (await adapter.exists(logPath))
@@ -174,9 +190,13 @@ export class LanceDBInstallModal extends Modal {
         },
       });
       if (ok) {
-        new Notice("LanceDB installed. Reload Obsidian to activate vector search.");
+        new Notice(
+          "LanceDB installed. Reload Obsidian to activate vector search.",
+        );
       } else {
-        new Notice("LanceDB install failed — falling back to graph-RAG. See modal log.");
+        new Notice(
+          "LanceDB install failed — falling back to graph-RAG. See modal log.",
+        );
       }
       this.installing = false;
       installBtn.removeAttribute("disabled");
