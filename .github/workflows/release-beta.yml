@@ -1,0 +1,66 @@
+name: Release (beta)
+
+# Sibling of release.yml for the BRAT beta channel (DEC-008). Tagging
+# vX.Y.Z-beta.N publishes a PRERELEASE with main.js / manifest.json / styles.css
+# so obsidian42-brat can install pre-release builds for opted-in sponsors.
+#
+# Only github.ref_name (a machine-generated tag ref) is used, via an env var —
+# no untrusted input is interpolated into any run: step.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-prerelease:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Validate manifest version matches beta tag base
+        run: |
+          MV=$(node -p "require('./manifest.json').version")
+          # strip a leading v and the -beta.N suffix from the tag → base version
+          BASE="${TAG#v}"
+          BASE="${BASE%%-beta.*}"
+          if [ "$MV" != "$BASE" ]; then
+            echo "manifest.json version ($MV) does not match beta tag base ($BASE)"
+            exit 1
+          fi
+      - name: Typecheck + test
+        run: |
+          npm run typecheck
+          npm test
+      - name: Build production bundle
+        run: npm run build
+      - name: Verify release artifacts
+        run: |
+          for f in main.js manifest.json styles.css; do
+            test -f "$f" || (echo "missing artifact: $f" && exit 1)
+          done
+      - name: Create GitHub Prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Sauce CRM ${{ env.TAG }}
+          prerelease: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            main.js
+            manifest.json
+            styles.css

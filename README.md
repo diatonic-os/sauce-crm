@@ -110,6 +110,26 @@ PRs welcome. Before submitting:
 - No `console.*` in `src/` — use `plugin.logger` (eslint enforces this)
 - No new secrets in `data.json` — route through `KeyVault` via `IntegrationCredentials`
 
+## Sponsors
+
+Sauce CRM is free and open source (MIT) — no paywalled tier, no telemetry. If it
+saves you time, sponsoring keeps the roadmap moving and the integrations
+maintained. Sponsorship is **optional and never gates a feature**; per our
+guardrails there are no donation prompts inside the plugin (this section and
+`SPONSORS.md` are the only places we ask).
+
+[**❤ Sponsor on GitHub**](https://github.com/sponsors/iamdrewfortini) · see [`SPONSORS.md`](SPONSORS.md) for tiers & perks.
+
+| Tier | / month | Highlights |
+|------|---------|-----------|
+| ☕ Supporter | $5 | Sponsor badge · Discord `#supporters` |
+| 🌶️ Sponsor | $25 | + BRAT beta channel · quarterly roadmap survey |
+| 🔧 Contributor | $100 | + name in `SPONSORS.md` · quarterly roadmap call |
+| 🛠️ Maintainer | $500 | + logo here · integration request priority · direct support |
+
+Beta builds ship through [BRAT](#via-brat-for-pre-release-builds) to sponsors who
+enable the beta channel (`saucecrm.beta.enabled`, default off).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

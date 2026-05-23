@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in Sauce CRM isn't working as expected.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! Please don't include API keys, tokens, or vault contents.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I click Optimize for Sauce on the Tasks card, …
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Settings → Integrations → Community Plugins
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Sauce CRM version, Obsidian version, OS.
+      placeholder: "Sauce CRM 0.3.0 · Obsidian 1.5.0 · macOS 14"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output (optional)
+      description: Ctrl/Cmd+Shift+I → Console. Redact anything sensitive.
+      render: shell
