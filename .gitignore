@@ -3,7 +3,8 @@ main.js
 main.js.map
 *.js.map
 
-# Dependencies
+# Dependencies (directory in the primary checkout, symlink in worktrees)
+node_modules
 node_modules/
 
 # Per-user plugin data (never publish)
