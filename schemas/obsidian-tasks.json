@@ -1,0 +1,63 @@
+{
+  "apiV1": {
+    "createTaskLineModal": { "params": [], "returns": "Promise<string>" },
+    "editTaskLineModal": { "params": ["taskLine: string"], "returns": "Promise<string>" },
+    "executeToggleTaskDoneCommand": { "params": ["line: string", "path: string"], "returns": "string" }
+  },
+  "display": [
+    "cancelled date",
+    "created date",
+    "description",
+    "done date",
+    "due date",
+    "priority",
+    "recurrence",
+    "scheduled date",
+    "start date"
+  ],
+  "filter": [
+    "done",
+    "due after",
+    "due before",
+    "due on",
+    "has done date",
+    "has due date",
+    "has start date",
+    "is recurring",
+    "no due date",
+    "not done",
+    "path includes",
+    "priority is above",
+    "priority is below",
+    "tags include"
+  ],
+  "group": [
+    "done",
+    "due",
+    "filename",
+    "folder",
+    "happens",
+    "heading",
+    "path",
+    "priority",
+    "scheduled",
+    "start",
+    "status",
+    "tags"
+  ],
+  "sort": [
+    "cancelled",
+    "created",
+    "description",
+    "done",
+    "due",
+    "priority",
+    "path",
+    "scheduled",
+    "start",
+    "status",
+    "tag",
+    "urgency"
+  ],
+  "source": "obsidian-tasks-plugin apiV1 (runtime introspection) + Tasks Quick-Reference query vocabulary (documented). Regenerate via `node sdk/generator/introspect-tasks.ts` against a live vault with the CLI enabled."
+}
