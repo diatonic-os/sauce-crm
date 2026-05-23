@@ -17,3 +17,7 @@
 {"_t":"ev","ts":"2026-05-23T00:02:01Z","actor":"orchestrator","action":"merge","entityId":"T-F-01","hash":"2097885","note":"introspector+schema"}
 {"_t":"ev","ts":"2026-05-23T00:02:02Z","actor":"orchestrator","action":"merge","entityId":"T-F-02","hash":"88407c9","note":"tasks.ts codegen"}
 {"_t":"ev","ts":"2026-05-23T00:02:03Z","actor":"orchestrator","action":"merge","entityId":"T-F-03","hash":"8e7e7f0","note":"ci sdk:check gate"}
+{"_t":"ev","ts":"2026-05-23T00:03:01Z","actor":"orchestrator","action":"merge","entityId":"T-D-04","hash":"d81ca1a","note":"MutationContract"}
+{"_t":"ev","ts":"2026-05-23T00:03:02Z","actor":"orchestrator","action":"merge","entityId":"T-D-01","hash":"ee96354","note":"CanonService"}
+{"_t":"ev","ts":"2026-05-23T00:03:03Z","actor":"orchestrator","action":"merge","entityId":"T-D-02","hash":"a27bf47","note":"CanonReadOnlyExtension"}
+{"_t":"ev","ts":"2026-05-23T00:03:04Z","actor":"orchestrator","action":"merge","entityId":"T-D-03","hash":"deb7633","note":"CanonViewRenderer; SH-D done"}
