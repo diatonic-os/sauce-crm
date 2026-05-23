@@ -149,3 +149,65 @@ describe("ModelCatalog — OpenAI live wiring + endpoint normalization", () => {
     expect(calls[0]).not.toContain("/v1/v1/");
   });
 });
+
+describe("ModelCatalog — embedding-kind listing", () => {
+  function fetchMock() {
+    const calls: string[] = [];
+    const impl = vi.fn(async (url: string) => {
+      calls.push(url);
+      if (url.includes("api.openai.com")) {
+        return new Response(JSON.stringify({ data: [
+          { id: "gpt-4o" }, { id: "text-embedding-3-small" }, { id: "text-embedding-3-large" }, { id: "whisper-1" },
+        ] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("localhost:1234")) { // lmstudio
+        return new Response(JSON.stringify({ data: [
+          { id: "qwen/qwen3.6-27b" }, { id: "nomic-embed-text-v1.5" }, { id: "text-embedding-bge-m3" },
+        ] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("nope", { status: 404 });
+    });
+    return { impl, calls };
+  }
+
+  it("lists OpenAI embedding models live (filtered to embeddings)", async () => {
+    const { impl } = fetchMock();
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    const models = await cat.list({ provider: "openai", apiKey: "sk-x", kind: "embedding" });
+    const ids = models.map((m) => m.id);
+    expect(ids).toEqual(["text-embedding-3-large", "text-embedding-3-small"]); // sorted, embeddings only
+    expect(ids).not.toContain("gpt-4o");
+  });
+
+  it("falls back to curated OpenAI embeddings without a key", async () => {
+    const { impl, calls } = fetchMock();
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    const models = await cat.list({ provider: "openai", kind: "embedding" });
+    expect(models.some((m) => m.id === "text-embedding-3-small")).toBe(true);
+    expect(calls.length).toBe(0);
+  });
+
+  it("narrows a local provider's flat list to embedding models", async () => {
+    const { impl } = fetchMock();
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    const models = await cat.list({ provider: "lmstudio", endpoint: "http://localhost:1234", kind: "embedding" });
+    const ids = models.map((m) => m.id);
+    expect(ids).toContain("nomic-embed-text-v1.5");
+    expect(ids).toContain("text-embedding-bge-m3");
+    expect(ids).not.toContain("qwen/qwen3.6-27b");
+  });
+
+  it("returns no embedding models for anthropic", async () => {
+    const { impl } = fetchMock();
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    expect(await cat.list({ provider: "anthropic", kind: "embedding" })).toEqual([]);
+  });
+
+  it("caches chat and embedding lists separately", async () => {
+    const { impl, calls } = fetchMock();
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    await cat.list({ provider: "openai", apiKey: "sk-x", kind: "chat" });
+    await cat.list({ provider: "openai", apiKey: "sk-x", kind: "embedding" });
+    expect(calls.length).toBe(2); // different cache keys ⇒ two fetches
+  });
+});

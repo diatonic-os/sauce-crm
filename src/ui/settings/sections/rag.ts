@@ -6,6 +6,8 @@
 import { Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { addToggleRow } from "../../components/v2/ToggleRow";
+import { ProviderPicker } from "../../components/v2/ProviderPicker";
+import type { ProviderId } from "../../../copilot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 
 const PROVIDER_LABELS: Record<EmbedProviderId, string> = {
@@ -60,10 +62,22 @@ export function renderRagEmbeddings(containerEl: HTMLElement, plugin: SauceGraph
     });
     new Setting(containerEl)
       .setName("Endpoint")
+      .setDesc("Change this then hit Refresh to re-list models.")
       .addText((t) => t.setValue(pc.endpoint).onChange(async (v) => { pc.endpoint = v; await save(); }));
-    new Setting(containerEl)
-      .setName("Embedding model")
-      .setDesc("Model id served by this endpoint (must match the LanceDB vector dimension).")
-      .addText((t) => t.setValue(pc.model).onChange(async (v) => { pc.model = v; await save(); }));
+    // Live embedding-model dropdown (catalog filtered to embedding models).
+    // OpenAI lists live with the copilot API key; local providers list from
+    // their endpoint. Must match the LanceDB vector dimension.
+    const pickerHost = containerEl.createDiv({ cls: "sg-section-row" });
+    new ProviderPicker({
+      container: pickerHost,
+      plugin,
+      lockedProvider: id as ProviderId,
+      kind: "embedding",
+      modelLabel: "Embedding model",
+      initialModel: pc.model,
+      endpoint: pc.endpoint,
+      apiKey: plugin.settings.copilot.apiKey,
+      onChange: async ({ model }) => { pc.model = model; await save(); },
+    }).render();
   }
 }

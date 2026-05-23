@@ -28,6 +28,10 @@ export interface ProviderPickerOptions {
    * Used by surfaces that are provider-scoped (e.g. LocalLLMPage's Ollama
    * section, where switching to Anthropic would be incoherent). */
   lockedProvider?: ProviderId;
+  /** "chat" (default) or "embedding" — selects which catalog list to show. */
+  kind?: "chat" | "embedding";
+  /** Override the model dropdown label (e.g. "Embedding model"). */
+  modelLabel?: string;
 }
 
 const PROVIDERS: { id: ProviderId; label: string }[] = [
@@ -75,7 +79,7 @@ export class ProviderPicker {
 
     // Model dropdown
     const modelRow = c.createDiv({ cls: "sg-pp-row" });
-    modelRow.createEl("label", { text: "Model" });
+    modelRow.createEl("label", { text: this.opts.modelLabel ?? "Model" });
     this.modelSelectEl = modelRow.createEl("select");
     this.modelSelectEl.addEventListener("change", () => {
       this.model = this.modelSelectEl.value;
@@ -107,6 +111,7 @@ export class ProviderPicker {
       provider: this.provider,
       endpoint: this.opts.endpoint ?? this.endpointFromSettings(),
       apiKey: this.opts.apiKey ?? this.apiKeyFromSettings(),
+      kind: this.opts.kind,
       logger: this.opts.plugin.logger ?? null,
     };
   }

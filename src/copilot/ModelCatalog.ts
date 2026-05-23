@@ -34,6 +34,9 @@ export interface CatalogContext {
   provider: ProviderId;
   endpoint?: string;
   apiKey?: string;
+  /** "chat" (default) lists completion models; "embedding" lists embedding
+   *  models (for the RAG embed-model picker). */
+  kind?: "chat" | "embedding";
   fetch?: (url: string, init?: RequestInit) => Promise<Response>;
   logger?: Logger | null;
 }
@@ -63,8 +66,21 @@ const STATIC: Record<"openai" | "anthropic", CatalogModel[]> = {
   ],
 };
 
+/** Curated OpenAI embedding models — fallback when no key / fetch fails. */
+const STATIC_EMBED: Record<"openai", CatalogModel[]> = {
+  openai: [
+    { id: "text-embedding-3-small", label: "text-embedding-3-small", family: "text-embedding-3" },
+    { id: "text-embedding-3-large", label: "text-embedding-3-large", family: "text-embedding-3" },
+    { id: "text-embedding-ada-002", label: "text-embedding-ada-002 (legacy)", family: "ada" },
+  ],
+};
+
+// Heuristic for spotting embedding models in a local provider's flat /v1/models
+// or /api/tags list (they aren't tagged by kind over REST).
+const EMBED_RE = /(embed|nomic|bge|gte|e5|minilm|mxbai|arctic)/i;
+
 function cacheKey(ctx: CatalogContext): string {
-  return `${ctx.provider}::${(ctx.endpoint ?? "").replace(/\/+$/, "")}`;
+  return `${ctx.provider}:${ctx.kind ?? "chat"}:${(ctx.endpoint ?? "").replace(/\/+$/, "")}`;
 }
 
 /** `<base>/v1/models`, tolerating a base that already ends in `/v1` or has
@@ -111,15 +127,20 @@ export class ModelCatalog {
         case "lmstudio":  models = await this.fetchLmStudio(ctx); break;
         case "nim":       models = await this.fetchNim(ctx); break;
         case "openai":    models = await this.fetchOpenAI(ctx); break;
-        case "anthropic": models = STATIC.anthropic; break;
+        case "anthropic": models = ctx.kind === "embedding" ? [] : STATIC.anthropic; break;
+      }
+      // Local/NIM providers return a flat list; narrow to embedding models when
+      // requested. Keep the full list if the heuristic finds none (better than
+      // showing nothing — the user can still pick).
+      if (ctx.kind === "embedding" && (ctx.provider === "ollama" || ctx.provider === "lmstudio" || ctx.provider === "nim")) {
+        const embeds = models.filter((m) => EMBED_RE.test(m.id));
+        if (embeds.length) models = embeds;
       }
       log?.event("model_catalog.miss", { provider: ctx.provider, count: models.length });
     } catch (e) {
       log?.event("model_catalog.error", { provider: ctx.provider, error: String(e) });
       // On error, fall back to whatever's static for that provider (or empty).
-      models = ctx.provider === "openai" || ctx.provider === "anthropic"
-        ? STATIC[ctx.provider]
-        : [];
+      models = this.staticFallback(ctx);
     }
     this.cache.set(key, { models, expires: Date.now() + CACHE_TTL_MS });
     return models;
@@ -170,22 +191,31 @@ export class ModelCatalog {
   }
 
   /** Live OpenAI catalog via GET /v1/models (requires the API key). Filters to
-   *  chat-capable models and sorts. Falls back to the curated list when no key
-   *  is configured or the response yields no chat models. */
+   *  chat-capable (or embedding, per ctx.kind) models and sorts. Falls back to
+   *  the matching curated list when no key is configured or nothing matches. */
   private async fetchOpenAI(ctx: CatalogContext): Promise<CatalogModel[]> {
-    if (!ctx.apiKey) return STATIC.openai; // catalog is auth-walled
+    const fallback = ctx.kind === "embedding" ? STATIC_EMBED.openai : STATIC.openai;
+    if (!ctx.apiKey) return fallback; // catalog is auth-walled
     const url = modelsUrl(ctx.endpoint || "https://api.openai.com");
     const r = await (ctx.fetch ?? this.fetchImpl)(url, {
       headers: { authorization: `Bearer ${ctx.apiKey}` },
     });
     if (!r.ok) throw new Error(`openai ${r.status}`);
     const body = (await r.json()) as { data?: Array<{ id?: string; owned_by?: string }> };
-    const chat = (body.data ?? [])
-      .map((m) => m.id ?? "")
-      .filter((id) => OPENAI_CHAT_RE.test(id) && !OPENAI_EXCLUDE_RE.test(id))
-      .sort();
-    if (!chat.length) return STATIC.openai;
-    return chat.map((id) => ({ id, label: id, family: id.split(/[-.]/)[0] }));
+    const ids = (body.data ?? []).map((m) => m.id ?? "");
+    const filtered = (ctx.kind === "embedding"
+      ? ids.filter((id) => /embedding/i.test(id))
+      : ids.filter((id) => OPENAI_CHAT_RE.test(id) && !OPENAI_EXCLUDE_RE.test(id))
+    ).sort();
+    if (!filtered.length) return fallback;
+    return filtered.map((id) => ({ id, label: id, family: id.split(/[-.]/)[0] }));
+  }
+
+  /** Curated/empty list for a provider+kind, used as the on-error fallback. */
+  private staticFallback(ctx: CatalogContext): CatalogModel[] {
+    if (ctx.provider === "openai") return ctx.kind === "embedding" ? STATIC_EMBED.openai : STATIC.openai;
+    if (ctx.provider === "anthropic") return ctx.kind === "embedding" ? [] : STATIC.anthropic;
+    return [];
   }
 }
 
