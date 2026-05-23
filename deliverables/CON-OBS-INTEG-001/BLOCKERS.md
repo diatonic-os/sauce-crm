@@ -3,7 +3,17 @@
 > Not a STOP-102 halt — work continues on all unblocked shards (STOP-103 spirit).
 > This records the open blockers/findings the operator must resolve.
 
-## BLOCKER-LINT — `npm run lint` is pre-broken tree-wide (prettier drift)
+## BLOCKER-LINT — ✅ RESOLVED (2026-05-23, operator-approved housekeeping)
+
+**Resolution:** one-shot `prettier --write 'src/**/*.ts'` + `eslint --fix` on `dev`
+(commit `06ce82a`, 294 files) as a SEPARATE housekeeping commit outside any T-* task,
+plus 3 residual fixes (2 unnecessary-escape in CdelLexer.ts; 1 eslint-disable for an
+intentional console placeholder in SkillRuntime.ts). `dev` merged into the contract
+branch. **`npm run lint` now exits 0** (6 unused-var warnings remain — warnings don't
+fail the gate). Full 4-gate green on `feat/con-obs-integ-001-foundation`: lint +
+typecheck + 438 tests + sdk:check. STOP-101's lint criterion is now satisfiable.
+
+### Original finding (for the record)
 
 **Discovered:** Phase 2 (after SH-B), when first running the bare `npm run lint` gate.
 
