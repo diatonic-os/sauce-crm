@@ -48,6 +48,13 @@ export const KNOWN_COMMUNITY_PLUGINS: ReadonlyArray<CommunityPluginSpec> = [
     required: false,
     url: "obsidian://show-plugin?id=calendar",
   },
+  {
+    id: "graphify",
+    name: "Graphify",
+    purpose: "Build a knowledge graph from your vault; complements the Sauce relationship graph.",
+    required: false,
+    url: "obsidian://show-plugin?id=graphify",
+  },
 ];
 
 export interface CommunityPluginStatus {

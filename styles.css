@@ -231,6 +231,37 @@
 .sauce-list-row:hover { background: var(--background-modifier-hover); }
 .sauce-list-title { font-weight: 600; overflow-wrap: anywhere; }
 
+/* Card internals used by the Integrations section (and reusable elsewhere). */
+.sauce-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sg-gap-5);
+}
+.sauce-card-status {
+  font-size: 0.82em;
+  color: var(--text-muted);
+  margin: 0;
+}
+.sauce-card-status.is-ok { color: var(--text-success, var(--color-green)); }
+.sauce-card-hint { color: var(--text-faint); }
+.sauce-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-gap-3);
+  margin-top: auto;            /* pin actions to the bottom of equal-height cards */
+  padding-top: var(--sg-gap-3);
+}
+.sauce-card-foot .sauce-btn { flex: 1 1 auto; justify-content: center; }
+.sauce-badge--muted {
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+.sauce-badge--ok {
+  background: var(--color-green);
+  color: var(--text-on-accent, #fff);
+}
+
 /* ---------- Dashboards, charts, and graph views ---------- */
 
 .sauce-view-kpis {
