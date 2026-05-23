@@ -53,6 +53,7 @@ import { BackupService } from "./sync/BackupService";
 import { V2Registry } from "./v2/Registry";
 import { AuditLogViewReal, VIEW_AUDIT_LOG_REAL } from "./ui/views/v2/AuditLogViewReal";
 import { SkillRunLogViewReal, VIEW_SKILL_RUN_LOG_REAL, skillRunRing } from "./ui/views/v2/SkillRunLogViewReal";
+import { GraphAtlasService } from "./services/GraphAtlasService";
 import { CalendarView, VIEW_CALENDAR } from "./ui/views/v2/CalendarView";
 import {
   TasksView, InboxView, LedgerView,
@@ -726,12 +727,37 @@ export default class SauceGraphPlugin extends Plugin {
   }
 
   private async exportGraphJson(): Promise<void> {
+    const atlas = new GraphAtlasService(this.app, this.entityService);
+    const snapshot = atlas.snapshot({ width: 1200, height: 800 });
     const graph = {
       generated: todayIso(),
       people: this.entityService.allPeople().map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
       orgs: this.entityService.allOrgs().map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
       touches: this.entityService.allTouches().map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
       adjacency: this.query.collectAdjacency(),
+      atlas: {
+        nodes: snapshot.nodes.map((n) => ({
+          id: n.id,
+          label: n.label,
+          kind: n.kind,
+          layer: n.layer,
+          color: n.color,
+          icon: n.icon,
+          score: n.score,
+          degree: n.degree,
+          x: n.x,
+          y: n.y,
+        })),
+        edges: snapshot.edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          relation: e.relation,
+          weight: e.weight,
+          length: e.length,
+          color: e.color,
+        })),
+      },
     };
     const path = `_graph-export-${todayIso()}.json`;
     const ex = this.app.vault.getAbstractFileByPath(path);

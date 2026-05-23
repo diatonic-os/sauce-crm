@@ -20,6 +20,9 @@ export async function tmpLance(): Promise<TmpLance> {
     db,
     dir,
     table: (name: TableName, dim = DEFAULT_EMBEDDING_DIM) => ensureTable(db, name, dim),
-    cleanup: () => rmSync(dir, { recursive: true, force: true }),
+    cleanup: () => {
+      if (db.isOpen()) db.close();
+      rmSync(dir, { recursive: true, force: true });
+    },
   };
 }

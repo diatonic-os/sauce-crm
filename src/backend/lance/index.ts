@@ -73,8 +73,7 @@ export async function initLanceBackend(opts: InitLanceOpts): Promise<LanceBacken
     checkpoints: new LanceCheckpoints(db),
     provenanceStore: new LanceProvenanceStore(provenance),
     async close() {
-      // LanceDB connections are file-handle backed; closing per-table is
-      // optional. Drop the reference and let GC reclaim.
+      if (db.isOpen()) db.close();
     },
   };
 }

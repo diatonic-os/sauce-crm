@@ -1,13 +1,14 @@
 // View type identifiers + base helper. We export all 8 views from this barrel
 // to keep main.ts wiring concise.
 
-import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, setIcon } from "obsidian";
 import type SauceGraphPlugin from "../../main";
 import { Entity } from "../../domain/Entity";
 import { Person } from "../../domain/Person";
 import { Org } from "../../domain/Org";
 import { computeCompatibleSet } from "../../compat/CompatibleSet";
 import { todayIso, parseIsoSafe, daysBetween } from "../../util/DateUtil";
+import { GraphAtlasService, type GraphNode, type GraphEdge } from "../../services/GraphAtlasService";
 
 export const VIEW_DASHBOARD  = "sauce-dashboard";
 export const VIEW_PIPELINE   = "sauce-pipeline";
@@ -203,48 +204,176 @@ export class PipelineKanbanView extends BaseView {
 }
 
 export class TypedEdgeGraphView extends BaseView {
+  private shell: HTMLDivElement | null = null;
+  private edgeCanvas: HTMLCanvasElement | null = null;
+  private nodeLayer: HTMLDivElement | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private highlightId: string | null = null;
+  private renderQueued = false;
+
   getViewType(): string { return VIEW_GRAPH; }
-  getDisplayText(): string { return "Sauce: Typed-Edge Graph"; }
+  getDisplayText(): string { return "Sauce: Relationship Atlas"; }
+
   async onOpen(): Promise<void> {
-    const root = this.contentEl; root.empty(); root.addClass("sauce-view");
-    root.createEl("h2", { text: "Typed-Edge Graph" });
-    const canvas = root.createEl("canvas", { cls: "sauce-graph-canvas" }) as HTMLCanvasElement;
-    const w = canvas.width = canvas.offsetWidth || 800;
-    const h = canvas.height = 600;
-    const ctx = canvas.getContext("2d"); if (!ctx) return;
-    const nodes = [
-      ...this.plugin.entityService.allPeople(),
-      ...this.plugin.entityService.allOrgs(),
-    ];
-    const positions = new Map<string, [number, number]>();
-    nodes.forEach((n, i) => {
-      const angle = (i / nodes.length) * Math.PI * 2;
-      positions.set(n.file.basename, [w/2 + Math.cos(angle) * (w/2 - 40), h/2 + Math.sin(angle) * (h/2 - 40)]);
+    const root = this.contentEl;
+    root.empty();
+    root.addClass("sauce-view");
+    root.addClass("sauce-graph-view");
+    root.createEl("h2", { text: "Relationship Atlas" });
+    root.createEl("p", {
+      cls: "sauce-view-desc",
+      text: "Weighted nodes, geo pull, relationship force, and icon cards that reflow live when metadata changes.",
     });
-    ctx.strokeStyle = "rgba(120,180,220,0.4)";
-    ctx.lineWidth = 1;
-    for (const n of nodes) {
-      const src = positions.get(n.file.basename); if (!src) continue;
-      for (const edge of ["knows","worked_with","parent"]) {
-        const v = n.frontmatter[edge];
-        const list = Array.isArray(v) ? v : v ? [v] : [];
-        for (const link of list) {
-          const target = String(link).replace(/\[\[|\]\]/g, "").split("|")[0];
-          const dst = positions.get(target); if (!dst) continue;
-          ctx.beginPath(); ctx.moveTo(src[0], src[1]); ctx.lineTo(dst[0], dst[1]); ctx.stroke();
-        }
+
+    this.shell = root.createDiv({ cls: "sauce-graph-shell" });
+    this.edgeCanvas = this.shell.createEl("canvas", { cls: "sauce-graph-canvas" }) as HTMLCanvasElement;
+    this.nodeLayer = this.shell.createDiv({ cls: "sauce-graph-node-layer" });
+
+    const legend = root.createDiv({ cls: "sauce-graph-legend" });
+    for (const [label, icon, tone] of [
+      ["People / Orgs", "sauce-person", "person"],
+      ["Interactions", "sauce-touch", "touch"],
+      ["Tasks / Ideas", "sauce-task", "task"],
+      ["Geo nodes", "sauce-map", "geo"],
+    ] as const) {
+      const chip = legend.createDiv({ cls: `sauce-graph-legend-chip sauce-graph-legend-chip--${tone}` });
+      const iconEl = chip.createSpan({ cls: "sauce-graph-legend-icon" });
+      setIcon(iconEl, icon);
+      chip.createSpan({ text: label });
+    }
+
+    this.resizeObserver = new ResizeObserver(() => this.scheduleRender());
+    if (this.shell) this.resizeObserver.observe(this.shell);
+    this.scheduleRender();
+  }
+
+  async onClose(): Promise<void> {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.highlightId = null;
+    this.renderQueued = false;
+    this.shell = null;
+    this.edgeCanvas = null;
+    this.nodeLayer = null;
+  }
+
+  private scheduleRender(): void {
+    if (this.renderQueued) return;
+    this.renderQueued = true;
+    window.requestAnimationFrame(() => {
+      this.renderQueued = false;
+      void this.renderGraph();
+    });
+  }
+
+  private async renderGraph(): Promise<void> {
+    if (!this.edgeCanvas || !this.nodeLayer || !this.shell) return;
+    const atlas = new GraphAtlasService(this.plugin.app, this.plugin.entityService);
+    const width = Math.max(960, this.shell.clientWidth || 0);
+    const height = Math.max(680, this.shell.clientHeight || 0);
+    const snapshot = atlas.snapshot({ width, height, focusId: this.highlightId });
+    const canvas = this.edgeCanvas;
+    canvas.width = Math.max(800, Math.floor(width));
+    canvas.height = Math.max(600, Math.floor(height));
+    const ctx = canvas.getContext("2d");
+    if (ctx) this.drawEdges(ctx, canvas.width, canvas.height, snapshot.nodes, snapshot.edges);
+    this.drawNodes(snapshot.nodes, snapshot.edges);
+  }
+
+  private drawEdges(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    nodes: GraphNode[],
+    edges: GraphEdge[],
+  ): void {
+    ctx.clearRect(0, 0, width, height);
+    ctx.save();
+    ctx.lineCap = "round";
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
+    const focus = this.highlightId ? nodeById.get(this.highlightId) ?? null : null;
+    for (const edge of edges) {
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      if (!source || !target) continue;
+      const connected = !focus || source.id === focus.id || target.id === focus.id;
+      const alpha = connected ? 0.72 : 0.14;
+      ctx.beginPath();
+      ctx.moveTo(source.x, source.y);
+      const midX = (source.x + target.x) / 2;
+      const midY = (source.y + target.y) / 2;
+      const bend = clamp(edge.weight * 8, 8, 28);
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      ctx.quadraticCurveTo(midX + nx * bend, midY + ny * bend, target.x, target.y);
+      ctx.strokeStyle = withAlpha(edge.color, alpha);
+      ctx.lineWidth = clamp(edge.weight, 0.8, 5.5);
+      ctx.stroke();
+
+      if (edge.directed) {
+        const px = target.x - (dx / dist) * (target.radius + 8);
+        const py = target.y - (dy / dist) * (target.radius + 8);
+        ctx.beginPath();
+        ctx.arc(px, py, 2.4, 0, Math.PI * 2);
+        ctx.fillStyle = withAlpha(edge.color, alpha);
+        ctx.fill();
       }
     }
-    for (const n of nodes) {
-      const p = positions.get(n.file.basename); if (!p) continue;
-      ctx.fillStyle = n instanceof Org ? "rgba(220,160,80,0.8)" : "rgba(80,160,220,0.8)";
-      ctx.beginPath(); ctx.arc(p[0], p[1], 6, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "var(--text-normal)";
-      ctx.font = "10px sans-serif";
-      ctx.fillText(n.file.basename, p[0] + 8, p[1] + 4);
+    ctx.restore();
+  }
+
+  private drawNodes(nodes: GraphNode[], edges: GraphEdge[]): void {
+    if (!this.nodeLayer) return;
+    this.nodeLayer.empty();
+    const edgeNeighbors = new Map<string, Set<string>>();
+    for (const edge of edges) {
+      if (!edgeNeighbors.has(edge.source)) edgeNeighbors.set(edge.source, new Set());
+      if (!edgeNeighbors.has(edge.target)) edgeNeighbors.set(edge.target, new Set());
+      edgeNeighbors.get(edge.source)!.add(edge.target);
+      edgeNeighbors.get(edge.target)!.add(edge.source);
+    }
+    const focusNeighbors = this.highlightId ? new Set([this.highlightId, ...(edgeNeighbors.get(this.highlightId) ?? [])]) : null;
+    for (const node of nodes) {
+      const btn = this.nodeLayer.createEl("button", {
+        cls: `sauce-graph-node sauce-graph-node--${node.kind}`,
+        attr: { type: "button" },
+      });
+      btn.style.setProperty("--node-color", node.color);
+      btn.style.setProperty("--node-size", `${clamp(node.radius * 4.1, 44, 130)}px`);
+      btn.style.setProperty("--node-x", `${node.x}px`);
+      btn.style.setProperty("--node-y", `${node.y}px`);
+      btn.style.setProperty("--node-z", `${Math.round(node.layer * 12)}px`);
+      btn.style.left = `${node.x}px`;
+      btn.style.top = `${node.y}px`;
+      btn.style.width = `${clamp(node.radius * 4.1, 44, 130)}px`;
+      btn.style.height = `${clamp(node.radius * 4.1, 44, 130)}px`;
+      btn.style.transform = `translate3d(-50%, -50%, ${Math.round(node.layer * 12)}px) scale(${focusNeighbors && !focusNeighbors.has(node.id) ? 0.92 : 1})`;
+      btn.style.opacity = focusNeighbors && !focusNeighbors.has(node.id) ? "0.45" : "1";
+      btn.title = `${node.label} · ${node.kind} · degree ${node.degree} · score ${node.score.toFixed(1)}`;
+      if (focusNeighbors && focusNeighbors.has(node.id)) btn.dataset.focus = "true";
+      const icon = btn.createSpan({ cls: "sauce-graph-node-icon" });
+      setIcon(icon, node.icon);
+      const text = btn.createDiv({ cls: "sauce-graph-node-text" });
+      text.createDiv({ cls: "sauce-graph-node-label", text: node.label });
+      text.createDiv({ cls: "sauce-graph-node-meta", text: `${node.kind} · ${node.degree} links · ${node.score.toFixed(1)}` });
+      btn.onmouseenter = () => {
+        this.highlightId = node.id;
+        this.scheduleRender();
+      };
+      btn.onmouseleave = () => {
+        this.highlightId = null;
+        this.scheduleRender();
+      };
+      btn.onclick = () => this.openNode(node);
     }
   }
-  async onClose(): Promise<void> {}
+
+  private openNode(node: GraphNode): void {
+    this.openModalFor(node.file);
+  }
 }
 
 export class CompatibilityMatrixView extends BaseView {
@@ -376,4 +505,18 @@ export class ParentDashboardView extends BaseView {
     root.createEl("p", { text: `Generated ${todayIso()}` });
   }
   async onClose(): Promise<void> {}
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function withAlpha(color: string, alpha: number): string {
+  if (color.startsWith("#") && color.length === 7) {
+    const r = Number.parseInt(color.slice(1, 3), 16);
+    const g = Number.parseInt(color.slice(3, 5), 16);
+    const b = Number.parseInt(color.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return color;
 }

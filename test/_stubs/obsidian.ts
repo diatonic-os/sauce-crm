@@ -8,7 +8,8 @@ export function parseYaml(s: string): unknown {
   return _yaml.load(s);
 }
 export function stringifyYaml(o: unknown): string {
-  return _yaml.dump(o);
+  // Match Obsidian's serializer: double-quote quoted strings (js-yaml defaults to single).
+  return _yaml.dump(o, { quotingType: '"', lineWidth: -1 });
 }
 
 export function arrayBufferToBase64(buf: ArrayBuffer): string {
@@ -21,14 +22,6 @@ export function base64ToArrayBuffer(b64: string): ArrayBuffer {
 
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
-}
-
-export function stringifyYaml(obj: Record<string, unknown>): string {
-  return Object.entries(obj).map(([key, value]) => stringifyYamlPair(key, value, 0)).join("\n") + "\n";
-}
-
-export function parseYaml(_yaml: string): unknown {
-  return {};
 }
 
 function stringifyYamlPair(key: string, value: unknown, depth: number): string {
