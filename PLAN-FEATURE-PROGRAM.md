@@ -41,4 +41,14 @@ fingerprint/trace ops covered by tests against real LanceDB.
 - ✅ **T8 DONE** (2026-05-23, same worktree) — provenance threaded through query (`CopilotRuntime.recordQuery` in `ask()`), graph export (`exportGraphJson`), and harvest (T7). `setTraceSink` wired from `v2.provenance`. 3 tests.
 - 🛠 Test infra: `vitest.config.ts` → `forks/singleFork` (the LanceDB native addon panics under parallel workers); `_lance-tmp.ts` + facade `close()` now release the native handle.
 
-**PROGRAM COMPLETE — T1–T8 all done.** Gate (worktree): `tsc` 0 · **181 tests** · build OK. Branch based on main@81927ea.
+**PROGRAM COMPLETE — T1–T8 all done and merged to main.**
+
+## Post-program follow-ups (all merged to main, 2026-05-23)
+- ✅ **LLM-backed classify stage** — `src/services/enrichment/LlmClassifyStage.ts` prompts the configured copilot model, validates output against the vault's enum vocabulary (the model can only set values you've defined), null-graceful. New `CopilotRuntime.completeOnce` (single-shot, no RAG/tools/stream).
+- ✅ **Model catalog properly wired** — OpenAI lists live via `GET /v1/models` (chat-filtered) with curated fallback; `modelsUrl()` fixes a double-`/v1` bug (lmstudio/nim/openai).
+- ✅ **Live embedding-model picker** — `ModelCatalog` gained `kind:'chat'|'embedding'` (cache keyed per kind); OpenAI embeddings live-filtered, local providers heuristic-narrowed. `ProviderPicker` gained `kind`+`modelLabel`; RAG settings embed model is a live dropdown.
+- ✅ **Live Local LLM section** — `src/ui/settings/sections/localllm.ts` mounted in the Copilot tab (the unmounted `LocalLLMPage` pages-system was NOT resurrected): per-provider (Ollama/LM Studio) endpoint + live `ProviderPicker`, backed by `features.localLLM`; edits sync to the active copilot provider.
+
+Every model-selection surface (Copilot tab, Local LLM section, RAG embeddings, Onboarding wizard) is now catalog-driven — no free-text model ids.
+
+**Gate on main:** `tsc` 0 · **355 tests** · production build OK.
