@@ -1,0 +1,16 @@
+<!-- Custom SVG icon for map -->
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Unique SVG path for map icon -->
+  <path d="M50 50a25 25 0 1 0 0-50 25 25 0 0 0 0 50z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <g transform="rotate(45 50 50)">
+    <line x1="30" y1="30" x2="70" y2="70" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="50" y1="20" x2="50" y2="80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="20" y1="50" x2="80" y2="50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="20" y1="20" x2="80" y2="80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="20" y1="80" x2="80" y2="20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="40" y1="40" x2="60" y2="60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="40" y1="60" x2="60" y2="40" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="50" y1="50" x2="70" y2="70" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="50" y1="50" x2="30" y2="30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

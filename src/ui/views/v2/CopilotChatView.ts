@@ -11,11 +11,38 @@ import type { ProviderId } from "../../../copilot/ModelCatalog";
 
 export const VIEW_COPILOT_CHAT = "sauce-copilot-chat";
 
+// Web Speech API surface — present in Electron (Chromium) so this works
+// on Obsidian desktop. We type-narrow loosely because lib.dom.d.ts in
+// some TS versions lacks SpeechRecognition. Mobile is not supported per
+// manifest.json isDesktopOnly: true.
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>>; resultIndex: number }) => void) | null;
+  onerror: ((ev: { error: string }) => void) | null;
+  onend: (() => void) | null;
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+function getSpeechRecognition(): SpeechRecognitionCtor | null {
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
 export class CopilotChatView extends ItemView {
   private history: ChatMessage[] = [];
   private inputEl!: HTMLTextAreaElement;
   private transcriptEl!: HTMLDivElement;
   private statusEl!: HTMLSpanElement;
+  private micButton: HTMLButtonElement | null = null;
+  private recognition: SpeechRecognitionLike | null = null;
+  private isListening = false;
 
   constructor(leaf: WorkspaceLeaf, public plugin: SauceGraphPlugin) { super(leaf); }
 
@@ -38,6 +65,20 @@ export class CopilotChatView extends ItemView {
     this.transcriptEl = root.createDiv({ cls: "sauce-copilot-transcript" });
     const inputRow = root.createDiv({ cls: "sauce-copilot-input" });
     this.inputEl = inputRow.createEl("textarea", { cls: "sauce-copilot-textarea", attr: { placeholder: "Ask about your graph…  (Cmd+Enter)" } });
+
+    // Mic button — Web Speech API. Visible only when the browser/Electron
+    // build exposes a recognizer; on unsupported builds we omit the button
+    // entirely so the operator isn't teased with dead UI.
+    const SR = getSpeechRecognition();
+    if (SR) {
+      this.micButton = inputRow.createEl("button", {
+        cls: "sauce-button sauce-button-secondary sauce-copilot-mic",
+        text: "🎙",
+      });
+      this.micButton.title = "Click to dictate (Web Speech API). Click again to stop.";
+      this.micButton.onclick = () => this.toggleVoice(SR);
+    }
+
     const send = inputRow.createEl("button", { cls: "sauce-button", text: "Ask" });
     const ask = () => void this.askNow();
     send.onclick = ask;
@@ -46,7 +87,64 @@ export class CopilotChatView extends ItemView {
     });
   }
 
-  async onClose(): Promise<void> { /* noop */ }
+  private toggleVoice(SR: SpeechRecognitionCtor): void {
+    if (this.isListening && this.recognition) {
+      try { this.recognition.stop(); } catch { /* ignore */ }
+      return;
+    }
+    const rec = new SR();
+    rec.lang = navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    // Track interim text so partial results don't pile up in the textarea.
+    let baseValue = this.inputEl.value;
+    if (baseValue && !baseValue.endsWith(" ")) baseValue += " ";
+    rec.onresult = (ev) => {
+      let finalText = "";
+      let interim = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const res = ev.results[i] as ArrayLike<{ transcript: string }> & { isFinal?: boolean };
+        const t = res[0].transcript;
+        if (res.isFinal) finalText += t;
+        else interim += t;
+      }
+      if (finalText) {
+        baseValue += finalText;
+      }
+      this.inputEl.value = baseValue + interim;
+    };
+    rec.onerror = (ev) => {
+      new Notice(`Speech recognition error: ${ev.error}`);
+      this.stopRecognition();
+    };
+    rec.onend = () => this.stopRecognition();
+    this.recognition = rec;
+    this.isListening = true;
+    if (this.micButton) {
+      this.micButton.setText("⏹");
+      this.micButton.addClass("is-listening");
+    }
+    try { rec.start(); }
+    catch (e) { new Notice(`Could not start dictation: ${(e as Error).message}`); this.stopRecognition(); }
+  }
+
+  private stopRecognition(): void {
+    this.isListening = false;
+    this.recognition = null;
+    if (this.micButton) {
+      this.micButton.setText("🎙");
+      this.micButton.removeClass("is-listening");
+    }
+  }
+
+  async onClose(): Promise<void> {
+    // Stop any in-flight recognition so the mic indicator clears.
+    if (this.recognition) {
+      try { this.recognition.stop(); } catch { /* ignore */ }
+      this.recognition = null;
+    }
+    this.isListening = false;
+  }
 
   private openPicker(): void {
     const cur = this.plugin.copilot?.getSettings();
@@ -74,7 +172,10 @@ export class CopilotChatView extends ItemView {
   private statusLine(): string {
     const s = this.plugin.copilot?.getSettings();
     if (!s) return "copilot uninitialized";
-    if (!s.apiKey && s.provider !== "ollama") return `${s.provider}:${s.model}  ·  no API key set (Settings → Copilot)`;
+    // Local providers (Ollama / LM Studio) don't need an API key — they
+    // hit a localhost HTTP endpoint. Only flag missing key for cloud.
+    const isLocal = s.provider === "ollama" || s.provider === "lmstudio";
+    if (!s.apiKey && !isLocal) return `${s.provider}:${s.model}  ·  no API key set (Settings → Copilot)`;
     return `${s.provider}:${s.model}  ·  ready`;
   }
 

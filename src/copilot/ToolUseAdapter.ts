@@ -31,4 +31,20 @@ export class ToolUseAdapter {
     if (!skill) throw new Error(`unknown tool: ${name}`);
     return await skill.execute((input as Record<string, unknown>) ?? {}, ctx);
   }
+
+  /**
+   * Dispatch by name without throwing; returns `{ error: 'unknown tool' }` if
+   * no skill is registered for `name`. Used by CopilotRuntime's multi-turn
+   * tool-use loop where unknown tools should be reported back to the model
+   * rather than aborting the conversation.
+   */
+  async runTool(name: string, input: unknown, ctx: unknown = null): Promise<unknown> {
+    const skill = this.skills.get(name);
+    if (!skill) return { error: 'unknown tool' };
+    try {
+      return await skill.execute((input as Record<string, unknown>) ?? {}, ctx);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
 }

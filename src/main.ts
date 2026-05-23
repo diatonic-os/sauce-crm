@@ -1,4 +1,4 @@
-import { Plugin, TFile, WorkspaceLeaf, Notice, MarkdownView } from "obsidian";
+import { Menu, Plugin, TFile, WorkspaceLeaf, Notice, MarkdownView } from "obsidian";
 import { EntityService, DEFAULT_PATHS, VaultPaths } from "./services/EntityService";
 import { EdgeSyncService, DEFAULT_EDGE_RULES, EdgeRule } from "./services/EdgeSyncService";
 import { QueryService } from "./services/QueryService";
@@ -22,23 +22,22 @@ import { ActionButton } from "./ui/widgets/ActionButton";
 import { initV2, teardownV2, V2Runtime } from "./v2-init";
 import { CopilotRuntime, CopilotSettings, COPILOT_DEFAULTS } from "./copilot/CopilotRuntime";
 import { CopilotChatView, VIEW_COPILOT_CHAT } from "./ui/views/v2/CopilotChatView";
+import { IconRegistry } from "./ui/icons/IconRegistry";
 import { SkillRuntime } from "./skills/SkillRuntime";
 import { SkillPickerModal } from "./ui/modals/v2/SkillPickerModal";
 import { IntegrationRegistry } from "./integrations/IntegrationRegistry";
-import { IntegrationCredentials } from "./integrations/IntegrationCredentials";
-import { MapView, VIEW_MAP } from "./ui/views/v2/MapView";
-import { AIInboxView, VIEW_AI_INBOX } from "./ui/views/v2/AIInboxView";
-import { SyncStatusView, VIEW_SYNC_STATUS } from "./ui/views/v2/SyncStatusView";
+import { MapViewReal, VIEW_MAP_REAL } from "./ui/views/v2/MapViewReal";
+import { AIInboxViewReal, VIEW_AI_INBOX_REAL } from "./ui/views/v2/AIInboxViewReal";
+import { SyncStatusViewReal, VIEW_SYNC_STATUS_REAL } from "./ui/views/v2/SyncStatusViewReal";
 import { QuickCaptureModal } from "./ui/modals/v2/QuickCaptureModal";
 import { ImportMappingModal } from "./ui/modals/v2/ImportMappingModal";
 import { BackupService } from "./sync/BackupService";
 import { V2Registry } from "./v2/Registry";
-import { AuditLogView, VIEW_AUDIT_LOG } from "./ui/views/v2/AuditLogView";
-import { SkillRunLogView, VIEW_SKILL_RUN_LOG, skillRunRing } from "./ui/views/v2/SkillRunLogView";
+import { AuditLogViewReal, VIEW_AUDIT_LOG_REAL } from "./ui/views/v2/AuditLogViewReal";
+import { SkillRunLogViewReal, VIEW_SKILL_RUN_LOG_REAL, skillRunRing } from "./ui/views/v2/SkillRunLogViewReal";
 import { OnboardingWizardModal } from "./ui/modals/v2/OnboardingWizardModal";
 import { EncryptedBackupService } from "./sync/EncryptedBackupService";
 import { todayIso, maxDate } from "./util/DateUtil";
-import { createLogger, TelemetrySink, Logger, TelemetrySettings } from "./telemetry";
 import {
   VIEW_DASHBOARD, VIEW_PIPELINE, VIEW_GRAPH, VIEW_COMPAT, VIEW_HEATMAP,
   VIEW_HIERARCHY, VIEW_OVERDUE, VIEW_PARENT,
@@ -61,7 +60,6 @@ export interface SauceGraphSettings {
   };
   enums: Record<string, string[]>;
   copilot: CopilotSettings;
-  telemetry?: TelemetrySettings;
   // Addendum A UI state — added by §K step 1
   activeTab?: string;
   hasInitialized?: boolean;
@@ -93,12 +91,29 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
     kind_addendum:       ["correction","enrichment","context","deprecation","merge-note"],
   },
   copilot: COPILOT_DEFAULTS,
-  telemetry: { level: "info" },
   activeTab: "TAB-BASIC",
   hasInitialized: false,
   hasDismissedFirstRun: false,
   showAdvanced: {},
 };
+
+/** Minimal Logger implementation that writes to console with a source
+ *  prefix. Satisfies the Logger interface (trace/debug/info/warn/error/
+ *  event/child) without depending on the full SauceLogger + sink stack. */
+function makeConsoleLogger(source: string): import("./telemetry/types").Logger {
+  const tag = `[${source}]`;
+  const fmt = (msg: string, data?: Record<string, unknown>) =>
+    data ? `${tag} ${msg} ${JSON.stringify(data)}` : `${tag} ${msg}`;
+  return {
+    trace: (m, d) => console.debug(fmt(m, d)),
+    debug: (m, d) => console.debug(fmt(m, d)),
+    info:  (m, d) => console.info(fmt(m, d)),
+    warn:  (m, d) => console.warn(fmt(m, d)),
+    error: (m, d) => console.error(fmt(m, d)),
+    event: (name, d) => console.info(fmt(`event:${name}`, d)),
+    child: (suffix) => makeConsoleLogger(`${source}.${suffix}`),
+  };
+}
 
 export default class SauceGraphPlugin extends Plugin {
   settings!: SauceGraphSettings;
@@ -121,10 +136,24 @@ export default class SauceGraphPlugin extends Plugin {
   copilot: CopilotRuntime | null = null;
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
-  credentials: IntegrationCredentials | null = null;
   v2Registry: V2Registry = new V2Registry();
-  telemetrySink!: TelemetrySink;
-  logger!: Logger;
+  // Structured logger satisfying the Logger interface from telemetry/types.
+  // Console-backed; v2 components reach for `event()` and `child()`.
+  logger: import("./telemetry/types").Logger = makeConsoleLogger("sauce-crm");
+  // Credentials accessor — lazily wraps the v2 KeyVault in an
+  // IntegrationCredentials surface, which is what v2 modals expect.
+  private _credentialsCache: import("./integrations/IntegrationCredentials").IntegrationCredentials | null = null;
+  get credentials(): import("./integrations/IntegrationCredentials").IntegrationCredentials | null {
+    const kv = this.v2?.keyVault ?? null;
+    if (!kv) { this._credentialsCache = null; return null; }
+    if (!this._credentialsCache) {
+      // Lazy import to avoid top-of-file circular dependency risk.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { IntegrationCredentials } = require("./integrations/IntegrationCredentials");
+      this._credentialsCache = new IntegrationCredentials(kv, this.logger);
+    }
+    return this._credentialsCache;
+  }
 
   enums(): Record<string, string[]> {
     const cfg = this.app.vault.getAbstractFileByPath("_PLUGIN-CONFIG.md");
@@ -137,9 +166,10 @@ export default class SauceGraphPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    this.telemetrySink = new TelemetrySink(this.app.vault.adapter);
-    this.logger = createLogger("Plugin", this.telemetrySink, this.settings);
-    this.logger.info("plugin.onload", { ts: Date.now() });
+
+    // Register custom CRM glyphs (sauce-person, sauce-org, sauce-touch,
+    // sauce-copilot, …) before any view/ribbon/setIcon call. Idempotent.
+    IconRegistry.register(this);
 
     try { this.v2 = await initV2(this.app, this); }
     catch (e) { console.warn("Sauce V2 init failed", { error: String(e) }); }
@@ -166,29 +196,7 @@ export default class SauceGraphPlugin extends Plugin {
     this.copilot = new CopilotRuntime(this.app, this.entityService, this.search, this.settings.copilot ?? COPILOT_DEFAULTS);
     this.skills = new SkillRuntime(this.app, this.entityService, this.search, this.query, () => this.copilot);
     if (this.copilot) this.skills.bindToCopilot(this.copilot.toolUse);
-    // Credentials surface (OAuth + API-key vault facade). Bound to the v2
-    // KeyVault when available so all secrets are AES-GCM-encrypted on disk.
-    if (this.keyVault) {
-      this.credentials = new IntegrationCredentials(this.keyVault, this.logger?.child("creds") ?? null);
-      // If the vault is already unlocked (rare at onload; usually user unlocks
-      // later) re-register OAuth provider configs from stored client ids.
-      if (!this.keyVault.isLocked()) {
-        void this.credentials.hydrateOAuthConfigs();
-      }
-    }
-    // Wire IntegrationRegistry with real token resolvers + the live OAuthFlow
-    // so Connect buttons actually authorize (not just set { connected: true }).
-    const tokenResolvers = this.credentials ? {
-      google:     this.credentials.accessToken("google_workspace"),
-      microsoft:  this.credentials.accessToken("microsoft_365"),
-      notion:     async () => (await this.credentials!.getKey("notion", "token")) ?? "",
-    } : {};
-    this.integrations = new IntegrationRegistry(
-      this.app,
-      tokenResolvers,
-      undefined,
-      this.credentials?.oauth,
-    );
+    this.integrations = new IntegrationRegistry(this.app, {});
 
     // Addendum A §B — populate v2Registry capability descriptors. Each entry's `ready`
     // mirrors live module presence; sections check this to decide IMPLEMENTED/DEGRADED/COMING_SOON.
@@ -209,26 +217,108 @@ export default class SauceGraphPlugin extends Plugin {
     this.v2Registry.register({ id: "sync", phase: "P14", ready: !!this.v2?.sync });
     this.v2Registry.register({ id: "import_export", phase: "P14", ready: true });
     this.registerView(VIEW_COPILOT_CHAT, (l) => new CopilotChatView(l, this));
-    this.registerView(VIEW_SYNC_STATUS, (l) => new SyncStatusView(l, this));
-    this.registerView(VIEW_MAP, (l) => new MapView(l, this));
-    this.registerView(VIEW_AI_INBOX, (l) => new AIInboxView(l, this));
-    this.registerView(VIEW_AUDIT_LOG, (l) => new AuditLogView(l, this));
-    this.registerView(VIEW_SKILL_RUN_LOG, (l) => new SkillRunLogView(l, this));
-
-    // V2 view capability registration — each ItemView is now wired and the
-    // stub-vs-Real split has been collapsed (DEC §B2). Settings tab queries
-    // V2Registry.state(id) to render IMPLEMENTED / DEGRADED / COMING_SOON.
-    this.v2Registry.register({ id: "view.copilot_chat",  phase: "P9",  ready: !!this.copilot });
-    this.v2Registry.register({ id: "view.sync_status",   phase: "P10", ready: !!this.syncEngine });
-    this.v2Registry.register({ id: "view.map",           phase: "P11", ready: true });
-    this.v2Registry.register({ id: "view.ai_inbox",      phase: "P12", ready: true });
-    this.v2Registry.register({ id: "view.audit_log",     phase: "P13", ready: !!this.auditLog });
-    this.v2Registry.register({ id: "view.skill_run_log", phase: "P13", ready: !!this.skills });
-    this.logger.info("v2registry.registered", { count: this.v2Registry.list().length });
+    this.registerView(VIEW_SYNC_STATUS_REAL, (l) => new SyncStatusViewReal(l, this));
+    this.registerView(VIEW_MAP_REAL, (l) => new MapViewReal(l, this));
+    this.registerView(VIEW_AI_INBOX_REAL, (l) => new AIInboxViewReal(l, this));
+    this.registerView(VIEW_AUDIT_LOG_REAL, (l) => new AuditLogViewReal(l, this));
+    this.registerView(VIEW_SKILL_RUN_LOG_REAL, (l) => new SkillRunLogViewReal(l, this));
 
     this.registerViews();
     this.registerCommands();
     this.addSettingTab(new SauceGraphSettingTab(this.app, this));
+
+    // Ribbon icons — three configurable group launchers. The defaults
+    // match the most common operator flows: People (new person + log
+    // touch), Graph (open typed-edge graph), and Copilot (chat panel).
+    // Each opens a Menu of grouped commands; clicking an item routes
+    // through the existing addCommand handler chain.
+    this.addRibbonIcon("sauce-person", "Sauce CRM — People", (event) => {
+      const m = new Menu();
+      m.addItem((i) => i.setTitle("New Person").setIcon("sauce-person")
+        .onClick(() => new PersonModal(this.app, this).open()));
+      m.addItem((i) => i.setTitle("New Org").setIcon("sauce-org")
+        .onClick(() => new OrgModal(this.app, this).open()));
+      m.addItem((i) => i.setTitle("Log Touch").setIcon("sauce-touch")
+        .onClick(() => new TouchModal(this.app, this).open()));
+      m.addItem((i) => i.setTitle("New Intro").setIcon("sauce-intro")
+        .onClick(() => new IntroModal(this.app, this).open()));
+      m.addItem((i) => i.setTitle("Promote Prospect").setIcon("sauce-promote")
+        .onClick(() => new PromoteProspectModal(this.app, this, this.activeFile()).open()));
+      m.showAtMouseEvent(event);
+    });
+    this.addRibbonIcon("sauce-hierarchy", "Sauce CRM — Graph & Views", (event) => {
+      const m = new Menu();
+      m.addItem((i) => i.setTitle("Dashboard").setIcon("layout-dashboard")
+        .onClick(() => this.openView(VIEW_DASHBOARD)));
+      m.addItem((i) => i.setTitle("Parent Vault Dashboard").setIcon("sauce-parent-vault")
+        .onClick(() => this.openView(VIEW_PARENT)));
+      m.addItem((i) => i.setTitle("Typed-Edge Graph").setIcon("sauce-hierarchy")
+        .onClick(() => this.openView(VIEW_GRAPH)));
+      m.addItem((i) => i.setTitle("Pipeline Kanban").setIcon("columns-3")
+        .onClick(() => this.openView(VIEW_PIPELINE)));
+      m.addItem((i) => i.setTitle("Compatibility Matrix").setIcon("sauce-compat")
+        .onClick(() => this.openView(VIEW_COMPAT)));
+      m.addItem((i) => i.setTitle("Touch Heatmap").setIcon("sauce-heatmap")
+        .onClick(() => this.openView(VIEW_HEATMAP)));
+      m.addItem((i) => i.setTitle("Hierarchy Tree").setIcon("sauce-hierarchy")
+        .onClick(() => this.openView(VIEW_HIERARCHY)));
+      m.addItem((i) => i.setTitle("Overdue Queue").setIcon("sauce-overdue")
+        .onClick(() => this.openView(VIEW_OVERDUE)));
+      m.addItem((i) => i.setTitle("Map").setIcon("sauce-map")
+        .onClick(() => this.openView(VIEW_MAP_REAL)));
+      m.addSeparator();
+      m.addItem((i) => i.setTitle("Run Path Query").setIcon("git-branch")
+        .onClick(() => this.runPathPrompt()));
+      m.showAtMouseEvent(event);
+    });
+    this.addRibbonIcon("sauce-copilot", "Sauce CRM — Copilot & AI", (event) => {
+      const m = new Menu();
+      m.addItem((i) => i.setTitle("Open Copilot Chat").setIcon("sauce-copilot")
+        .onClick(() => this.openView(VIEW_COPILOT_CHAT)));
+      m.addItem((i) => i.setTitle("AI Inbox").setIcon("sauce-ai-inbox")
+        .onClick(() => this.openView(VIEW_AI_INBOX_REAL)));
+      m.addSeparator();
+      m.addItem((i) => i.setTitle("Run Skill…").setIcon("sauce-skill")
+        .onClick(() => new SkillPickerModal(this.app, this).open()));
+      m.addItem((i) => i.setTitle("Audit Log").setIcon("sauce-audit")
+        .onClick(() => this.openView(VIEW_AUDIT_LOG_REAL)));
+      m.addItem((i) => i.setTitle("Skill Run Log").setIcon("sauce-skill")
+        .onClick(() => this.openView(VIEW_SKILL_RUN_LOG_REAL)));
+      m.addItem((i) => i.setTitle("Sync Status").setIcon("sauce-sync")
+        .onClick(() => this.openView(VIEW_SYNC_STATUS_REAL)));
+      m.showAtMouseEvent(event);
+    });
+    // Fourth ribbon — utilities, setup, and data ops. Keeps the People /
+    // Graph / Copilot menus focused while ensuring nothing is unreachable.
+    this.addRibbonIcon("settings-2", "Sauce CRM — Setup & Data", (event) => {
+      const m = new Menu();
+      m.addItem((i) => i.setTitle("Quick Capture").setIcon("plus-circle")
+        .onClick(() => { try { const QCMod = require("./ui/modals/QuickCaptureModal"); new QCMod.QuickCaptureModal(this.app, this).open(); } catch (e) { new Notice("Quick Capture unavailable"); } }));
+      m.addItem((i) => i.setTitle("New Addendum").setIcon("sauce-addendum")
+        .onClick(() => { try { const AMod = require("./ui/modals/AddendumModal"); new AMod.AddendumModal(this.app, this, this.activeFile()).open(); } catch { new Notice("Addendum modal unavailable"); } }));
+      m.addItem((i) => i.setTitle("New Relation").setIcon("link")
+        .onClick(() => { try { const RMod = require("./ui/modals/RelationModal"); new RMod.RelationModal(this.app, this, this.activeFile()).open(); } catch { new Notice("Relation modal unavailable"); } }));
+      m.addSeparator();
+      m.addItem((i) => i.setTitle("Import (CSV/vCard/ICS/JSON)").setIcon("upload")
+        .onClick(() => { try { const IMod = require("./ui/modals/ImportMappingModal"); new IMod.ImportMappingModal(this.app, this).open(); } catch { new Notice("Import unavailable"); } }));
+      m.addItem((i) => i.setTitle("Export Graph JSON").setIcon("download")
+        .onClick(() => { const cmd = (this.app as any).commands?.executeCommandById?.("sauce-crm:export-graph-json"); if (!cmd) new Notice("Export command unavailable"); }));
+      m.addItem((i) => i.setTitle("Run Backup Now").setIcon("hard-drive")
+        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:run-backup"); }));
+      m.addItem((i) => i.setTitle("Prune Old Backups").setIcon("trash-2")
+        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:prune-backups"); }));
+      m.addSeparator();
+      m.addItem((i) => i.setTitle("Initialize Vault").setIcon("folder-plus")
+        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:initialize-vault"); }));
+      m.addItem((i) => i.setTitle("Initialize Parent Vault").setIcon("folder-tree")
+        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:initialize-parent-vault"); }));
+      m.addItem((i) => i.setTitle("Onboarding…").setIcon("compass")
+        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:onboarding"); }));
+      m.addSeparator();
+      m.addItem((i) => i.setTitle("Sauce CRM Settings").setIcon("settings")
+        .onClick(() => { (this.app as any).setting?.open?.(); (this.app as any).setting?.openTabById?.("sauce-crm"); }));
+      m.showAtMouseEvent(event);
+    });
 
     this.registerEvent(this.app.metadataCache.on("changed", (f) => {
       if (f instanceof TFile) this.edgeSync.scheduleReconcile(f);
@@ -284,11 +374,11 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCommand({ id: "open-parent-dashboard", name: "Open Parent Vault Dashboard", callback: () => this.openView(VIEW_PARENT) });
     this.addCommand({ id: "open-copilot", name: "Open Copilot", callback: () => this.openView(VIEW_COPILOT_CHAT) });
     this.addCommand({ id: "run-skill", name: "Run Skill…", callback: () => new SkillPickerModal(this.app, this).open() });
-    this.addCommand({ id: "open-map", name: "Open Map", callback: () => this.openView(VIEW_MAP) });
-    this.addCommand({ id: "open-ai-inbox", name: "Open AI Inbox", callback: () => this.openView(VIEW_AI_INBOX) });
+    this.addCommand({ id: "open-map", name: "Open Map", callback: () => this.openView(VIEW_MAP_REAL) });
+    this.addCommand({ id: "open-ai-inbox", name: "Open AI Inbox", callback: () => this.openView(VIEW_AI_INBOX_REAL) });
     this.addCommand({ id: "quick-capture", name: "Quick Capture (CDEL)", hotkeys: [{ modifiers: ["Mod"], key: "k" }], callback: () => new QuickCaptureModal(this.app, this).open() });
     this.addCommand({ id: "import", name: "Import (CSV/vCard/ICS/JSON)", callback: () => new ImportMappingModal(this.app, this).open() });
-    this.addCommand({ id: "open-sync-status", name: "Open Sync Status", callback: () => this.openView(VIEW_SYNC_STATUS) });
+    this.addCommand({ id: "open-sync-status", name: "Open Sync Status", callback: () => this.openView(VIEW_SYNC_STATUS_REAL) });
     this.addCommand({ id: "run-backup", name: "Run Backup Now", callback: async () => {
       const svc = new BackupService(this.app, this.entityService, this.query);
       const r = await svc.run();
@@ -299,8 +389,8 @@ export default class SauceGraphPlugin extends Plugin {
       const n = await svc.prune(14);
       new Notice(`Pruned ${n} old backup(s)`);
     } });
-    this.addCommand({ id: "open-audit-log", name: "Open Audit Log", callback: () => this.openView(VIEW_AUDIT_LOG) });
-    this.addCommand({ id: "open-skill-run-log", name: "Open Skill Run Log", callback: () => this.openView(VIEW_SKILL_RUN_LOG) });
+    this.addCommand({ id: "open-audit-log", name: "Open Audit Log", callback: () => this.openView(VIEW_AUDIT_LOG_REAL) });
+    this.addCommand({ id: "open-skill-run-log", name: "Open Skill Run Log", callback: () => this.openView(VIEW_SKILL_RUN_LOG_REAL) });
     this.addCommand({ id: "onboarding", name: "Onboarding Wizard", callback: () => new OnboardingWizardModal(this.app, this).open() });
     this.addCommand({ id: "encrypted-backup", name: "Encrypted Backup (passphrase)", callback: async () => {
       const pass = prompt("Passphrase for encrypted backup:");
@@ -311,7 +401,7 @@ export default class SauceGraphPlugin extends Plugin {
     } });
 
     // ─── V2 commands (§40) — operator-bindable surfaces ─────────────────
-    this.addCommand({ id: "sauce:open-sync-status", name: "Open Sync Status", callback: () => { this.openView(VIEW_SYNC_STATUS).catch(() => new Notice("Sync Status view not loaded")); } });
+    this.addCommand({ id: "sauce:open-sync-status", name: "Open Sync Status", callback: () => { this.openView(VIEW_SYNC_STATUS_REAL).catch(() => new Notice("Sync Status view not loaded")); } });
     this.addCommand({ id: "sauce:open-audit-log", name: "Open Audit Log", callback: () => { this.openView("sauce-audit-log").catch(() => new Notice("Audit Log view not loaded")); } });
     this.addCommand({ id: "sauce:summarize-current", name: "Summarize Current Note", callback: () => { this.runSkillOnActive("summarize-thread"); } });
     this.addCommand({ id: "sauce:research-current", name: "Research Current Note", callback: () => { this.runSkillOnActive("research-person"); } });
@@ -384,10 +474,25 @@ export default class SauceGraphPlugin extends Plugin {
 
   private runPathPrompt(): void { new Notice("Use a `sauce-dql` PATH block in a note."); }
 
+  // View types that belong in the right sidebar (conversation/inspector
+  // panels) rather than the main editor area. Tabs/dashboards/graphs
+  // stay in the main split where they have room to breathe.
+  private static readonly _RIGHT_SIDEBAR_VIEWS: ReadonlySet<string> = new Set([
+    VIEW_COPILOT_CHAT,
+    VIEW_AI_INBOX_REAL,
+    VIEW_SYNC_STATUS_REAL,
+  ]);
+
   private async openView(type: string): Promise<void> {
     const leaves = this.app.workspace.getLeavesOfType(type);
     if (leaves.length) { this.app.workspace.revealLeaf(leaves[0]); return; }
-    const leaf: WorkspaceLeaf = this.app.workspace.getLeaf("tab");
+    let leaf: WorkspaceLeaf | null;
+    if (SauceGraphPlugin._RIGHT_SIDEBAR_VIEWS.has(type)) {
+      leaf = this.app.workspace.getRightLeaf(false);
+    } else {
+      leaf = this.app.workspace.getLeaf("tab");
+    }
+    if (!leaf) return;
     await leaf.setViewState({ type, active: true });
     this.app.workspace.revealLeaf(leaf);
   }

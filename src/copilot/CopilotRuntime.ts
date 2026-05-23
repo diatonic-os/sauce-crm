@@ -5,6 +5,7 @@ import {
   AnthropicProvider, OpenAIProvider, OllamaProvider,
   RagAssembler, ConversationStore, ToolUseAdapter,
 } from "./index";
+import { LMStudioProvider } from "./LMStudioProvider";
 import type { ChatMessage, ICopilotProvider, CompletionEvent } from "./ICopilotProvider";
 import { ObsidianProviderHost, ObsidianRagHost, ObsidianConversationHost } from "./CopilotHostAdapters";
 import { App } from "obsidian";
@@ -12,10 +13,10 @@ import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
 
 export interface CopilotSettings {
-  provider: "anthropic" | "openai" | "ollama";
+  provider: "anthropic" | "openai" | "ollama" | "lmstudio";
   model: string;
   apiKey: string;             // P15 swaps for KeyVault lookup
-  baseUrl?: string;           // ollama override / proxy URL
+  baseUrl?: string;           // ollama override / proxy URL / LM Studio endpoint
   temperature: number;
   maxTokens: number;
   systemPrompt: string;
@@ -59,10 +60,15 @@ export class CopilotRuntime {
   provider(): ICopilotProvider {
     const key = async () => this.settings.apiKey;
     switch (this.settings.provider) {
-      case "openai": return new OpenAIProvider(this.providerHost, key, this.settings.baseUrl);
-      case "ollama": return new OllamaProvider(this.providerHost, this.settings.baseUrl ?? "http://localhost:11434");
+      case "openai":   return new OpenAIProvider(this.providerHost, key, this.settings.baseUrl);
+      case "ollama":   return new OllamaProvider(this.providerHost, this.settings.baseUrl ?? "http://localhost:11434");
+      case "lmstudio": return new LMStudioProvider(this.providerHost, {
+        endpoint: this.settings.baseUrl ?? "http://localhost:1234/v1",
+        apiKey: this.settings.apiKey || undefined,
+        defaultModel: this.settings.model,
+      });
       case "anthropic":
-      default:       return new AnthropicProvider(this.providerHost, key, this.settings.baseUrl);
+      default:         return new AnthropicProvider(this.providerHost, key, this.settings.baseUrl);
     }
   }
 

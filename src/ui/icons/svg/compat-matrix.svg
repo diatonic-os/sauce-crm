@@ -1,0 +1,9 @@
+<!-- Custom SVG icon for compat-matrix -->
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Unique SVG path for compat-matrix icon -->
+  <path d="M50 50a25 25 0 1 0 0-50 25 25 0 0 0 0 50z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <g transform="rotate(45 50 50)">
+    <line x1="30" y1="30" x2="70" y2="70" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="30" y1="70" x2="70" y2="30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>
