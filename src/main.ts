@@ -10,6 +10,8 @@ import { DocumentHarvestService, SUPPORTED_FORMATS, type DocFormat } from "./ser
 import { PluginConfigService, defaultProfiles } from "./services/PluginConfigService";
 import { ObsidianPluginConfigHost } from "./services/ObsidianPluginConfigHost";
 import { renderPluginConfigBlock } from "./ui/PluginConfigBlock";
+import { TasksService } from "./services/TasksService";
+import { renderTasksBlock, openAddTaskModal } from "./ui/TasksBlock";
 import { SauceFeatureSettings, DEFAULT_FEATURE_SETTINGS, mergeFeatureSettings, activeEmbeddingProvider } from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
 import { ContractValidator } from "./contract/ContractValidator";
@@ -184,6 +186,7 @@ export default class SauceGraphPlugin extends Plugin {
   enrichment: EnrichmentService | null = null;
   documentHarvest: DocumentHarvestService | null = null;
   pluginConfig: PluginConfigService | null = null;
+  tasks: TasksService | null = null;
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
   v2Registry: V2Registry = new V2Registry();
@@ -346,6 +349,8 @@ export default class SauceGraphPlugin extends Plugin {
       defaultProfiles(),
       this.v2?.provenance ?? null,
     );
+    // Tasks ↔ Tasks-plugin checkbox bridge (W4): author/read tasks in _TASKS.md.
+    this.tasks = new TasksService(this.app);
     this.skills = new SkillRuntime(this.app, this.entityService, this.search, this.query, () => this.copilot);
     if (this.copilot) this.skills.bindToCopilot(this.copilot.toolUse);
     // Route every Copilot tool call through the approval gate.
@@ -537,6 +542,10 @@ export default class SauceGraphPlugin extends Plugin {
     this.registerMarkdownCodeBlockProcessor("sauce-plugin-config", (_src, el) =>
       void renderPluginConfigBlock(el, this),
     );
+    // Tasks (Tasks-plugin checkbox model) — fallback render + author surface.
+    this.registerMarkdownCodeBlockProcessor("sauce-tasks", (_src, el) =>
+      void renderTasksBlock(el, this),
+    );
 
     console.log("Sauce Graph loaded");
   }
@@ -665,6 +674,7 @@ export default class SauceGraphPlugin extends Plugin {
       const n = await this.mirrorSync.fullResync();
       new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
     } });
+    this.addCommand({ id: "add-task", name: "Add task (Tasks-plugin checkbox)", callback: () => openAddTaskModal(this) });
     this.addCommand({ id: "plugin-auto-config", name: "Plugin auto-config (detect + apply canonical settings)", callback: () => {
       const m = new Modal(this.app);
       m.modalEl.addClass("sauce-modal");
