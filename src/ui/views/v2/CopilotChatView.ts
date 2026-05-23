@@ -11,6 +11,7 @@
 import { ItemView, Modal, Menu, Notice, Setting, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import type { ChatMessage } from "../../../copilot/ICopilotProvider";
+import type { CopilotSession } from "../../../copilot/ConversationStore";
 import { sharedModelCatalog, type CatalogModel } from "../../../copilot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 
@@ -52,6 +53,11 @@ export class CopilotChatView extends ItemView {
   private isListening = false;
   private showRelevant = true;
   private showSuggested = true;
+  // Session persistence — a session is saved to _addenda/_copilot on New chat
+  // and on view close, so the History popover can list/replay it.
+  private sessionId = `s-${Date.now()}`;
+  private sessionCreatedTs = Date.now();
+  private firstUserMsg = "";
 
   constructor(leaf: WorkspaceLeaf, public plugin: SauceGraphPlugin) { super(leaf); }
 
@@ -252,10 +258,34 @@ export class CopilotChatView extends ItemView {
   }
 
   private newSession(): void {
+    void this.persistCurrentSession();
     this.history = [];
+    this.sessionId = `s-${Date.now()}`;
+    this.sessionCreatedTs = Date.now();
+    this.firstUserMsg = "";
     this.transcriptEl.empty();
     this.suggestionsEl = this.transcriptEl.createDiv({ cls: "sauce-cp-suggestions" });
     void this.renderSuggestions();
+  }
+
+  /** Persist the current transcript to _addenda/_copilot via ConversationStore
+   *  (auto-named from the first user message). Best-effort; no-op when empty. */
+  private async persistCurrentSession(): Promise<void> {
+    if (!this.history.length || !this.plugin.copilot) return;
+    const s = this.plugin.copilot.getSettings();
+    const session: CopilotSession = {
+      id: this.sessionId,
+      createdTs: this.sessionCreatedTs,
+      updatedTs: Date.now(),
+      model: s?.model ?? "",
+      provider: s?.provider ?? "",
+      skillSet: [],
+      messages: this.history,
+      tokenIn: 0,
+      tokenOut: 0,
+    };
+    try { await this.plugin.copilot.persistSession(session, this.firstUserMsg); }
+    catch { /* persistence is best-effort */ }
   }
 
   // ---------- Chat Settings popover (real, bound settings only) ----------
@@ -358,6 +388,7 @@ export class CopilotChatView extends ItemView {
   async onClose(): Promise<void> {
     if (this.recognition) { try { this.recognition.stop(); } catch { /* */ } this.recognition = null; }
     this.isListening = false;
+    await this.persistCurrentSession();
   }
 
   // ---------- Ask ----------
@@ -366,6 +397,7 @@ export class CopilotChatView extends ItemView {
     if (!copilot) { new Notice("Copilot not initialized"); return; }
     const q = this.inputEl.value.trim();
     if (!q) return;
+    if (!this.firstUserMsg) this.firstUserMsg = q;
     this.inputEl.value = "";
     this.suggestionsEl.hide();
     this.appendMessage("user", q);
