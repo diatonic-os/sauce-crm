@@ -2,6 +2,15 @@
 // App / Vault / DataAdapter / TFile / TFolder for EntityService and the
 // other services under test to round-trip frontmatter + body strings.
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const _yaml = require("js-yaml");
+export function parseYaml(s: string): unknown {
+  return _yaml.load(s);
+}
+export function stringifyYaml(o: unknown): string {
+  return _yaml.dump(o);
+}
+
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
 }
