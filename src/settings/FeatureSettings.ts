@@ -44,11 +44,25 @@ export interface DocumentSettings {
   formats: string[];
 }
 
+/** Per-local-provider chat config (endpoint + default model), surfaced in the
+ *  Local LLM settings section with a live model picker. Lets Ollama and LM
+ *  Studio both be configured at once and used as the active chat provider. */
+export interface LocalLLMProviderConfig {
+  endpoint: string;
+  model: string;
+}
+export interface LocalLLMSettings {
+  ollama: LocalLLMProviderConfig;
+  lmstudio: LocalLLMProviderConfig;
+}
+export type LocalProviderId = keyof LocalLLMSettings;
+
 export interface SauceFeatureSettings {
   rag: RagSettings;
   enrichment: EnrichmentSettings;
   prompts: PromptSettings;
   documents: DocumentSettings;
+  localLLM: LocalLLMSettings;
 }
 
 export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
@@ -65,6 +79,10 @@ export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
   enrichment: { enabled: false, autostart: false, classify: true, tag: true, graph: true },
   prompts: { globalSystemPrompt: "", sessionAutoNaming: true },
   documents: { enabled: false, formats: ["txt", "md", "pdf", "docx"] },
+  localLLM: {
+    ollama: { endpoint: "http://localhost:11434", model: "" },
+    lmstudio: { endpoint: "http://localhost:1234/v1", model: "" },
+  },
 };
 
 /** Deep-merge persisted feature settings over defaults (used in loadSettings).
@@ -85,6 +103,10 @@ export function mergeFeatureSettings(loaded: Partial<SauceFeatureSettings> | und
     enrichment: { ...d.enrichment, ...(l.enrichment ?? {}) },
     prompts: { ...d.prompts, ...(l.prompts ?? {}) },
     documents: { ...d.documents, ...(l.documents ?? {}) },
+    localLLM: {
+      ollama: { ...d.localLLM.ollama, ...(l.localLLM?.ollama ?? {}) },
+      lmstudio: { ...d.localLLM.lmstudio, ...(l.localLLM?.lmstudio ?? {}) },
+    },
   };
 }
 

@@ -8,6 +8,7 @@ import { renderRagEmbeddings } from "./rag";
 import { renderEnrichment } from "./enrichment";
 import { renderDocuments } from "./documents";
 import { renderPrompts } from "./prompts";
+import { renderLocalLLM } from "./localllm";
 
 function markAdvanced(set: Setting): Setting {
   set.settingEl.addClass("sg-advanced");
@@ -131,6 +132,8 @@ export function renderCopilot(containerEl: HTMLElement, plugin: SauceGraphPlugin
       .setValue(cfg.autonomy ?? "suggest")
       .onChange(async (v) => { cfg.autonomy = v; await plugin.saveSettings(); pushCopilotUpdate(plugin); })));
 
+  // Local LLM providers — live per-provider endpoint + model pickers.
+  renderLocalLLM(containerEl, plugin);
   // RAG & embeddings (PLAN T3) — embedding provider parity + master toggle.
   renderRagEmbeddings(containerEl, plugin);
   // Auto-enrichment (PLAN T5).

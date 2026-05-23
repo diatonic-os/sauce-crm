@@ -58,3 +58,18 @@ describe("activeEmbeddingProvider", () => {
     expect(activeEmbeddingProvider(f)).toBeNull();
   });
 });
+
+describe("mergeFeatureSettings — localLLM", () => {
+  it("provides default Ollama + LM Studio config", () => {
+    const m = mergeFeatureSettings(undefined);
+    expect(m.localLLM.ollama.endpoint).toBe("http://localhost:11434");
+    expect(m.localLLM.lmstudio.endpoint).toBe("http://localhost:1234/v1");
+  });
+
+  it("deep-merges one local provider without dropping the other", () => {
+    const m = mergeFeatureSettings({ localLLM: { ollama: { model: "llama3.1:8b" } } } as never);
+    expect(m.localLLM.ollama.model).toBe("llama3.1:8b");
+    expect(m.localLLM.ollama.endpoint).toBe("http://localhost:11434"); // default kept
+    expect(m.localLLM.lmstudio.endpoint).toBe("http://localhost:1234/v1"); // sibling kept
+  });
+});
