@@ -4,3 +4,4 @@
 {"_t":"ev","ts":"2026-05-23T00:00:03Z","actor":"orchestrator","action":"merge","entityId":"T-A-02","hash":"29463c1","note":"ObsidianPluginRegistry"}
 {"_t":"ev","ts":"2026-05-23T00:00:04Z","actor":"orchestrator","action":"merge","entityId":"T-A-04","hash":"a71a219","note":"Community/Core plugin pages"}
 {"_t":"ev","ts":"2026-05-23T00:00:05Z","actor":"orchestrator","action":"merge","entityId":"T-A-05","hash":"a71a219","note":"IntegrationsSection 3-tab; SH-A DONE, 408 tests"}
+{"_t":"ev","ts":"2026-05-23T00:00:06Z","actor":"orchestrator","action":"merge","entityId":"T-B1-01","hash":"dfebe77","note":"TasksAdapter; SH-B1 done; SH-F dep satisfied but CLI-blocked"}
