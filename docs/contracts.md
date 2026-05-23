@@ -23,7 +23,7 @@ Every Sauce entity declares:
 - `contract:` — one of the levels above
 - `subtype_of:` — LSP universe-superclass reference (defaults to `Entity`)
 - `mutable:` — list of field names the validator will permit subsequent edits to
-- `constrains:` — list of single-key objects, each `{ rule_name: "<predicate>" }`
+- `constrains:` — list of strings in `rule_name: predicate` form. Older single-key object entries are still read for backward compatibility, but new writes use strings so Obsidian Properties can render them as a normal list.
 - `requires:` *(optional)* — propositions that must hold *before* a save
 - `ensures:` *(optional)* — propositions that must hold *after* a save
 - `signals:` *(optional)* — non-blocking emitters that surface in the AI Inbox
@@ -82,9 +82,9 @@ mutable:
   - linkedin
   - location
 constrains:
-  - closeness_range: "closeness >= 1 && closeness <= 5"
-  - cadence_in_enum: "cadence in enum.cadence"
-  - primary_in_roles: "primary_type in roles"
+  - "closeness_range: closeness >= 1 && closeness <= 5"
+  - "cadence_in_enum: cadence in enum.cadence"
+  - "primary_in_roles: primary_type in roles"
 tags: [warm-network]
 ```
 
@@ -104,7 +104,7 @@ mutable:
   - status
   - parent
 constrains:
-  - status_in_enum: "status in enum.status_org"
+  - "status_in_enum: status in enum.status_org"
 tags: [org]
 ```
 
@@ -127,8 +127,8 @@ mutable:
   - attendees
   - source
 constrains:
-  - contact_in_attendees: "contact in attendees"
-  - channel_in_enum: "channel in enum.channel"
+  - "contact_in_attendees: contact in attendees"
+  - "channel_in_enum: channel in enum.channel"
 ```
 
 ### Addendum
@@ -142,7 +142,7 @@ date: 2026-05-21
 kind: correction
 mutable: []
 constrains:
-  - immutable_after_save: "true"
+  - "immutable_after_save: true"
 tags: [addendum]
 ```
 

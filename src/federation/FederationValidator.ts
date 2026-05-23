@@ -1,5 +1,6 @@
 import { ParentVault } from "../domain/ParentVault";
 import { SubVault } from "../domain/SubVault";
+import { parseInvariantString } from "../util/Frontmatter";
 
 export interface FederationCheck {
   vault_id: string;
@@ -68,7 +69,7 @@ export class FederationValidator {
 }
 
 function keyOf(c: any): string {
-  if (typeof c === "string") return c;
+  if (typeof c === "string") return parseInvariantString(c).name;
   if (c && typeof c === "object") return Object.keys(c)[0] ?? "";
   return "";
 }

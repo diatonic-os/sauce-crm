@@ -1,6 +1,7 @@
 import { App, TFile, TFolder, normalizePath } from "obsidian";
 import { Entity } from "../domain/Entity";
 import { entityFromFrontmatter } from "../domain/Factory";
+import { normalizeObsidianFrontmatter, serializeObsidianFrontmatter } from "../util/Frontmatter";
 
 export interface VaultPaths {
   people: string;
@@ -58,10 +59,10 @@ export class EntityService {
     const path = normalizePath(`${folder}/${basename}.md`);
     const existing = this.app.vault.getAbstractFileByPath(path);
     if (existing && existing instanceof TFile) {
-      await this.updateFrontmatter(existing, () => ({ ...fm }));
+      await this.updateFrontmatter(existing, () => normalizeObsidianFrontmatter(fm));
       return existing;
     }
-    const fmYaml = serializeFrontmatter(fm);
+    const fmYaml = serializeObsidianFrontmatter(fm);
     const content = `${fmYaml}\n${body}`;
     return await this.app.vault.create(path, content);
   }
@@ -71,7 +72,11 @@ export class EntityService {
       const result = mutator(fm);
       if (result && typeof result === "object") {
         for (const k of Object.keys(fm)) delete fm[k];
-        for (const [k, v] of Object.entries(result)) (fm as any)[k] = v;
+        for (const [k, v] of Object.entries(normalizeObsidianFrontmatter(result))) (fm as any)[k] = v;
+      } else {
+        const normalized = normalizeObsidianFrontmatter(fm);
+        for (const k of Object.keys(fm)) delete fm[k];
+        for (const [k, v] of Object.entries(normalized)) (fm as any)[k] = v;
       }
     });
   }
@@ -111,47 +116,4 @@ export class EntityService {
   allEvents(): Entity[] { return this.listEntitiesIn(this.paths.events); }
   allLedgerEntries(): Entity[] { return this.listEntitiesIn(this.paths.ledger); }
   allPipelineDeals(): Entity[] { return this.listEntitiesIn(this.paths.pipeline); }
-}
-
-function serializeFrontmatter(fm: Record<string, any>): string {
-  const lines: string[] = ["---"];
-  for (const [k, v] of Object.entries(fm)) {
-    lines.push(serializeKv(k, v, 0));
-  }
-  lines.push("---");
-  return lines.join("\n");
-}
-
-function serializeKv(key: string, val: any, depth: number): string {
-  const pad = "  ".repeat(depth);
-  if (val == null) return `${pad}${key}:`;
-  if (Array.isArray(val)) {
-    if (val.length === 0) return `${pad}${key}: []`;
-    const lines = [`${pad}${key}:`];
-    for (const item of val) {
-      if (item && typeof item === "object" && !Array.isArray(item)) {
-        const entries = Object.entries(item);
-        lines.push(`${pad}  - ${entries.map(([k, v]) => `${k}: ${formatScalar(v)}`).join(", ")}`);
-      } else {
-        lines.push(`${pad}  - ${formatScalar(item)}`);
-      }
-    }
-    return lines.join("\n");
-  }
-  if (typeof val === "object") {
-    const lines = [`${pad}${key}:`];
-    for (const [k, v] of Object.entries(val)) lines.push(serializeKv(k, v, depth + 1));
-    return lines.join("\n");
-  }
-  return `${pad}${key}: ${formatScalar(val)}`;
-}
-
-function formatScalar(v: any): string {
-  if (v == null) return "";
-  if (typeof v === "boolean" || typeof v === "number") return String(v);
-  const s = String(v);
-  if (s.includes(":") || s.includes("#") || s.includes("[") || s.startsWith(" ") || s.endsWith(" ")) {
-    return `"${s.replace(/"/g, '\\"')}"`;
-  }
-  return s;
 }

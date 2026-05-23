@@ -13,7 +13,7 @@ Sauce Graph layers four capabilities on top of vanilla Obsidian:
 
 ## Why use it
 
-- **Vanilla markdown.** All state lives in `.md` frontmatter and a small SQLite mirror under the plugin folder. No proprietary file format.
+- **Vanilla markdown.** All canonical state lives in `.md` frontmatter; LanceDB stores the derived mirror, vectors, audit rows, and provenance under the plugin folder. No proprietary source-of-truth file format.
 - **Deterministic edges.** Add `Alice` to Bob's `knows:` list — Bob is auto-added to Alice's.
 - **Auditable.** Optional HMAC-SHA256 audit chain over every mutation; verifiable from a single command.
 - **Local-first AI.** The copilot can run against LM Studio or Ollama; cloud providers (OpenAI, Anthropic) are escalation, not default.

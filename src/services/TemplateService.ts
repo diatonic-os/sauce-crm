@@ -29,9 +29,9 @@ export const TemplateService = {
       family_of: input.family_of ?? null,
       mutable: ["last_touch","closeness","cadence","roles","knows","worked_with","intro_candidates","company","title","email","phone","linkedin","location"],
       constrains: [
-        { closeness_range: "closeness >= 1 && closeness <= 5" },
-        { cadence_in_enum: "cadence in enum.cadence" },
-        { primary_in_roles: "primary_type in roles" },
+        "closeness_range: closeness >= 1 && closeness <= 5",
+        "cadence_in_enum: cadence in enum.cadence",
+        "primary_in_roles: primary_type in roles",
       ],
       tags: input.tags ?? ["warm-network"],
     };
@@ -50,7 +50,7 @@ export const TemplateService = {
       parent: input.parent ?? null,
       mutable: ["industry","location","website","status","parent"],
       constrains: [
-        { status_in_enum: "status in enum.status_org" },
+        "status_in_enum: status in enum.status_org",
       ],
       tags: input.tags ?? ["org"],
     };
@@ -72,8 +72,8 @@ export const TemplateService = {
       author: input.author ?? null,
       mutable: ["outcome_tags","referral_to","attendees","source"],
       constrains: [
-        { contact_in_attendees: "contact in attendees" },
-        { channel_in_enum: "channel in enum.channel" },
+        "contact_in_attendees: contact in attendees",
+        "channel_in_enum: channel in enum.channel",
       ],
     };
   },
@@ -88,7 +88,7 @@ export const TemplateService = {
       author: input.author ?? null,
       kind: input.kind ?? "context",
       mutable: [],
-      constrains: [{ immutable_after_save: "true" }],
+      constrains: ["immutable_after_save: true"],
       tags: input.tags ?? ["addendum"],
     };
   },
@@ -108,8 +108,8 @@ export const TemplateService = {
       confidence: input.confidence ?? "medium",
       mutable: ["title", "contact", "org", "topic", "source", "visibility", "confidence", "tags"],
       constrains: [
-        { title_required: "title != null" },
-        { visibility_enum: "visibility in [private, team, domain]" },
+        "title_required: title != null",
+        "visibility_enum: visibility in [private, team, domain]",
       ],
       tags: input.tags ?? ["knowledge-note"],
     };
@@ -131,7 +131,7 @@ export const TemplateService = {
       owner: input.owner ?? null,
       mutable: ["title", "stage", "impact", "effort", "next_action", "owner", "contact", "org", "tags"],
       constrains: [
-        { stage_enum: "stage in [seed, shaping, planned, active, shipped, archived]" },
+        "stage_enum: stage in [seed, shaping, planned, active, shipped, archived]",
       ],
       tags: input.tags ?? ["idea"],
     };
@@ -151,7 +151,7 @@ export const TemplateService = {
       evidence: input.evidence ?? null,
       mutable: ["title", "signal", "confidence", "evidence", "contact", "org", "tags"],
       constrains: [
-        { signal_enum: "signal in [relationship, opportunity, risk, timing, access, pattern]" },
+        "signal_enum: signal in [relationship, opportunity, risk, timing, access, pattern]",
       ],
       tags: input.tags ?? ["observation"],
     };
@@ -173,8 +173,8 @@ export const TemplateService = {
       source: input.source ?? "manual",
       mutable: ["title", "status", "priority", "due", "contact", "org", "owner", "approval_required", "tags"],
       constrains: [
-        { status_enum: "status in [todo, in_progress, blocked, done, cancelled]" },
-        { priority_enum: "priority in [low, medium, high, urgent]" },
+        "status_enum: status in [todo, in_progress, blocked, done, cancelled]",
+        "priority_enum: priority in [low, medium, high, urgent]",
       ],
       tags: input.tags ?? ["task", "followup"],
     };
@@ -196,7 +196,7 @@ export const TemplateService = {
       source_calendar: input.source_calendar ?? null,
       mutable: ["title", "date", "start", "end", "channel", "attendees", "contact", "org", "source_calendar", "tags"],
       constrains: [
-        { date_required: "date != null" },
+        "date_required: date != null",
       ],
       tags: input.tags ?? ["event"],
     };
@@ -219,8 +219,8 @@ export const TemplateService = {
       notes: input.notes ?? null,
       mutable: ["title", "date", "contact", "org", "category", "direction", "amount", "currency", "approval_required", "notes", "tags"],
       constrains: [
-        { direction_enum: "direction in [in, out]" },
-        { amount_non_negative: "amount >= 0" },
+        "direction_enum: direction in [in, out]",
+        "amount_non_negative: amount >= 0",
       ],
       tags: input.tags ?? ["ledger"],
     };
@@ -243,7 +243,7 @@ export const TemplateService = {
       owner: input.owner ?? null,
       mutable: ["title", "stage", "contact", "org", "value", "currency", "probability", "next_action", "owner", "tags"],
       constrains: [
-        { stage_enum: "stage in [prospect, first-touch, discovery, proposal, closed-won, closed-lost]" },
+        "stage_enum: stage in [prospect, first-touch, discovery, proposal, closed-won, closed-lost]",
       ],
       tags: input.tags ?? ["pipeline"],
     };

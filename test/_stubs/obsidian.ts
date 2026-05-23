@@ -6,6 +6,48 @@ export function normalizePath(p: string): string {
   return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
 }
 
+export function stringifyYaml(obj: Record<string, unknown>): string {
+  return Object.entries(obj).map(([key, value]) => stringifyYamlPair(key, value, 0)).join("\n") + "\n";
+}
+
+export function parseYaml(_yaml: string): unknown {
+  return {};
+}
+
+function stringifyYamlPair(key: string, value: unknown, depth: number): string {
+  const pad = "  ".repeat(depth);
+  if (value === null) return `${pad}${key}:`;
+  if (Array.isArray(value)) {
+    if (!value.length) return `${pad}${key}: []`;
+    return [
+      `${pad}${key}:`,
+      ...value.map((item) => `${pad}  - ${formatYamlScalar(item)}`),
+    ].join("\n");
+  }
+  if (value && typeof value === "object") {
+    return [
+      `${pad}${key}:`,
+      ...Object.entries(value as Record<string, unknown>).map(([k, v]) => stringifyYamlPair(k, v, depth + 1)),
+    ].join("\n");
+  }
+  return `${pad}${key}: ${formatYamlScalar(value)}`;
+}
+
+function formatYamlScalar(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "boolean" || typeof value === "number") return String(value);
+  const s = String(value);
+  if (
+    s === "" ||
+    /^[\s]|[\s]$/.test(s) ||
+    /[:#[\]{},&*!|>'"%@`]/.test(s) ||
+    /^(true|false|null|~)$/i.test(s)
+  ) {
+    return JSON.stringify(s);
+  }
+  return s;
+}
+
 export class TAbstractFile {
   constructor(public path: string, public parent: TFolder | null) {}
   get name(): string {

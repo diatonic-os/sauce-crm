@@ -1,4 +1,5 @@
 import { TFile } from "obsidian";
+import { parseInvariantString } from "../util/Frontmatter";
 
 export type ContractLevel = "nosubtype" | "subtype" | "core" | "simple" | "extended" | "full";
 
@@ -34,7 +35,7 @@ export abstract class Entity implements IEntity {
     const raw = this.frontmatter.constrains ?? [];
     const out: InvariantDef[] = [];
     for (const item of raw) {
-      if (typeof item === "string") out.push({ name: item, predicate: item });
+      if (typeof item === "string") out.push(parseInvariantString(item));
       else if (typeof item === "object" && item) {
         for (const [k, v] of Object.entries(item)) {
           out.push({ name: k, predicate: String(v) });
