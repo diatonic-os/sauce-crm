@@ -11,6 +11,14 @@ export function stringifyYaml(o: unknown): string {
   return _yaml.dump(o);
 }
 
+export function arrayBufferToBase64(buf: ArrayBuffer): string {
+  return Buffer.from(buf).toString("base64");
+}
+export function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const b = Buffer.from(b64, "base64");
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+}
+
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
 }
