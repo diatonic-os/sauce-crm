@@ -28,3 +28,8 @@
 {"_t":"ev","ts":"2026-05-23T00:05:01Z","actor":"orchestrator","action":"merge","entityId":"T-G-01","hash":"00a65d5","note":"SauceServiceAPI svcV1 + EventBus"}
 {"_t":"ev","ts":"2026-05-23T00:05:02Z","actor":"orchestrator","action":"merge","entityId":"T-G-02","hash":"89d067d","note":"DownstreamRegistry"}
 {"_t":"ev","ts":"2026-05-23T00:05:03Z","actor":"orchestrator","action":"merge","entityId":"T-G-03","hash":"45c6890","note":"services-api.md; SH-G done"}
+{"_t":"ev","ts":"2026-05-23T00:06:01Z","actor":"orchestrator","action":"merge","entityId":"T-H-03","hash":"c13b77e","note":"CONTRIBUTING+CODE_OF_CONDUCT (CoC by ref)"}
+{"_t":"ev","ts":"2026-05-23T00:06:02Z","actor":"orchestrator","action":"merge","entityId":"T-H-04","hash":"c13b77e","note":"docs/branching.md"}
+{"_t":"ev","ts":"2026-05-23T00:06:03Z","actor":"orchestrator","action":"merge","entityId":"T-H-05","hash":"c13b77e","note":"release-beta.yml"}
+{"_t":"ev","ts":"2026-05-23T00:06:04Z","actor":"orchestrator","action":"merge","entityId":"T-H-06","hash":"c13b77e","note":"issue+PR templates"}
+{"_t":"ev","ts":"2026-05-23T00:06:05Z","actor":"orchestrator","action":"merge","entityId":"T-H-07","hash":"c13b77e","note":"README sponsors; SH-H complete"}
