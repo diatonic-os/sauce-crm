@@ -245,6 +245,22 @@ export class Menu {
 
 export function addIcon(_name: string, _svg: string): void {}
 export function setIcon(_el: HTMLElement, _name: string): void {}
+
+export const Platform = {
+  isDesktop: true,
+  isMobile: false,
+  isDesktopApp: true,
+  isMobileApp: false,
+  isIosApp: false,
+  isAndroidApp: false,
+  isPhone: false,
+  isTablet: false,
+  isMacOS: false,
+  isWin: false,
+  isLinux: true,
+  isSafari: false,
+  resourcePathPrefix: "",
+};
 export async function requestUrl(_init: unknown): Promise<{ status: number; text: string; json: unknown; headers: Record<string, string> }> {
   return { status: 200, text: "", json: {}, headers: {} };
 }
