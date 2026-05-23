@@ -9,17 +9,30 @@ export class QueryService {
   private parser = new DqlParser();
   private evaluator = new DqlEvaluator();
 
-  constructor(public app: App, public entities: EntityService) {}
+  constructor(
+    public app: App,
+    public entities: EntityService,
+  ) {}
 
   runDql(src: string): { html?: HTMLElement; text?: string; error?: string } {
     let q;
-    try { q = this.parser.parse(src); }
-    catch (e: any) { return { error: e?.message ?? String(e) }; }
+    try {
+      q = this.parser.parse(src);
+    } catch (e: any) {
+      return { error: e?.message ?? String(e) };
+    }
 
     if (q.shape === "PATH") {
       const nodes = this.collectNodeBasenames();
       const edges = this.collectAdjacency();
-      const r = runPath(nodes, edges, q.pathFrom ?? "", q.pathTo ?? "", q.pathOver, q.pathObjective);
+      const r = runPath(
+        nodes,
+        edges,
+        q.pathFrom ?? "",
+        q.pathTo ?? "",
+        q.pathOver,
+        q.pathObjective,
+      );
       if (!r) return { text: `no path from ${q.pathFrom} to ${q.pathTo}` };
       return { text: r.nodes.join("  →  ") + `  (metric ${r.metric})` };
     }
@@ -46,13 +59,20 @@ export class QueryService {
 
   collectAdjacency(): AdjacencyRow[] {
     const out: AdjacencyRow[] = [];
-    const edges = ["knows", "worked_with", "intro_candidates", "family_of", "intro_via", "parent"];
+    const edges = [
+      "knows",
+      "worked_with",
+      "intro_candidates",
+      "family_of",
+      "intro_via",
+      "parent",
+    ];
     for (const f of this.app.vault.getMarkdownFiles()) {
       const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
       if (!fm) continue;
       const src = f.basename;
       const closeness = Number(fm.closeness ?? 3);
-      const weight = 6 - closeness;  // warmth: 5..1
+      const weight = 6 - closeness; // warmth: 5..1
       for (const edge of edges) {
         const v = fm[edge];
         const list = Array.isArray(v) ? v : v ? [v] : [];
@@ -65,7 +85,9 @@ export class QueryService {
     return out;
   }
 
-  private renderResult(r: ReturnType<DqlEvaluator["evaluate"]>): { html: HTMLElement } {
+  private renderResult(r: ReturnType<DqlEvaluator["evaluate"]>): {
+    html: HTMLElement;
+  } {
     const root = document.createElement("div");
     if (!r.rows || r.rows.length === 0) {
       root.createEl("em", { text: "no results" });
@@ -80,7 +102,8 @@ export class QueryService {
       for (const row of r.rows) {
         const tr = tbody.createEl("tr");
         tr.createEl("td", { text: row.file });
-        for (const c of r.headers ?? []) tr.createEl("td", { text: fmt(row.frontmatter[c]) });
+        for (const c of r.headers ?? [])
+          tr.createEl("td", { text: fmt(row.frontmatter[c]) });
       }
     } else if (r.shape === "LIST") {
       const ul = root.createEl("ul");

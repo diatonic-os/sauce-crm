@@ -8,7 +8,10 @@ export interface SearchHit {
 }
 
 export class SearchService {
-  constructor(public app: App, public entities: EntityService) {}
+  constructor(
+    public app: App,
+    public entities: EntityService,
+  ) {}
 
   fuzzy(query: string, limit = 25): SearchHit[] {
     const ql = query.toLowerCase();
@@ -32,7 +35,9 @@ export class SearchService {
     const fm = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
     for (const v of Object.values(fm)) {
       if (typeof v === "string" && v.toLowerCase().includes(ql)) s += 5;
-      if (Array.isArray(v)) for (const x of v) if (typeof x === "string" && x.toLowerCase().includes(ql)) s += 3;
+      if (Array.isArray(v))
+        for (const x of v)
+          if (typeof x === "string" && x.toLowerCase().includes(ql)) s += 3;
     }
     return s;
   }
@@ -61,7 +66,8 @@ export class SearchService {
       if (peer.path === f.path) continue;
       const pv = this.vector(peer);
       const cos = cosine(vec, pv);
-      if (cos > 0) hits.push({ file: peer, score: cos, context: peer.basename });
+      if (cos > 0)
+        hits.push({ file: peer, score: cos, context: peer.basename });
     }
     hits.sort((a, b) => b.score - a.score);
     return hits.slice(0, k);
@@ -83,8 +89,14 @@ export class SearchService {
 }
 
 function cosine(a: Map<string, number>, b: Map<string, number>): number {
-  let dot = 0, na = 0, nb = 0;
-  for (const [k, v] of a) { na += v * v; const w = b.get(k); if (w) dot += v * w; }
+  let dot = 0,
+    na = 0,
+    nb = 0;
+  for (const [k, v] of a) {
+    na += v * v;
+    const w = b.get(k);
+    if (w) dot += v * w;
+  }
   for (const v of b.values()) nb += v * v;
   if (na === 0 || nb === 0) return 0;
   return dot / Math.sqrt(na * nb);

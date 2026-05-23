@@ -63,11 +63,21 @@ export function isIsoDate(v: unknown): v is string {
   return typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v);
 }
 
-function err(field: string, message: string, severity: "error" | "warn" = "error"): ValidationError {
+function err(
+  field: string,
+  message: string,
+  severity: "error" | "warn" = "error",
+): ValidationError {
   return { field, message, severity };
 }
 
-function need(fm: Record<string, unknown>, field: string, check: (v: unknown) => boolean, msg: string, errs: ValidationError[]): void {
+function need(
+  fm: Record<string, unknown>,
+  field: string,
+  check: (v: unknown) => boolean,
+  msg: string,
+  errs: ValidationError[],
+): void {
   if (!(field in fm) || !check(fm[field])) errs.push(err(field, msg));
 }
 
@@ -99,12 +109,18 @@ export const PersonSchema: EntitySchema<PersonFrontmatter> = {
   }),
   validate(fm) {
     const e: ValidationError[] = [];
-    if (fm.type !== "warm-contact") e.push(err("type", `expected "warm-contact"`));
+    if (fm.type !== "warm-contact")
+      e.push(err("type", `expected "warm-contact"`));
     need(fm, "name", isString, "name must be a non-empty string", e);
     if (fm.name === "") e.push(err("name", "name must be non-empty"));
-    if ("roles" in fm && !isStringArray(fm.roles)) e.push(err("roles", "roles must be string[]"));
-    if ("last_touch" in fm && !isIsoDate(fm.last_touch)) e.push(err("last_touch", "must be ISO date", "warn"));
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    if ("roles" in fm && !isStringArray(fm.roles))
+      e.push(err("roles", "roles must be string[]"));
+    if ("last_touch" in fm && !isIsoDate(fm.last_touch))
+      e.push(err("last_touch", "must be ISO date", "warn"));
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -131,9 +147,13 @@ export const OrgSchema: EntitySchema<OrgFrontmatter> = {
   defaultFrontmatter: () => ({ type: "org", name: "", tags: [] }),
   validate(fm) {
     const e: ValidationError[] = [];
-    if (fm.type !== "org" && fm.type !== "subsidiary") e.push(err("type", `expected "org" or "subsidiary"`));
+    if (fm.type !== "org" && fm.type !== "subsidiary")
+      e.push(err("type", `expected "org" or "subsidiary"`));
     need(fm, "name", isString, "name must be a non-empty string", e);
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -155,7 +175,8 @@ export interface TouchFrontmatter extends Record<string, unknown> {
 
 export const TouchSchema: EntitySchema<TouchFrontmatter> = {
   type: "touch",
-  description: "A single conversation/interaction event with a contact (immutable).",
+  description:
+    "A single conversation/interaction event with a contact (immutable).",
   defaultFrontmatter: () => ({
     type: "touch",
     contact: "",
@@ -166,7 +187,10 @@ export const TouchSchema: EntitySchema<TouchFrontmatter> = {
     if (fm.type !== "touch") e.push(err("type", `expected "touch"`));
     need(fm, "contact", isString, "contact must be a wikilink-string", e);
     need(fm, "date", isIsoDate, "date must be ISO YYYY-MM-DD", e);
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -196,10 +220,19 @@ export const AddendumSchema: EntitySchema<AddendumFrontmatter> = {
   validate(fm) {
     const e: ValidationError[] = [];
     if (fm.type !== "addendum") e.push(err("type", `expected "addendum"`));
-    need(fm, "addends", isString, "addends must be the wikilink of the target", e);
+    need(
+      fm,
+      "addends",
+      isString,
+      "addends must be the wikilink of the target",
+      e,
+    );
     need(fm, "kind", isString, "kind must be one of the addendum kinds", e);
     need(fm, "date", isIsoDate, "date must be ISO YYYY-MM-DD", e);
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -229,11 +262,19 @@ export const TaskSchema: EntitySchema<TaskFrontmatter> = {
     const e: ValidationError[] = [];
     if (fm.type !== "task") e.push(err("type", `expected "task"`));
     need(fm, "title", isString, "title must be a string", e);
-    if (!["todo", "in_progress", "blocked", "done", "cancelled"].includes(String(fm.status))) {
+    if (
+      !["todo", "in_progress", "blocked", "done", "cancelled"].includes(
+        String(fm.status),
+      )
+    ) {
       e.push(err("status", "status must be a known value"));
     }
-    if ("due" in fm && !isIsoDate(fm.due)) e.push(err("due", "due must be ISO date", "warn"));
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    if ("due" in fm && !isIsoDate(fm.due))
+      e.push(err("due", "due must be ISO date", "warn"));
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -268,8 +309,12 @@ export const FollowupSchema: EntitySchema<FollowupFrontmatter> = {
     if (fm.type !== "followup") e.push(err("type", `expected "followup"`));
     need(fm, "contact", isString, "contact must be a wikilink", e);
     need(fm, "due", isIsoDate, "due must be ISO date", e);
-    if (!["pending", "done", "skipped"].includes(String(fm.status))) e.push(err("status", "unknown status"));
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    if (!["pending", "done", "skipped"].includes(String(fm.status)))
+      e.push(err("status", "unknown status"));
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -296,8 +341,14 @@ export const IdeaSchema: EntitySchema<IdeaFrontmatter> = {
     const e: ValidationError[] = [];
     if (fm.type !== "idea") e.push(err("type", `expected "idea"`));
     need(fm, "title", isString, "title must be a string", e);
-    if (!["open", "considering", "shipped", "shelved"].includes(String(fm.status))) e.push(err("status", "unknown status"));
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    if (
+      !["open", "considering", "shipped", "shelved"].includes(String(fm.status))
+    )
+      e.push(err("status", "unknown status"));
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -333,12 +384,17 @@ export const LedgerEntrySchema: EntitySchema<LedgerEntryFrontmatter> = {
   }),
   validate(fm) {
     const e: ValidationError[] = [];
-    if (fm.type !== "ledger-entry") e.push(err("type", `expected "ledger-entry"`));
+    if (fm.type !== "ledger-entry")
+      e.push(err("type", `expected "ledger-entry"`));
     need(fm, "contact", isString, "contact must be a wikilink", e);
     need(fm, "date", isIsoDate, "date must be ISO date", e);
     need(fm, "amount", isNumber, "amount must be a number", e);
-    if (!["in", "out"].includes(String(fm.direction))) e.push(err("direction", "direction must be in/out"));
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    if (!["in", "out"].includes(String(fm.direction)))
+      e.push(err("direction", "direction must be in/out"));
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -368,8 +424,17 @@ export const RollupSchema: EntitySchema<RollupFrontmatter> = {
   validate(fm) {
     const e: ValidationError[] = [];
     if (fm.type !== "rollup") e.push(err("type", `expected "rollup"`));
-    need(fm, "period", isString, "period must be a string like YYYY-MM or YYYY-Q1", e);
-    return { passed: e.filter((x) => x.severity === "error").length === 0, errors: e };
+    need(
+      fm,
+      "period",
+      isString,
+      "period must be a string like YYYY-MM or YYYY-Q1",
+      e,
+    );
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
   },
   parse(fm) {
     const r = this.validate(fm);
@@ -382,22 +447,26 @@ export const RollupSchema: EntitySchema<RollupFrontmatter> = {
 
 export const ENTITY_SCHEMAS = {
   "warm-contact": PersonSchema,
-  "org":          OrgSchema,
-  "touch":        TouchSchema,
-  "addendum":     AddendumSchema,
-  "task":         TaskSchema,
-  "followup":     FollowupSchema,
-  "idea":         IdeaSchema,
+  org: OrgSchema,
+  touch: TouchSchema,
+  addendum: AddendumSchema,
+  task: TaskSchema,
+  followup: FollowupSchema,
+  idea: IdeaSchema,
   "ledger-entry": LedgerEntrySchema,
-  "rollup":       RollupSchema,
+  rollup: RollupSchema,
 } as const;
 
 /** Dispatch validation by the frontmatter's `type` field. Returns null
  *  if the type is unknown — that's a "not a sauce entity" signal. */
-export function validateEntity(fm: Record<string, unknown>): ValidationResult | null {
+export function validateEntity(
+  fm: Record<string, unknown>,
+): ValidationResult | null {
   const t = fm.type;
   if (typeof t !== "string") return null;
-  const schema = (ENTITY_SCHEMAS as Record<string, EntitySchema<Record<string, unknown>>>)[t];
+  const schema = (
+    ENTITY_SCHEMAS as Record<string, EntitySchema<Record<string, unknown>>>
+  )[t];
   if (!schema) return null;
   return schema.validate(fm);
 }

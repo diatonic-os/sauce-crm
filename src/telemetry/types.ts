@@ -6,17 +6,32 @@ export enum LogLevel {
   ERROR = 4,
 }
 
-export const LOG_LEVEL_NAMES = ["trace", "debug", "info", "warn", "error"] as const;
+export const LOG_LEVEL_NAMES = [
+  "trace",
+  "debug",
+  "info",
+  "warn",
+  "error",
+] as const;
 export type LogLevelName = (typeof LOG_LEVEL_NAMES)[number];
 
-export function parseLogLevel(name: string | undefined, fallback: LogLevel = LogLevel.INFO): LogLevel {
+export function parseLogLevel(
+  name: string | undefined,
+  fallback: LogLevel = LogLevel.INFO,
+): LogLevel {
   switch ((name ?? "").toLowerCase()) {
-    case "trace": return LogLevel.TRACE;
-    case "debug": return LogLevel.DEBUG;
-    case "info":  return LogLevel.INFO;
-    case "warn":  return LogLevel.WARN;
-    case "error": return LogLevel.ERROR;
-    default:      return fallback;
+    case "trace":
+      return LogLevel.TRACE;
+    case "debug":
+      return LogLevel.DEBUG;
+    case "info":
+      return LogLevel.INFO;
+    case "warn":
+      return LogLevel.WARN;
+    case "error":
+      return LogLevel.ERROR;
+    default:
+      return fallback;
   }
 }
 

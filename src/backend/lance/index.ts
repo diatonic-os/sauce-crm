@@ -3,7 +3,11 @@
 // objects the rest of the plugin consumes. All persistence — secrets, audit,
 // entity mirror, vectors, FTS, checkpoints — flows through here.
 
-import { openLance, ensureTable, type LanceConnection } from "./LanceConnection";
+import {
+  openLance,
+  ensureTable,
+  type LanceConnection,
+} from "./LanceConnection";
 import { TABLES, DEFAULT_EMBEDDING_DIM } from "./LanceSchema";
 import { LanceSecretStore } from "./LanceSecretStore";
 import { LanceAuditStore } from "./LanceAuditStore";
@@ -18,7 +22,12 @@ export * from "./LanceSchema";
 export * from "./LanceConnection";
 export { LanceSecretStore } from "./LanceSecretStore";
 export { LanceAuditStore } from "./LanceAuditStore";
-export { LanceEntityMirror, type MirrorFile, type MirrorTables, type MirrorFtsHook } from "./LanceEntityMirror";
+export {
+  LanceEntityMirror,
+  type MirrorFile,
+  type MirrorTables,
+  type MirrorFtsHook,
+} from "./LanceEntityMirror";
 export { LanceVectorIndex, type VectorHit } from "./LanceVectorIndex";
 export { LanceFtsIndex, type FtsHit } from "./LanceFtsIndex";
 export { LanceCheckpoints, type CheckpointInfo } from "./LanceCheckpoints";
@@ -47,11 +56,22 @@ export interface LanceBackend {
   close(): Promise<void>;
 }
 
-export async function initLanceBackend(opts: InitLanceOpts): Promise<LanceBackend> {
+export async function initLanceBackend(
+  opts: InitLanceOpts,
+): Promise<LanceBackend> {
   const embeddingDim = opts.embeddingDim ?? DEFAULT_EMBEDDING_DIM;
   const db = await openLance(opts.dataDir);
 
-  const [entities, edges, tags, touches, embeddings, auditLog, apiKeysEnc, provenance] = await Promise.all([
+  const [
+    entities,
+    edges,
+    tags,
+    touches,
+    embeddings,
+    auditLog,
+    apiKeysEnc,
+    provenance,
+  ] = await Promise.all([
     ensureTable(db, TABLES.entities, embeddingDim),
     ensureTable(db, TABLES.edges, embeddingDim),
     ensureTable(db, TABLES.tags, embeddingDim),
@@ -65,7 +85,13 @@ export async function initLanceBackend(opts: InitLanceOpts): Promise<LanceBacken
   const docChunks = await ensureTable(db, TABLES.docChunks, embeddingDim);
 
   const fts = new LanceFtsIndex(entities);
-  const mirrorTables: MirrorTables = { entities, edges, tags, touches, embeddings };
+  const mirrorTables: MirrorTables = {
+    entities,
+    edges,
+    tags,
+    touches,
+    embeddings,
+  };
 
   return {
     db,

@@ -1,5 +1,9 @@
 // SPEC §31.3 — Logistic combination of source signals, per-kind thresholds.
-export interface ConfidenceConfig { autoAccept: number; propose: number; discard: number; }
+export interface ConfidenceConfig {
+  autoAccept: number;
+  propose: number;
+  discard: number;
+}
 
 export const DEFAULT_THRESHOLDS: Record<string, ConfidenceConfig> = {
   knows: { autoAccept: 1, propose: 0.6, discard: 0.3 },
@@ -21,9 +25,9 @@ export function combineSignals(weights: number[], features: number[]): number {
   return logistic(s);
 }
 
-export type Verdict = 'auto_accept' | 'propose' | 'discard';
+export type Verdict = "auto_accept" | "propose" | "discard";
 export function verdict(conf: number, cfg: ConfidenceConfig): Verdict {
-  if (conf >= cfg.autoAccept) return 'auto_accept';
-  if (conf >= cfg.propose) return 'propose';
-  return 'discard';
+  if (conf >= cfg.autoAccept) return "auto_accept";
+  if (conf >= cfg.propose) return "propose";
+  return "discard";
 }

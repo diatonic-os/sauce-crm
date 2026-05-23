@@ -12,7 +12,10 @@ export interface HelpPopoverInput {
 }
 
 class HelpModal extends Modal {
-  constructor(app: App, private input: HelpPopoverInput) {
+  constructor(
+    app: App,
+    private input: HelpPopoverInput,
+  ) {
     super(app);
   }
 
@@ -45,7 +48,7 @@ class HelpModal extends Modal {
 export function attachHelpPopover(
   setting: Setting,
   app: App,
-  input: HelpPopoverInput
+  input: HelpPopoverInput,
 ): Setting {
   try {
     const anySetting = setting as unknown as {
@@ -55,7 +58,9 @@ export function attachHelpPopover(
     const host: HTMLElement | null | undefined =
       anySetting.nameEl ??
       (anySetting.settingEl
-        ? (anySetting.settingEl.querySelector(".setting-item-name") as HTMLElement | null)
+        ? (anySetting.settingEl.querySelector(
+            ".setting-item-name",
+          ) as HTMLElement | null)
         : null);
     if (!host) return setting;
 

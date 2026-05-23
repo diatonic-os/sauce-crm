@@ -2,7 +2,10 @@ import { App, normalizePath, TFile } from "obsidian";
 import { EntityService, VaultPaths, DEFAULT_PATHS } from "./EntityService";
 
 export class VaultBootstrapper {
-  constructor(public app: App, public paths: VaultPaths = DEFAULT_PATHS) {}
+  constructor(
+    public app: App,
+    public paths: VaultPaths = DEFAULT_PATHS,
+  ) {}
 
   async ensure(): Promise<{ created: string[]; existing: string[] }> {
     const created: string[] = [];
@@ -10,14 +13,27 @@ export class VaultBootstrapper {
     const svc = new EntityService(this.app, this.paths);
 
     for (const p of [
-      this.paths.people, this.paths.orgs, this.paths.touches,
-      this.paths.addenda, this.paths.notes, this.paths.ideas,
-      this.paths.observations, this.paths.tasks, this.paths.events,
-      this.paths.ledger, this.paths.pipeline, this.paths.templates, this.paths.playbooks,
+      this.paths.people,
+      this.paths.orgs,
+      this.paths.touches,
+      this.paths.addenda,
+      this.paths.notes,
+      this.paths.ideas,
+      this.paths.observations,
+      this.paths.tasks,
+      this.paths.events,
+      this.paths.ledger,
+      this.paths.pipeline,
+      this.paths.templates,
+      this.paths.playbooks,
       this.paths.user,
     ]) {
       const folder = this.app.vault.getAbstractFileByPath(normalizePath(p));
-      if (folder) existing.push(p); else { await svc.ensureFolder(p); created.push(p); }
+      if (folder) existing.push(p);
+      else {
+        await svc.ensureFolder(p);
+        created.push(p);
+      }
     }
 
     await this.ensureFile("CLAUDE.md", CLAUDE_SEED);

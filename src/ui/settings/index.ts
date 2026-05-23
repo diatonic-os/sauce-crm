@@ -1,2 +1,2 @@
-export * from './SettingsPage';
-export { buildSettingsTree, type PageNode } from './SettingsRegistry';
+export * from "./SettingsPage";
+export { buildSettingsTree, type PageNode } from "./SettingsRegistry";

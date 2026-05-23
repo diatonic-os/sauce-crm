@@ -27,7 +27,21 @@ export const TemplateService = {
       worked_with: input.worked_with ?? [],
       intro_candidates: input.intro_candidates ?? [],
       family_of: input.family_of ?? null,
-      mutable: ["last_touch","closeness","cadence","roles","knows","worked_with","intro_candidates","company","title","email","phone","linkedin","location"],
+      mutable: [
+        "last_touch",
+        "closeness",
+        "cadence",
+        "roles",
+        "knows",
+        "worked_with",
+        "intro_candidates",
+        "company",
+        "title",
+        "email",
+        "phone",
+        "linkedin",
+        "location",
+      ],
       constrains: [
         "closeness_range: closeness >= 1 && closeness <= 5",
         "cadence_in_enum: cadence in enum.cadence",
@@ -48,10 +62,8 @@ export const TemplateService = {
       website: input.website ?? null,
       status: input.status ?? "active",
       parent: input.parent ?? null,
-      mutable: ["industry","location","website","status","parent"],
-      constrains: [
-        "status_in_enum: status in enum.status_org",
-      ],
+      mutable: ["industry", "location", "website", "status", "parent"],
+      constrains: ["status_in_enum: status in enum.status_org"],
       tags: input.tags ?? ["org"],
     };
   },
@@ -70,7 +82,7 @@ export const TemplateService = {
       attendees: input.attendees ?? (input.contact ? [input.contact] : []),
       source: input.source ?? null,
       author: input.author ?? null,
-      mutable: ["outcome_tags","referral_to","attendees","source"],
+      mutable: ["outcome_tags", "referral_to", "attendees", "source"],
       constrains: [
         "contact_in_attendees: contact in attendees",
         "channel_in_enum: channel in enum.channel",
@@ -78,7 +90,9 @@ export const TemplateService = {
     };
   },
 
-  addendumFrontmatter(input: Partial<Record<string, any>>): Record<string, any> {
+  addendumFrontmatter(
+    input: Partial<Record<string, any>>,
+  ): Record<string, any> {
     return {
       type: "addendum",
       contract: "core",
@@ -93,7 +107,9 @@ export const TemplateService = {
     };
   },
 
-  knowledgeNoteFrontmatter(input: Partial<Record<string, any>>): Record<string, any> {
+  knowledgeNoteFrontmatter(
+    input: Partial<Record<string, any>>,
+  ): Record<string, any> {
     return {
       type: "knowledge-note",
       contract: input.contract ?? "simple",
@@ -106,7 +122,16 @@ export const TemplateService = {
       source: input.source ?? null,
       visibility: input.visibility ?? "private",
       confidence: input.confidence ?? "medium",
-      mutable: ["title", "contact", "org", "topic", "source", "visibility", "confidence", "tags"],
+      mutable: [
+        "title",
+        "contact",
+        "org",
+        "topic",
+        "source",
+        "visibility",
+        "confidence",
+        "tags",
+      ],
       constrains: [
         "title_required: title != null",
         "visibility_enum: visibility in [private, team, domain]",
@@ -129,7 +154,17 @@ export const TemplateService = {
       effort: input.effort ?? "medium",
       next_action: input.next_action ?? null,
       owner: input.owner ?? null,
-      mutable: ["title", "stage", "impact", "effort", "next_action", "owner", "contact", "org", "tags"],
+      mutable: [
+        "title",
+        "stage",
+        "impact",
+        "effort",
+        "next_action",
+        "owner",
+        "contact",
+        "org",
+        "tags",
+      ],
       constrains: [
         "stage_enum: stage in [seed, shaping, planned, active, shipped, archived]",
       ],
@@ -137,7 +172,9 @@ export const TemplateService = {
     };
   },
 
-  observationFrontmatter(input: Partial<Record<string, any>>): Record<string, any> {
+  observationFrontmatter(
+    input: Partial<Record<string, any>>,
+  ): Record<string, any> {
     return {
       type: "observation",
       contract: input.contract ?? "simple",
@@ -149,7 +186,15 @@ export const TemplateService = {
       signal: input.signal ?? "relationship",
       confidence: input.confidence ?? "medium",
       evidence: input.evidence ?? null,
-      mutable: ["title", "signal", "confidence", "evidence", "contact", "org", "tags"],
+      mutable: [
+        "title",
+        "signal",
+        "confidence",
+        "evidence",
+        "contact",
+        "org",
+        "tags",
+      ],
       constrains: [
         "signal_enum: signal in [relationship, opportunity, risk, timing, access, pattern]",
       ],
@@ -171,7 +216,17 @@ export const TemplateService = {
       owner: input.owner ?? null,
       approval_required: input.approval_required ?? false,
       source: input.source ?? "manual",
-      mutable: ["title", "status", "priority", "due", "contact", "org", "owner", "approval_required", "tags"],
+      mutable: [
+        "title",
+        "status",
+        "priority",
+        "due",
+        "contact",
+        "org",
+        "owner",
+        "approval_required",
+        "tags",
+      ],
       constrains: [
         "status_enum: status in [todo, in_progress, blocked, done, cancelled]",
         "priority_enum: priority in [low, medium, high, urgent]",
@@ -194,15 +249,26 @@ export const TemplateService = {
       contact: input.contact ?? null,
       org: input.org ?? null,
       source_calendar: input.source_calendar ?? null,
-      mutable: ["title", "date", "start", "end", "channel", "attendees", "contact", "org", "source_calendar", "tags"],
-      constrains: [
-        "date_required: date != null",
+      mutable: [
+        "title",
+        "date",
+        "start",
+        "end",
+        "channel",
+        "attendees",
+        "contact",
+        "org",
+        "source_calendar",
+        "tags",
       ],
+      constrains: ["date_required: date != null"],
       tags: input.tags ?? ["event"],
     };
   },
 
-  ledgerEntryFrontmatter(input: Partial<Record<string, any>>): Record<string, any> {
+  ledgerEntryFrontmatter(
+    input: Partial<Record<string, any>>,
+  ): Record<string, any> {
     return {
       type: "ledger-entry",
       contract: input.contract ?? "simple",
@@ -217,7 +283,19 @@ export const TemplateService = {
       currency: input.currency ?? "USD",
       approval_required: input.approval_required ?? true,
       notes: input.notes ?? null,
-      mutable: ["title", "date", "contact", "org", "category", "direction", "amount", "currency", "approval_required", "notes", "tags"],
+      mutable: [
+        "title",
+        "date",
+        "contact",
+        "org",
+        "category",
+        "direction",
+        "amount",
+        "currency",
+        "approval_required",
+        "notes",
+        "tags",
+      ],
       constrains: [
         "direction_enum: direction in [in, out]",
         "amount_non_negative: amount >= 0",
@@ -226,7 +304,9 @@ export const TemplateService = {
     };
   },
 
-  pipelineDealFrontmatter(input: Partial<Record<string, any>>): Record<string, any> {
+  pipelineDealFrontmatter(
+    input: Partial<Record<string, any>>,
+  ): Record<string, any> {
     return {
       type: "pipeline-deal",
       contract: input.contract ?? "simple",
@@ -241,7 +321,18 @@ export const TemplateService = {
       probability: input.probability ?? 0.25,
       next_action: input.next_action ?? null,
       owner: input.owner ?? null,
-      mutable: ["title", "stage", "contact", "org", "value", "currency", "probability", "next_action", "owner", "tags"],
+      mutable: [
+        "title",
+        "stage",
+        "contact",
+        "org",
+        "value",
+        "currency",
+        "probability",
+        "next_action",
+        "owner",
+        "tags",
+      ],
       constrains: [
         "stage_enum: stage in [prospect, first-touch, discovery, proposal, closed-won, closed-lost]",
       ],

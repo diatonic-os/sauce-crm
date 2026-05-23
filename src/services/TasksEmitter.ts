@@ -5,7 +5,12 @@
 // same lines back. This module is the pure, round-trippable encoder/decoder
 // (no Obsidian deps). All regexes are linear / anchored (no ReDoS).
 
-export type TaskStatus = "todo" | "in_progress" | "blocked" | "done" | "cancelled";
+export type TaskStatus =
+  | "todo"
+  | "in_progress"
+  | "blocked"
+  | "done"
+  | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 export interface SauceTask {
@@ -20,18 +25,34 @@ export interface SauceTask {
 // Status ⇄ checkbox char. `[/]`=in progress, `[!]`=blocked, `[-]`=cancelled are
 // the de-facto Tasks-plugin / theme conventions.
 const STATUS_TO_CHAR: Record<TaskStatus, string> = {
-  todo: " ", in_progress: "/", blocked: "!", done: "x", cancelled: "-",
+  todo: " ",
+  in_progress: "/",
+  blocked: "!",
+  done: "x",
+  cancelled: "-",
 };
 const CHAR_TO_STATUS: Record<string, TaskStatus> = {
-  " ": "todo", "/": "in_progress", "!": "blocked", x: "done", X: "done", "-": "cancelled",
+  " ": "todo",
+  "/": "in_progress",
+  "!": "blocked",
+  x: "done",
+  X: "done",
+  "-": "cancelled",
 };
 
 // Priority ⇄ Tasks-plugin emoji.
 const PRIORITY_TO_EMOJI: Record<TaskPriority, string> = {
-  urgent: "🔺", high: "⏫", medium: "🔼", low: "🔽",
+  urgent: "🔺",
+  high: "⏫",
+  medium: "🔼",
+  low: "🔽",
 };
 const EMOJI_TO_PRIORITY: Record<string, TaskPriority> = {
-  "🔺": "urgent", "⏫": "high", "🔼": "medium", "🔽": "low", "⏬": "low",
+  "🔺": "urgent",
+  "⏫": "high",
+  "🔼": "medium",
+  "🔽": "low",
+  "⏬": "low",
 };
 
 const CHECKBOX_RE = /^(\s*)[-*]\s+\[(.)\]\s+(.*)$/;
@@ -44,7 +65,8 @@ const TAG_RE = /(?:^|\s)#([A-Za-z0-9][\w/-]*)/g;
 export function toCheckbox(t: SauceTask, indent = ""): string {
   const parts = [t.title.trim()];
   if (t.contact) parts.push(`[[${t.contact}]]`);
-  if (t.priority && PRIORITY_TO_EMOJI[t.priority]) parts.push(PRIORITY_TO_EMOJI[t.priority]);
+  if (t.priority && PRIORITY_TO_EMOJI[t.priority])
+    parts.push(PRIORITY_TO_EMOJI[t.priority]);
   if (t.due) parts.push(`📅 ${t.due}`);
   for (const tag of t.tags ?? []) parts.push(`#${tag.replace(/^#/, "")}`);
   return `${indent}- [${STATUS_TO_CHAR[t.status]}] ${parts.join(" ")}`;
@@ -89,7 +111,9 @@ export function setLineStatus(line: string, status: TaskStatus): string {
 }
 
 /** Parse every task line in a block of markdown (with 1-based line numbers). */
-export function parseTasksFromText(text: string): { task: SauceTask; line: number }[] {
+export function parseTasksFromText(
+  text: string,
+): { task: SauceTask; line: number }[] {
   const out: { task: SauceTask; line: number }[] = [];
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {

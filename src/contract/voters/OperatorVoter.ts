@@ -118,16 +118,21 @@ export class OperatorVoter implements VoterAgent {
     const start = Date.now();
     return await new Promise<VoterDecision>((resolve) => {
       let settled = false;
-      const modal = new OperatorVoteModal(this.app, proposal, ctx, (vote, rationale) => {
-        if (settled) return;
-        settled = true;
-        resolve({
-          voter: this.voter,
-          vote,
-          rationale,
-          latencyMs: Date.now() - start,
-        });
-      });
+      const modal = new OperatorVoteModal(
+        this.app,
+        proposal,
+        ctx,
+        (vote, rationale) => {
+          if (settled) return;
+          settled = true;
+          resolve({
+            voter: this.voter,
+            vote,
+            rationale,
+            latencyMs: Date.now() - start,
+          });
+        },
+      );
       let timer: ReturnType<typeof setTimeout> | null = null;
       if (this.inactivityMs && this.inactivityMs > 0) {
         timer = setTimeout(() => {

@@ -9,14 +9,18 @@
 import { Modal, Notice, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import {
-  IntegrationCredentials, PROVIDER_MANIFESTS, type CredentialProviderId,
+  IntegrationCredentials,
+  PROVIDER_MANIFESTS,
+  type CredentialProviderId,
 } from "../../../integrations/IntegrationCredentials";
 
 export class IntegrationCredentialsModal extends Modal {
   constructor(
     private readonly plugin: SauceGraphPlugin,
     private readonly providerId: CredentialProviderId,
-  ) { super(plugin.app); }
+  ) {
+    super(plugin.app);
+  }
 
   onOpen(): void {
     const m = PROVIDER_MANIFESTS[this.providerId];
@@ -43,31 +47,50 @@ export class IntegrationCredentialsModal extends Modal {
   private renderVaultMissing(root: HTMLElement): void {
     const card = root.createDiv({ cls: "sg-empty-state" });
     card.createEl("h4", { text: "Vault unavailable" });
-    card.createEl("p", { text: "KeyVault did not initialize. Check the V2 backend status in settings; credentials can only be stored encrypted." });
+    card.createEl("p", {
+      text: "KeyVault did not initialize. Check the V2 backend status in settings; credentials can only be stored encrypted.",
+    });
   }
 
-  private renderVaultLocked(root: HTMLElement, creds: IntegrationCredentials): void {
+  private renderVaultLocked(
+    root: HTMLElement,
+    creds: IntegrationCredentials,
+  ): void {
     const card = root.createDiv({ cls: "sg-creds-unlock" });
     card.createEl("h4", { text: "Unlock the credential vault" });
-    card.createEl("p", { text: "Sauce CRM stores API keys and OAuth refresh tokens encrypted with AES-256-GCM. Enter the master password you set on first unlock." });
+    card.createEl("p", {
+      text: "Sauce CRM stores API keys and OAuth refresh tokens encrypted with AES-256-GCM. Enter the master password you set on first unlock.",
+    });
     let pw = "";
     new Setting(card).setName("Master password").addText((t) => {
       t.inputEl.type = "password";
-      t.onChange((v) => { pw = v; });
+      t.onChange((v) => {
+        pw = v;
+      });
     });
-    new Setting(card).addButton((b) => b.setButtonText("Unlock").setCta().onClick(async () => {
-      try {
-        await this.plugin.keyVault!.unlock(pw);
-        await creds.hydrateOAuthConfigs();
-        new Notice("Vault unlocked");
-        this.onOpen(); // re-render with vault open
-      } catch (e: unknown) {
-        new Notice(`Unlock failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }));
+    new Setting(card).addButton((b) =>
+      b
+        .setButtonText("Unlock")
+        .setCta()
+        .onClick(async () => {
+          try {
+            await this.plugin.keyVault!.unlock(pw);
+            await creds.hydrateOAuthConfigs();
+            new Notice("Vault unlocked");
+            this.onOpen(); // re-render with vault open
+          } catch (e: unknown) {
+            new Notice(
+              `Unlock failed: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+        }),
+    );
   }
 
-  private async renderOAuth(root: HTMLElement, creds: IntegrationCredentials): Promise<void> {
+  private async renderOAuth(
+    root: HTMLElement,
+    creds: IntegrationCredentials,
+  ): Promise<void> {
     const m = PROVIDER_MANIFESTS[this.providerId];
     root.createEl("p", {
       cls: "setting-item-description",
@@ -75,42 +98,72 @@ export class IntegrationCredentialsModal extends Modal {
     });
 
     const existingId = (await creds.getKey(this.providerId, "client_id")) ?? "";
-    const existingSecret = (await creds.getKey(this.providerId, "client_secret")) ?? "";
+    const existingSecret =
+      (await creds.getKey(this.providerId, "client_secret")) ?? "";
     let cid = existingId;
     let csec = existingSecret;
 
-    new Setting(root).setName("Client ID").addText((t) => t
-      .setPlaceholder("xxx.apps.googleusercontent.com / appid-uuid")
-      .setValue(cid).onChange((v) => { cid = v; }));
+    new Setting(root).setName("Client ID").addText((t) =>
+      t
+        .setPlaceholder("xxx.apps.googleusercontent.com / appid-uuid")
+        .setValue(cid)
+        .onChange((v) => {
+          cid = v;
+        }),
+    );
 
-    new Setting(root).setName("Client Secret (optional for public clients)").addText((t) => {
-      t.inputEl.type = "password";
-      t.setPlaceholder("leave blank if your OAuth app is a public client (PKCE-only)")
-        .setValue(csec).onChange((v) => { csec = v; });
-    });
+    new Setting(root)
+      .setName("Client Secret (optional for public clients)")
+      .addText((t) => {
+        t.inputEl.type = "password";
+        t.setPlaceholder(
+          "leave blank if your OAuth app is a public client (PKCE-only)",
+        )
+          .setValue(csec)
+          .onChange((v) => {
+            csec = v;
+          });
+      });
 
     if (!creds.oauthAvailable()) {
-      root.createEl("p", { cls: "sg-error", text: "OAuth flow requires desktop Obsidian (Node http + Electron shell). This build appears to be mobile or sandboxed." });
+      root.createEl("p", {
+        cls: "sg-error",
+        text: "OAuth flow requires desktop Obsidian (Node http + Electron shell). This build appears to be mobile or sandboxed.",
+      });
     }
 
     const ts = creds.oauth.current(this.providerId);
     const statusRow = root.createDiv({ cls: "sg-creds-status" });
     if (ts) {
       const ttl = Math.max(0, Math.floor((ts.expiresAt - Date.now()) / 60_000));
-      statusRow.createEl("span", { text: `Connected · ${ts.scopes.length} scope${ts.scopes.length === 1 ? "" : "s"} · expires in ${ttl}m` });
+      statusRow.createEl("span", {
+        text: `Connected · ${ts.scopes.length} scope${ts.scopes.length === 1 ? "" : "s"} · expires in ${ttl}m`,
+      });
     } else {
       statusRow.createEl("span", { text: "Not connected." });
     }
 
     const btns = root.createDiv({ cls: "sg-creds-buttons" });
-    btns.createEl("button", { cls: "sauce-button", text: "Save client config" }).onclick = async () => {
-      if (!cid) { new Notice("Client ID is required"); return; }
+    btns.createEl("button", {
+      cls: "sauce-button",
+      text: "Save client config",
+    }).onclick = async () => {
+      if (!cid) {
+        new Notice("Client ID is required");
+        return;
+      }
       await creds.configureOAuth(this.providerId, cid, csec || undefined);
       new Notice("Saved to vault");
     };
-    const connectBtn = btns.createEl("button", { cls: "sauce-button mod-cta", text: ts ? "Reconnect" : "Connect" });
+    const connectBtn = btns.createEl("button", {
+      cls: "sauce-button mod-cta",
+      text: ts ? "Reconnect" : "Connect",
+    });
     connectBtn.onclick = async () => {
-      if (!cid) { new Notice("Save client config first"); return; }
+      if (!cid) {
+        new Notice("Save client config first");
+        return;
+      }
       // Make sure latest config is registered before authorize()
       await creds.configureOAuth(this.providerId, cid, csec || undefined);
       try {
@@ -120,13 +173,18 @@ export class IntegrationCredentialsModal extends Modal {
         new Notice(`${m.label} connected`);
         this.onOpen(); // refresh status
       } catch (e: unknown) {
-        new Notice(`Connect failed: ${e instanceof Error ? e.message : String(e)}`);
+        new Notice(
+          `Connect failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
         connectBtn.removeAttribute("disabled");
         connectBtn.setText(ts ? "Reconnect" : "Connect");
       }
     };
     if (ts) {
-      btns.createEl("button", { cls: "sauce-button", text: "Disconnect" }).onclick = async () => {
+      btns.createEl("button", {
+        cls: "sauce-button",
+        text: "Disconnect",
+      }).onclick = async () => {
         await creds.disconnectOAuth(this.providerId);
         new Notice(`${m.label} disconnected`);
         this.onOpen();
@@ -134,10 +192,16 @@ export class IntegrationCredentialsModal extends Modal {
     }
   }
 
-  private async renderKeyFields(root: HTMLElement, creds: IntegrationCredentials): Promise<void> {
+  private async renderKeyFields(
+    root: HTMLElement,
+    creds: IntegrationCredentials,
+  ): Promise<void> {
     const m = PROVIDER_MANIFESTS[this.providerId];
     if (!m.keyFields) return;
-    root.createEl("p", { cls: "setting-item-description", text: `Paste your ${m.label} credentials. Values are stored encrypted in the local KeyVault — never sent anywhere.` });
+    root.createEl("p", {
+      cls: "setting-item-description",
+      text: `Paste your ${m.label} credentials. Values are stored encrypted in the local KeyVault — never sent anywhere.`,
+    });
 
     const values: Record<string, string> = {};
     for (const f of m.keyFields) {
@@ -145,27 +209,36 @@ export class IntegrationCredentialsModal extends Modal {
       values[f.id] = cur;
       new Setting(root).setName(f.label).addText((t) => {
         if (f.secret) t.inputEl.type = "password";
-        t.setValue(cur).onChange((v) => { values[f.id] = v; });
+        t.setValue(cur).onChange((v) => {
+          values[f.id] = v;
+        });
       });
     }
 
     const btns = root.createDiv({ cls: "sg-creds-buttons" });
-    btns.createEl("button", { cls: "sauce-button mod-cta", text: "Save to vault" }).onclick = async () => {
+    btns.createEl("button", {
+      cls: "sauce-button mod-cta",
+      text: "Save to vault",
+    }).onclick = async () => {
       for (const f of m.keyFields!) {
-        if (values[f.id]) await creds.putKey(this.providerId, f.id, values[f.id]);
+        if (values[f.id])
+          await creds.putKey(this.providerId, f.id, values[f.id]);
       }
       new Notice(`${m.label} credentials saved`);
       this.close();
     };
-    btns.createEl("button", { cls: "sauce-button", text: "Clear" }).onclick = async () => {
-      for (const f of m.keyFields!) {
-        // empty string write so KeyVault.get returns "" rather than missing-key throw
-        await creds.putKey(this.providerId, f.id, "");
-      }
-      new Notice("Cleared");
-      this.onOpen();
-    };
+    btns.createEl("button", { cls: "sauce-button", text: "Clear" }).onclick =
+      async () => {
+        for (const f of m.keyFields!) {
+          // empty string write so KeyVault.get returns "" rather than missing-key throw
+          await creds.putKey(this.providerId, f.id, "");
+        }
+        new Notice("Cleared");
+        this.onOpen();
+      };
   }
 
-  onClose(): void { this.contentEl.empty(); }
+  onClose(): void {
+    this.contentEl.empty();
+  }
 }

@@ -5,9 +5,13 @@ import type {
   LMStudioLlmHandle,
   LMStudioRespondOpts,
   LMStudioStats,
-} from './LMStudioClientFactory';
+} from "./LMStudioClientFactory";
 
-export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string; images?: Array<{ base64: string; mimeType?: string }>; }
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+  images?: Array<{ base64: string; mimeType?: string }>;
+}
 
 export interface ChatRequest {
   modelId: string;
@@ -16,16 +20,16 @@ export interface ChatRequest {
   maxTokens?: number;
   topK?: number;
   topP?: number;
-  draftModelId?: string;          // speculative decoding
-  structuredSchema?: unknown;     // JSON-schema-like for structured response
-  signal?: AbortSignal;           // cancellation
+  draftModelId?: string; // speculative decoding
+  structuredSchema?: unknown; // JSON-schema-like for structured response
+  signal?: AbortSignal; // cancellation
 }
 
 export interface ChatStreamEvent {
-  type: 'first-token' | 'text' | 'done';
+  type: "first-token" | "text" | "done";
   delta?: string;
   stats?: LMStudioStats;
-  reason?: 'end' | 'aborted' | 'failed';
+  reason?: "end" | "aborted" | "failed";
   error?: string;
 }
 
@@ -52,7 +56,7 @@ export class LMStudioChatService {
     };
     const res = await model.respond(chat, opts);
     return {
-      content: res.content ?? '',
+      content: res.content ?? "",
       reasoning: res.reasoningContent,
       stats: res.stats ?? {},
     };
@@ -66,7 +70,9 @@ export class LMStudioChatService {
 
     const collect = (frag: { content?: string }) => {
       if (!frag.content) return;
-      if (!firstSeen) { firstSeen = true; }
+      if (!firstSeen) {
+        firstSeen = true;
+      }
       fragments.push(frag.content);
     };
 
@@ -77,7 +83,9 @@ export class LMStudioChatService {
       draftModel: req.draftModelId,
       structured: req.structuredSchema,
       onPredictionFragment: collect,
-      onFirstToken: () => { firstSeen = true; },
+      onFirstToken: () => {
+        firstSeen = true;
+      },
     };
 
     try {
@@ -88,25 +96,42 @@ export class LMStudioChatService {
       let done = false;
       let result: { content: string; stats?: LMStudioStats } | null = null;
       let err: unknown = null;
-      promise.then((r) => { result = r as { content: string; stats?: LMStudioStats }; done = true; }).catch((e) => { err = e; done = true; });
-      if (firstSeen) yield { type: 'first-token' };
+      promise
+        .then((r) => {
+          result = r as { content: string; stats?: LMStudioStats };
+          done = true;
+        })
+        .catch((e) => {
+          err = e;
+          done = true;
+        });
+      if (firstSeen) yield { type: "first-token" };
       while (!done) {
         await new Promise((r) => setTimeout(r, 5));
-        if (firstSeen && consumed === 0) yield { type: 'first-token' };
+        if (firstSeen && consumed === 0) yield { type: "first-token" };
         while (consumed < fragments.length) {
-          yield { type: 'text', delta: fragments[consumed++] };
+          yield { type: "text", delta: fragments[consumed++] };
         }
       }
-      while (consumed < fragments.length) yield { type: 'text', delta: fragments[consumed++] };
+      while (consumed < fragments.length)
+        yield { type: "text", delta: fragments[consumed++] };
       if (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        yield { type: 'done', reason: req.signal?.aborted ? 'aborted' : 'failed', error: msg };
+        yield {
+          type: "done",
+          reason: req.signal?.aborted ? "aborted" : "failed",
+          error: msg,
+        };
         return;
       }
       const finalStats = (result as { stats?: LMStudioStats } | null)?.stats;
-      yield { type: 'done', reason: 'end', stats: finalStats };
+      yield { type: "done", reason: "end", stats: finalStats };
     } catch (e) {
-      yield { type: 'done', reason: req.signal?.aborted ? 'aborted' : 'failed', error: e instanceof Error ? e.message : String(e) };
+      yield {
+        type: "done",
+        reason: req.signal?.aborted ? "aborted" : "failed",
+        error: e instanceof Error ? e.message : String(e),
+      };
     }
   }
 
@@ -124,8 +149,12 @@ export class LMStudioChatService {
       return {
         role: m.role,
         content: [
-          { type: 'text', text: m.content },
-          ...m.images.map((img) => ({ type: 'image', image: img.base64, mimeType: img.mimeType ?? 'image/png' })),
+          { type: "text", text: m.content },
+          ...m.images.map((img) => ({
+            type: "image",
+            image: img.base64,
+            mimeType: img.mimeType ?? "image/png",
+          })),
         ],
       };
     });

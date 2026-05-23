@@ -8,34 +8,49 @@
 import { requestUrl } from "obsidian";
 import type { OAuthHost } from "./OAuthFlow";
 
-interface ElectronShell { openExternal(url: string): Promise<void> | void; }
+interface ElectronShell {
+  openExternal(url: string): Promise<void> | void;
+}
 interface NodeHttpServer {
   listen(port: number, host: string, cb?: () => void): unknown;
   close(cb?: () => void): unknown;
   on(event: "error", cb: (err: Error) => void): unknown;
 }
-interface NodeHttpRequest { url?: string; }
-interface NodeHttpResponse { writeHead(s: number, h?: Record<string, string>): void; end(b?: string): void; }
+interface NodeHttpRequest {
+  url?: string;
+}
+interface NodeHttpResponse {
+  writeHead(s: number, h?: Record<string, string>): void;
+  end(b?: string): void;
+}
 interface NodeHttp {
-  createServer(handler: (req: NodeHttpRequest, res: NodeHttpResponse) => void): NodeHttpServer;
+  createServer(
+    handler: (req: NodeHttpRequest, res: NodeHttpResponse) => void,
+  ): NodeHttpServer;
 }
 
 function resolveElectronShell(): ElectronShell | null {
   // Obsidian desktop exposes `require` — but only on desktop. Mobile throws.
   try {
-    const req = (window as unknown as { require?: (m: string) => unknown }).require;
+    const req = (window as unknown as { require?: (m: string) => unknown })
+      .require;
     if (!req) return null;
     const electron = req("electron") as { shell?: ElectronShell };
     return electron.shell ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function resolveNodeHttp(): NodeHttp | null {
   try {
-    const req = (window as unknown as { require?: (m: string) => unknown }).require;
+    const req = (window as unknown as { require?: (m: string) => unknown })
+      .require;
     if (!req) return null;
     return req("http") as NodeHttp;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export class ObsidianOAuthHost implements OAuthHost {
@@ -43,15 +58,23 @@ export class ObsidianOAuthHost implements OAuthHost {
   private readonly http = resolveNodeHttp();
 
   /** True iff this host can run a real OAuth flow (desktop Obsidian). */
-  available(): boolean { return !!this.shell && !!this.http; }
+  available(): boolean {
+    return !!this.shell && !!this.http;
+  }
 
   async openBrowser(url: string): Promise<void> {
-    if (!this.shell) throw new Error("OAuth requires desktop Obsidian (Electron shell unavailable)");
+    if (!this.shell)
+      throw new Error(
+        "OAuth requires desktop Obsidian (Electron shell unavailable)",
+      );
     await this.shell.openExternal(url);
   }
 
   async listenOnce(port: number, path: string): Promise<URL> {
-    if (!this.http) throw new Error("OAuth requires desktop Obsidian (node:http unavailable)");
+    if (!this.http)
+      throw new Error(
+        "OAuth requires desktop Obsidian (node:http unavailable)",
+      );
     return new Promise<URL>((resolve, reject) => {
       const server = this.http!.createServer((req, res) => {
         try {
@@ -69,18 +92,35 @@ export class ObsidianOAuthHost implements OAuthHost {
           server.close();
           resolve(url);
         } catch (e) {
-          try { res.writeHead(500); res.end("internal"); } catch { /* ignore */ }
+          try {
+            res.writeHead(500);
+            res.end("internal");
+          } catch {
+            /* ignore */
+          }
           reject(e);
         }
       });
       server.on("error", (err) => reject(err));
-      server.listen(port, "127.0.0.1", () => { /* listening */ });
+      server.listen(port, "127.0.0.1", () => {
+        /* listening */
+      });
       // 5-minute hard timeout
-      setTimeout(() => { try { server.close(); } catch { /* ignore */ } reject(new Error("OAuth timeout (5 min)")); }, 5 * 60_000);
+      setTimeout(() => {
+        try {
+          server.close();
+        } catch {
+          /* ignore */
+        }
+        reject(new Error("OAuth timeout (5 min)"));
+      }, 5 * 60_000);
     });
   }
 
-  async fetchJson<T>(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<T> {
+  async fetchJson<T>(
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ): Promise<T> {
     const r = await requestUrl({
       url,
       method: init?.method ?? "GET",
@@ -88,7 +128,10 @@ export class ObsidianOAuthHost implements OAuthHost {
       body: init?.body,
       throw: false,
     });
-    if (r.status >= 400) throw new Error(`OAuth ${url} failed: ${r.status} ${r.text.slice(0, 200)}`);
+    if (r.status >= 400)
+      throw new Error(
+        `OAuth ${url} failed: ${r.status} ${r.text.slice(0, 200)}`,
+      );
     return JSON.parse(r.text) as T;
   }
 }

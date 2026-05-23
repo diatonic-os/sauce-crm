@@ -14,12 +14,18 @@ export class WikilinkSuggest extends FuzzySuggestModal<TFile> {
   getItems(): TFile[] {
     const out: TFile[] = [];
     for (const f of this.app.vault.getMarkdownFiles()) {
-      if (this.scopeFolders.length === 0 || this.scopeFolders.some((s) => f.path.startsWith(s))) out.push(f);
+      if (
+        this.scopeFolders.length === 0 ||
+        this.scopeFolders.some((s) => f.path.startsWith(s))
+      )
+        out.push(f);
     }
     return out;
   }
 
-  getItemText(item: TFile): string { return item.basename; }
+  getItemText(item: TFile): string {
+    return item.basename;
+  }
 
   onChooseItem(item: TFile): void {
     this.onChoose(item, item.basename);

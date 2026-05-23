@@ -45,7 +45,9 @@ export class LanceAuditStore implements IAuditStore {
   }
 
   async allAsc(): Promise<StoredAuditRow[]> {
-    const rows = (await this.table.query().toArray()) as unknown as AuditRowStored[];
+    const rows = (await this.table
+      .query()
+      .toArray()) as unknown as AuditRowStored[];
     return rows.map(fromStored).sort((a, b) => a.ts - b.ts);
   }
 

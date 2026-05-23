@@ -10,7 +10,9 @@
  * complete event. Lines starting with `event:` are emitted as { event, data }
  * so providers that care (Anthropic) can branch on them. Stops on `data: [DONE]`.
  */
-export async function* parseSse(chunks: AsyncIterable<string>): AsyncIterable<{ event?: string; data: string }> {
+export async function* parseSse(
+  chunks: AsyncIterable<string>,
+): AsyncIterable<{ event?: string; data: string }> {
   let buffer = "";
   let currentEvent: string | undefined;
   let currentData: string[] = [];
@@ -54,7 +56,9 @@ export async function* parseSse(chunks: AsyncIterable<string>): AsyncIterable<{ 
  * Ollama's /api/chat streaming endpoint. Yields the raw line strings; the
  * provider is responsible for JSON.parse so it can shape per-payload typing.
  */
-export async function* parseNdjson(chunks: AsyncIterable<string>): AsyncIterable<string> {
+export async function* parseNdjson(
+  chunks: AsyncIterable<string>,
+): AsyncIterable<string> {
   let buffer = "";
   for await (const chunk of chunks) {
     buffer += chunk;

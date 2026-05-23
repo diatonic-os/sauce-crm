@@ -12,7 +12,17 @@ export interface ParsedSignature {
   social: { linkedin?: string; twitter?: string; github?: string };
 }
 
-const SIG_DELIMITERS = ["-- ", "--", "___", "===", "Sent from my", "Best,", "Regards,", "Cheers,", "Thanks,"];
+const SIG_DELIMITERS = [
+  "-- ",
+  "--",
+  "___",
+  "===",
+  "Sent from my",
+  "Best,",
+  "Regards,",
+  "Cheers,",
+  "Thanks,",
+];
 
 export function extractSignatureBlock(body: string): string {
   if (!body) return "";
@@ -21,14 +31,20 @@ export function extractSignatureBlock(body: string): string {
   let cut = -1;
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim();
-    if (SIG_DELIMITERS.some((d) => t === d || t.startsWith(d))) { cut = i; break; }
+    if (SIG_DELIMITERS.some((d) => t === d || t.startsWith(d))) {
+      cut = i;
+      break;
+    }
   }
   if (cut === -1) {
     // Fallback: last 8 non-empty lines
     const nonEmpty = lines.filter((l) => l.trim());
     return nonEmpty.slice(-8).join("\n");
   }
-  return lines.slice(cut + 1).join("\n").trim();
+  return lines
+    .slice(cut + 1)
+    .join("\n")
+    .trim();
 }
 
 const EMAIL_CHARS = /[a-zA-Z0-9._%+-]/;
@@ -66,17 +82,23 @@ function extractPhones(text: string): string[] {
 function extractUrls(text: string): string[] {
   const out: string[] = [];
   for (const word of text.split(/\s+/)) {
-    if (word.startsWith("http://") || word.startsWith("https://")) out.push(word);
+    if (word.startsWith("http://") || word.startsWith("https://"))
+      out.push(word);
     else if (word.startsWith("www.")) out.push("https://" + word);
   }
   return [...new Set(out)];
 }
 
-function classifySocial(urls: string[]): { linkedin?: string; twitter?: string; github?: string } {
+function classifySocial(urls: string[]): {
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+} {
   const out: { linkedin?: string; twitter?: string; github?: string } = {};
   for (const u of urls) {
     if (!out.linkedin && /linkedin\.com\//i.test(u)) out.linkedin = u;
-    else if (!out.twitter && /(twitter\.com|x\.com)\//i.test(u)) out.twitter = u;
+    else if (!out.twitter && /(twitter\.com|x\.com)\//i.test(u))
+      out.twitter = u;
     else if (!out.github && /github\.com\//i.test(u)) out.github = u;
   }
   return out;
@@ -84,7 +106,10 @@ function classifySocial(urls: string[]): { linkedin?: string; twitter?: string; 
 
 export function parseSignature(body: string): ParsedSignature {
   const raw = extractSignatureBlock(body);
-  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   const emails = extractEmails(raw);
   const phones = extractPhones(raw);
   const urls = extractUrls(raw);
@@ -99,9 +124,18 @@ export function parseSignature(body: string): ParsedSignature {
     if (emails.some((e) => l.includes(e))) continue;
     if (urls.some((u) => l.includes(u))) continue;
     if (phones.some((p) => l.includes(p))) continue;
-    if (!name) { name = l; continue; }
-    if (!title) { title = l; continue; }
-    if (!company) { company = l; continue; }
+    if (!name) {
+      name = l;
+      continue;
+    }
+    if (!title) {
+      title = l;
+      continue;
+    }
+    if (!company) {
+      company = l;
+      continue;
+    }
   }
   return { raw, name, title, company, email: emails[0], phones, urls, social };
 }

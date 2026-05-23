@@ -25,7 +25,13 @@ export type ExtractorRegistry = Partial<Record<DocFormat, DocExtractor>>;
 export type HarvestEmbedFn = (text: string) => Promise<number[] | null>;
 
 export interface HarvestProvenance {
-  record(op: string, subject: string, kind: string, content: string, opts?: { parentFp?: string; meta?: Record<string, unknown> | null }): Promise<{ fp: string }>;
+  record(
+    op: string,
+    subject: string,
+    kind: string,
+    content: string,
+    opts?: { parentFp?: string; meta?: Record<string, unknown> | null },
+  ): Promise<{ fp: string }>;
 }
 
 export interface HarvestInput {
@@ -52,12 +58,17 @@ export interface HarvestOptions {
 
 /** Lazily resolve an optional native parser; throws a clear error if absent. */
 function lazyRequire<T = unknown>(mod: string): T {
-  const req = (globalThis as unknown as { require?: NodeRequire }).require ?? (typeof require !== "undefined" ? require : undefined);
-  if (typeof req !== "function") throw new Error(`require() unavailable — cannot load ${mod}`);
+  const req =
+    (globalThis as unknown as { require?: NodeRequire }).require ??
+    (typeof require !== "undefined" ? require : undefined);
+  if (typeof req !== "function")
+    throw new Error(`require() unavailable — cannot load ${mod}`);
   try {
     return req(mod) as T;
   } catch {
-    throw new Error(`Parser "${mod}" is not installed. Run: npm install ${mod} --prefix <pluginDir>`);
+    throw new Error(
+      `Parser "${mod}" is not installed. Run: npm install ${mod} --prefix <pluginDir>`,
+    );
   }
 }
 
@@ -67,22 +78,30 @@ function decode(input: ExtractInput): string {
 }
 
 export function defaultExtractors(): ExtractorRegistry {
-  const plain: DocExtractor = { async extract(i) { return decode(i); } };
+  const plain: DocExtractor = {
+    async extract(i) {
+      return decode(i);
+    },
+  };
   return {
     txt: plain,
     md: plain,
     pdf: {
       async extract(i) {
         if (!i.bytes) return decode(i);
-        const pdfParse = lazyRequire<(b: Buffer) => Promise<{ text: string }>>("pdf-parse");
+        const pdfParse =
+          lazyRequire<(b: Buffer) => Promise<{ text: string }>>("pdf-parse");
         return (await pdfParse(Buffer.from(i.bytes))).text;
       },
     },
     docx: {
       async extract(i) {
         if (!i.bytes) return decode(i);
-        const mammoth = lazyRequire<{ extractRawText(o: { buffer: Buffer }): Promise<{ value: string }> }>("mammoth");
-        return (await mammoth.extractRawText({ buffer: Buffer.from(i.bytes) })).value;
+        const mammoth = lazyRequire<{
+          extractRawText(o: { buffer: Buffer }): Promise<{ value: string }>;
+        }>("mammoth");
+        return (await mammoth.extractRawText({ buffer: Buffer.from(i.bytes) }))
+          .value;
       },
     },
   };
@@ -136,12 +155,24 @@ export class DocumentHarvestService {
 
   async harvest(input: HarvestInput): Promise<HarvestResult> {
     const extractor = this.extractors[input.format];
-    if (!extractor) throw new Error(`Unsupported document format: ${input.format}`);
+    if (!extractor)
+      throw new Error(`Unsupported document format: ${input.format}`);
 
-    const text = await extractor.extract({ bytes: input.bytes, text: input.text });
-    const docFp = (await this.provenance?.record("harvest", `doc:${input.id}`, "document", text, {
-      meta: { name: input.name, format: input.format },
-    }))?.fp;
+    const text = await extractor.extract({
+      bytes: input.bytes,
+      text: input.text,
+    });
+    const docFp = (
+      await this.provenance?.record(
+        "harvest",
+        `doc:${input.id}`,
+        "document",
+        text,
+        {
+          meta: { name: input.name, format: input.format },
+        },
+      )
+    )?.fp;
 
     const pieces = chunkText(text, this.chunkSize, this.overlap);
     const rows: DocChunkRow[] = [];
@@ -149,14 +180,29 @@ export class DocumentHarvestService {
     for (let ord = 0; ord < pieces.length; ord++) {
       const piece = pieces[ord];
       const vec = await this.embedFn(piece);
-      if (!vec || vec.length !== this.dim) { skipped += 1; continue; }
+      if (!vec || vec.length !== this.dim) {
+        skipped += 1;
+        continue;
+      }
       const chunkId = `${input.id}#${ord}`;
-      const chunkRec = await this.provenance?.record("embed", `chunk:${chunkId}`, "chunk", piece, {
-        parentFp: docFp, meta: { ord },
-      });
+      const chunkRec = await this.provenance?.record(
+        "embed",
+        `chunk:${chunkId}`,
+        "chunk",
+        piece,
+        {
+          parentFp: docFp,
+          meta: { ord },
+        },
+      );
       rows.push({
-        chunk_id: chunkId, doc_id: input.id, doc_name: input.name, ord,
-        text: piece, vector: vec, hash: chunkRec?.fp ?? djb2(piece),
+        chunk_id: chunkId,
+        doc_id: input.id,
+        doc_name: input.name,
+        ord,
+        text: piece,
+        vector: vec,
+        hash: chunkRec?.fp ?? djb2(piece),
       });
     }
 

@@ -10,7 +10,9 @@ export interface AdvancedToggleInput {
   onChange: (visible: boolean) => void;
 }
 
-export function renderAdvancedToggle(input: AdvancedToggleInput): HTMLDivElement {
+export function renderAdvancedToggle(
+  input: AdvancedToggleInput,
+): HTMLDivElement {
   const { parent, tabId, initialVisible, onChange } = input;
 
   const row = parent.createDiv({ cls: "sg-advanced-toggle" });

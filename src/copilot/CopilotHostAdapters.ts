@@ -16,7 +16,14 @@ import type { LanceVectorIndex } from "../backend/lance";
 export type EmbedFn = (text: string) => Promise<number[] | null>;
 
 export class ObsidianProviderHost implements ProviderHost {
-  async fetch(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+  async fetch(
+    url: string,
+    init: { method: string; headers: Record<string, string>; body?: string },
+  ): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    body: string;
+  }> {
     // Use Obsidian's requestUrl to bypass CORS in Electron renderer
     const r = await requestUrl({
       url,
@@ -26,7 +33,8 @@ export class ObsidianProviderHost implements ProviderHost {
       throw: false,
     });
     const headers: Record<string, string> = {};
-    for (const k of Object.keys(r.headers ?? {})) headers[k.toLowerCase()] = String((r.headers as any)[k]);
+    for (const k of Object.keys(r.headers ?? {}))
+      headers[k.toLowerCase()] = String((r.headers as any)[k]);
     return { status: r.status, headers, body: r.text };
   }
 
@@ -39,10 +47,23 @@ export class ObsidianProviderHost implements ProviderHost {
    * the streaming endpoints in modern Electron, so this works there too.
    * If a provider can't reach this path it should fall back to batch fetch.
    */
-  async fetchStream(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; headers: Record<string, string>; iter: AsyncIterable<string> }> {
-    const resp = await fetch(url, { method: init.method, headers: init.headers, body: init.body });
+  async fetchStream(
+    url: string,
+    init: { method: string; headers: Record<string, string>; body?: string },
+  ): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    iter: AsyncIterable<string>;
+  }> {
+    const resp = await fetch(url, {
+      method: init.method,
+      headers: init.headers,
+      body: init.body,
+    });
     const headers: Record<string, string> = {};
-    resp.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
+    resp.headers.forEach((v, k) => {
+      headers[k.toLowerCase()] = v;
+    });
     const body = resp.body;
     const decoder = new TextDecoder();
     async function* iter(): AsyncIterable<string> {
@@ -61,7 +82,11 @@ export class ObsidianProviderHost implements ProviderHost {
         const tail = decoder.decode();
         if (tail) yield tail;
       } finally {
-        try { reader.releaseLock(); } catch { /* ignore */ }
+        try {
+          reader.releaseLock();
+        } catch {
+          /* ignore */
+        }
       }
     }
     return { status: resp.status, headers, iter: iter() };
@@ -78,14 +103,24 @@ export class ObsidianRagHost implements RagAssemblerHost {
     private embedFn: EmbedFn | null = null,
   ) {}
 
-  async pinned(): Promise<string[]> { return this.pinnedPaths(); }
+  async pinned(): Promise<string[]> {
+    return this.pinnedPaths();
+  }
 
   async oneHop(path: string): Promise<string[]> {
     const f = this.app.vault.getAbstractFileByPath(normalizePath(path));
     if (!(f instanceof TFile)) return [];
     const fm = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
     const out = new Set<string>();
-    for (const edge of ["knows", "worked_with", "intro_candidates", "family_of", "intro_via", "parent", "company"]) {
+    for (const edge of [
+      "knows",
+      "worked_with",
+      "intro_candidates",
+      "family_of",
+      "intro_via",
+      "parent",
+      "company",
+    ]) {
       const v = (fm as any)[edge];
       const list = Array.isArray(v) ? v : v ? [v] : [];
       for (const link of list) {
@@ -97,7 +132,10 @@ export class ObsidianRagHost implements RagAssemblerHost {
     return [...out];
   }
 
-  async semantic(query: string, topK: number): Promise<{ path: string; score: number }[]> {
+  async semantic(
+    query: string,
+    topK: number,
+  ): Promise<{ path: string; score: number }[]> {
     // Prefer LanceDB vector search when an embedding model is reachable; the
     // mirror stores embeddings keyed by entity path (entity_id === path).
     // Any gap — no index, no embed model, dim mismatch, empty index — falls
@@ -110,7 +148,10 @@ export class ObsidianRagHost implements RagAssemblerHost {
             const hits = await this.vectorIndex.query(vec, topK);
             if (hits.length) {
               // Convert distance → similarity (monotonic, in (0,1]).
-              return hits.map((h) => ({ path: h.id, score: 1 / (1 + h.distance) }));
+              return hits.map((h) => ({
+                path: h.id,
+                score: 1 / (1 + h.distance),
+              }));
             }
           }
         }
@@ -122,7 +163,9 @@ export class ObsidianRagHost implements RagAssemblerHost {
     return fuzzy.map((h) => ({ path: h.file.path, score: h.score }));
   }
 
-  async recentTouches(days: number): Promise<{ id: string; date: string; contactId: string }[]> {
+  async recentTouches(
+    days: number,
+  ): Promise<{ id: string; date: string; contactId: string }[]> {
     const out: { id: string; date: string; contactId: string }[] = [];
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
@@ -130,29 +173,45 @@ export class ObsidianRagHost implements RagAssemblerHost {
     for (const t of this.entities.allTouches()) {
       const date = String((t.frontmatter as any).date ?? "");
       if (date && date >= cutoffIso) {
-        out.push({ id: t.file.path, date, contactId: String((t.frontmatter as any).contact ?? "") });
+        out.push({
+          id: t.file.path,
+          date,
+          contactId: String((t.frontmatter as any).contact ?? ""),
+        });
       }
     }
     return out.sort((a, b) => b.date.localeCompare(a.date));
   }
 
-  async addendaTail(path: string, n: number): Promise<{ id: string; date: string; body: string }[]> {
+  async addendaTail(
+    path: string,
+    n: number,
+  ): Promise<{ id: string; date: string; body: string }[]> {
     const basename = path.split("/").pop()?.replace(/\.md$/, "") ?? path;
     const tail: { id: string; date: string; body: string }[] = [];
     for (const a of this.entities.allAddenda()) {
-      const addends = String((a.frontmatter as any).addends ?? "").replace(/\[\[|\]\]/g, "").split("|")[0];
+      const addends = String((a.frontmatter as any).addends ?? "")
+        .replace(/\[\[|\]\]/g, "")
+        .split("|")[0];
       if (addends !== basename) continue;
       const body = ""; // body not loaded in V1 EntityService; left empty for v0
-      tail.push({ id: a.file.path, date: String((a.frontmatter as any).date ?? ""), body });
+      tail.push({
+        id: a.file.path,
+        date: String((a.frontmatter as any).date ?? ""),
+        body,
+      });
     }
     tail.sort((a, b) => b.date.localeCompare(a.date));
     return tail.slice(0, n);
   }
 
-  async readFile(path: string): Promise<{ frontmatter: Record<string, unknown>; body: string }> {
+  async readFile(
+    path: string,
+  ): Promise<{ frontmatter: Record<string, unknown>; body: string }> {
     const f = this.app.vault.getAbstractFileByPath(normalizePath(path));
     if (!(f instanceof TFile)) return { frontmatter: {}, body: "" };
-    const fm = (this.app.metadataCache.getFileCache(f)?.frontmatter ?? {}) as Record<string, unknown>;
+    const fm = (this.app.metadataCache.getFileCache(f)?.frontmatter ??
+      {}) as Record<string, unknown>;
     const body = await this.app.vault.cachedRead(f);
     return { frontmatter: fm, body };
   }
@@ -169,17 +228,33 @@ export class ObsidianConversationHost implements ConversationHost {
   async readJson<T>(path: string): Promise<T | null> {
     const f = this.app.vault.getAbstractFileByPath(normalizePath(path));
     if (!(f instanceof TFile)) return null;
-    try { return JSON.parse(await this.app.vault.cachedRead(f)) as T; }
-    catch { return null; }
+    try {
+      return JSON.parse(await this.app.vault.cachedRead(f)) as T;
+    } catch {
+      return null;
+    }
   }
 
-  async writeMarkdown(path: string, frontmatter: Record<string, unknown>, body: string): Promise<void> {
+  async writeMarkdown(
+    path: string,
+    frontmatter: Record<string, unknown>,
+    body: string,
+  ): Promise<void> {
     const np = normalizePath(path);
     const dir = np.substring(0, np.lastIndexOf("/"));
     if (dir && !this.app.vault.getAbstractFileByPath(dir)) {
-      await this.app.vault.createFolder(dir).catch(() => { /* exists */ });
+      await this.app.vault.createFolder(dir).catch(() => {
+        /* exists */
+      });
     }
-    const yaml = ["---", ...Object.entries(frontmatter).map(([k, v]) => `${k}: ${JSON.stringify(v)}`), "---", ""].join("\n");
+    const yaml = [
+      "---",
+      ...Object.entries(frontmatter).map(
+        ([k, v]) => `${k}: ${JSON.stringify(v)}`,
+      ),
+      "---",
+      "",
+    ].join("\n");
     const content = yaml + body;
     const ex = this.app.vault.getAbstractFileByPath(np);
     if (ex instanceof TFile) await this.app.vault.modify(ex, content);

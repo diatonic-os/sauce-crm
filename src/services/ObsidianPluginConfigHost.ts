@@ -12,7 +12,10 @@ import type { App } from "obsidian";
 import type { PluginConfigHost, PluginKind } from "./PluginConfigService";
 
 interface AppPluginsSurface {
-  plugins?: { manifests?: Record<string, unknown>; enabledPlugins?: Set<string> };
+  plugins?: {
+    manifests?: Record<string, unknown>;
+    enabledPlugins?: Set<string>;
+  };
   internalPlugins?: {
     plugins?: Record<string, { enabled?: boolean }>;
     config?: Record<string, boolean>;
@@ -21,9 +24,14 @@ interface AppPluginsSurface {
 }
 
 export class ObsidianPluginConfigHost implements PluginConfigHost {
-  constructor(private readonly app: App, private readonly backupDir = "_Plugin-Config/_backups") {}
+  constructor(
+    private readonly app: App,
+    private readonly backupDir = "_Plugin-Config/_backups",
+  ) {}
 
-  private get configDir(): string { return this.app.vault.configDir; }
+  private get configDir(): string {
+    return this.app.vault.configDir;
+  }
 
   private pathFor(id: string, kind: PluginKind): string {
     return kind === "community"
@@ -41,25 +49,52 @@ export class ObsidianPluginConfigHost implements PluginConfigHost {
     return !!ip?.plugins?.[id]?.enabled;
   }
 
-  async readConfig(id: string, kind: PluginKind): Promise<Record<string, unknown> | null> {
+  async readConfig(
+    id: string,
+    kind: PluginKind,
+  ): Promise<Record<string, unknown> | null> {
     const p = this.pathFor(id, kind);
     try {
       if (await this.app.vault.adapter.exists(p)) {
-        return JSON.parse(await this.app.vault.adapter.read(p)) as Record<string, unknown>;
+        return JSON.parse(await this.app.vault.adapter.read(p)) as Record<
+          string,
+          unknown
+        >;
       }
-    } catch { /* unreadable / malformed → treat as absent */ }
+    } catch {
+      /* unreadable / malformed → treat as absent */
+    }
     return null;
   }
 
-  async writeConfig(id: string, kind: PluginKind, data: Record<string, unknown>): Promise<void> {
-    await this.app.vault.adapter.write(this.pathFor(id, kind), JSON.stringify(data, null, 2));
+  async writeConfig(
+    id: string,
+    kind: PluginKind,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    await this.app.vault.adapter.write(
+      this.pathFor(id, kind),
+      JSON.stringify(data, null, 2),
+    );
   }
 
-  async backupConfig(id: string, kind: PluginKind, data: Record<string, unknown> | null): Promise<void> {
+  async backupConfig(
+    id: string,
+    kind: PluginKind,
+    data: Record<string, unknown> | null,
+  ): Promise<void> {
     if (data == null) return; // nothing to back up (plugin had no config yet)
     const dir = this.backupDir;
-    try { if (!(await this.app.vault.adapter.exists(dir))) await this.app.vault.adapter.mkdir(dir); } catch { /* */ }
+    try {
+      if (!(await this.app.vault.adapter.exists(dir)))
+        await this.app.vault.adapter.mkdir(dir);
+    } catch {
+      /* */
+    }
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    await this.app.vault.adapter.write(`${dir}/${id}.${kind}.${ts}.json`, JSON.stringify(data, null, 2));
+    await this.app.vault.adapter.write(
+      `${dir}/${id}.${kind}.${ts}.json`,
+      JSON.stringify(data, null, 2),
+    );
   }
 }

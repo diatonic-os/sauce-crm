@@ -58,7 +58,11 @@ export class LanceCheckpoints {
         byLabel.set(label, m);
       }
     }
-    return [...byLabel.entries()].map(([label, versions]) => ({ label, versions, createdTs: 0 }));
+    return [...byLabel.entries()].map(([label, versions]) => ({
+      label,
+      versions,
+      createdTs: 0,
+    }));
   }
 
   /** Rewind every tagged table to its `label` version and promote it to latest. */

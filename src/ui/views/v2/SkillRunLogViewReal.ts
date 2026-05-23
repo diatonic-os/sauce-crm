@@ -16,9 +16,15 @@ export class SkillRunRing {
       this.buf.splice(0, this.buf.length - this.capacity);
     }
   }
-  list(): ReadonlyArray<unknown> { return this.buf; }
-  clear(): void { this.buf.length = 0; }
-  get length(): number { return this.buf.length; }
+  list(): ReadonlyArray<unknown> {
+    return this.buf;
+  }
+  clear(): void {
+    this.buf.length = 0;
+  }
+  get length(): number {
+    return this.buf.length;
+  }
 }
 
 export const skillRunRing = new SkillRunRing();
@@ -27,19 +33,29 @@ export class SkillRunLogViewReal extends ItemView {
   constructor(leaf: WorkspaceLeaf, _plugin: Plugin) {
     super(leaf);
   }
-  getViewType(): string { return VIEW_SKILL_RUN_LOG_REAL; }
-  getDisplayText(): string { return "Sauce CRM — Skill Run Log"; }
-  getIcon(): string { return "skill"; }
+  getViewType(): string {
+    return VIEW_SKILL_RUN_LOG_REAL;
+  }
+  getDisplayText(): string {
+    return "Sauce CRM — Skill Run Log";
+  }
+  getIcon(): string {
+    return "skill";
+  }
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.createEl("h3", { text: "Sauce CRM Skill Run Log" });
     const list = this.contentEl.createEl("ul");
     for (const entry of skillRunRing.list()) {
-      list.createEl("li", { text: typeof entry === "string" ? entry : JSON.stringify(entry) });
+      list.createEl("li", {
+        text: typeof entry === "string" ? entry : JSON.stringify(entry),
+      });
     }
     if (skillRunRing.length === 0) {
       this.contentEl.createEl("p", { text: "(no skill runs recorded yet)" });
     }
   }
-  async onClose(): Promise<void> { /* nothing to clean up */ }
+  async onClose(): Promise<void> {
+    /* nothing to clean up */
+  }
 }

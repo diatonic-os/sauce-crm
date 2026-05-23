@@ -20,23 +20,40 @@ class SkillRunRing {
     this.rows.push(r);
     if (this.rows.length > this.max) this.rows.shift();
   }
-  all(): SkillRunRow[] { return this.rows.slice().reverse(); }
-  clear(): void { this.rows = []; }
+  all(): SkillRunRow[] {
+    return this.rows.slice().reverse();
+  }
+  clear(): void {
+    this.rows = [];
+  }
 }
 
 export const skillRunRing = SkillRunRing.instance;
 
 export class SkillRunLogView extends ItemView {
-  constructor(leaf: WorkspaceLeaf, public plugin: SauceGraphPlugin) { super(leaf); }
-  getViewType(): string { return VIEW_SKILL_RUN_LOG; }
-  getDisplayText(): string { return "Sauce: Skill Run Log"; }
-  getIcon(): string { return "play"; }
+  constructor(
+    leaf: WorkspaceLeaf,
+    public plugin: SauceGraphPlugin,
+  ) {
+    super(leaf);
+  }
+  getViewType(): string {
+    return VIEW_SKILL_RUN_LOG;
+  }
+  getDisplayText(): string {
+    return "Sauce: Skill Run Log";
+  }
+  getIcon(): string {
+    return "play";
+  }
 
   async onOpen(): Promise<void> {
     this.render();
   }
 
-  async onClose(): Promise<void> { /* no-op */ }
+  async onClose(): Promise<void> {
+    /* no-op */
+  }
 
   private render(): void {
     const root = this.contentEl;
@@ -46,10 +63,18 @@ export class SkillRunLogView extends ItemView {
     root.createEl("h2", { text: "Skill Run Log" });
 
     const toolbar = root.createDiv({ cls: "sauce-skill-run-toolbar" });
-    const refreshBtn = toolbar.createEl("button", { cls: "sauce-button", text: "Refresh" });
-    refreshBtn.onclick = () => { this.render(); };
+    const refreshBtn = toolbar.createEl("button", {
+      cls: "sauce-button",
+      text: "Refresh",
+    });
+    refreshBtn.onclick = () => {
+      this.render();
+    };
 
-    const clearBtn = toolbar.createEl("button", { cls: "sauce-button sauce-button-secondary", text: "Clear" });
+    const clearBtn = toolbar.createEl("button", {
+      cls: "sauce-button sauce-button-secondary",
+      text: "Clear",
+    });
     clearBtn.onclick = () => {
       try {
         skillRunRing.clear();

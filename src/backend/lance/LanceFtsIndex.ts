@@ -31,7 +31,9 @@ export class LanceFtsIndex implements MirrorFtsHook {
       const has = indices.some((i) => i.columns?.includes(FTS_COLUMN));
       if (!has) {
         const { loadLance } = await import("./LanceConnection");
-        await this.entities.createIndex(FTS_COLUMN, { config: loadLance().Index.fts() });
+        await this.entities.createIndex(FTS_COLUMN, {
+          config: loadLance().Index.fts(),
+        });
       }
       this.ensured = true;
     } catch {
@@ -43,13 +45,21 @@ export class LanceFtsIndex implements MirrorFtsHook {
   async index(_entityId: string, _title: string, _body: string): Promise<void> {
     this.ensured = false;
     await this.ensureIndex();
-    try { await this.entities.optimize(); } catch { /* best effort */ }
+    try {
+      await this.entities.optimize();
+    } catch {
+      /* best effort */
+    }
   }
 
   async remove(_entityId: string): Promise<void> {
     // Row deletion is handled by the mirror; the index reflects it after the
     // next optimize. Force a refresh.
-    try { await this.entities.optimize(); } catch { /* best effort */ }
+    try {
+      await this.entities.optimize();
+    } catch {
+      /* best effort */
+    }
   }
 
   async search(query: string, limit = 25): Promise<FtsHit[]> {

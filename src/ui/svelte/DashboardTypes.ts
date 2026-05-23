@@ -16,7 +16,7 @@ export interface TaskRow {
 export interface InboxRow {
   path: string;
   kind: "touch" | "followup";
-  date: string;        // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
   contact: string;
   label: string;
   /** Days from today; negative = overdue, 0 = today, positive = future. */

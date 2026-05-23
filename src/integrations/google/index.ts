@@ -1,18 +1,22 @@
-import type { ConnectionState, IIntegration, SyncResource } from '../IIntegration';
-import type { OAuthFlow } from '../../security/OAuthFlow';
-import type { ScopeRegistry } from '../../security/ScopeRegistry';
-import type { ProxyClient } from '../../security/ProxyClient';
-import type { FetchHost, TokenResolver } from './types';
-import { GCalendarClient } from './GCalendarClient';
-import { GMailClient } from './GMailClient';
-import { GContactsClient } from './GContactsClient';
-import { GDriveClient } from './GDriveClient';
+import type {
+  ConnectionState,
+  IIntegration,
+  SyncResource,
+} from "../IIntegration";
+import type { OAuthFlow } from "../../security/OAuthFlow";
+import type { ScopeRegistry } from "../../security/ScopeRegistry";
+import type { ProxyClient } from "../../security/ProxyClient";
+import type { FetchHost, TokenResolver } from "./types";
+import { GCalendarClient } from "./GCalendarClient";
+import { GMailClient } from "./GMailClient";
+import { GContactsClient } from "./GContactsClient";
+import { GDriveClient } from "./GDriveClient";
 
-export * from './types';
-export { GCalendarClient } from './GCalendarClient';
-export { GMailClient, headersMap, parseAddressHeader } from './GMailClient';
-export { GContactsClient } from './GContactsClient';
-export { GDriveClient } from './GDriveClient';
+export * from "./types";
+export { GCalendarClient } from "./GCalendarClient";
+export { GMailClient, headersMap, parseAddressHeader } from "./GMailClient";
+export { GContactsClient } from "./GContactsClient";
+export { GDriveClient } from "./GDriveClient";
 
 export interface GoogleWorkspaceIntegrationHost {
   readonly oauth?: OAuthFlow;
@@ -23,8 +27,8 @@ export interface GoogleWorkspaceIntegrationHost {
 }
 
 export class GoogleWorkspaceIntegration implements IIntegration {
-  readonly id = 'google_workspace';
-  readonly label = 'Google Workspace';
+  readonly id = "google_workspace";
+  readonly label = "Google Workspace";
   private resources: SyncResource[] = [];
   private connection: ConnectionState = { connected: false };
 
@@ -32,7 +36,7 @@ export class GoogleWorkspaceIntegration implements IIntegration {
 
   async connect(): Promise<ConnectionState> {
     if (this.host.oauth) {
-      const ts = await this.host.oauth.authorize('google_workspace', []);
+      const ts = await this.host.oauth.authorize("google_workspace", []);
       this.connection = { connected: true, expiresAt: ts.expiresAt };
     } else {
       this.connection = { connected: true };
@@ -41,14 +45,20 @@ export class GoogleWorkspaceIntegration implements IIntegration {
   }
 
   async disconnect(): Promise<void> {
-    if (this.host.oauth) await this.host.oauth.revoke('google_workspace');
+    if (this.host.oauth) await this.host.oauth.revoke("google_workspace");
     this.connection = { connected: false };
   }
 
-  async state(): Promise<ConnectionState> { return this.connection; }
-  async listResources(): Promise<SyncResource[]> { return this.resources; }
+  async state(): Promise<ConnectionState> {
+    return this.connection;
+  }
+  async listResources(): Promise<SyncResource[]> {
+    return this.resources;
+  }
 
-  setResources(rs: SyncResource[]): void { this.resources = rs; }
+  setResources(rs: SyncResource[]): void {
+    this.resources = rs;
+  }
 
   /** Lazily-constructed sub-clients; require host.fetch + host.token. */
   private _cal: GCalendarClient | null = null;
@@ -58,28 +68,48 @@ export class GoogleWorkspaceIntegration implements IIntegration {
 
   calendar(): GCalendarClient | null {
     if (!this.host.fetch || !this.host.token) return null;
-    if (!this._cal) this._cal = new GCalendarClient({ fetch: this.host.fetch, token: this.host.token });
+    if (!this._cal)
+      this._cal = new GCalendarClient({
+        fetch: this.host.fetch,
+        token: this.host.token,
+      });
     return this._cal;
   }
   gmail(): GMailClient | null {
     if (!this.host.fetch || !this.host.token) return null;
-    if (!this._mail) this._mail = new GMailClient({ fetch: this.host.fetch, token: this.host.token });
+    if (!this._mail)
+      this._mail = new GMailClient({
+        fetch: this.host.fetch,
+        token: this.host.token,
+      });
     return this._mail;
   }
   contacts(): GContactsClient | null {
     if (!this.host.fetch || !this.host.token) return null;
-    if (!this._contacts) this._contacts = new GContactsClient({ fetch: this.host.fetch, token: this.host.token });
+    if (!this._contacts)
+      this._contacts = new GContactsClient({
+        fetch: this.host.fetch,
+        token: this.host.token,
+      });
     return this._contacts;
   }
   drive(): GDriveClient | null {
     if (!this.host.fetch || !this.host.token) return null;
-    if (!this._drive) this._drive = new GDriveClient({ fetch: this.host.fetch, token: this.host.token });
+    if (!this._drive)
+      this._drive = new GDriveClient({
+        fetch: this.host.fetch,
+        token: this.host.token,
+      });
     return this._drive;
   }
 
-  async syncResource(id: string): Promise<{ pulled: number; pushed: number; errors: number }> {
-    if (!this.host.fetch || !this.host.token) return { pulled: 0, pushed: 0, errors: 0 };
-    let pulled = 0, errors = 0;
+  async syncResource(
+    id: string,
+  ): Promise<{ pulled: number; pushed: number; errors: number }> {
+    if (!this.host.fetch || !this.host.token)
+      return { pulled: 0, pushed: 0, errors: 0 };
+    let pulled = 0,
+      errors = 0;
     try {
       switch (id) {
         case "calendar": {
@@ -88,14 +118,21 @@ export class GoogleWorkspaceIntegration implements IIntegration {
           const now = new Date();
           const tMin = new Date(now.getTime() - 7 * 86400_000).toISOString();
           const tMax = new Date(now.getTime() + 7 * 86400_000).toISOString();
-          const r = await cal.listEvents("primary", { timeMin: tMin, timeMax: tMax, maxResults: 250 });
+          const r = await cal.listEvents("primary", {
+            timeMin: tMin,
+            timeMax: tMax,
+            maxResults: 250,
+          });
           pulled = r.events.length;
           break;
         }
         case "gmail": {
           this.host.scopes.require("google_workspace", "gmail.read");
           const m = this.gmail()!;
-          const r = await m.listMessages({ q: "newer_than:7d", maxResults: 100 });
+          const r = await m.listMessages({
+            q: "newer_than:7d",
+            maxResults: 100,
+          });
           pulled = r.messages.length;
           break;
         }
@@ -114,7 +151,9 @@ export class GoogleWorkspaceIntegration implements IIntegration {
           break;
         }
       }
-    } catch { errors++; }
+    } catch {
+      errors++;
+    }
     return { pulled, pushed: 0, errors };
   }
 }

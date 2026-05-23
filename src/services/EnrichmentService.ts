@@ -37,7 +37,10 @@ export interface EnrichmentStages {
 
 /** Vault frontmatter writer. `mutate` receives the live frontmatter object. */
 export interface EnrichmentHost {
-  applyFrontmatter(path: string, mutate: (fm: Record<string, unknown>) => void): Promise<void>;
+  applyFrontmatter(
+    path: string,
+    mutate: (fm: Record<string, unknown>) => void,
+  ): Promise<void>;
 }
 
 export interface EnrichmentToggles {
@@ -48,7 +51,13 @@ export interface EnrichmentToggles {
 }
 
 export interface EnrichmentTraceSink {
-  record(op: string, subject: string, kind: string, content: string, opts?: { meta?: Record<string, unknown> | null }): Promise<unknown>;
+  record(
+    op: string,
+    subject: string,
+    kind: string,
+    content: string,
+    opts?: { meta?: Record<string, unknown> | null },
+  ): Promise<unknown>;
 }
 
 export interface EnrichmentResult {
@@ -66,12 +75,18 @@ function asArray(v: unknown): string[] {
 }
 
 /** Returns [merged, addedItems] — additive union preserving order. */
-function mergeUnique(existing: unknown, incoming: string[]): [string[], string[]] {
+function mergeUnique(
+  existing: unknown,
+  incoming: string[],
+): [string[], string[]] {
   const cur = asArray(existing);
   const seen = new Set(cur);
   const added: string[] = [];
   for (const item of incoming) {
-    if (!seen.has(item)) { seen.add(item); added.push(item); }
+    if (!seen.has(item)) {
+      seen.add(item);
+      added.push(item);
+    }
   }
   return [[...cur, ...added], added];
 }
@@ -85,7 +100,8 @@ export function defaultHeuristicStages(): EnrichmentStages {
   return {
     async tag(input) {
       const out = new Set<string>();
-      for (const m of input.body.matchAll(HASHTAG_RE)) out.add(m[1].toLowerCase());
+      for (const m of input.body.matchAll(HASHTAG_RE))
+        out.add(m[1].toLowerCase());
       return [...out];
     },
     async graph(input) {
@@ -93,7 +109,10 @@ export function defaultHeuristicStages(): EnrichmentStages {
       const seen = new Set<string>();
       for (const m of input.body.matchAll(WIKILINK_RE)) {
         const to = m[1].trim();
-        if (to && !seen.has(to)) { seen.add(to); out.push({ field: "mentions", to }); }
+        if (to && !seen.has(to)) {
+          seen.add(to);
+          out.push({ field: "mentions", to });
+        }
       }
       return out;
     },
@@ -110,21 +129,40 @@ export class EnrichmentService {
   ) {}
 
   async enrich(input: EnrichmentInput): Promise<EnrichmentResult> {
-    const empty: EnrichmentResult = { applied: false, rolesAdded: [], tagsAdded: [], edgesAdded: [] };
+    const empty: EnrichmentResult = {
+      applied: false,
+      rolesAdded: [],
+      tagsAdded: [],
+      edgesAdded: [],
+    };
     const t = this.toggles();
     if (!t.enabled) return empty;
 
-    const classify = t.classify && this.stages.classify ? await this.stages.classify(input) : null;
+    const classify =
+      t.classify && this.stages.classify
+        ? await this.stages.classify(input)
+        : null;
     const tags = t.tag && this.stages.tag ? await this.stages.tag(input) : [];
-    const edges = t.graph && this.stages.graph ? await this.stages.graph(input) : [];
+    const edges =
+      t.graph && this.stages.graph ? await this.stages.graph(input) : [];
 
     // Compute additive diffs without mutating yet, so we can skip the write
     // (and avoid an event loop) when nothing is new.
     const fm = input.frontmatter;
-    const result: EnrichmentResult = { applied: false, rolesAdded: [], tagsAdded: [], edgesAdded: [] };
+    const result: EnrichmentResult = {
+      applied: false,
+      rolesAdded: [],
+      tagsAdded: [],
+      edgesAdded: [],
+    };
 
-    const setPrimary = classify?.primary_type && !fm["primary_type"] ? classify.primary_type : undefined;
-    const [, rolesAdded] = classify?.roles ? mergeUnique(fm["roles"], classify.roles) : [[], []];
+    const setPrimary =
+      classify?.primary_type && !fm["primary_type"]
+        ? classify.primary_type
+        : undefined;
+    const [, rolesAdded] = classify?.roles
+      ? mergeUnique(fm["roles"], classify.roles)
+      : [[], []];
     const [, tagsAdded] = mergeUnique(fm["tags"], tags);
     const edgesAdded: GraphEdge[] = [];
     for (const e of edges) {
@@ -133,14 +171,21 @@ export class EnrichmentService {
       if (added.length) edgesAdded.push(e);
     }
 
-    const nothingNew = !setPrimary && rolesAdded.length === 0 && tagsAdded.length === 0 && edgesAdded.length === 0;
+    const nothingNew =
+      !setPrimary &&
+      rolesAdded.length === 0 &&
+      tagsAdded.length === 0 &&
+      edgesAdded.length === 0;
     if (nothingNew) return empty; // idempotent: no write, no event loop
 
     await this.host.applyFrontmatter(input.path, (live) => {
       if (setPrimary) live["primary_type"] = setPrimary;
-      if (rolesAdded.length) live["roles"] = mergeUnique(live["roles"], rolesAdded)[0];
-      if (tagsAdded.length) live["tags"] = mergeUnique(live["tags"], tagsAdded)[0];
-      for (const e of edgesAdded) live[e.field] = mergeUnique(live[e.field], [`[[${e.to}]]`])[0];
+      if (rolesAdded.length)
+        live["roles"] = mergeUnique(live["roles"], rolesAdded)[0];
+      if (tagsAdded.length)
+        live["tags"] = mergeUnique(live["tags"], tagsAdded)[0];
+      for (const e of edgesAdded)
+        live[e.field] = mergeUnique(live[e.field], [`[[${e.to}]]`])[0];
     });
 
     result.applied = true;
@@ -149,9 +194,19 @@ export class EnrichmentService {
     result.tagsAdded = tagsAdded;
     result.edgesAdded = edgesAdded;
 
-    await this.trace?.record("enrich", input.path, "entity", JSON.stringify({ setPrimary, rolesAdded, tagsAdded, edgesAdded }), {
-      meta: { stages: { classify: t.classify, tag: t.tag, graph: t.graph } },
-    }).catch?.(() => {});
+    await this.trace
+      ?.record(
+        "enrich",
+        input.path,
+        "entity",
+        JSON.stringify({ setPrimary, rolesAdded, tagsAdded, edgesAdded }),
+        {
+          meta: {
+            stages: { classify: t.classify, tag: t.tag, graph: t.graph },
+          },
+        },
+      )
+      .catch?.(() => {});
 
     return result;
   }

@@ -9,9 +9,20 @@ export interface FederationCheck {
 }
 
 export class FederationValidator {
-  static FEDERATED_OPS = ["entities", "adjacency", "enums", "addenda", "validate"] as const;
+  static FEDERATED_OPS = [
+    "entities",
+    "adjacency",
+    "enums",
+    "addenda",
+    "validate",
+  ] as const;
 
-  check(parent: ParentVault, sub: SubVault, parentEnums: Record<string, string[]>, subEnums: Record<string, string[]>): FederationCheck {
+  check(
+    parent: ParentVault,
+    sub: SubVault,
+    parentEnums: Record<string, string[]>,
+    subEnums: Record<string, string[]>,
+  ): FederationCheck {
     const violations: string[] = [];
 
     // 1. parent_vault link integrity
@@ -29,13 +40,21 @@ export class FederationValidator {
     }
 
     // 3. invariant preservation — sub.constrains ⊇ parent.constrains (covariant)
-    const parentInvs = new Set((parent.frontmatter.constrains ?? []).map((c: any) => keyOf(c)));
-    const subInvs = new Set((sub.frontmatter.constrains ?? []).map((c: any) => keyOf(c)));
+    const parentInvs = new Set(
+      (parent.frontmatter.constrains ?? []).map((c: any) => keyOf(c)),
+    );
+    const subInvs = new Set(
+      (sub.frontmatter.constrains ?? []).map((c: any) => keyOf(c)),
+    );
     for (const inv of parentInvs) {
       if (!subInvs.has(inv)) {
         // Federation invariants are parent-only; SubVault doesn't need to repeat them.
         // We only flag if the SubVault deliberately weakened a known LSP invariant.
-        if (typeof inv === "string" && inv.includes("acyclic") && !subInvs.has(inv)) {
+        if (
+          typeof inv === "string" &&
+          inv.includes("acyclic") &&
+          !subInvs.has(inv)
+        ) {
           violations.push(`subvault missing required invariant: ${inv}`);
         }
       }
@@ -49,7 +68,9 @@ export class FederationValidator {
         if (!parentVals) continue;
         for (const v of vals) {
           if (!parentVals.includes(v)) {
-            violations.push(`enum drift: SubVault.${k} contains '${v}' not in ParentVault.${k}`);
+            violations.push(
+              `enum drift: SubVault.${k} contains '${v}' not in ParentVault.${k}`,
+            );
           }
         }
       }
@@ -57,14 +78,27 @@ export class FederationValidator {
 
     // 5. spec_version compatibility
     if (sub.spec_version && sub.spec_version !== "spec-v0.1") {
-      violations.push(`subvault spec_version ${sub.spec_version} differs from parent`);
+      violations.push(
+        `subvault spec_version ${sub.spec_version} differs from parent`,
+      );
     }
 
-    return { vault_id: sub.vault_id, passed: violations.length === 0, violations };
+    return {
+      vault_id: sub.vault_id,
+      passed: violations.length === 0,
+      violations,
+    };
   }
 
-  checkAll(parent: ParentVault, subs: SubVault[], parentEnums: Record<string, string[]>, subEnumsByVault: Record<string, Record<string, string[]>>): FederationCheck[] {
-    return subs.map((s) => this.check(parent, s, parentEnums, subEnumsByVault[s.vault_id] ?? {}));
+  checkAll(
+    parent: ParentVault,
+    subs: SubVault[],
+    parentEnums: Record<string, string[]>,
+    subEnumsByVault: Record<string, Record<string, string[]>>,
+  ): FederationCheck[] {
+    return subs.map((s) =>
+      this.check(parent, s, parentEnums, subEnumsByVault[s.vault_id] ?? {}),
+    );
   }
 }
 

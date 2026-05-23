@@ -1,5 +1,5 @@
 // SPEC §34.2 — Cron-ish wall-clock + reactive scheduler. Coalesces overlap; backoff on failure.
-import type { SyncFrequency } from '../integrations/IIntegration';
+import type { SyncFrequency } from "../integrations/IIntegration";
 
 export interface ScheduledJob {
   id: string;
@@ -11,18 +11,32 @@ export interface ScheduledJob {
 
 function freqMs(f: SyncFrequency): number {
   switch (f) {
-    case 'realtime': return 0;
-    case '1m': return 60_000;
-    case '5m': return 300_000;
-    case '15m': return 900_000;
-    case '1h': return 3_600_000;
-    case '6h': return 21_600_000;
-    case 'daily': return 86_400_000;
-    case 'manual': return Infinity;
+    case "realtime":
+      return 0;
+    case "1m":
+      return 60_000;
+    case "5m":
+      return 300_000;
+    case "15m":
+      return 900_000;
+    case "1h":
+      return 3_600_000;
+    case "6h":
+      return 21_600_000;
+    case "daily":
+      return 86_400_000;
+    case "manual":
+      return Infinity;
   }
 }
 
-interface RunState { lastRun: number; nextRun: number; running: boolean; failures: number; lastError: string | null; }
+interface RunState {
+  lastRun: number;
+  nextRun: number;
+  running: boolean;
+  failures: number;
+  lastError: string | null;
+}
 
 export class Scheduler {
   private jobs = new Map<string, ScheduledJob>();
@@ -31,12 +45,28 @@ export class Scheduler {
 
   add(job: ScheduledJob): void {
     this.jobs.set(job.id, job);
-    if (!this.state.has(job.id)) this.state.set(job.id, { lastRun: 0, nextRun: Date.now() + freqMs(job.frequency), running: false, failures: 0, lastError: null });
+    if (!this.state.has(job.id))
+      this.state.set(job.id, {
+        lastRun: 0,
+        nextRun: Date.now() + freqMs(job.frequency),
+        running: false,
+        failures: 0,
+        lastError: null,
+      });
   }
-  remove(id: string): void { this.jobs.delete(id); this.state.delete(id); }
+  remove(id: string): void {
+    this.jobs.delete(id);
+    this.state.delete(id);
+  }
 
-  start(tickMs = 10_000): void { if (this.timer) return; this.timer = setInterval(() => this.tick(), tickMs); }
-  stop(): void { if (this.timer) clearInterval(this.timer); this.timer = null; }
+  start(tickMs = 10_000): void {
+    if (this.timer) return;
+    this.timer = setInterval(() => this.tick(), tickMs);
+  }
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
 
   async runNow(id: string): Promise<void> {
     const job = this.jobs.get(id);
@@ -48,7 +78,7 @@ export class Scheduler {
     const now = Date.now();
     for (const [id, job] of this.jobs) {
       const s = this.state.get(id)!;
-      if (s.running || job.frequency === 'manual') continue;
+      if (s.running || job.frequency === "manual") continue;
       if (now >= s.nextRun) await this.runJob(job);
     }
   }
@@ -72,8 +102,13 @@ export class Scheduler {
     }
   }
 
-  status(id: string): RunState | null { return this.state.get(id) ?? null; }
+  status(id: string): RunState | null {
+    return this.state.get(id) ?? null;
+  }
   all(): { job: ScheduledJob; state: RunState }[] {
-    return [...this.jobs.values()].map((job) => ({ job, state: this.state.get(job.id)! }));
+    return [...this.jobs.values()].map((job) => ({
+      job,
+      state: this.state.get(job.id)!,
+    }));
   }
 }

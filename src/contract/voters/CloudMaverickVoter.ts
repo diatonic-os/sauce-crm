@@ -167,7 +167,9 @@ export class CloudMaverickVoter implements VoterAgent {
 function extractCloudText(r: ObsidianResp): string {
   const j = r.json as Record<string, unknown> | null;
   if (j && typeof j === "object") {
-    const choices = j.choices as Array<{ message?: { content?: unknown } }> | undefined;
+    const choices = j.choices as
+      | Array<{ message?: { content?: unknown } }>
+      | undefined;
     const c = choices?.[0]?.message?.content;
     if (typeof c === "string") return c;
   }

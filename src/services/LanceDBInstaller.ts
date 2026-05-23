@@ -38,7 +38,9 @@ export interface LanceDBCapability {
 /** Pure detection — no install attempts. Returns mobile-unsupported on
  *  any non-Electron host (which has no native module loader). */
 export function detectLanceDB(): LanceDBStatus {
-  const proc = (globalThis as unknown as { process?: { versions?: { electron?: string } } }).process;
+  const proc = (
+    globalThis as unknown as { process?: { versions?: { electron?: string } } }
+  ).process;
   if (typeof proc?.versions?.electron !== "string") {
     return { state: "mobile-unsupported" };
   }
@@ -46,14 +48,23 @@ export function detectLanceDB(): LanceDBStatus {
   // require() call resolves at runtime via Electron's CommonJS loader.
   const req = (globalThis as unknown as { require?: NodeRequire }).require;
   if (typeof req !== "function") {
-    return { state: "unavailable", reason: "require() unavailable in this environment" };
+    return {
+      state: "unavailable",
+      reason: "require() unavailable in this environment",
+    };
   }
   try {
-    const lance = req("@lancedb/lancedb") as { version?: string; default?: { version?: string } };
+    const lance = req("@lancedb/lancedb") as {
+      version?: string;
+      default?: { version?: string };
+    };
     const version = lance.version ?? lance.default?.version ?? "unknown";
     return { state: "available", version };
   } catch (err) {
-    return { state: "unavailable", reason: (err as Error).message || String(err) };
+    return {
+      state: "unavailable",
+      reason: (err as Error).message || String(err),
+    };
   }
 }
 
@@ -70,11 +81,15 @@ export interface LanceDBInstallDecision {
   lastAttempt?: { ok: boolean; error?: string; ts: string };
 }
 
-export const DEFAULT_LANCEDB_DECISION: LanceDBInstallDecision = { state: "pending" };
+export const DEFAULT_LANCEDB_DECISION: LanceDBInstallDecision = {
+  state: "pending",
+};
 
 /** Aggregator the plugin uses to decide whether to surface the install
  *  modal on onload. */
-export function computeCapability(decision: LanceDBInstallDecision): LanceDBCapability {
+export function computeCapability(
+  decision: LanceDBInstallDecision,
+): LanceDBCapability {
   const detect = detectLanceDB();
   switch (detect.state) {
     case "available":
@@ -144,9 +159,14 @@ export class LanceDBInstaller {
     await log(`cwd=${cwd}`);
     await log(`PATH=${this.peekEnv("PATH")}`);
     await log(`HOME=${this.peekEnv("HOME")}`);
-    await log(`platform=${this.peekPlatform()} node=${this.peekEnv("npm_node_execpath") || "?"}`);
+    await log(
+      `platform=${this.peekPlatform()} node=${this.peekEnv("npm_node_execpath") || "?"}`,
+    );
 
-    onProgress({ kind: "start", message: `Installing @lancedb/lancedb to ${cwd}` });
+    onProgress({
+      kind: "start",
+      message: `Installing @lancedb/lancedb to ${cwd}`,
+    });
 
     // Candidate npm command paths, tried in order. Each candidate is
     // verified for existence (where path-shaped) before spawn.
@@ -160,7 +180,14 @@ export class LanceDBInstaller {
       try {
         exitCode = await this.host.spawn(
           npmCmd,
-          ["install", "@lancedb/lancedb", "--prefix", cwd, "--no-audit", "--no-fund"],
+          [
+            "install",
+            "@lancedb/lancedb",
+            "--prefix",
+            cwd,
+            "--no-audit",
+            "--no-fund",
+          ],
           cwd,
           (stream, line) => {
             onProgress({ kind: "line", stream, line });
@@ -184,23 +211,33 @@ export class LanceDBInstaller {
 
     const ok = exitCode === 0;
     const durationMs = Date.now() - t0;
-    await log(`=== install ${ok ? "SUCCEEDED" : "FAILED"} in ${(durationMs / 1000).toFixed(1)}s ===`);
+    await log(
+      `=== install ${ok ? "SUCCEEDED" : "FAILED"} in ${(durationMs / 1000).toFixed(1)}s ===`,
+    );
     onProgress({
       kind: "done",
       ok,
       durationMs,
-      error: ok ? undefined : (lastError || "unknown install failure"),
+      error: ok ? undefined : lastError || "unknown install failure",
     });
     return ok;
   }
 
   private peekEnv(key: string): string {
-    const proc = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: { env?: Record<string, string | undefined> };
+      }
+    ).process;
     return proc?.env?.[key] ?? "(unset)";
   }
 
   private peekPlatform(): string {
-    const proc = (globalThis as unknown as { process?: { platform?: string; arch?: string } }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: { platform?: string; arch?: string };
+      }
+    ).process;
     return `${proc?.platform ?? "?"}/${proc?.arch ?? "?"}`;
   }
 
@@ -208,9 +245,14 @@ export class LanceDBInstaller {
     // Plain "npm" works when Electron inherits the user's shell PATH.
     // The fallbacks cover macOS .app launches, Linux .desktop launches,
     // and nvm-managed Node — the three most common "npm not found" cases.
-    const proc = (globalThis as unknown as {
-      process?: { env?: Record<string, string | undefined>; platform?: string };
-    }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: {
+          env?: Record<string, string | undefined>;
+          platform?: string;
+        };
+      }
+    ).process;
     const env = proc?.env ?? {};
     const home = env.HOME ?? "/home";
     const candidates = [
@@ -243,7 +285,11 @@ export class ObsidianInstallerHost implements InstallerHost {
     cwd: string,
     onLine: (stream: "stdout" | "stderr", line: string) => void,
   ): Promise<number | null> {
-    const proc = (globalThis as unknown as { process?: { versions?: { electron?: string } } }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: { versions?: { electron?: string } };
+      }
+    ).process;
     if (typeof proc?.versions?.electron !== "string") return null;
     const req = (globalThis as unknown as { require?: NodeRequire }).require;
     if (typeof req !== "function") return null;
@@ -255,7 +301,10 @@ export class ObsidianInstallerHost implements InstallerHost {
     }
     return await new Promise<number | null>((resolve) => {
       const child = childProcess.spawn(cmd, args, { cwd, shell: false });
-      const buf: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
+      const buf: Record<"stdout" | "stderr", string> = {
+        stdout: "",
+        stderr: "",
+      };
       const onChunk = (stream: "stdout" | "stderr") => (chunk: Buffer) => {
         buf[stream] += chunk.toString("utf-8");
         const lines = buf[stream].split("\n");

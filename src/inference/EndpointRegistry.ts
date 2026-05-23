@@ -1,7 +1,7 @@
-import { PluginSettings } from '../settings/PluginSettings';
+import { PluginSettings } from "../settings/PluginSettings";
 
 interface EndpointDiscoveryEvent {
-  type: 'endpointDiscovery';
+  type: "endpointDiscovery";
   endpoints: string[];
 }
 
@@ -34,7 +34,7 @@ class EndpointRegistry {
 
   emitDiscoveryEvent(serviceBus: ServiceBus): void {
     const event: EndpointDiscoveryEvent = {
-      type: 'endpointDiscovery',
+      type: "endpointDiscovery",
       endpoints: this.getEndpoints(),
     };
     serviceBus.emit(event);

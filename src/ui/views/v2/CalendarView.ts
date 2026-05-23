@@ -13,13 +13,22 @@ export const VIEW_CALENDAR = "sauce-crm-calendar";
 export class CalendarView extends ItemView {
   private svelteApp: ReturnType<typeof mount> | undefined;
 
-  constructor(leaf: WorkspaceLeaf, public plugin: SauceGraphPlugin) {
+  constructor(
+    leaf: WorkspaceLeaf,
+    public plugin: SauceGraphPlugin,
+  ) {
     super(leaf);
   }
 
-  getViewType(): string { return VIEW_CALENDAR; }
-  getDisplayText(): string { return "Sauce CRM — Calendar"; }
-  getIcon(): string { return "sauce-touch"; }
+  getViewType(): string {
+    return VIEW_CALENDAR;
+  }
+  getDisplayText(): string {
+    return "Sauce CRM — Calendar";
+  }
+  getIcon(): string {
+    return "sauce-touch";
+  }
 
   async onOpen(): Promise<void> {
     this.contentEl.empty();
@@ -54,7 +63,9 @@ export class CalendarView extends ItemView {
     const cache = this.plugin.app.metadataCache;
     const files = this.plugin.app.vault.getMarkdownFiles();
     for (const f of files) {
-      const fm = cache.getFileCache(f)?.frontmatter as Record<string, unknown> | undefined;
+      const fm = cache.getFileCache(f)?.frontmatter as
+        | Record<string, unknown>
+        | undefined;
       if (!fm) continue;
       const t = fm.type;
       if (t === "touch" && typeof fm.date === "string") {
@@ -68,7 +79,7 @@ export class CalendarView extends ItemView {
         out.push({
           date: fm.due.slice(0, 10),
           kind: "task",
-          label: (typeof fm.title === "string" ? fm.title : f.basename),
+          label: typeof fm.title === "string" ? fm.title : f.basename,
           path: f.path,
         });
       } else if (t === "followup" && typeof fm.due === "string") {
@@ -82,7 +93,7 @@ export class CalendarView extends ItemView {
         out.push({
           date: fm.date.slice(0, 10),
           kind: "event",
-          label: (typeof fm.title === "string" ? fm.title : f.basename),
+          label: typeof fm.title === "string" ? fm.title : f.basename,
           path: f.path,
         });
       }

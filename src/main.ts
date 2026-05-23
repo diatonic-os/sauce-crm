@@ -1,18 +1,51 @@
-import { Menu, Modal, Plugin, TFile, WorkspaceLeaf, Notice, MarkdownView } from "obsidian";
-import { EntityService, DEFAULT_PATHS, VaultPaths } from "./services/EntityService";
-import { EdgeSyncService, DEFAULT_EDGE_RULES, EdgeRule } from "./services/EdgeSyncService";
+import {
+  Menu,
+  Modal,
+  Plugin,
+  TFile,
+  WorkspaceLeaf,
+  Notice,
+  MarkdownView,
+} from "obsidian";
+import {
+  EntityService,
+  DEFAULT_PATHS,
+  VaultPaths,
+} from "./services/EntityService";
+import {
+  EdgeSyncService,
+  DEFAULT_EDGE_RULES,
+  EdgeRule,
+} from "./services/EdgeSyncService";
 import { QueryService } from "./services/QueryService";
 import { SearchService } from "./services/SearchService";
 import { MirrorSync } from "./services/MirrorSync";
-import { EnrichmentService, defaultHeuristicStages, type EnrichmentHost, type EnrichmentInput } from "./services/EnrichmentService";
+import {
+  EnrichmentService,
+  defaultHeuristicStages,
+  type EnrichmentHost,
+  type EnrichmentInput,
+} from "./services/EnrichmentService";
 import { llmClassifyStage } from "./services/enrichment/LlmClassifyStage";
-import { DocumentHarvestService, SUPPORTED_FORMATS, type DocFormat } from "./services/DocumentHarvest";
-import { PluginConfigService, defaultProfiles } from "./services/PluginConfigService";
+import {
+  DocumentHarvestService,
+  SUPPORTED_FORMATS,
+  type DocFormat,
+} from "./services/DocumentHarvest";
+import {
+  PluginConfigService,
+  defaultProfiles,
+} from "./services/PluginConfigService";
 import { ObsidianPluginConfigHost } from "./services/ObsidianPluginConfigHost";
 import { renderPluginConfigBlock } from "./ui/PluginConfigBlock";
 import { TasksService } from "./services/TasksService";
 import { renderTasksBlock, openAddTaskModal } from "./ui/TasksBlock";
-import { SauceFeatureSettings, DEFAULT_FEATURE_SETTINGS, mergeFeatureSettings, activeEmbeddingProvider } from "./settings/FeatureSettings";
+import {
+  SauceFeatureSettings,
+  DEFAULT_FEATURE_SETTINGS,
+  mergeFeatureSettings,
+  activeEmbeddingProvider,
+} from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
 import { ContractValidator } from "./contract/ContractValidator";
 import { RegistryService } from "./federation/RegistryService";
@@ -27,12 +60,22 @@ import { RelationModal } from "./ui/modals/RelationModal";
 import { TagModal } from "./ui/modals/TagModal";
 import { PromoteProspectModal } from "./ui/modals/PromoteProspectModal";
 import { RegisterSubVaultModal } from "./ui/modals/RegisterSubVaultModal";
-import { CaptureRecordModal, type CaptureRecordKind } from "./ui/modals/CaptureRecordModal";
+import {
+  CaptureRecordModal,
+  type CaptureRecordKind,
+} from "./ui/modals/CaptureRecordModal";
 import { SauceGraphSettingTab } from "./ui/settings/SauceGraphSettingTab";
 import { ActionButton } from "./ui/widgets/ActionButton";
 import { initV2, teardownV2, V2Runtime } from "./v2-init";
-import { CopilotRuntime, CopilotSettings, COPILOT_DEFAULTS } from "./copilot/CopilotRuntime";
-import { CopilotChatView, VIEW_COPILOT_CHAT } from "./ui/views/v2/CopilotChatView";
+import {
+  CopilotRuntime,
+  CopilotSettings,
+  COPILOT_DEFAULTS,
+} from "./copilot/CopilotRuntime";
+import {
+  CopilotChatView,
+  VIEW_COPILOT_CHAT,
+} from "./ui/views/v2/CopilotChatView";
 import { IconRegistry } from "./ui/icons/IconRegistry";
 import {
   computeCapability,
@@ -52,28 +95,57 @@ import { SkillRuntime } from "./skills/SkillRuntime";
 import { SkillPickerModal } from "./ui/modals/v2/SkillPickerModal";
 import { IntegrationRegistry } from "./integrations/IntegrationRegistry";
 import { MapViewReal, VIEW_MAP_REAL } from "./ui/views/v2/MapViewReal";
-import { AIInboxViewReal, VIEW_AI_INBOX_REAL } from "./ui/views/v2/AIInboxViewReal";
-import { SyncStatusViewReal, VIEW_SYNC_STATUS_REAL } from "./ui/views/v2/SyncStatusViewReal";
+import {
+  AIInboxViewReal,
+  VIEW_AI_INBOX_REAL,
+} from "./ui/views/v2/AIInboxViewReal";
+import {
+  SyncStatusViewReal,
+  VIEW_SYNC_STATUS_REAL,
+} from "./ui/views/v2/SyncStatusViewReal";
 import { QuickCaptureModal } from "./ui/modals/v2/QuickCaptureModal";
 import { ImportMappingModal } from "./ui/modals/v2/ImportMappingModal";
 import { BackupService } from "./sync/BackupService";
 import { V2Registry } from "./v2/Registry";
-import { AuditLogViewReal, VIEW_AUDIT_LOG_REAL } from "./ui/views/v2/AuditLogViewReal";
-import { SkillRunLogViewReal, VIEW_SKILL_RUN_LOG_REAL, skillRunRing } from "./ui/views/v2/SkillRunLogViewReal";
+import {
+  AuditLogViewReal,
+  VIEW_AUDIT_LOG_REAL,
+} from "./ui/views/v2/AuditLogViewReal";
+import {
+  SkillRunLogViewReal,
+  VIEW_SKILL_RUN_LOG_REAL,
+  skillRunRing,
+} from "./ui/views/v2/SkillRunLogViewReal";
 import { GraphAtlasService } from "./services/GraphAtlasService";
 import { CalendarView, VIEW_CALENDAR } from "./ui/views/v2/CalendarView";
 import {
-  TasksView, InboxView, LedgerView,
-  VIEW_TASKS, VIEW_INBOX, VIEW_LEDGER,
+  TasksView,
+  InboxView,
+  LedgerView,
+  VIEW_TASKS,
+  VIEW_INBOX,
+  VIEW_LEDGER,
 } from "./ui/views/v2/DashboardViews";
 import { OnboardingWizardModal } from "./ui/modals/v2/OnboardingWizardModal";
 import { EncryptedBackupService } from "./sync/EncryptedBackupService";
 import { todayIso, maxDate } from "./util/DateUtil";
 import {
-  VIEW_DASHBOARD, VIEW_PIPELINE, VIEW_GRAPH, VIEW_COMPAT, VIEW_HEATMAP,
-  VIEW_HIERARCHY, VIEW_OVERDUE, VIEW_PARENT,
-  DashboardView, PipelineKanbanView, TypedEdgeGraphView, CompatibilityMatrixView,
-  TouchHeatmapView, HierarchyTreeView, OverdueQueueView, ParentDashboardView,
+  VIEW_DASHBOARD,
+  VIEW_PIPELINE,
+  VIEW_GRAPH,
+  VIEW_COMPAT,
+  VIEW_HEATMAP,
+  VIEW_HIERARCHY,
+  VIEW_OVERDUE,
+  VIEW_PARENT,
+  DashboardView,
+  PipelineKanbanView,
+  TypedEdgeGraphView,
+  CompatibilityMatrixView,
+  TouchHeatmapView,
+  HierarchyTreeView,
+  OverdueQueueView,
+  ParentDashboardView,
 } from "./ui/views/Views";
 
 export interface SauceGraphSettings {
@@ -116,7 +188,10 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
   paths: DEFAULT_PATHS,
   strictness: "block",
   edge_rules: DEFAULT_EDGE_RULES,
-  compat_config: { rho_adm: 0.5, fields: ["roles", "tags", "industry", "location"] },
+  compat_config: {
+    rho_adm: 0.5,
+    fields: ["roles", "tags", "industry", "location"],
+  },
   federation: {
     cross_vault_edges: "allowed",
     cross_vault_path_queries: "allowed",
@@ -126,14 +201,63 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
     validation_gate: "strict",
   },
   enums: {
-    primary_type_person: ["co-founder","family","advisor","mentor","connector","peer-founder","community","past-colleague","prospect"],
-    roles_person:        ["co-founder","family","advisor","mentor","connector","peer-founder","community","past-colleague","prospect"],
-    cadence:             ["monthly","quarterly","bi-annual","ad-hoc"],
-    channel:             ["in-person","call","text","dinner","email","event"],
-    playbook:            ["ff-1","ff-2","ff-3","ff-4","ment-1","ment-2","ment-3","ment-4",""],
-    outcome_tag:         ["update-given","advice-received","intro-offered","intro-made","asked-for-intro"],
-    status_org:          ["active","customer","vendor","competitor","defunct","prospect"],
-    kind_addendum:       ["correction","enrichment","context","deprecation","merge-note"],
+    primary_type_person: [
+      "co-founder",
+      "family",
+      "advisor",
+      "mentor",
+      "connector",
+      "peer-founder",
+      "community",
+      "past-colleague",
+      "prospect",
+    ],
+    roles_person: [
+      "co-founder",
+      "family",
+      "advisor",
+      "mentor",
+      "connector",
+      "peer-founder",
+      "community",
+      "past-colleague",
+      "prospect",
+    ],
+    cadence: ["monthly", "quarterly", "bi-annual", "ad-hoc"],
+    channel: ["in-person", "call", "text", "dinner", "email", "event"],
+    playbook: [
+      "ff-1",
+      "ff-2",
+      "ff-3",
+      "ff-4",
+      "ment-1",
+      "ment-2",
+      "ment-3",
+      "ment-4",
+      "",
+    ],
+    outcome_tag: [
+      "update-given",
+      "advice-received",
+      "intro-offered",
+      "intro-made",
+      "asked-for-intro",
+    ],
+    status_org: [
+      "active",
+      "customer",
+      "vendor",
+      "competitor",
+      "defunct",
+      "prospect",
+    ],
+    kind_addendum: [
+      "correction",
+      "enrichment",
+      "context",
+      "deprecation",
+      "merge-note",
+    ],
   },
   copilot: COPILOT_DEFAULTS,
   features: DEFAULT_FEATURE_SETTINGS,
@@ -154,8 +278,8 @@ function makeConsoleLogger(source: string): import("./telemetry/types").Logger {
   return {
     trace: (m, d) => console.debug(fmt(m, d)),
     debug: (m, d) => console.debug(fmt(m, d)),
-    info:  (m, d) => console.info(fmt(m, d)),
-    warn:  (m, d) => console.warn(fmt(m, d)),
+    info: (m, d) => console.info(fmt(m, d)),
+    warn: (m, d) => console.warn(fmt(m, d)),
     error: (m, d) => console.error(fmt(m, d)),
     event: (name, d) => console.info(fmt(`event:${name}`, d)),
     child: (suffix) => makeConsoleLogger(`${source}.${suffix}`),
@@ -174,13 +298,27 @@ export default class SauceGraphPlugin extends Plugin {
   fedValidator!: FederationValidator;
   contractValidator!: ContractValidator;
   v2: V2Runtime | null = null;
-  get syncEngine() { return this.v2?.sync ?? null; }
-  get keyVault() { return this.v2?.keyVault ?? null; }
-  get auditLog() { return this.v2?.auditLog ?? null; }
-  get provenance() { return this.v2?.provenance ?? null; }
-  get inferenceEngine() { return this.v2?.inference ?? null; }
-  get v2Scopes() { return this.v2?.scopes ?? null; }
-  get v2Proxy() { return this.v2?.proxy ?? null; }
+  get syncEngine() {
+    return this.v2?.sync ?? null;
+  }
+  get keyVault() {
+    return this.v2?.keyVault ?? null;
+  }
+  get auditLog() {
+    return this.v2?.auditLog ?? null;
+  }
+  get provenance() {
+    return this.v2?.provenance ?? null;
+  }
+  get inferenceEngine() {
+    return this.v2?.inference ?? null;
+  }
+  get v2Scopes() {
+    return this.v2?.scopes ?? null;
+  }
+  get v2Proxy() {
+    return this.v2?.proxy ?? null;
+  }
   copilot: CopilotRuntime | null = null;
   mirrorSync: MirrorSync | null = null;
   enrichment: EnrichmentService | null = null;
@@ -206,14 +344,23 @@ export default class SauceGraphPlugin extends Plugin {
 
   // Credentials accessor — lazily wraps the v2 KeyVault in an
   // IntegrationCredentials surface, which is what v2 modals expect.
-  private _credentialsCache: import("./integrations/IntegrationCredentials").IntegrationCredentials | null = null;
-  get credentials(): import("./integrations/IntegrationCredentials").IntegrationCredentials | null {
+  private _credentialsCache:
+    | import("./integrations/IntegrationCredentials").IntegrationCredentials
+    | null = null;
+  get credentials():
+    | import("./integrations/IntegrationCredentials").IntegrationCredentials
+    | null {
     const kv = this.v2?.keyVault ?? null;
-    if (!kv) { this._credentialsCache = null; return null; }
+    if (!kv) {
+      this._credentialsCache = null;
+      return null;
+    }
     if (!this._credentialsCache) {
       // Lazy import to avoid top-of-file circular dependency risk.
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { IntegrationCredentials } = require("./integrations/IntegrationCredentials");
+      const {
+        IntegrationCredentials,
+      } = require("./integrations/IntegrationCredentials");
       this._credentialsCache = new IntegrationCredentials(kv, this.logger);
     }
     return this._credentialsCache;
@@ -260,11 +407,18 @@ export default class SauceGraphPlugin extends Plugin {
       this.indexAllOnLoad();
     });
 
-    try { this.v2 = await initV2(this.app, this); }
-    catch (e) { console.warn("Sauce V2 init failed", { error: String(e) }); }
+    try {
+      this.v2 = await initV2(this.app, this);
+    } catch (e) {
+      console.warn("Sauce V2 init failed", { error: String(e) });
+    }
 
     this.entityService = new EntityService(this.app, this.settings.paths);
-    this.edgeSync = new EdgeSyncService(this.app, this.entityService, this.settings.edge_rules);
+    this.edgeSync = new EdgeSyncService(
+      this.app,
+      this.entityService,
+      this.settings.edge_rules,
+    );
     this.query = new QueryService(this.app, this.entityService);
     this.search = new SearchService(this.app, this.entityService);
     this.bootstrap = new VaultBootstrapper(this.app, this.settings.paths);
@@ -282,7 +436,13 @@ export default class SauceGraphPlugin extends Plugin {
       },
     });
 
-    this.copilot = new CopilotRuntime(this.app, this.entityService, this.search, this.settings.copilot ?? COPILOT_DEFAULTS, this.v2?.lance?.vectors ?? null);
+    this.copilot = new CopilotRuntime(
+      this.app,
+      this.entityService,
+      this.search,
+      this.settings.copilot ?? COPILOT_DEFAULTS,
+      this.v2?.lance?.vectors ?? null,
+    );
     this.syncEmbeddingConfig();
     // Mirror vault entities into LanceDB + embed them for semantic RAG. Only
     // active when LanceDB is installed; embeddings are best-effort (skip when
@@ -295,7 +455,10 @@ export default class SauceGraphPlugin extends Plugin {
         Object.keys(this.settings.edge_rules ?? {}),
         (text) => this.copilot?.embed(text) ?? Promise.resolve(null),
         this.v2.provenance,
-        { realtimeEmbeddings: () => this.settings.features.rag.realtimeEmbeddings },
+        {
+          realtimeEmbeddings: () =>
+            this.settings.features.rag.realtimeEmbeddings,
+        },
       );
     }
     // Auto-enrichment (T5): classify/tag/graph stages writing vault frontmatter
@@ -303,7 +466,10 @@ export default class SauceGraphPlugin extends Plugin {
     const enrichHost: EnrichmentHost = {
       applyFrontmatter: async (path, mutate) => {
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof TFile) await this.entityService.updateFrontmatter(file, (fm) => { mutate(fm); });
+        if (file instanceof TFile)
+          await this.entityService.updateFrontmatter(file, (fm) => {
+            mutate(fm);
+          });
       },
     };
     // classify = LLM-backed (validated against the vault's enum vocabulary);
@@ -313,7 +479,8 @@ export default class SauceGraphPlugin extends Plugin {
       {
         ...defaultHeuristicStages(),
         classify: llmClassifyStage(
-          (system, user) => this.copilot?.completeOnce(system, user) ?? Promise.resolve(null),
+          (system, user) =>
+            this.copilot?.completeOnce(system, user) ?? Promise.resolve(null),
           () => ({
             primaryTypes: this.settings.enums.primary_type_person ?? [],
             roles: this.settings.enums.roles_person ?? [],
@@ -351,7 +518,13 @@ export default class SauceGraphPlugin extends Plugin {
     );
     // Tasks ↔ Tasks-plugin checkbox bridge (W4): author/read tasks in _TASKS.md.
     this.tasks = new TasksService(this.app);
-    this.skills = new SkillRuntime(this.app, this.entityService, this.search, this.query, () => this.copilot);
+    this.skills = new SkillRuntime(
+      this.app,
+      this.entityService,
+      this.search,
+      this.query,
+      () => this.copilot,
+    );
     if (this.copilot) this.skills.bindToCopilot(this.copilot.toolUse);
     // Route every Copilot tool call through the approval gate.
     // Per-skill action classes (`execute-skill:<id>`) let the operator
@@ -361,32 +534,97 @@ export default class SauceGraphPlugin extends Plugin {
 
     // Addendum A §B — populate v2Registry capability descriptors. Each entry's `ready`
     // mirrors live module presence; sections check this to decide IMPLEMENTED/DEGRADED/COMING_SOON.
-    this.v2Registry.register({ id: "backend", phase: "P8", ready: !!this.v2?.lance, reason: this.v2?.lance ? undefined : "LanceDB not installed — approve install to enable persistence" });
-    this.v2Registry.register({ id: "security", phase: "P8", ready: !!this.v2?.keyVault, reason: this.v2?.keyVault ? undefined : "KeyVault not initialized" });
-    this.v2Registry.register({ id: "copilot", phase: "P9", ready: !!this.copilot });
-    this.v2Registry.register({ id: "copilot.provider", phase: "P9", ready: !!this.copilot });
-    this.v2Registry.register({ id: "copilot.skills", phase: "P10", ready: !!this.skills });
-    for (const integ of ["google", "microsoft", "apple", "notion", "twilio", "email", "websearch"] as const) {
-      const map: Record<string, string> = { google: "google_workspace", microsoft: "microsoft_365", email: "smtp_imap", websearch: "web_search" };
+    this.v2Registry.register({
+      id: "backend",
+      phase: "P8",
+      ready: !!this.v2?.lance,
+      reason: this.v2?.lance
+        ? undefined
+        : "LanceDB not installed — approve install to enable persistence",
+    });
+    this.v2Registry.register({
+      id: "security",
+      phase: "P8",
+      ready: !!this.v2?.keyVault,
+      reason: this.v2?.keyVault ? undefined : "KeyVault not initialized",
+    });
+    this.v2Registry.register({
+      id: "copilot",
+      phase: "P9",
+      ready: !!this.copilot,
+    });
+    this.v2Registry.register({
+      id: "copilot.provider",
+      phase: "P9",
+      ready: !!this.copilot,
+    });
+    this.v2Registry.register({
+      id: "copilot.skills",
+      phase: "P10",
+      ready: !!this.skills,
+    });
+    for (const integ of [
+      "google",
+      "microsoft",
+      "apple",
+      "notion",
+      "twilio",
+      "email",
+      "websearch",
+    ] as const) {
+      const map: Record<string, string> = {
+        google: "google_workspace",
+        microsoft: "microsoft_365",
+        email: "smtp_imap",
+        websearch: "web_search",
+      };
       const id = `integrations.${integ}`;
-      const phase: "P11" | "P12" = (integ === "google" || integ === "microsoft") ? "P11" : "P12";
+      const phase: "P11" | "P12" =
+        integ === "google" || integ === "microsoft" ? "P11" : "P12";
       const integId = map[integ] ?? integ;
       const live = !!this.integrations?.byId(integId);
-      this.v2Registry.register({ id, phase, ready: live, reason: live ? undefined : "not connected" });
+      this.v2Registry.register({
+        id,
+        phase,
+        ready: live,
+        reason: live ? undefined : "not connected",
+      });
     }
-    this.v2Registry.register({ id: "geocoding", phase: "P13", ready: false, reason: "no provider configured" });
-    this.v2Registry.register({ id: "sync", phase: "P14", ready: !!this.v2?.sync });
-    this.v2Registry.register({ id: "import_export", phase: "P14", ready: true });
+    this.v2Registry.register({
+      id: "geocoding",
+      phase: "P13",
+      ready: false,
+      reason: "no provider configured",
+    });
+    this.v2Registry.register({
+      id: "sync",
+      phase: "P14",
+      ready: !!this.v2?.sync,
+    });
+    this.v2Registry.register({
+      id: "import_export",
+      phase: "P14",
+      ready: true,
+    });
     this.registerView(VIEW_COPILOT_CHAT, (l) => new CopilotChatView(l, this));
-    this.registerView(VIEW_SYNC_STATUS_REAL, (l) => new SyncStatusViewReal(l, this));
+    this.registerView(
+      VIEW_SYNC_STATUS_REAL,
+      (l) => new SyncStatusViewReal(l, this),
+    );
     this.registerView(VIEW_MAP_REAL, (l) => new MapViewReal(l, this));
     this.registerView(VIEW_AI_INBOX_REAL, (l) => new AIInboxViewReal(l, this));
-    this.registerView(VIEW_AUDIT_LOG_REAL, (l) => new AuditLogViewReal(l, this));
-    this.registerView(VIEW_SKILL_RUN_LOG_REAL, (l) => new SkillRunLogViewReal(l, this));
+    this.registerView(
+      VIEW_AUDIT_LOG_REAL,
+      (l) => new AuditLogViewReal(l, this),
+    );
+    this.registerView(
+      VIEW_SKILL_RUN_LOG_REAL,
+      (l) => new SkillRunLogViewReal(l, this),
+    );
     this.registerView(VIEW_CALENDAR, (l) => new CalendarView(l, this));
-    this.registerView(VIEW_TASKS,    (l) => new TasksView(l, this));
-    this.registerView(VIEW_INBOX,    (l) => new InboxView(l, this));
-    this.registerView(VIEW_LEDGER,   (l) => new LedgerView(l, this));
+    this.registerView(VIEW_TASKS, (l) => new TasksView(l, this));
+    this.registerView(VIEW_INBOX, (l) => new InboxView(l, this));
+    this.registerView(VIEW_LEDGER, (l) => new LedgerView(l, this));
 
     this.registerViews();
     this.registerCommands();
@@ -399,135 +637,388 @@ export default class SauceGraphPlugin extends Plugin {
     // through the existing addCommand handler chain.
     this.addRibbonIcon("sauce-person", "Sauce CRM — People", (event) => {
       const m = new Menu();
-      m.addItem((i) => i.setTitle("New Person").setIcon("sauce-person")
-        .onClick(() => new PersonModal(this.app, this).open()));
-      m.addItem((i) => i.setTitle("New Org").setIcon("sauce-org")
-        .onClick(() => new OrgModal(this.app, this).open()));
-      m.addItem((i) => i.setTitle("Log Touch").setIcon("sauce-touch")
-        .onClick(() => new TouchModal(this.app, this).open()));
-      m.addItem((i) => i.setTitle("New Intro").setIcon("sauce-intro")
-        .onClick(() => new IntroModal(this.app, this).open()));
-      m.addItem((i) => i.setTitle("Promote Prospect").setIcon("sauce-promote")
-        .onClick(() => new PromoteProspectModal(this.app, this, this.activeFile()).open()));
+      m.addItem((i) =>
+        i
+          .setTitle("New Person")
+          .setIcon("sauce-person")
+          .onClick(() => new PersonModal(this.app, this).open()),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Org")
+          .setIcon("sauce-org")
+          .onClick(() => new OrgModal(this.app, this).open()),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Log Touch")
+          .setIcon("sauce-touch")
+          .onClick(() => new TouchModal(this.app, this).open()),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Intro")
+          .setIcon("sauce-intro")
+          .onClick(() => new IntroModal(this.app, this).open()),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Promote Prospect")
+          .setIcon("sauce-promote")
+          .onClick(() =>
+            new PromoteProspectModal(this.app, this, this.activeFile()).open(),
+          ),
+      );
       m.showAtMouseEvent(event);
     });
-    this.addRibbonIcon("sauce-hierarchy", "Sauce CRM — Graph & Views", (event) => {
-      const m = new Menu();
-      m.addItem((i) => i.setTitle("Dashboard").setIcon("layout-dashboard")
-        .onClick(() => this.openView(VIEW_DASHBOARD)));
-      m.addItem((i) => i.setTitle("Parent Vault Dashboard").setIcon("sauce-parent-vault")
-        .onClick(() => this.openView(VIEW_PARENT)));
-      m.addItem((i) => i.setTitle("Typed-Edge Graph").setIcon("sauce-hierarchy")
-        .onClick(() => this.openView(VIEW_GRAPH)));
-      m.addItem((i) => i.setTitle("Pipeline Kanban").setIcon("columns-3")
-        .onClick(() => this.openView(VIEW_PIPELINE)));
-      m.addItem((i) => i.setTitle("Compatibility Matrix").setIcon("sauce-compat")
-        .onClick(() => this.openView(VIEW_COMPAT)));
-      m.addItem((i) => i.setTitle("Touch Heatmap").setIcon("sauce-heatmap")
-        .onClick(() => this.openView(VIEW_HEATMAP)));
-      m.addItem((i) => i.setTitle("Hierarchy Tree").setIcon("sauce-hierarchy")
-        .onClick(() => this.openView(VIEW_HIERARCHY)));
-      m.addItem((i) => i.setTitle("Overdue Queue").setIcon("sauce-overdue")
-        .onClick(() => this.openView(VIEW_OVERDUE)));
-      m.addItem((i) => i.setTitle("Map").setIcon("sauce-map")
-        .onClick(() => this.openView(VIEW_MAP_REAL)));
-      m.addItem((i) => i.setTitle("Calendar").setIcon("sauce-touch")
-        .onClick(() => this.openView(VIEW_CALENDAR)));
-      m.addItem((i) => i.setTitle("Tasks Board").setIcon("sauce-skill")
-        .onClick(() => this.openView(VIEW_TASKS)));
-      m.addItem((i) => i.setTitle("Inbox").setIcon("sauce-ai-inbox")
-        .onClick(() => this.openView(VIEW_INBOX)));
-      m.addItem((i) => i.setTitle("Ledger").setIcon("sauce-audit")
-        .onClick(() => this.openView(VIEW_LEDGER)));
-      m.addSeparator();
-      m.addItem((i) => i.setTitle("Run Path Query").setIcon("git-branch")
-        .onClick(() => this.runPathPrompt()));
-      m.showAtMouseEvent(event);
-    });
+    this.addRibbonIcon(
+      "sauce-hierarchy",
+      "Sauce CRM — Graph & Views",
+      (event) => {
+        const m = new Menu();
+        m.addItem((i) =>
+          i
+            .setTitle("Dashboard")
+            .setIcon("layout-dashboard")
+            .onClick(() => this.openView(VIEW_DASHBOARD)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Parent Vault Dashboard")
+            .setIcon("sauce-parent-vault")
+            .onClick(() => this.openView(VIEW_PARENT)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Typed-Edge Graph")
+            .setIcon("sauce-hierarchy")
+            .onClick(() => this.openView(VIEW_GRAPH)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Pipeline Kanban")
+            .setIcon("columns-3")
+            .onClick(() => this.openView(VIEW_PIPELINE)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Compatibility Matrix")
+            .setIcon("sauce-compat")
+            .onClick(() => this.openView(VIEW_COMPAT)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Touch Heatmap")
+            .setIcon("sauce-heatmap")
+            .onClick(() => this.openView(VIEW_HEATMAP)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Hierarchy Tree")
+            .setIcon("sauce-hierarchy")
+            .onClick(() => this.openView(VIEW_HIERARCHY)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Overdue Queue")
+            .setIcon("sauce-overdue")
+            .onClick(() => this.openView(VIEW_OVERDUE)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Map")
+            .setIcon("sauce-map")
+            .onClick(() => this.openView(VIEW_MAP_REAL)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Calendar")
+            .setIcon("sauce-touch")
+            .onClick(() => this.openView(VIEW_CALENDAR)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Tasks Board")
+            .setIcon("sauce-skill")
+            .onClick(() => this.openView(VIEW_TASKS)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Inbox")
+            .setIcon("sauce-ai-inbox")
+            .onClick(() => this.openView(VIEW_INBOX)),
+        );
+        m.addItem((i) =>
+          i
+            .setTitle("Ledger")
+            .setIcon("sauce-audit")
+            .onClick(() => this.openView(VIEW_LEDGER)),
+        );
+        m.addSeparator();
+        m.addItem((i) =>
+          i
+            .setTitle("Run Path Query")
+            .setIcon("git-branch")
+            .onClick(() => this.runPathPrompt()),
+        );
+        m.showAtMouseEvent(event);
+      },
+    );
     this.addRibbonIcon("bot", "Sauce CRM — Copilot & AI", (event) => {
       const m = new Menu();
-      m.addItem((i) => i.setTitle("Open Copilot Chat").setIcon("sauce-copilot")
-        .onClick(() => this.openView(VIEW_COPILOT_CHAT)));
-      m.addItem((i) => i.setTitle("AI Inbox").setIcon("sauce-ai-inbox")
-        .onClick(() => this.openView(VIEW_AI_INBOX_REAL)));
+      m.addItem((i) =>
+        i
+          .setTitle("Open Copilot Chat")
+          .setIcon("sauce-copilot")
+          .onClick(() => this.openView(VIEW_COPILOT_CHAT)),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("AI Inbox")
+          .setIcon("sauce-ai-inbox")
+          .onClick(() => this.openView(VIEW_AI_INBOX_REAL)),
+      );
       m.addSeparator();
-      m.addItem((i) => i.setTitle("Run Skill…").setIcon("sauce-skill")
-        .onClick(() => new SkillPickerModal(this.app, this).open()));
-      m.addItem((i) => i.setTitle("Audit Log").setIcon("sauce-audit")
-        .onClick(() => this.openView(VIEW_AUDIT_LOG_REAL)));
-      m.addItem((i) => i.setTitle("Skill Run Log").setIcon("sauce-skill")
-        .onClick(() => this.openView(VIEW_SKILL_RUN_LOG_REAL)));
-      m.addItem((i) => i.setTitle("Sync Status").setIcon("sauce-sync")
-        .onClick(() => this.openView(VIEW_SYNC_STATUS_REAL)));
+      m.addItem((i) =>
+        i
+          .setTitle("Run Skill…")
+          .setIcon("sauce-skill")
+          .onClick(() => new SkillPickerModal(this.app, this).open()),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Audit Log")
+          .setIcon("sauce-audit")
+          .onClick(() => this.openView(VIEW_AUDIT_LOG_REAL)),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Skill Run Log")
+          .setIcon("sauce-skill")
+          .onClick(() => this.openView(VIEW_SKILL_RUN_LOG_REAL)),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Sync Status")
+          .setIcon("sauce-sync")
+          .onClick(() => this.openView(VIEW_SYNC_STATUS_REAL)),
+      );
       m.showAtMouseEvent(event);
     });
     // Fourth ribbon — utilities, setup, and data ops. Keeps the People /
     // Graph / Copilot menus focused while ensuring nothing is unreachable.
     this.addRibbonIcon("settings-2", "Sauce CRM — Setup & Data", (event) => {
       const m = new Menu();
-      m.addItem((i) => i.setTitle("Quick Capture").setIcon("plus-circle")
-        .onClick(() => { try { const QCMod = require("./ui/modals/QuickCaptureModal"); new QCMod.QuickCaptureModal(this.app, this).open(); } catch (e) { new Notice("Quick Capture unavailable"); } }));
-      m.addItem((i) => i.setTitle("New Note").setIcon("sauce-note")
-        .onClick(() => new CaptureRecordModal(this.app, this, "knowledge-note").open()));
-      m.addItem((i) => i.setTitle("New Idea").setIcon("sauce-idea")
-        .onClick(() => new CaptureRecordModal(this.app, this, "idea").open()));
-      m.addItem((i) => i.setTitle("New Observation").setIcon("sauce-observation")
-        .onClick(() => new CaptureRecordModal(this.app, this, "observation").open()));
-      m.addItem((i) => i.setTitle("New Task").setIcon("sauce-task")
-        .onClick(() => new CaptureRecordModal(this.app, this, "task").open()));
-      m.addItem((i) => i.setTitle("New Event").setIcon("sauce-event")
-        .onClick(() => new CaptureRecordModal(this.app, this, "event").open()));
-      m.addItem((i) => i.setTitle("New Ledger Entry").setIcon("sauce-ledger")
-        .onClick(() => new CaptureRecordModal(this.app, this, "ledger-entry").open()));
-      m.addItem((i) => i.setTitle("New Pipeline Deal").setIcon("sauce-pipeline")
-        .onClick(() => new CaptureRecordModal(this.app, this, "pipeline-deal").open()));
+      m.addItem((i) =>
+        i
+          .setTitle("Quick Capture")
+          .setIcon("plus-circle")
+          .onClick(() => {
+            try {
+              const QCMod = require("./ui/modals/QuickCaptureModal");
+              new QCMod.QuickCaptureModal(this.app, this).open();
+            } catch (e) {
+              new Notice("Quick Capture unavailable");
+            }
+          }),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Note")
+          .setIcon("sauce-note")
+          .onClick(() =>
+            new CaptureRecordModal(this.app, this, "knowledge-note").open(),
+          ),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Idea")
+          .setIcon("sauce-idea")
+          .onClick(() => new CaptureRecordModal(this.app, this, "idea").open()),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Observation")
+          .setIcon("sauce-observation")
+          .onClick(() =>
+            new CaptureRecordModal(this.app, this, "observation").open(),
+          ),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Task")
+          .setIcon("sauce-task")
+          .onClick(() => new CaptureRecordModal(this.app, this, "task").open()),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Event")
+          .setIcon("sauce-event")
+          .onClick(() =>
+            new CaptureRecordModal(this.app, this, "event").open(),
+          ),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Ledger Entry")
+          .setIcon("sauce-ledger")
+          .onClick(() =>
+            new CaptureRecordModal(this.app, this, "ledger-entry").open(),
+          ),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Pipeline Deal")
+          .setIcon("sauce-pipeline")
+          .onClick(() =>
+            new CaptureRecordModal(this.app, this, "pipeline-deal").open(),
+          ),
+      );
       m.addSeparator();
-      m.addItem((i) => i.setTitle("New Addendum").setIcon("sauce-addendum")
-        .onClick(() => { try { const AMod = require("./ui/modals/AddendumModal"); new AMod.AddendumModal(this.app, this, this.activeFile()).open(); } catch { new Notice("Addendum modal unavailable"); } }));
-      m.addItem((i) => i.setTitle("New Relation").setIcon("link")
-        .onClick(() => { try { const RMod = require("./ui/modals/RelationModal"); new RMod.RelationModal(this.app, this, this.activeFile()).open(); } catch { new Notice("Relation modal unavailable"); } }));
+      m.addItem((i) =>
+        i
+          .setTitle("New Addendum")
+          .setIcon("sauce-addendum")
+          .onClick(() => {
+            try {
+              const AMod = require("./ui/modals/AddendumModal");
+              new AMod.AddendumModal(this.app, this, this.activeFile()).open();
+            } catch {
+              new Notice("Addendum modal unavailable");
+            }
+          }),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("New Relation")
+          .setIcon("link")
+          .onClick(() => {
+            try {
+              const RMod = require("./ui/modals/RelationModal");
+              new RMod.RelationModal(this.app, this, this.activeFile()).open();
+            } catch {
+              new Notice("Relation modal unavailable");
+            }
+          }),
+      );
       m.addSeparator();
-      m.addItem((i) => i.setTitle("Import (CSV/vCard/ICS/JSON)").setIcon("upload")
-        .onClick(() => { try { const IMod = require("./ui/modals/ImportMappingModal"); new IMod.ImportMappingModal(this.app, this).open(); } catch { new Notice("Import unavailable"); } }));
-      m.addItem((i) => i.setTitle("Export Graph JSON").setIcon("download")
-        .onClick(() => { const cmd = (this.app as any).commands?.executeCommandById?.("sauce-crm:export-graph-json"); if (!cmd) new Notice("Export command unavailable"); }));
-      m.addItem((i) => i.setTitle("Run Backup Now").setIcon("hard-drive")
-        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:run-backup"); }));
-      m.addItem((i) => i.setTitle("Prune Old Backups").setIcon("trash-2")
-        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:prune-backups"); }));
+      m.addItem((i) =>
+        i
+          .setTitle("Import (CSV/vCard/ICS/JSON)")
+          .setIcon("upload")
+          .onClick(() => {
+            try {
+              const IMod = require("./ui/modals/ImportMappingModal");
+              new IMod.ImportMappingModal(this.app, this).open();
+            } catch {
+              new Notice("Import unavailable");
+            }
+          }),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Export Graph JSON")
+          .setIcon("download")
+          .onClick(() => {
+            const cmd = (this.app as any).commands?.executeCommandById?.(
+              "sauce-crm:export-graph-json",
+            );
+            if (!cmd) new Notice("Export command unavailable");
+          }),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Run Backup Now")
+          .setIcon("hard-drive")
+          .onClick(() => {
+            (this.app as any).commands?.executeCommandById?.(
+              "sauce-crm:run-backup",
+            );
+          }),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Prune Old Backups")
+          .setIcon("trash-2")
+          .onClick(() => {
+            (this.app as any).commands?.executeCommandById?.(
+              "sauce-crm:prune-backups",
+            );
+          }),
+      );
       m.addSeparator();
-      m.addItem((i) => i.setTitle("Initialize Vault").setIcon("folder-plus")
-        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:initialize-vault"); }));
-      m.addItem((i) => i.setTitle("Initialize Parent Vault").setIcon("folder-tree")
-        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:initialize-parent-vault"); }));
-      m.addItem((i) => i.setTitle("Onboarding…").setIcon("compass")
-        .onClick(() => { (this.app as any).commands?.executeCommandById?.("sauce-crm:onboarding"); }));
+      m.addItem((i) =>
+        i
+          .setTitle("Initialize Vault")
+          .setIcon("folder-plus")
+          .onClick(() => {
+            (this.app as any).commands?.executeCommandById?.(
+              "sauce-crm:initialize-vault",
+            );
+          }),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Initialize Parent Vault")
+          .setIcon("folder-tree")
+          .onClick(() => {
+            (this.app as any).commands?.executeCommandById?.(
+              "sauce-crm:initialize-parent-vault",
+            );
+          }),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Onboarding…")
+          .setIcon("compass")
+          .onClick(() => {
+            (this.app as any).commands?.executeCommandById?.(
+              "sauce-crm:onboarding",
+            );
+          }),
+      );
       m.addSeparator();
-      m.addItem((i) => i.setTitle("Sauce CRM Settings").setIcon("settings")
-        .onClick(() => { (this.app as any).setting?.open?.(); (this.app as any).setting?.openTabById?.("sauce-crm"); }));
+      m.addItem((i) =>
+        i
+          .setTitle("Sauce CRM Settings")
+          .setIcon("settings")
+          .onClick(() => {
+            (this.app as any).setting?.open?.();
+            (this.app as any).setting?.openTabById?.("sauce-crm");
+          }),
+      );
       m.showAtMouseEvent(event);
     });
 
-    this.registerEvent(this.app.metadataCache.on("changed", (f) => {
-      if (f instanceof TFile) this.edgeSync.scheduleReconcile(f);
-      // Keep the LanceDB mirror + embeddings in step (frontmatter is parsed by
-      // the time "changed" fires, so entity type/tags/edges are available).
-      if (f instanceof TFile) void this.mirrorSync?.syncFile(f).catch(() => {});
-      // Auto-enrichment when enabled + autostart. Idempotent, so it can't loop
-      // on its own frontmatter write.
-      if (f instanceof TFile && this.settings.features.enrichment.autostart) {
-        void this.runEnrichment(f).catch(() => {});
-      }
-      this.scheduleOpenViewRefresh();
-    }));
-    this.registerEvent(this.app.vault.on("delete", (f) => {
-      if (f instanceof TFile) void this.mirrorSync?.deleteFile(f.path).catch(() => {});
-      this.scheduleOpenViewRefresh();
-    }));
-    this.registerEvent(this.app.vault.on("rename", (f, oldPath) => {
-      if (f instanceof TFile) void this.mirrorSync?.renameFile(oldPath, f.path).catch(() => {});
-      this.scheduleOpenViewRefresh();
-    }));
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (f) => {
+        if (f instanceof TFile) this.edgeSync.scheduleReconcile(f);
+        // Keep the LanceDB mirror + embeddings in step (frontmatter is parsed by
+        // the time "changed" fires, so entity type/tags/edges are available).
+        if (f instanceof TFile)
+          void this.mirrorSync?.syncFile(f).catch(() => {});
+        // Auto-enrichment when enabled + autostart. Idempotent, so it can't loop
+        // on its own frontmatter write.
+        if (f instanceof TFile && this.settings.features.enrichment.autostart) {
+          void this.runEnrichment(f).catch(() => {});
+        }
+        this.scheduleOpenViewRefresh();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", (f) => {
+        if (f instanceof TFile)
+          void this.mirrorSync?.deleteFile(f.path).catch(() => {});
+        this.scheduleOpenViewRefresh();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("rename", (f, oldPath) => {
+        if (f instanceof TFile)
+          void this.mirrorSync?.renameFile(oldPath, f.path).catch(() => {});
+        this.scheduleOpenViewRefresh();
+      }),
+    );
 
     this.registerMarkdownCodeBlockProcessor("sauce-button", (src, el, ctx) =>
       new ActionButton(src, el, ctx, this).render(),
@@ -539,12 +1030,14 @@ export default class SauceGraphPlugin extends Plugin {
       else if (r.text) el.createEl("pre", { text: r.text });
     });
     // Plugin auto-config dashboard — renders into _PLUGIN-CONFIG.md.
-    this.registerMarkdownCodeBlockProcessor("sauce-plugin-config", (_src, el) =>
-      void renderPluginConfigBlock(el, this),
+    this.registerMarkdownCodeBlockProcessor(
+      "sauce-plugin-config",
+      (_src, el) => void renderPluginConfigBlock(el, this),
     );
     // Tasks (Tasks-plugin checkbox model) — fallback render + author surface.
-    this.registerMarkdownCodeBlockProcessor("sauce-tasks", (_src, el) =>
-      void renderTasksBlock(el, this),
+    this.registerMarkdownCodeBlockProcessor(
+      "sauce-tasks",
+      (_src, el) => void renderTasksBlock(el, this),
     );
 
     console.log("Sauce Graph loaded");
@@ -552,158 +1045,562 @@ export default class SauceGraphPlugin extends Plugin {
 
   registerViews(): void {
     this.registerView(VIEW_DASHBOARD, (l) => new DashboardView(l, this));
-    this.registerView(VIEW_PIPELINE,  (l) => new PipelineKanbanView(l, this));
-    this.registerView(VIEW_GRAPH,     (l) => new TypedEdgeGraphView(l, this));
-    this.registerView(VIEW_COMPAT,    (l) => new CompatibilityMatrixView(l, this));
-    this.registerView(VIEW_HEATMAP,   (l) => new TouchHeatmapView(l, this));
+    this.registerView(VIEW_PIPELINE, (l) => new PipelineKanbanView(l, this));
+    this.registerView(VIEW_GRAPH, (l) => new TypedEdgeGraphView(l, this));
+    this.registerView(VIEW_COMPAT, (l) => new CompatibilityMatrixView(l, this));
+    this.registerView(VIEW_HEATMAP, (l) => new TouchHeatmapView(l, this));
     this.registerView(VIEW_HIERARCHY, (l) => new HierarchyTreeView(l, this));
-    this.registerView(VIEW_OVERDUE,   (l) => new OverdueQueueView(l, this));
-    this.registerView(VIEW_PARENT,    (l) => new ParentDashboardView(l, this));
+    this.registerView(VIEW_OVERDUE, (l) => new OverdueQueueView(l, this));
+    this.registerView(VIEW_PARENT, (l) => new ParentDashboardView(l, this));
   }
 
   registerCommands(): void {
-    this.addCommand({ id: "new-person", name: "New person", callback: () => new PersonModal(this.app, this).open() });
-    this.addCommand({ id: "new-org", name: "New org", callback: () => new OrgModal(this.app, this).open() });
-    this.addCommand({ id: "log-touch", name: "Log touch", callback: () => new TouchModal(this.app, this).open() });
-    this.addCommand({ id: "new-addendum", name: "New addendum", callback: () => new AddendumModal(this.app, this, this.activeFile()).open() });
-    this.addCommand({ id: "new-intro", name: "New intro", callback: () => new IntroModal(this.app, this).open() });
-    this.addCommand({ id: "edit-current", name: "Edit current note", callback: () => this.editActive() });
+    this.addCommand({
+      id: "new-person",
+      name: "New person",
+      callback: () => new PersonModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "new-org",
+      name: "New org",
+      callback: () => new OrgModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "log-touch",
+      name: "Log touch",
+      callback: () => new TouchModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "new-addendum",
+      name: "New addendum",
+      callback: () =>
+        new AddendumModal(this.app, this, this.activeFile()).open(),
+    });
+    this.addCommand({
+      id: "new-intro",
+      name: "New intro",
+      callback: () => new IntroModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "edit-current",
+      name: "Edit current note",
+      callback: () => this.editActive(),
+    });
 
     this.addCaptureCommand("new-note", "New Knowledge Note", "knowledge-note");
     this.addCaptureCommand("new-idea", "New Idea", "idea");
     this.addCaptureCommand("new-observation", "New Observation", "observation");
     this.addCaptureCommand("new-task", "New Task", "task");
     this.addCaptureCommand("new-event", "New Event", "event");
-    this.addCaptureCommand("new-ledger-entry", "New Ledger Entry", "ledger-entry");
-    this.addCaptureCommand("new-pipeline-deal", "New Pipeline Deal", "pipeline-deal");
+    this.addCaptureCommand(
+      "new-ledger-entry",
+      "New Ledger Entry",
+      "ledger-entry",
+    );
+    this.addCaptureCommand(
+      "new-pipeline-deal",
+      "New Pipeline Deal",
+      "pipeline-deal",
+    );
 
-    this.addCommand({ id: "new-relation", name: "New Relation", callback: () => new RelationModal(this.app, this, this.activeFile()).open() });
-    this.addCommand({ id: "promote-prospect", name: "Promote Prospect", callback: () => new PromoteProspectModal(this.app, this, this.activeFile()).open() });
-    this.addCommand({ id: "tag-rename", name: "Tag — Rename", callback: () => new TagModal(this.app, this, "rename").open() });
-    this.addCommand({ id: "tag-merge",  name: "Tag — Merge",  callback: () => new TagModal(this.app, this, "merge").open() });
-    this.addCommand({ id: "tag-delete", name: "Tag — Delete", callback: () => new TagModal(this.app, this, "delete").open() });
+    this.addCommand({
+      id: "new-relation",
+      name: "New Relation",
+      callback: () =>
+        new RelationModal(this.app, this, this.activeFile()).open(),
+    });
+    this.addCommand({
+      id: "promote-prospect",
+      name: "Promote Prospect",
+      callback: () =>
+        new PromoteProspectModal(this.app, this, this.activeFile()).open(),
+    });
+    this.addCommand({
+      id: "tag-rename",
+      name: "Tag — Rename",
+      callback: () => new TagModal(this.app, this, "rename").open(),
+    });
+    this.addCommand({
+      id: "tag-merge",
+      name: "Tag — Merge",
+      callback: () => new TagModal(this.app, this, "merge").open(),
+    });
+    this.addCommand({
+      id: "tag-delete",
+      name: "Tag — Delete",
+      callback: () => new TagModal(this.app, this, "delete").open(),
+    });
 
-    this.addCommand({ id: "bump-last-touch", name: "Bump last_touch", callback: () => this.bumpLastTouch() });
+    this.addCommand({
+      id: "bump-last-touch",
+      name: "Bump last_touch",
+      callback: () => this.bumpLastTouch(),
+    });
 
-    this.addCommand({ id: "open-dashboard", name: "Open Dashboard",         callback: () => this.openView(VIEW_DASHBOARD) });
-    this.addCommand({ id: "open-pipeline",  name: "Open Pipeline Kanban",   callback: () => this.openView(VIEW_PIPELINE) });
-    this.addCommand({ id: "open-graph",     name: "Open Typed-Edge Graph",  callback: () => this.openView(VIEW_GRAPH) });
-    this.addCommand({ id: "open-compat",    name: "Open Compatibility Matrix", callback: () => this.openView(VIEW_COMPAT) });
-    this.addCommand({ id: "open-heatmap",   name: "Open Touch Heatmap",     callback: () => this.openView(VIEW_HEATMAP) });
-    this.addCommand({ id: "open-hierarchy", name: "Open Hierarchy Tree",    callback: () => this.openView(VIEW_HIERARCHY) });
-    this.addCommand({ id: "open-overdue",   name: "Open Overdue Queue",     callback: () => this.openView(VIEW_OVERDUE) });
-    this.addCommand({ id: "open-parent-dashboard", name: "Open Parent Vault Dashboard", callback: () => this.openView(VIEW_PARENT) });
-    this.addCommand({ id: "open-copilot", name: "Open Copilot", callback: () => this.openView(VIEW_COPILOT_CHAT) });
-    this.addCommand({ id: "run-skill", name: "Run Skill…", callback: () => new SkillPickerModal(this.app, this).open() });
-    this.addCommand({ id: "open-map", name: "Open Map", callback: () => this.openView(VIEW_MAP_REAL) });
-    this.addCommand({ id: "open-ai-inbox", name: "Open AI Inbox", callback: () => this.openView(VIEW_AI_INBOX_REAL) });
-    this.addCommand({ id: "quick-capture", name: "Quick capture (CDEL)", callback: () => new QuickCaptureModal(this.app, this).open() });
-    this.addCommand({ id: "import", name: "Import (CSV/vCard/ICS/JSON)", callback: () => new ImportMappingModal(this.app, this).open() });
-    this.addCommand({ id: "open-sync-status", name: "Open Sync Status", callback: () => this.openView(VIEW_SYNC_STATUS_REAL) });
-    this.addCommand({ id: "run-backup", name: "Run Backup Now", callback: async () => {
-      const svc = new BackupService(this.app, this.entityService, this.query);
-      const r = await svc.run();
-      new Notice(`Backup → ${r.path} (${r.entities} entities, ${r.edges} edges, ${(r.bytes / 1024).toFixed(1)} KB)`);
-    } });
-    this.addCommand({ id: "prune-backups", name: "Prune Old Backups", callback: async () => {
-      const svc = new BackupService(this.app, this.entityService, this.query);
-      const n = await svc.prune(14);
-      new Notice(`Pruned ${n} old backup(s)`);
-    } });
-    this.addCommand({ id: "open-audit-log", name: "Open Audit Log", callback: () => this.openView(VIEW_AUDIT_LOG_REAL) });
-    this.addCommand({ id: "open-skill-run-log", name: "Open Skill Run Log", callback: () => this.openView(VIEW_SKILL_RUN_LOG_REAL) });
-    this.addCommand({ id: "open-calendar", name: "Open Calendar", callback: () => this.openView(VIEW_CALENDAR) });
-    this.addCommand({ id: "open-tasks-board", name: "Open Tasks Board", callback: () => this.openView(VIEW_TASKS) });
-    this.addCommand({ id: "open-inbox", name: "Open Inbox", callback: () => this.openView(VIEW_INBOX) });
-    this.addCommand({ id: "open-ledger", name: "Open Ledger", callback: () => this.openView(VIEW_LEDGER) });
-    this.addCommand({ id: "onboarding", name: "Onboarding Wizard", callback: () => new OnboardingWizardModal(this.app, this).open() });
-    this.addCommand({ id: "encrypted-backup", name: "Encrypted Backup (passphrase)", callback: async () => {
-      const pass = prompt("Passphrase for encrypted backup:");
-      if (!pass) { new Notice("cancelled"); return; }
-      const svc = new EncryptedBackupService(this.app, this.entityService, this.query, this.v2);
-      const r = await svc.runEncrypted(pass);
-      new Notice(`Encrypted backup → ${r.path} (${(r.bytes / 1024).toFixed(1)} KB)`);
-    } });
+    this.addCommand({
+      id: "open-dashboard",
+      name: "Open Dashboard",
+      callback: () => this.openView(VIEW_DASHBOARD),
+    });
+    this.addCommand({
+      id: "open-pipeline",
+      name: "Open Pipeline Kanban",
+      callback: () => this.openView(VIEW_PIPELINE),
+    });
+    this.addCommand({
+      id: "open-graph",
+      name: "Open Typed-Edge Graph",
+      callback: () => this.openView(VIEW_GRAPH),
+    });
+    this.addCommand({
+      id: "open-compat",
+      name: "Open Compatibility Matrix",
+      callback: () => this.openView(VIEW_COMPAT),
+    });
+    this.addCommand({
+      id: "open-heatmap",
+      name: "Open Touch Heatmap",
+      callback: () => this.openView(VIEW_HEATMAP),
+    });
+    this.addCommand({
+      id: "open-hierarchy",
+      name: "Open Hierarchy Tree",
+      callback: () => this.openView(VIEW_HIERARCHY),
+    });
+    this.addCommand({
+      id: "open-overdue",
+      name: "Open Overdue Queue",
+      callback: () => this.openView(VIEW_OVERDUE),
+    });
+    this.addCommand({
+      id: "open-parent-dashboard",
+      name: "Open Parent Vault Dashboard",
+      callback: () => this.openView(VIEW_PARENT),
+    });
+    this.addCommand({
+      id: "open-copilot",
+      name: "Open Copilot",
+      callback: () => this.openView(VIEW_COPILOT_CHAT),
+    });
+    this.addCommand({
+      id: "run-skill",
+      name: "Run Skill…",
+      callback: () => new SkillPickerModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "open-map",
+      name: "Open Map",
+      callback: () => this.openView(VIEW_MAP_REAL),
+    });
+    this.addCommand({
+      id: "open-ai-inbox",
+      name: "Open AI Inbox",
+      callback: () => this.openView(VIEW_AI_INBOX_REAL),
+    });
+    this.addCommand({
+      id: "quick-capture",
+      name: "Quick capture (CDEL)",
+      callback: () => new QuickCaptureModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "import",
+      name: "Import (CSV/vCard/ICS/JSON)",
+      callback: () => new ImportMappingModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "open-sync-status",
+      name: "Open Sync Status",
+      callback: () => this.openView(VIEW_SYNC_STATUS_REAL),
+    });
+    this.addCommand({
+      id: "run-backup",
+      name: "Run Backup Now",
+      callback: async () => {
+        const svc = new BackupService(this.app, this.entityService, this.query);
+        const r = await svc.run();
+        new Notice(
+          `Backup → ${r.path} (${r.entities} entities, ${r.edges} edges, ${(r.bytes / 1024).toFixed(1)} KB)`,
+        );
+      },
+    });
+    this.addCommand({
+      id: "prune-backups",
+      name: "Prune Old Backups",
+      callback: async () => {
+        const svc = new BackupService(this.app, this.entityService, this.query);
+        const n = await svc.prune(14);
+        new Notice(`Pruned ${n} old backup(s)`);
+      },
+    });
+    this.addCommand({
+      id: "open-audit-log",
+      name: "Open Audit Log",
+      callback: () => this.openView(VIEW_AUDIT_LOG_REAL),
+    });
+    this.addCommand({
+      id: "open-skill-run-log",
+      name: "Open Skill Run Log",
+      callback: () => this.openView(VIEW_SKILL_RUN_LOG_REAL),
+    });
+    this.addCommand({
+      id: "open-calendar",
+      name: "Open Calendar",
+      callback: () => this.openView(VIEW_CALENDAR),
+    });
+    this.addCommand({
+      id: "open-tasks-board",
+      name: "Open Tasks Board",
+      callback: () => this.openView(VIEW_TASKS),
+    });
+    this.addCommand({
+      id: "open-inbox",
+      name: "Open Inbox",
+      callback: () => this.openView(VIEW_INBOX),
+    });
+    this.addCommand({
+      id: "open-ledger",
+      name: "Open Ledger",
+      callback: () => this.openView(VIEW_LEDGER),
+    });
+    this.addCommand({
+      id: "onboarding",
+      name: "Onboarding Wizard",
+      callback: () => new OnboardingWizardModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "encrypted-backup",
+      name: "Encrypted Backup (passphrase)",
+      callback: async () => {
+        const pass = prompt("Passphrase for encrypted backup:");
+        if (!pass) {
+          new Notice("cancelled");
+          return;
+        }
+        const svc = new EncryptedBackupService(
+          this.app,
+          this.entityService,
+          this.query,
+          this.v2,
+        );
+        const r = await svc.runEncrypted(pass);
+        new Notice(
+          `Encrypted backup → ${r.path} (${(r.bytes / 1024).toFixed(1)} KB)`,
+        );
+      },
+    });
 
     // ─── V2 commands (§40) — operator-bindable surfaces ─────────────────
-    this.addCommand({ id: "sauce:open-sync-status", name: "Open Sync Status", callback: () => { this.openView(VIEW_SYNC_STATUS_REAL).catch(() => new Notice("Sync Status view not loaded")); } });
-    this.addCommand({ id: "sauce:open-audit-log", name: "Open Audit Log", callback: () => { this.openView("sauce-audit-log").catch(() => new Notice("Audit Log view not loaded")); } });
-    this.addCommand({ id: "sauce:summarize-current", name: "Summarize Current Note", callback: () => { this.runSkillOnActive("summarize-thread"); } });
-    this.addCommand({ id: "sauce:research-current", name: "Research Current Note", callback: () => { this.runSkillOnActive("research-person"); } });
-    this.addCommand({ id: "sauce:geocode-current", name: "Geocode Current Note", callback: () => { this.runSkillOnActive("geocode"); } });
-    this.addCommand({ id: "sauce:capture-call", name: "Capture Call (Twilio)", callback: () => { new Notice("Twilio capture: configure account in Settings → Integrations → Twilio"); } });
-    this.addCommand({ id: "sauce:transcribe-file", name: "Transcribe Audio File…", callback: () => { new Notice("Pick an audio file via Quick Capture"); } });
-    this.addCommand({ id: "sauce:lock-vault", name: "Lock Vault", callback: () => { this.v2?.keyVault?.lock(); new Notice("Vault locked"); } });
-    this.addCommand({ id: "sauce:unlock-vault", name: "Unlock Vault", callback: () => { this.unlockVaultPrompt(); } });
-    this.addCommand({ id: "sauce:rotate-keys", name: "Rotate Keys…", callback: () => { new Notice("Open Settings → Security to rotate keys"); } });
-    this.addCommand({ id: "sauce:verify-audit-chain", name: "Verify Audit Chain", callback: () => { this.verifyAuditChain(); } });
-    this.addCommand({ id: "sauce:sync-now", name: "Sync Now (all eligible)", callback: () => { this.v2?.sync.start(); new Notice("Sync triggered"); } });
-    this.addCommand({ id: "sauce:import", name: "Import…", callback: () => { new Notice("Use Settings → Import / Export"); } });
-    this.addCommand({ id: "sauce:export", name: "Export…", callback: () => { this.exportGraphJson(); } });
-    this.addCommand({ id: "sauce:backup-now", name: "Backup Now (Encrypted)", callback: () => { new Notice("Backup: encrypted bundle written to plugin folder"); } });
-    this.addCommand({ id: "sauce:reseed-backend", name: "Wipe and Reseed Backend", callback: () => { new Notice("Reseed: confirm in Settings → Backend"); } });
-    this.addCommand({ id: "sauce:run-inference-pass", name: "Run Inference Pass", callback: () => { new Notice("Inference pass: edge proposals queued to AI Inbox"); } });
-    this.addCommand({ id: "sauce:propose-merges", name: "Propose Merges", callback: () => { this.runSkillOnActive("merge-duplicates"); } });
-    this.addCommand({ id: "sauce:weekly-briefing", name: "Weekly Briefing", callback: () => { this.runSkillOnActive("summarize-week"); } });
-    this.addCommand({ id: "sauce:open-skill-runs", name: "Open Skill Run Log", callback: () => { this.openView("sauce-skill-run-log").catch(() => new Notice("Skill Run Log view not loaded")); } });
-    this.addCommand({ id: "sauce:reload-cdel-idioms", name: "Reload CDEL Idioms", callback: () => { new Notice("CDEL idioms reloaded from Settings → CDEL"); } });
+    this.addCommand({
+      id: "sauce:open-sync-status",
+      name: "Open Sync Status",
+      callback: () => {
+        this.openView(VIEW_SYNC_STATUS_REAL).catch(
+          () => new Notice("Sync Status view not loaded"),
+        );
+      },
+    });
+    this.addCommand({
+      id: "sauce:open-audit-log",
+      name: "Open Audit Log",
+      callback: () => {
+        this.openView("sauce-audit-log").catch(
+          () => new Notice("Audit Log view not loaded"),
+        );
+      },
+    });
+    this.addCommand({
+      id: "sauce:summarize-current",
+      name: "Summarize Current Note",
+      callback: () => {
+        this.runSkillOnActive("summarize-thread");
+      },
+    });
+    this.addCommand({
+      id: "sauce:research-current",
+      name: "Research Current Note",
+      callback: () => {
+        this.runSkillOnActive("research-person");
+      },
+    });
+    this.addCommand({
+      id: "sauce:geocode-current",
+      name: "Geocode Current Note",
+      callback: () => {
+        this.runSkillOnActive("geocode");
+      },
+    });
+    this.addCommand({
+      id: "sauce:capture-call",
+      name: "Capture Call (Twilio)",
+      callback: () => {
+        new Notice(
+          "Twilio capture: configure account in Settings → Integrations → Twilio",
+        );
+      },
+    });
+    this.addCommand({
+      id: "sauce:transcribe-file",
+      name: "Transcribe Audio File…",
+      callback: () => {
+        new Notice("Pick an audio file via Quick Capture");
+      },
+    });
+    this.addCommand({
+      id: "sauce:lock-vault",
+      name: "Lock Vault",
+      callback: () => {
+        this.v2?.keyVault?.lock();
+        new Notice("Vault locked");
+      },
+    });
+    this.addCommand({
+      id: "sauce:unlock-vault",
+      name: "Unlock Vault",
+      callback: () => {
+        this.unlockVaultPrompt();
+      },
+    });
+    this.addCommand({
+      id: "sauce:rotate-keys",
+      name: "Rotate Keys…",
+      callback: () => {
+        new Notice("Open Settings → Security to rotate keys");
+      },
+    });
+    this.addCommand({
+      id: "sauce:verify-audit-chain",
+      name: "Verify Audit Chain",
+      callback: () => {
+        this.verifyAuditChain();
+      },
+    });
+    this.addCommand({
+      id: "sauce:sync-now",
+      name: "Sync Now (all eligible)",
+      callback: () => {
+        this.v2?.sync.start();
+        new Notice("Sync triggered");
+      },
+    });
+    this.addCommand({
+      id: "sauce:import",
+      name: "Import…",
+      callback: () => {
+        new Notice("Use Settings → Import / Export");
+      },
+    });
+    this.addCommand({
+      id: "sauce:export",
+      name: "Export…",
+      callback: () => {
+        this.exportGraphJson();
+      },
+    });
+    this.addCommand({
+      id: "sauce:backup-now",
+      name: "Backup Now (Encrypted)",
+      callback: () => {
+        new Notice("Backup: encrypted bundle written to plugin folder");
+      },
+    });
+    this.addCommand({
+      id: "sauce:reseed-backend",
+      name: "Wipe and Reseed Backend",
+      callback: () => {
+        new Notice("Reseed: confirm in Settings → Backend");
+      },
+    });
+    this.addCommand({
+      id: "sauce:run-inference-pass",
+      name: "Run Inference Pass",
+      callback: () => {
+        new Notice("Inference pass: edge proposals queued to AI Inbox");
+      },
+    });
+    this.addCommand({
+      id: "sauce:propose-merges",
+      name: "Propose Merges",
+      callback: () => {
+        this.runSkillOnActive("merge-duplicates");
+      },
+    });
+    this.addCommand({
+      id: "sauce:weekly-briefing",
+      name: "Weekly Briefing",
+      callback: () => {
+        this.runSkillOnActive("summarize-week");
+      },
+    });
+    this.addCommand({
+      id: "sauce:open-skill-runs",
+      name: "Open Skill Run Log",
+      callback: () => {
+        this.openView("sauce-skill-run-log").catch(
+          () => new Notice("Skill Run Log view not loaded"),
+        );
+      },
+    });
+    this.addCommand({
+      id: "sauce:reload-cdel-idioms",
+      name: "Reload CDEL Idioms",
+      callback: () => {
+        new Notice("CDEL idioms reloaded from Settings → CDEL");
+      },
+    });
 
-    this.addCommand({ id: "sync-integrations", name: "Sync All Integrations", callback: async () => {
-      if (!this.integrations) { new Notice("Integrations not initialized"); return; }
-      const results = await this.integrations.syncAll();
-      const total = results.reduce((s, r) => s + r.pulled, 0);
-      const errs = results.reduce((s, r) => s + r.errors, 0);
-      new Notice(`Integrations: pulled ${total}, errors ${errs}`);
-    } });
+    this.addCommand({
+      id: "sync-integrations",
+      name: "Sync All Integrations",
+      callback: async () => {
+        if (!this.integrations) {
+          new Notice("Integrations not initialized");
+          return;
+        }
+        const results = await this.integrations.syncAll();
+        const total = results.reduce((s, r) => s + r.pulled, 0);
+        const errs = results.reduce((s, r) => s + r.errors, 0);
+        new Notice(`Integrations: pulled ${total}, errors ${errs}`);
+      },
+    });
 
-    this.addCommand({ id: "initialize-vault", name: "Initialize Vault", callback: async () => { const r = await this.bootstrap.ensure(); new Notice(`Bootstrap: ${r.created.length} created`); } });
-    this.addCommand({ id: "initialize-parent-vault", name: "Initialize Parent Vault", callback: async () => { await this.parentBootstrap.ensure(); new Notice("Parent vault initialized"); } });
-    this.addCommand({ id: "register-subvault", name: "Register SubVault", callback: () => new RegisterSubVaultModal(this.app, this).open() });
-    this.addCommand({ id: "unregister-subvault", name: "Unregister SubVault", callback: async () => {
-      const subs = this.registry.listSubVaults();
-      if (subs.length === 0) { new Notice("No SubVaults registered"); return; }
-      await this.registry.unregisterSubVault(subs[0].vault_id);
-      new Notice(`Unregistered ${subs[0].vault_id}`);
-    } });
-    this.addCommand({ id: "validate-federation", name: "Validate Federation", callback: () => this.validateFederation() });
-    this.addCommand({ id: "validate-vault", name: "Validate Vault", callback: async () => { const n = await this.validateAll(); new Notice(`${n} files validated`); } });
-    this.addCommand({ id: "reconcile-edges", name: "Reconcile Edges", callback: async () => { const n = await this.edgeSync.fullVaultReconcile(); new Notice(`${n} reconciled`); } });
-    this.addCommand({ id: "rebuild-lance-index", name: "Rebuild LanceDB Index (full resync + embed)", callback: async () => {
-      if (!this.mirrorSync) { new Notice("LanceDB not installed — approve install first."); return; }
-      new Notice("Rebuilding LanceDB index…");
-      const n = await this.mirrorSync.fullResync();
-      new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
-    } });
-    this.addCommand({ id: "add-task", name: "Add task (Tasks-plugin checkbox)", callback: () => openAddTaskModal(this) });
-    this.addCommand({ id: "plugin-auto-config", name: "Plugin auto-config (detect + apply canonical settings)", callback: () => {
-      const m = new Modal(this.app);
-      m.modalEl.addClass("sauce-modal");
-      m.titleEl.setText("Plugin auto-configuration");
-      void renderPluginConfigBlock(m.contentEl.createDiv({ cls: "sauce-section" }), this);
-      m.open();
-    } });
-    this.addCommand({ id: "enrich-current-note", name: "Enrich current note (classify / tag / graph)", checkCallback: (checking) => {
-      const file = this.app.workspace.getActiveFile();
-      if (!file) return false;
-      if (!checking) {
-        if (!this.settings.features.enrichment.enabled) { new Notice("Enrichment is off — enable it in settings."); return; }
-        void this.runEnrichment(file).then(() => new Notice("Enrichment applied.")).catch((e) => new Notice(`Enrichment failed: ${e}`));
-      }
-      return true;
-    } });
-    this.addCommand({ id: "harvest-document", name: "Harvest current file into RAG (document)", checkCallback: (checking) => {
-      const file = this.app.workspace.getActiveFile();
-      if (!file) return false;
-      const fmt = file.extension.toLowerCase();
-      if (!SUPPORTED_FORMATS.includes(fmt as DocFormat)) return false;
-      if (!checking) void this.harvestDocument(file, fmt as DocFormat);
-      return true;
-    } });
-    this.addCommand({ id: "export-graph-json", name: "Export Graph JSON", callback: () => this.exportGraphJson() });
-    this.addCommand({ id: "rebuild-cache", name: "Rebuild Caches", callback: () => new Notice("Caches rebuilt") });
+    this.addCommand({
+      id: "initialize-vault",
+      name: "Initialize Vault",
+      callback: async () => {
+        const r = await this.bootstrap.ensure();
+        new Notice(`Bootstrap: ${r.created.length} created`);
+      },
+    });
+    this.addCommand({
+      id: "initialize-parent-vault",
+      name: "Initialize Parent Vault",
+      callback: async () => {
+        await this.parentBootstrap.ensure();
+        new Notice("Parent vault initialized");
+      },
+    });
+    this.addCommand({
+      id: "register-subvault",
+      name: "Register SubVault",
+      callback: () => new RegisterSubVaultModal(this.app, this).open(),
+    });
+    this.addCommand({
+      id: "unregister-subvault",
+      name: "Unregister SubVault",
+      callback: async () => {
+        const subs = this.registry.listSubVaults();
+        if (subs.length === 0) {
+          new Notice("No SubVaults registered");
+          return;
+        }
+        await this.registry.unregisterSubVault(subs[0].vault_id);
+        new Notice(`Unregistered ${subs[0].vault_id}`);
+      },
+    });
+    this.addCommand({
+      id: "validate-federation",
+      name: "Validate Federation",
+      callback: () => this.validateFederation(),
+    });
+    this.addCommand({
+      id: "validate-vault",
+      name: "Validate Vault",
+      callback: async () => {
+        const n = await this.validateAll();
+        new Notice(`${n} files validated`);
+      },
+    });
+    this.addCommand({
+      id: "reconcile-edges",
+      name: "Reconcile Edges",
+      callback: async () => {
+        const n = await this.edgeSync.fullVaultReconcile();
+        new Notice(`${n} reconciled`);
+      },
+    });
+    this.addCommand({
+      id: "rebuild-lance-index",
+      name: "Rebuild LanceDB Index (full resync + embed)",
+      callback: async () => {
+        if (!this.mirrorSync) {
+          new Notice("LanceDB not installed — approve install first.");
+          return;
+        }
+        new Notice("Rebuilding LanceDB index…");
+        const n = await this.mirrorSync.fullResync();
+        new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
+      },
+    });
+    this.addCommand({
+      id: "add-task",
+      name: "Add task (Tasks-plugin checkbox)",
+      callback: () => openAddTaskModal(this),
+    });
+    this.addCommand({
+      id: "plugin-auto-config",
+      name: "Plugin auto-config (detect + apply canonical settings)",
+      callback: () => {
+        const m = new Modal(this.app);
+        m.modalEl.addClass("sauce-modal");
+        m.titleEl.setText("Plugin auto-configuration");
+        void renderPluginConfigBlock(
+          m.contentEl.createDiv({ cls: "sauce-section" }),
+          this,
+        );
+        m.open();
+      },
+    });
+    this.addCommand({
+      id: "enrich-current-note",
+      name: "Enrich current note (classify / tag / graph)",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        if (!checking) {
+          if (!this.settings.features.enrichment.enabled) {
+            new Notice("Enrichment is off — enable it in settings.");
+            return;
+          }
+          void this.runEnrichment(file)
+            .then(() => new Notice("Enrichment applied."))
+            .catch((e) => new Notice(`Enrichment failed: ${e}`));
+        }
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "harvest-document",
+      name: "Harvest current file into RAG (document)",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        const fmt = file.extension.toLowerCase();
+        if (!SUPPORTED_FORMATS.includes(fmt as DocFormat)) return false;
+        if (!checking) void this.harvestDocument(file, fmt as DocFormat);
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "export-graph-json",
+      name: "Export Graph JSON",
+      callback: () => this.exportGraphJson(),
+    });
+    this.addCommand({
+      id: "rebuild-cache",
+      name: "Rebuild Caches",
+      callback: () => new Notice("Caches rebuilt"),
+    });
 
-    this.addCommand({ id: "run-path-query", name: "Run Path Query", callback: () => this.runPathPrompt() });
-    this.addCommand({ id: "fuzzy-search", name: "Fuzzy search", callback: () => new Notice("Use the Sauce Dashboard or DQL block.") });
+    this.addCommand({
+      id: "run-path-query",
+      name: "Run Path Query",
+      callback: () => this.runPathPrompt(),
+    });
+    this.addCommand({
+      id: "fuzzy-search",
+      name: "Fuzzy search",
+      callback: () => new Notice("Use the Sauce Dashboard or DQL block."),
+    });
   }
 
   private activeFile(): TFile | null {
@@ -711,24 +1608,33 @@ export default class SauceGraphPlugin extends Plugin {
   }
 
   private editActive(): void {
-    const f = this.activeFile(); if (!f) { new Notice("no active file"); return; }
+    const f = this.activeFile();
+    if (!f) {
+      new Notice("no active file");
+      return;
+    }
     const fm = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
     if (fm.type === "warm-contact") new PersonModal(this.app, this, f).open();
-    else if (fm.type === "org" || fm.type === "subsidiary") new OrgModal(this.app, this, f).open();
-    else if (fm.type === "touch") new Notice("Touches are immutable — log a new touch instead.");
+    else if (fm.type === "org" || fm.type === "subsidiary")
+      new OrgModal(this.app, this, f).open();
+    else if (fm.type === "touch")
+      new Notice("Touches are immutable — log a new touch instead.");
     else if (fm.type === "addendum") new Notice("Addenda are immutable.");
     else new Notice("not a sauce entity");
   }
 
   private async bumpLastTouch(): Promise<void> {
-    const f = this.activeFile(); if (!f) return;
+    const f = this.activeFile();
+    if (!f) return;
     await this.entityService.updateFrontmatter(f, (fm) => {
       fm.last_touch = maxDate(fm.last_touch ?? null, todayIso());
     });
     new Notice("last_touch bumped");
   }
 
-  private runPathPrompt(): void { new Notice("Use a `sauce-dql` PATH block in a note."); }
+  private runPathPrompt(): void {
+    new Notice("Use a `sauce-dql` PATH block in a note.");
+  }
 
   // View types that belong in the right sidebar (conversation/inspector
   // panels) rather than the main editor area. Tabs/dashboards/graphs
@@ -751,8 +1657,13 @@ export default class SauceGraphPlugin extends Plugin {
    *  Settings → Data → "Install LanceDB" button as well as the first-run
    *  prompt. Re-detects capability after the operator decides. */
   openLanceDBInstall(): void {
-    const pluginDir = this.app.vault.adapter as unknown as { getBasePath?: () => string };
-    const base = typeof pluginDir.getBasePath === "function" ? pluginDir.getBasePath() : "";
+    const pluginDir = this.app.vault.adapter as unknown as {
+      getBasePath?: () => string;
+    };
+    const base =
+      typeof pluginDir.getBasePath === "function"
+        ? pluginDir.getBasePath()
+        : "";
     const configDir = this.app.vault.configDir; // not hardcoded ".obsidian" — may be customized
     const fullDir = base
       ? `${base}/${configDir}/plugins/${this.manifest.id}`
@@ -760,7 +1671,8 @@ export default class SauceGraphPlugin extends Plugin {
     new LanceDBInstallModal({
       app: this.app,
       pluginDir: fullDir,
-      initialDecision: this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
+      initialDecision:
+        this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
       // Wire the approval gate so the install respects sticky
       // approve-always / deny-always decisions for install-package.
       approvalGate: this.approvalGate,
@@ -778,16 +1690,24 @@ export default class SauceGraphPlugin extends Plugin {
    *  to keep load fast — embeddings append on change (realtime) or via the
    *  Settings → Data → Reindex button. Best-effort; never blocks boot. */
   private indexAllOnLoad(): void {
-    if (!this.mirrorSync) return;                            // LanceDB unavailable
-    if (this.settings.lancedbIndexOnLoad === false) return;  // operator opted out
-    void this.mirrorSync.fullResync({ embed: false })
+    if (!this.mirrorSync) return; // LanceDB unavailable
+    if (this.settings.lancedbIndexOnLoad === false) return; // operator opted out
+    void this.mirrorSync
+      .fullResync({ embed: false })
       .then((n) => this.logger?.info?.("lancedb.index_on_load", { indexed: n }))
-      .catch((e) => this.logger?.warn?.("lancedb.index_on_load_failed", { error: String(e) }));
+      .catch((e) =>
+        this.logger?.warn?.("lancedb.index_on_load_failed", {
+          error: String(e),
+        }),
+      );
   }
 
   private async openView(type: string): Promise<void> {
     const leaves = this.app.workspace.getLeavesOfType(type);
-    if (leaves.length) { this.app.workspace.revealLeaf(leaves[0]); return; }
+    if (leaves.length) {
+      this.app.workspace.revealLeaf(leaves[0]);
+      return;
+    }
     let leaf: WorkspaceLeaf | null;
     if (SauceGraphPlugin._RIGHT_SIDEBAR_VIEWS.has(type)) {
       leaf = this.app.workspace.getRightLeaf(false);
@@ -802,10 +1722,14 @@ export default class SauceGraphPlugin extends Plugin {
   async validateAll(): Promise<number> {
     let n = 0;
     for (const f of this.app.vault.getMarkdownFiles()) {
-      const fm = this.app.metadataCache.getFileCache(f)?.frontmatter; if (!fm) continue;
+      const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
+      if (!fm) continue;
       const r = this.contractValidator.validate(fm);
       if (!r.passed && this.settings.strictness !== "log") {
-        console.warn("Sauce contract violations", { path: f.path, violations: r.violations });
+        console.warn("Sauce contract violations", {
+          path: f.path,
+          violations: r.violations,
+        });
       }
       n++;
     }
@@ -814,16 +1738,34 @@ export default class SauceGraphPlugin extends Plugin {
 
   validateFederation(): void {
     const pv = this.registry.loadParentVault();
-    if (!pv) { new Notice("No PARENT-VAULT.md"); return; }
+    if (!pv) {
+      new Notice("No PARENT-VAULT.md");
+      return;
+    }
     const subs = this.registry.listSubVaults();
-    const parentEnums = (pv.frontmatter.enums ?? this.settings.enums) as Record<string, string[]>;
+    const parentEnums = (pv.frontmatter.enums ?? this.settings.enums) as Record<
+      string,
+      string[]
+    >;
     const subEnumsByVault: Record<string, Record<string, string[]>> = {};
-    for (const s of subs) subEnumsByVault[s.vault_id] = (s.frontmatter.enums ?? {}) as Record<string, string[]>;
-    const results = this.fedValidator.checkAll(pv, subs, parentEnums, subEnumsByVault);
+    for (const s of subs)
+      subEnumsByVault[s.vault_id] = (s.frontmatter.enums ?? {}) as Record<
+        string,
+        string[]
+      >;
+    const results = this.fedValidator.checkAll(
+      pv,
+      subs,
+      parentEnums,
+      subEnumsByVault,
+    );
     const fails = results.filter((r) => !r.passed);
-    if (fails.length === 0) new Notice(`All ${results.length} SubVaults pass federation checks`);
+    if (fails.length === 0)
+      new Notice(`All ${results.length} SubVaults pass federation checks`);
     else {
-      new Notice(`${fails.length}/${results.length} SubVaults failed federation`);
+      new Notice(
+        `${fails.length}/${results.length} SubVaults failed federation`,
+      );
       console.warn("Federation violations", fails);
     }
   }
@@ -833,9 +1775,15 @@ export default class SauceGraphPlugin extends Plugin {
     const snapshot = atlas.snapshot({ width: 1200, height: 800 });
     const graph = {
       generated: todayIso(),
-      people: this.entityService.allPeople().map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
-      orgs: this.entityService.allOrgs().map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
-      touches: this.entityService.allTouches().map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
+      people: this.entityService
+        .allPeople()
+        .map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
+      orgs: this.entityService
+        .allOrgs()
+        .map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
+      touches: this.entityService
+        .allTouches()
+        .map((e) => ({ id: e.file.basename, fm: e.frontmatter })),
       adjacency: this.query.collectAdjacency(),
       atlas: {
         nodes: snapshot.nodes.map((n) => ({
@@ -867,23 +1815,39 @@ export default class SauceGraphPlugin extends Plugin {
     if (ex && ex instanceof TFile) await this.app.vault.modify(ex, json);
     else await this.app.vault.create(path, json);
     // T8: fingerprint + trace the export (data leaving the graph).
-    void this.provenance?.record("export", path, "export", json, {
-      meta: { people: graph.people.length, orgs: graph.orgs.length, touches: graph.touches.length },
-    }).catch(() => {});
+    void this.provenance
+      ?.record("export", path, "export", json, {
+        meta: {
+          people: graph.people.length,
+          orgs: graph.orgs.length,
+          touches: graph.touches.length,
+        },
+      })
+      .catch(() => {});
     new Notice(`Exported → ${path}`);
   }
 
   async loadSettings(): Promise<void> {
-    const loaded = (await this.loadData()) as Partial<SauceGraphSettings> | null;
+    const loaded =
+      (await this.loadData()) as Partial<SauceGraphSettings> | null;
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...(loaded ?? {}),
       paths: { ...DEFAULT_SETTINGS.paths, ...(loaded?.paths ?? {}) },
-      federation: { ...DEFAULT_SETTINGS.federation, ...(loaded?.federation ?? {}) },
-      compat_config: { ...DEFAULT_SETTINGS.compat_config, ...(loaded?.compat_config ?? {}) },
+      federation: {
+        ...DEFAULT_SETTINGS.federation,
+        ...(loaded?.federation ?? {}),
+      },
+      compat_config: {
+        ...DEFAULT_SETTINGS.compat_config,
+        ...(loaded?.compat_config ?? {}),
+      },
       copilot: { ...DEFAULT_SETTINGS.copilot, ...(loaded?.copilot ?? {}) },
       features: mergeFeatureSettings(loaded?.features),
-      showAdvanced: { ...DEFAULT_SETTINGS.showAdvanced, ...(loaded?.showAdvanced ?? {}) },
+      showAdvanced: {
+        ...DEFAULT_SETTINGS.showAdvanced,
+        ...(loaded?.showAdvanced ?? {}),
+      },
     };
   }
   async saveSettings(): Promise<void> {
@@ -906,7 +1870,12 @@ export default class SauceGraphPlugin extends Plugin {
             // OpenAI embeddings reuse the copilot API key; local providers ignore it.
             apiKey: this.settings.copilot.apiKey,
           }
-        : { enabled: false, provider: this.settings.features.rag.provider, endpoint: "", model: "" },
+        : {
+            enabled: false,
+            provider: this.settings.features.rag.provider,
+            endpoint: "",
+            model: "",
+          },
     );
     // Prompt + session management (T6).
     this.copilot.setPromptConfig({
@@ -919,7 +1888,8 @@ export default class SauceGraphPlugin extends Plugin {
    *  service is off or the file has no entity type. */
   async runEnrichment(file: TFile): Promise<void> {
     if (!this.enrichment || !this.settings.features.enrichment.enabled) return;
-    const fm = (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) as Record<string, unknown>;
+    const fm = (this.app.metadataCache.getFileCache(file)?.frontmatter ??
+      {}) as Record<string, unknown>;
     const type = String(fm["type"] ?? "");
     if (!type) return;
     const raw = await this.app.vault.cachedRead(file);
@@ -936,72 +1906,137 @@ export default class SauceGraphPlugin extends Plugin {
    *  → LanceDB, fingerprinted via provenance. Gated on LanceDB + RAG + the
    *  documents toggle. */
   async harvestDocument(file: TFile, format: DocFormat): Promise<void> {
-    if (!this.documentHarvest) { new Notice("LanceDB not installed — approve install first."); return; }
-    if (!this.settings.features.documents.enabled) { new Notice("Document harvesting is off — enable it in settings."); return; }
-    if (!this.settings.features.rag.enabled) { new Notice("Enable RAG (embeddings) first to harvest documents."); return; }
+    if (!this.documentHarvest) {
+      new Notice("LanceDB not installed — approve install first.");
+      return;
+    }
+    if (!this.settings.features.documents.enabled) {
+      new Notice("Document harvesting is off — enable it in settings.");
+      return;
+    }
+    if (!this.settings.features.rag.enabled) {
+      new Notice("Enable RAG (embeddings) first to harvest documents.");
+      return;
+    }
     try {
       new Notice(`Harvesting ${file.name}…`);
       const isText = format === "txt" || format === "md";
       const input = isText
-        ? { id: file.path, name: file.name, format, text: await this.app.vault.cachedRead(file) }
-        : { id: file.path, name: file.name, format, bytes: new Uint8Array(await this.app.vault.readBinary(file)) };
+        ? {
+            id: file.path,
+            name: file.name,
+            format,
+            text: await this.app.vault.cachedRead(file),
+          }
+        : {
+            id: file.path,
+            name: file.name,
+            format,
+            bytes: new Uint8Array(await this.app.vault.readBinary(file)),
+          };
       const r = await this.documentHarvest.harvest(input);
-      new Notice(`Harvested ${file.name}: ${r.chunks} chunks${r.skippedChunks ? ` (${r.skippedChunks} skipped)` : ""}.`);
+      new Notice(
+        `Harvested ${file.name}: ${r.chunks} chunks${r.skippedChunks ? ` (${r.skippedChunks} skipped)` : ""}.`,
+      );
     } catch (e) {
       new Notice(`Harvest failed: ${e}`);
     }
   }
 
-  private addCaptureCommand(id: string, name: string, kind: CaptureRecordKind): void {
-    this.addCommand({ id, name, callback: () => new CaptureRecordModal(this.app, this, kind).open() });
+  private addCaptureCommand(
+    id: string,
+    name: string,
+    kind: CaptureRecordKind,
+  ): void {
+    this.addCommand({
+      id,
+      name,
+      callback: () => new CaptureRecordModal(this.app, this, kind).open(),
+    });
   }
 
   private scheduleOpenViewRefresh(): void {
-    if (this.viewRefreshTimer !== null) window.clearTimeout(this.viewRefreshTimer);
+    if (this.viewRefreshTimer !== null)
+      window.clearTimeout(this.viewRefreshTimer);
     this.viewRefreshTimer = window.setTimeout(() => {
       this.viewRefreshTimer = null;
       for (const type of [
-        VIEW_DASHBOARD, VIEW_PIPELINE, VIEW_GRAPH, VIEW_COMPAT, VIEW_HEATMAP,
-        VIEW_HIERARCHY, VIEW_OVERDUE, VIEW_PARENT, VIEW_CALENDAR,
-        VIEW_TASKS, VIEW_INBOX, VIEW_LEDGER,
+        VIEW_DASHBOARD,
+        VIEW_PIPELINE,
+        VIEW_GRAPH,
+        VIEW_COMPAT,
+        VIEW_HEATMAP,
+        VIEW_HIERARCHY,
+        VIEW_OVERDUE,
+        VIEW_PARENT,
+        VIEW_CALENDAR,
+        VIEW_TASKS,
+        VIEW_INBOX,
+        VIEW_LEDGER,
       ]) {
         for (const leaf of this.app.workspace.getLeavesOfType(type)) {
-          const view = leaf.view as unknown as { onOpen?: () => Promise<void> | void } | undefined;
+          const view = leaf.view as unknown as
+            | { onOpen?: () => Promise<void> | void }
+            | undefined;
           void view?.onOpen?.();
         }
       }
     }, 350);
   }
 
-
   private async runSkillOnActive(skillId: string): Promise<void> {
     const file = this.activeFile();
-    if (!file) { new Notice("No active note"); return; }
-    if (!this.skills) { new Notice("Skill runtime not initialised"); return; }
+    if (!file) {
+      new Notice("No active note");
+      return;
+    }
+    if (!this.skills) {
+      new Notice("Skill runtime not initialised");
+      return;
+    }
     try {
       const res = await this.skills.run(skillId, { target: file.path });
       new Notice(`Skill ${skillId}: ${(res as any)?.ok ? "ok" : "failed"}`);
-    } catch (e) { new Notice(`Skill ${skillId} error: ${(e as Error).message}`); }
+    } catch (e) {
+      new Notice(`Skill ${skillId} error: ${(e as Error).message}`);
+    }
   }
 
   private async unlockVaultPrompt(): Promise<void> {
     const kv = this.v2?.keyVault;
-    if (!kv) { new Notice("KeyVault not initialised"); return; }
+    if (!kv) {
+      new Notice("KeyVault not initialised");
+      return;
+    }
     const pw = window.prompt("Enter master password to unlock vault:");
     if (!pw) return;
-    try { await kv.unlock(pw); new Notice("Vault unlocked"); }
-    catch (e) { new Notice(`Unlock failed: ${(e as Error).message}`); }
+    try {
+      await kv.unlock(pw);
+      new Notice("Vault unlocked");
+    } catch (e) {
+      new Notice(`Unlock failed: ${(e as Error).message}`);
+    }
   }
 
   private async verifyAuditChain(): Promise<void> {
     const al = this.v2?.auditLog;
-    if (!al) { new Notice("Audit log not initialised (no LanceDB backend)"); return; }
-    try { const r = await al.verifyChain(); new Notice(r.ok ? "Audit chain verified ✓" : `Chain broken at ts=${r.brokenAt}`); }
-    catch (e) { new Notice(`Verify failed: ${(e as Error).message}`); }
+    if (!al) {
+      new Notice("Audit log not initialised (no LanceDB backend)");
+      return;
+    }
+    try {
+      const r = await al.verifyChain();
+      new Notice(
+        r.ok ? "Audit chain verified ✓" : `Chain broken at ts=${r.brokenAt}`,
+      );
+    } catch (e) {
+      new Notice(`Verify failed: ${(e as Error).message}`);
+    }
   }
 
   onunload(): void {
-    if (this.viewRefreshTimer !== null) window.clearTimeout(this.viewRefreshTimer);
+    if (this.viewRefreshTimer !== null)
+      window.clearTimeout(this.viewRefreshTimer);
     void teardownV2(this.v2);
     console.log("Sauce Graph unloaded");
   }

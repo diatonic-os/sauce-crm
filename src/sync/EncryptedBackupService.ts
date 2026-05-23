@@ -39,7 +39,10 @@ function base64ToBytes(s: string): Uint8Array {
   return out;
 }
 
-async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> {
+async function deriveKey(
+  passphrase: string,
+  salt: Uint8Array,
+): Promise<CryptoKey> {
   const subtle = globalThis.crypto.subtle;
   const baseKey = await subtle.importKey(
     "raw",
@@ -69,20 +72,42 @@ export class EncryptedBackupService {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const folder = "_backups";
     if (!this.app.vault.getAbstractFileByPath(folder)) {
-      await this.app.vault.createFolder(folder).catch(() => { /* ok */ });
+      await this.app.vault.createFolder(folder).catch(() => {
+        /* ok */
+      });
     }
     const path = normalizePath(`${folder}/sauce-backup-${stamp}.enc.json`);
 
-    const people = this.entities.allPeople().map((e) => ({ id: e.file.path, basename: e.file.basename, fm: e.frontmatter }));
-    const orgs = this.entities.allOrgs().map((e) => ({ id: e.file.path, basename: e.file.basename, fm: e.frontmatter }));
-    const touches = this.entities.allTouches().map((e) => ({ id: e.file.path, basename: e.file.basename, fm: e.frontmatter }));
-    const addenda = this.entities.allAddenda().map((e) => ({ id: e.file.path, basename: e.file.basename, fm: e.frontmatter }));
+    const people = this.entities.allPeople().map((e) => ({
+      id: e.file.path,
+      basename: e.file.basename,
+      fm: e.frontmatter,
+    }));
+    const orgs = this.entities.allOrgs().map((e) => ({
+      id: e.file.path,
+      basename: e.file.basename,
+      fm: e.frontmatter,
+    }));
+    const touches = this.entities.allTouches().map((e) => ({
+      id: e.file.path,
+      basename: e.file.basename,
+      fm: e.frontmatter,
+    }));
+    const addenda = this.entities.allAddenda().map((e) => ({
+      id: e.file.path,
+      basename: e.file.basename,
+      fm: e.frontmatter,
+    }));
     const adjacency = this.query.collectAdjacency();
 
     const payload = {
       version: 1,
       generatedAt: stamp,
-      people, orgs, touches, addenda, adjacency,
+      people,
+      orgs,
+      touches,
+      addenda,
+      adjacency,
     };
     const plaintext = JSON.stringify(payload);
 
@@ -98,7 +123,12 @@ export class EncryptedBackupService {
 
     const envelope: EncryptedEnvelope = {
       version: 1,
-      kdf: { name: "PBKDF2", hash: "SHA-256", iterations: PBKDF2_ITERATIONS, salt: bytesToBase64(salt) },
+      kdf: {
+        name: "PBKDF2",
+        hash: "SHA-256",
+        iterations: PBKDF2_ITERATIONS,
+        salt: bytesToBase64(salt),
+      },
       cipher: "AES-256-GCM",
       iv: bytesToBase64(iv),
       ciphertext: bytesToBase64(new Uint8Array(ctBuf)),
@@ -119,7 +149,14 @@ export class EncryptedBackupService {
     } catch {
       return null;
     }
-    if (!env || env.version !== 1 || env.cipher !== "AES-256-GCM" || !env.kdf || !env.iv || !env.ciphertext) {
+    if (
+      !env ||
+      env.version !== 1 ||
+      env.cipher !== "AES-256-GCM" ||
+      !env.kdf ||
+      !env.iv ||
+      !env.ciphertext
+    ) {
       return null;
     }
     try {

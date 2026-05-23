@@ -15,9 +15,16 @@ export interface VCardSummary {
 export class CardDAVClient {
   constructor(public opts: DAVOpts) {}
 
-  private base(): string { return this.opts.carddavBase ?? "https://contacts.icloud.com"; }
+  private base(): string {
+    return this.opts.carddavBase ?? "https://contacts.icloud.com";
+  }
 
-  private async request(url: string, method: string, body?: string, depth = "1"): Promise<{ status: number; body: string }> {
+  private async request(
+    url: string,
+    method: string,
+    body?: string,
+    depth = "1",
+  ): Promise<{ status: number; body: string }> {
     const auth = await this.opts.auth();
     const r = await this.opts.fetch.fetch(url, {
       method,
@@ -33,26 +40,43 @@ export class CardDAVClient {
 
   async discoverPrincipal(): Promise<string | null> {
     const xml = `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>`;
-    const r = await this.request(`${this.base()}/.well-known/carddav`, "PROPFIND", xml, "0");
+    const r = await this.request(
+      `${this.base()}/.well-known/carddav`,
+      "PROPFIND",
+      xml,
+      "0",
+    );
     if (r.status >= 400) return null;
     return extractTagContents(r.body, "href")[0] ?? null;
   }
 
   async listAddressBooks(principalUrl: string): Promise<string[]> {
     const xml = `<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop><card:addressbook-home-set/></d:prop></d:propfind>`;
-    const r = await this.request(abs(this.base(), principalUrl), "PROPFIND", xml, "0");
+    const r = await this.request(
+      abs(this.base(), principalUrl),
+      "PROPFIND",
+      xml,
+      "0",
+    );
     if (r.status >= 400) return [];
-    return extractTagContents(r.body, "href").filter((h) => h.includes("/cards/"));
+    return extractTagContents(r.body, "href").filter((h) =>
+      h.includes("/cards/"),
+    );
   }
 
   async listContacts(addressBookUrl: string): Promise<VCardSummary[]> {
     const xml =
       `<?xml version="1.0"?>` +
       `<card:addressbook-query xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">` +
-        `<d:prop><d:getetag/><card:address-data/></d:prop>` +
-        `<card:filter><card:prop-filter name="FN"/></card:filter>` +
+      `<d:prop><d:getetag/><card:address-data/></d:prop>` +
+      `<card:filter><card:prop-filter name="FN"/></card:filter>` +
       `</card:addressbook-query>`;
-    const r = await this.request(abs(this.base(), addressBookUrl), "REPORT", xml, "1");
+    const r = await this.request(
+      abs(this.base(), addressBookUrl),
+      "REPORT",
+      xml,
+      "1",
+    );
     if (r.status >= 400) return [];
     const out: VCardSummary[] = [];
     for (const resp of extractTagContents(r.body, "response")) {
@@ -73,7 +97,10 @@ function abs(base: string, p: string): string {
 
 function parseVCard(vcf: string, href: string, etag?: string): VCardSummary {
   const lines = vcf.replace(/\r\n[ \t]/g, "").split(/\r?\n/);
-  let uid = "", fullName: string | undefined, org: string | undefined, title: string | undefined;
+  let uid = "",
+    fullName: string | undefined,
+    org: string | undefined,
+    title: string | undefined;
   const emails: string[] = [];
   const phones: string[] = [];
   for (const raw of lines) {

@@ -5,7 +5,11 @@ export { MapView, VIEW_MAP } from "./MapView";
 export { AIInboxView, VIEW_AI_INBOX } from "./AIInboxView";
 export { SyncStatusView, VIEW_SYNC_STATUS } from "./SyncStatusView";
 export { AuditLogView, VIEW_AUDIT_LOG } from "./AuditLogView";
-export { SkillRunLogView, VIEW_SKILL_RUN_LOG, skillRunRing } from "./SkillRunLogView";
+export {
+  SkillRunLogView,
+  VIEW_SKILL_RUN_LOG,
+  skillRunRing,
+} from "./SkillRunLogView";
 export { CopilotChatView, VIEW_COPILOT_CHAT } from "./CopilotChatView";
 
 export const V2_VIEW_TYPES = [

@@ -5,8 +5,13 @@ import { App, Plugin, normalizePath, requestUrl } from "obsidian";
 import { initLanceBackend, type LanceBackend } from "./backend/lance";
 import { detectLanceDB } from "./services/LanceDBInstaller";
 import {
-  KeyVault, AuditLog, ScopeRegistry, ProxyClient, DEFAULT_SCOPES,
-  type CryptoBackend, type ProxyConfig,
+  KeyVault,
+  AuditLog,
+  ScopeRegistry,
+  ProxyClient,
+  DEFAULT_SCOPES,
+  type CryptoBackend,
+  type ProxyConfig,
 } from "./security";
 import { SGV2_MAGIC } from "./security/KeyVault";
 import { SyncEngine } from "./sync";
@@ -18,10 +23,24 @@ import { ProvenanceService } from "./services/Provenance";
 // not to ship; the passes count from the KDF opts is multiplied by 200k iterations).
 // Seal/open use AES-256-GCM under a versioned `SGV2\x01` envelope so any leftover
 // zero-buffer ciphertexts from the pre-A2 stub fail open instead of decrypting silently.
-async function sealAesGcm(key: Uint8Array, nonce: Uint8Array, msg: Uint8Array): Promise<Uint8Array> {
+async function sealAesGcm(
+  key: Uint8Array,
+  nonce: Uint8Array,
+  msg: Uint8Array,
+): Promise<Uint8Array> {
   const subtle = (globalThis as { crypto: Crypto }).crypto.subtle;
-  const k = await subtle.importKey("raw", key as BufferSource, "AES-GCM", false, ["encrypt"]);
-  const ct = await subtle.encrypt({ name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource }, k, msg as BufferSource);
+  const k = await subtle.importKey(
+    "raw",
+    key as BufferSource,
+    "AES-GCM",
+    false,
+    ["encrypt"],
+  );
+  const ct = await subtle.encrypt(
+    { name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource },
+    k,
+    msg as BufferSource,
+  );
   // Prepend SGV2 envelope magic so the open path can reject anything not produced here.
   const ctBytes = new Uint8Array(ct);
   const out = new Uint8Array(SGV2_MAGIC.length + ctBytes.length);
@@ -29,38 +48,69 @@ async function sealAesGcm(key: Uint8Array, nonce: Uint8Array, msg: Uint8Array): 
   out.set(ctBytes, SGV2_MAGIC.length);
   return out;
 }
-async function openAesGcm(key: Uint8Array, nonce: Uint8Array, enveloped: Uint8Array): Promise<Uint8Array | null> {
+async function openAesGcm(
+  key: Uint8Array,
+  nonce: Uint8Array,
+  enveloped: Uint8Array,
+): Promise<Uint8Array | null> {
   if (enveloped.length < SGV2_MAGIC.length) return null;
   for (let i = 0; i < SGV2_MAGIC.length; i++) {
     if (enveloped[i] !== SGV2_MAGIC[i]) return null;
   }
   const ct = enveloped.slice(SGV2_MAGIC.length);
   const subtle = (globalThis as { crypto: Crypto }).crypto.subtle;
-  const k = await subtle.importKey("raw", key as BufferSource, "AES-GCM", false, ["decrypt"]);
+  const k = await subtle.importKey(
+    "raw",
+    key as BufferSource,
+    "AES-GCM",
+    false,
+    ["decrypt"],
+  );
   try {
-    const pt = await subtle.decrypt({ name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource }, k, ct as BufferSource);
+    const pt = await subtle.decrypt(
+      { name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource },
+      k,
+      ct as BufferSource,
+    );
     return new Uint8Array(pt);
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function makeCryptoBackend(): CryptoBackend {
-  const subtle = (globalThis as { crypto?: { subtle?: SubtleCrypto } }).crypto?.subtle;
-  if (!subtle) throw new Error("Web Crypto unavailable (need Electron renderer)");
+  const subtle = (globalThis as { crypto?: { subtle?: SubtleCrypto } }).crypto
+    ?.subtle;
+  if (!subtle)
+    throw new Error("Web Crypto unavailable (need Electron renderer)");
 
   return {
     async argon2id(password, salt, opts) {
       const keyMaterial = await subtle.importKey(
-        "raw", new TextEncoder().encode(password),
-        { name: "PBKDF2" }, false, ["deriveBits"],
+        "raw",
+        new TextEncoder().encode(password),
+        { name: "PBKDF2" },
+        false,
+        ["deriveBits"],
       );
       const bits = await subtle.deriveBits(
-        { name: "PBKDF2", salt: salt as BufferSource, iterations: 200_000 * opts.passes, hash: "SHA-256" },
-        keyMaterial, opts.outBytes * 8,
+        {
+          name: "PBKDF2",
+          salt: salt as BufferSource,
+          iterations: 200_000 * opts.passes,
+          hash: "SHA-256",
+        },
+        keyMaterial,
+        opts.outBytes * 8,
       );
       return new Uint8Array(bits);
     },
-    secretboxSeal(key, nonce, msg) { return sealAesGcm(key, nonce, msg); },
-    secretboxOpen(key, nonce, ct) { return openAesGcm(key, nonce, ct); },
+    secretboxSeal(key, nonce, msg) {
+      return sealAesGcm(key, nonce, msg);
+    },
+    secretboxOpen(key, nonce, ct) {
+      return openAesGcm(key, nonce, ct);
+    },
     randomBytes(n) {
       const out = new Uint8Array(n);
       (globalThis as { crypto?: Crypto }).crypto!.getRandomValues(out);
@@ -71,14 +121,24 @@ function makeCryptoBackend(): CryptoBackend {
 
 async function hmacHex(key: Uint8Array, msg: string): Promise<string> {
   const subtle = (globalThis as { crypto: Crypto }).crypto.subtle;
-  const k = await subtle.importKey("raw", key as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const k = await subtle.importKey(
+    "raw",
+    key as BufferSource,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
   const sig = await subtle.sign("HMAC", k, new TextEncoder().encode(msg));
-  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 async function sha256Hex(s: string): Promise<string> {
   const subtle = (globalThis as { crypto: Crypto }).crypto.subtle;
   const h = await subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(h))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export interface V2Runtime {
@@ -101,8 +161,9 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   const pluginId = plugin.manifest.id;
   const pluginDir = normalizePath(`${app.vault.configDir}/plugins/${pluginId}`);
   const lanceDir = `${pluginDir}/data/lancedb`;
-  const embeddingDim = (plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } })
-    .settings?.lancedb?.embeddingDim;
+  const embeddingDim = (
+    plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }
+  ).settings?.lancedb?.embeddingDim;
 
   // ─── Backend: LanceDB single-backend (require-install) ───────────────
   // LanceDB is the sole persistence engine. If its native binding is not yet
@@ -115,9 +176,15 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
     try {
       lance = await initLanceBackend({ dataDir: lanceDir, embeddingDim });
       backendKind = "lancedb";
-      console.log("Sauce V2 backend: LanceDB", { dir: lanceDir, version: detect.version, dim: lance.embeddingDim });
+      console.log("Sauce V2 backend: LanceDB", {
+        dir: lanceDir,
+        version: detect.version,
+        dim: lance.embeddingDim,
+      });
     } catch (e) {
-      console.warn("Sauce V2 LanceDB init failed; backend unavailable", { error: String(e) });
+      console.warn("Sauce V2 LanceDB init failed; backend unavailable", {
+        error: String(e),
+      });
     }
   } else {
     console.log("Sauce V2 backend: LanceDB not available", { detect });
@@ -135,7 +202,11 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   if (lance) {
     try {
       const cb = makeCryptoBackend();
-      const kvLogger = (plugin as unknown as { logger?: { child: (n: string) => unknown } }).logger?.child("keyvault") as unknown as ConstructorParameters<typeof KeyVault>[2];
+      const kvLogger = (
+        plugin as unknown as { logger?: { child: (n: string) => unknown } }
+      ).logger?.child("keyvault") as unknown as ConstructorParameters<
+        typeof KeyVault
+      >[2];
       keyVault = new KeyVault(lance.secrets, cb, kvLogger ?? null);
     } catch (e) {
       console.warn("Sauce V2 KeyVault init failed", { error: String(e) });
@@ -145,19 +216,17 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   // ─── AuditLog (active only when backend present) ────────────────────
   let auditLog: AuditLog | null = null;
   if (lance) {
-    auditLog = new AuditLog(
-      lance.audit,
-      { hmacHex },
-      async () => {
-        if (!keyVault || keyVault.isLocked()) {
-          // Use a deterministic non-secret fallback so the audit chain still works pre-unlock.
-          // Once the user unlocks, subsequent rows chain with the real key — the verifier
-          // accepts both spans when re-walking with the matching key.
-          return new TextEncoder().encode("sauce-graph-bootstrap-hmac-key-v1-padding-32b");
-        }
-        return await keyVault.masterKeyHmacBytes();
-      },
-    );
+    auditLog = new AuditLog(lance.audit, { hmacHex }, async () => {
+      if (!keyVault || keyVault.isLocked()) {
+        // Use a deterministic non-secret fallback so the audit chain still works pre-unlock.
+        // Once the user unlocks, subsequent rows chain with the real key — the verifier
+        // accepts both spans when re-walking with the matching key.
+        return new TextEncoder().encode(
+          "sauce-graph-bootstrap-hmac-key-v1-padding-32b",
+        );
+      }
+      return await keyVault.masterKeyHmacBytes();
+    });
   }
 
   // ─── ProvenanceService (fingerprint + sign + trace; needs backend) ──
@@ -168,7 +237,9 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   if (lance) {
     const masterKey = async (): Promise<Uint8Array> => {
       if (!keyVault || keyVault.isLocked()) {
-        return new TextEncoder().encode("sauce-graph-bootstrap-hmac-key-v1-padding-32b");
+        return new TextEncoder().encode(
+          "sauce-graph-bootstrap-hmac-key-v1-padding-32b",
+        );
       }
       return await keyVault.masterKeyHmacBytes();
     };
@@ -183,11 +254,18 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   // ─── ProxyClient (off by default) ───────────────────────────────────
   const proxy = new ProxyClient(
     {
-      hmacHex: async (key: string, msg: string) => hmacHex(new TextEncoder().encode(key), msg),
+      hmacHex: async (key: string, msg: string) =>
+        hmacHex(new TextEncoder().encode(key), msg),
       sha256Hex,
       fetch: async (url, init) => {
         // Obsidian's requestUrl (no CORS, works on mobile) instead of global fetch.
-        const r = await requestUrl({ url, method: init.method, headers: init.headers, body: init.body, throw: false });
+        const r = await requestUrl({
+          url,
+          method: init.method,
+          headers: init.headers,
+          body: init.body,
+          throw: false,
+        });
         return { status: r.status, headers: r.headers, body: r.text };
       },
     },
@@ -198,12 +276,34 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   const sync = new SyncEngine();
   const inference = new InferenceEngine();
 
-  return { lance, backendKind, scopes, keyVault, auditLog, provenance, proxy, sync, inference };
+  return {
+    lance,
+    backendKind,
+    scopes,
+    keyVault,
+    auditLog,
+    provenance,
+    proxy,
+    sync,
+    inference,
+  };
 }
 
 export async function teardownV2(rt: V2Runtime | null): Promise<void> {
   if (!rt) return;
-  try { rt.sync.stop(); } catch { /* */ }
-  try { rt.keyVault?.lock(); } catch { /* */ }
-  try { await rt.lance?.close(); } catch { /* */ }
+  try {
+    rt.sync.stop();
+  } catch {
+    /* */
+  }
+  try {
+    rt.keyVault?.lock();
+  } catch {
+    /* */
+  }
+  try {
+    await rt.lance?.close();
+  } catch {
+    /* */
+  }
 }

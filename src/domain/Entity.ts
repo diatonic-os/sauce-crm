@@ -1,7 +1,13 @@
 import { TFile } from "obsidian";
 import { parseInvariantString } from "../util/Frontmatter";
 
-export type ContractLevel = "nosubtype" | "subtype" | "core" | "simple" | "extended" | "full";
+export type ContractLevel =
+  | "nosubtype"
+  | "subtype"
+  | "core"
+  | "simple"
+  | "extended"
+  | "full";
 
 export interface IEntity {
   readonly file: TFile;
@@ -25,11 +31,21 @@ export abstract class Entity implements IEntity {
     public readonly frontmatter: Record<string, any>,
   ) {}
 
-  get type(): string { return this.frontmatter.type ?? "entity"; }
-  get subtype_of(): string { return this.frontmatter.subtype_of ?? "Entity"; }
-  get contract(): ContractLevel { return (this.frontmatter.contract ?? "core") as ContractLevel; }
-  get mutable(): string[] { return this.frontmatter.mutable ?? []; }
-  get tags(): string[] { return this.frontmatter.tags ?? []; }
+  get type(): string {
+    return this.frontmatter.type ?? "entity";
+  }
+  get subtype_of(): string {
+    return this.frontmatter.subtype_of ?? "Entity";
+  }
+  get contract(): ContractLevel {
+    return (this.frontmatter.contract ?? "core") as ContractLevel;
+  }
+  get mutable(): string[] {
+    return this.frontmatter.mutable ?? [];
+  }
+  get tags(): string[] {
+    return this.frontmatter.tags ?? [];
+  }
 
   invariants(): InvariantDef[] {
     const raw = this.frontmatter.constrains ?? [];
@@ -47,9 +63,24 @@ export abstract class Entity implements IEntity {
 }
 
 export const ENTITY_TYPES = [
-  "warm-contact", "org", "subsidiary", "touch", "addendum",
-  "knowledge-note", "idea", "observation", "task", "event", "ledger-entry", "pipeline-deal",
-  "user-agent", "sub-vault", "parent-vault", "plugin-config",
-  "dashboard", "orientation", "vault-contract",
+  "warm-contact",
+  "org",
+  "subsidiary",
+  "touch",
+  "addendum",
+  "knowledge-note",
+  "idea",
+  "observation",
+  "task",
+  "event",
+  "ledger-entry",
+  "pipeline-deal",
+  "user-agent",
+  "sub-vault",
+  "parent-vault",
+  "plugin-config",
+  "dashboard",
+  "orientation",
+  "vault-contract",
 ] as const;
-export type EntityType = typeof ENTITY_TYPES[number];
+export type EntityType = (typeof ENTITY_TYPES)[number];

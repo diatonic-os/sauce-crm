@@ -4,7 +4,12 @@
 // (per VoterAgent contract); the council never throws on voter failure.
 
 import type { LSPGate } from "./LSPGate";
-import type { ContractId, RoundtableProposal, RoundtableSession, VoteCast } from "./types";
+import type {
+  ContractId,
+  RoundtableProposal,
+  RoundtableSession,
+  VoteCast,
+} from "./types";
 import type { VoterAgent, VoterContext, VoterDecision } from "./voters/types";
 
 export type CouncilOutcome = "PASSED" | "REJECTED" | "NO_QUORUM";

@@ -1,2 +1,2 @@
-export * from './Skill';
-export { SkillRegistry } from './SkillRegistry';
+export * from "./Skill";
+export { SkillRegistry } from "./SkillRegistry";

@@ -19,7 +19,10 @@ export class TelemetrySink {
   private writeChain: Promise<void> = Promise.resolve();
   private ensured = false;
 
-  constructor(adapter: DataAdapter | null | undefined, sinkPath: string = DEFAULT_SINK_PATH) {
+  constructor(
+    adapter: DataAdapter | null | undefined,
+    sinkPath: string = DEFAULT_SINK_PATH,
+  ) {
     this.adapter = adapter ?? null;
     this.sinkPath = sinkPath;
   }
@@ -30,7 +33,9 @@ export class TelemetrySink {
     if (this.ring.length > RING_BUFFER_SIZE) this.ring.shift();
     if (!this.adapter) return;
     // Serialize disk writes; emit() stays sync from the caller's POV.
-    this.writeChain = this.writeChain.then(() => this.appendOne(event)).catch(() => undefined);
+    this.writeChain = this.writeChain
+      .then(() => this.appendOne(event))
+      .catch(() => undefined);
   }
 
   private async appendOne(event: AnyEvent): Promise<void> {

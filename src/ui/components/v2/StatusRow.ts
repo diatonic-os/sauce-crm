@@ -3,11 +3,17 @@
 
 import type { Setting } from "obsidian";
 
-export type PillKind = "success" | "warning" | "error" | "info" | "neutral" | "pro";
+export type PillKind =
+  | "success"
+  | "warning"
+  | "error"
+  | "info"
+  | "neutral"
+  | "pro";
 
 export function decorateStatusRow(
   setting: Setting,
-  pill: { kind: PillKind; text: string }
+  pill: { kind: PillKind; text: string },
 ): Setting {
   try {
     const anySetting = setting as unknown as {

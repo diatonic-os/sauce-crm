@@ -5,15 +5,24 @@
 
 import type { Setting } from "obsidian";
 
-export function tooltip(setting: Setting, text: string, link?: string): Setting {
+export function tooltip(
+  setting: Setting,
+  text: string,
+  link?: string,
+): Setting {
   try {
     // Resolve the name element. Obsidian's Setting exposes `nameEl`, but defend
     // against shape changes by falling back to a CSS-selector lookup.
-    const anySetting = setting as unknown as { nameEl?: HTMLElement; settingEl?: HTMLElement };
+    const anySetting = setting as unknown as {
+      nameEl?: HTMLElement;
+      settingEl?: HTMLElement;
+    };
     const host: HTMLElement | null | undefined =
       anySetting.nameEl ??
       (anySetting.settingEl
-        ? (anySetting.settingEl.querySelector(".setting-item-name") as HTMLElement | null)
+        ? (anySetting.settingEl.querySelector(
+            ".setting-item-name",
+          ) as HTMLElement | null)
         : null);
     if (!host) return setting;
 

@@ -3,7 +3,11 @@
 // class so the council can tune weights & timeouts independently.
 
 import type { Voter } from "../types";
-import { LocalFastVoter, type LocalBackend, type LocalFastVoterConfig } from "./LocalFastVoter";
+import {
+  LocalFastVoter,
+  type LocalBackend,
+  type LocalFastVoterConfig,
+} from "./LocalFastVoter";
 
 export interface LocalDeepVoterConfig extends LocalFastVoterConfig {
   // Reserved for future deep-mode-specific knobs (think_budget etc).
@@ -23,7 +27,8 @@ export class LocalDeepVoter extends LocalFastVoter {
       weight: cfg.weight ?? 2,
       backend,
       endpoint: cfg.endpoint,
-      model: cfg.model ?? (backend === "lmstudio" ? "qwen3-coder-30b" : "qwen3:32b"),
+      model:
+        cfg.model ?? (backend === "lmstudio" ? "qwen3-coder-30b" : "qwen3:32b"),
       systemPrompt:
         cfg.systemPrompt ??
         [

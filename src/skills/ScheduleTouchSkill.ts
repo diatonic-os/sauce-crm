@@ -1,11 +1,18 @@
-import { Skill, validateInputs, type SkillArgs, type SkillContract, type SkillCtx, type SkillResult } from './Skill';
+import {
+  Skill,
+  validateInputs,
+  type SkillArgs,
+  type SkillContract,
+  type SkillCtx,
+  type SkillResult,
+} from "./Skill";
 
 export class ScheduleTouchSkill extends Skill {
-  readonly id = 'schedule-touch';
-  readonly description = 'Propose calendar event for next-due contact';
+  readonly id = "schedule-touch";
+  readonly description = "Propose calendar event for next-due contact";
   readonly contract: SkillContract = {
-    level: 'simple',
-    inputs: [{ name: 'contact_id', type: 'string', required: true }, ],
+    level: "simple",
+    inputs: [{ name: "contact_id", type: "string", required: true }],
     mutable: [],
     requires: [],
     ensures: [],
@@ -15,10 +22,11 @@ export class ScheduleTouchSkill extends Skill {
 
   async execute(args: SkillArgs, ctx: SkillCtx): Promise<SkillResult> {
     const v = validateInputs(args, this.contract);
-    if (!v.ok) return { ok: false, reason: 'missing_inputs: ' + v.missing.join(',') };
+    if (!v.ok)
+      return { ok: false, reason: "missing_inputs: " + v.missing.join(",") };
     try {
       const payload = await ctx.call<unknown>(this.id, args);
-      await ctx.audit('skill', null, { skill: this.id, args });
+      await ctx.audit("skill", null, { skill: this.id, args });
       return { ok: true, mutated: [], payload };
     } catch (e) {
       return { ok: false, reason: e instanceof Error ? e.message : String(e) };

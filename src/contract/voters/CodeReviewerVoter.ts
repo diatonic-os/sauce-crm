@@ -110,7 +110,9 @@ export function scanDiff(
     // not a unified diff at all (no +/- prefixes anywhere) we treat
     // every line as added so the scanner also works on raw code.
     const isUnified = diff.includes("\n+") || diff.startsWith("+");
-    const isAdded = isUnified ? raw.startsWith("+") && !raw.startsWith("+++") : true;
+    const isAdded = isUnified
+      ? raw.startsWith("+") && !raw.startsWith("+++")
+      : true;
     if (!isAdded) continue;
     const text = isUnified ? raw.slice(1) : raw;
     if (ANY_RE.test(text)) {

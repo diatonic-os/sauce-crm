@@ -7,13 +7,21 @@ export interface ImportPreview {
   warnings: string[];
 }
 
-export interface ImportedEntity { type: 'person' | 'org' | 'touch'; frontmatter: Record<string, unknown>; body?: string; sourceRow?: number; }
+export interface ImportedEntity {
+  type: "person" | "org" | "touch";
+  frontmatter: Record<string, unknown>;
+  body?: string;
+  sourceRow?: number;
+}
 
 export interface IImportAdapter {
   readonly id: string;
   readonly label: string;
   detect(content: string | ArrayBuffer): Promise<boolean>;
-  parse(content: string | ArrayBuffer, mapping?: Record<string, string>): Promise<ImportedEntity[]>;
+  parse(
+    content: string | ArrayBuffer,
+    mapping?: Record<string, string>,
+  ): Promise<ImportedEntity[]>;
 }
 
 export interface IExportAdapter {

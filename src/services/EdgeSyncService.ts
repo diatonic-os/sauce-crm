@@ -3,15 +3,18 @@ import { EntityService } from "./EntityService";
 import { wrapWikilink, parseWikilink } from "../util/Wikilink";
 import { uniq } from "../util/Yaml";
 
-export interface EdgeRule { symmetric: boolean; scalar: boolean }
+export interface EdgeRule {
+  symmetric: boolean;
+  scalar: boolean;
+}
 
 export const DEFAULT_EDGE_RULES: Record<string, EdgeRule> = {
-  knows:            { symmetric: true,  scalar: false },
-  worked_with:      { symmetric: true,  scalar: false },
+  knows: { symmetric: true, scalar: false },
+  worked_with: { symmetric: true, scalar: false },
   intro_candidates: { symmetric: false, scalar: false },
-  family_of:        { symmetric: false, scalar: true  },
-  intro_via:        { symmetric: false, scalar: true  },
-  parent:           { symmetric: false, scalar: true  },
+  family_of: { symmetric: false, scalar: true },
+  intro_via: { symmetric: false, scalar: true },
+  parent: { symmetric: false, scalar: true },
 };
 
 export class EdgeSyncService {
@@ -27,10 +30,13 @@ export class EdgeSyncService {
     const key = file.path;
     const prev = this.debounce.get(key);
     if (prev) clearTimeout(prev);
-    this.debounce.set(key, setTimeout(() => {
-      this.debounce.delete(key);
-      void this.reconcile(file);
-    }, 250));
+    this.debounce.set(
+      key,
+      setTimeout(() => {
+        this.debounce.delete(key);
+        void this.reconcile(file);
+      }, 250),
+    );
   }
 
   async reconcile(file: TFile): Promise<void> {
@@ -66,10 +72,13 @@ export class EdgeSyncService {
         const peerFm = this.app.metadataCache.getFileCache(peer)?.frontmatter;
         if (!peerFm) continue;
         const peerEdges = arr(peerFm[edge]);
-        if (!peerEdges.some((l) => (parseWikilink(l) ?? l) === file.basename)) continue;
-        if (declared.has(peer.basename)) continue;   // still mutual
+        if (!peerEdges.some((l) => (parseWikilink(l) ?? l) === file.basename))
+          continue;
+        if (declared.has(peer.basename)) continue; // still mutual
         await this.app.fileManager.processFrontMatter(peer, (pfm) => {
-          pfm[edge] = arr(pfm[edge]).filter((l) => (parseWikilink(l) ?? l) !== file.basename);
+          pfm[edge] = arr(pfm[edge]).filter(
+            (l) => (parseWikilink(l) ?? l) !== file.basename,
+          );
         });
         void selfLink;
       }
@@ -82,7 +91,9 @@ export class EdgeSyncService {
     if (f) return f;
     // try people/<target>.md and orgs/<target>.md
     for (const base of [this.entities.paths.people, this.entities.paths.orgs]) {
-      const f2 = this.app.vault.getAbstractFileByPath(normalizePath(`${base}/${target}.md`));
+      const f2 = this.app.vault.getAbstractFileByPath(
+        normalizePath(`${base}/${target}.md`),
+      );
       if (f2 && f2 instanceof TFile) return f2;
     }
     return null;
@@ -93,10 +104,15 @@ export class EdgeSyncService {
     for (const f of this.app.vault.getMarkdownFiles()) {
       const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
       if (!fm) continue;
-      if (fm.knows || fm.worked_with) { await this.reconcile(f); n++; }
+      if (fm.knows || fm.worked_with) {
+        await this.reconcile(f);
+        n++;
+      }
     }
     return n;
   }
 }
 
-function arr<T = any>(v: any): T[] { return v == null ? [] : Array.isArray(v) ? v : [v]; }
+function arr<T = any>(v: any): T[] {
+  return v == null ? [] : Array.isArray(v) ? v : [v];
+}

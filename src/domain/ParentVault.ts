@@ -22,18 +22,28 @@ export interface FederationPolicy {
 export class ParentVault extends Entity {
   static readonly TYPE = "parent-vault";
 
-  get vault_id(): string { return this.frontmatter.vault_id ?? ""; }
-  get registry_dir(): string { return this.frontmatter.registry_dir ?? "./vaults/"; }
-  get registry(): RegistryEntry[] { return this.frontmatter.registry ?? []; }
-  get federation_policy(): FederationPolicy {
-    return this.frontmatter.federation_policy ?? {
-      cross_vault_edges: "allowed",
-      cross_vault_path_queries: "allowed",
-      cross_vault_compatibility: "allowed",
-      enum_resolution: "parent-wins",
-      addendum_rollup: "latest",
-      validation_gate: "strict",
-    };
+  get vault_id(): string {
+    return this.frontmatter.vault_id ?? "";
   }
-  get default_subvault(): string | null { return this.frontmatter.default_subvault ?? null; }
+  get registry_dir(): string {
+    return this.frontmatter.registry_dir ?? "./vaults/";
+  }
+  get registry(): RegistryEntry[] {
+    return this.frontmatter.registry ?? [];
+  }
+  get federation_policy(): FederationPolicy {
+    return (
+      this.frontmatter.federation_policy ?? {
+        cross_vault_edges: "allowed",
+        cross_vault_path_queries: "allowed",
+        cross_vault_compatibility: "allowed",
+        enum_resolution: "parent-wins",
+        addendum_rollup: "latest",
+        validation_gate: "strict",
+      }
+    );
+  }
+  get default_subvault(): string | null {
+    return this.frontmatter.default_subvault ?? null;
+  }
 }

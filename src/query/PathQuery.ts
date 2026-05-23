@@ -11,7 +11,7 @@ export interface AdjacencyRow {
 }
 
 export interface PathResult {
-  nodes: string[];     // ordered list of basenames
+  nodes: string[]; // ordered list of basenames
   metric: number;
 }
 
@@ -35,10 +35,13 @@ export function buildMatrix(
 ): Matrix<number> {
   const n = nodes.length;
   const idx = buildIndex(nodes);
-  const m: Matrix<number> = Array.from({ length: n }, () => Array.from({ length: n }, () => sr.zero));
+  const m: Matrix<number> = Array.from({ length: n }, () =>
+    Array.from({ length: n }, () => sr.zero),
+  );
   for (const e of edges) {
     if (edgeFilter && !edgeFilter.includes(e.edge)) continue;
-    const i = idx.get(e.src), j = idx.get(e.dst);
+    const i = idx.get(e.src),
+      j = idx.get(e.dst);
     if (i == null || j == null) continue;
     m[i][j] = sr.add(m[i][j], e.weight);
   }
@@ -53,11 +56,13 @@ export function runPath(
   over: string[] | undefined,
   objective: { mode: "MAXIMIZE" | "MINIMIZE"; metric: string } | undefined,
 ): PathResult | null {
-  const sr: Semiring<number> = objective?.mode === "MAXIMIZE" ? MaxPlus : MinPlus;
+  const sr: Semiring<number> =
+    objective?.mode === "MAXIMIZE" ? MaxPlus : MinPlus;
   const m = buildMatrix(sr, nodes, edges, over);
   const star = closure(sr, m);
   const idx = buildIndex(nodes);
-  const i = idx.get(from), j = idx.get(to);
+  const i = idx.get(from),
+    j = idx.get(to);
   if (i == null || j == null) return null;
   if (sr.eq(star[i][j], sr.zero)) return null;
   const pathIdx = bestPath(sr, m, i, j);

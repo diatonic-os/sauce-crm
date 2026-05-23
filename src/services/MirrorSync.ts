@@ -9,7 +9,11 @@
 
 import { App, TFile } from "obsidian";
 import { parseWikilink } from "../util/Wikilink";
-import type { LanceEntityMirror, MirrorFile, LanceVectorIndex } from "../backend/lance";
+import type {
+  LanceEntityMirror,
+  MirrorFile,
+  LanceVectorIndex,
+} from "../backend/lance";
 import type { ProvenanceService } from "./Provenance";
 
 export type MirrorEmbedFn = (text: string) => Promise<number[] | null>;
@@ -40,7 +44,10 @@ export class MirrorSync {
     private readonly opts: MirrorSyncOptions = {},
   ) {}
 
-  async syncFile(file: TFile, opts: { embed?: boolean } = {}): Promise<boolean> {
+  async syncFile(
+    file: TFile,
+    opts: { embed?: boolean } = {},
+  ): Promise<boolean> {
     if (file.extension !== "md") return false;
     const mf = await this.build(file);
     if (!mf) return false; // not a typed entity
@@ -48,11 +55,15 @@ export class MirrorSync {
     await this.mirror.onModify(mf);
     // Fingerprint the indexed entity; the embedding (if any) links to it as a
     // child in the provenance lineage.
-    const entityFp = await this.provenance?.record("index", mf.path, "entity", mf.body, {
-      meta: { type: mf.type, tags: mf.tags },
-    }).then((r) => r.fp).catch(() => undefined);
+    const entityFp = await this.provenance
+      ?.record("index", mf.path, "entity", mf.body, {
+        meta: { type: mf.type, tags: mf.tags },
+      })
+      .then((r) => r.fp)
+      .catch(() => undefined);
     const shouldEmbed = opts.embed ?? this.opts.realtimeEmbeddings?.() ?? true;
-    if ((changed || opts.embed === true) && shouldEmbed) await this.embed(mf, entityFp);
+    if ((changed || opts.embed === true) && shouldEmbed)
+      await this.embed(mf, entityFp);
     return true;
   }
 
@@ -66,7 +77,9 @@ export class MirrorSync {
 
   /** Full reconcile of every markdown entity — first install / manual rebuild.
    *  Returns the count of entities synced. */
-  async fullResync(opts: { embed?: boolean } = { embed: true }): Promise<number> {
+  async fullResync(
+    opts: { embed?: boolean } = { embed: true },
+  ): Promise<number> {
     let n = 0;
     for (const f of this.app.vault.getMarkdownFiles()) {
       try {
@@ -80,18 +93,24 @@ export class MirrorSync {
 
   private async embed(mf: MirrorFile, parentFp?: string): Promise<void> {
     if (!this.vectors || !this.embedFn) return;
-    const title = String(mf.frontmatter["name"] ?? mf.frontmatter["title"] ?? mf.path);
+    const title = String(
+      mf.frontmatter["name"] ?? mf.frontmatter["title"] ?? mf.path,
+    );
     const text = `${title}\n\n${mf.body}`.slice(0, EMBED_TEXT_CAP);
     const vec = await this.embedFn(text);
     if (!vec || vec.length !== this.vectors.dim) return; // no model / dim mismatch
     await this.vectors.store(mf.path, vec, "copilot", mf.bodyHash);
-    await this.provenance?.record("embed", mf.path, "embedding", text, {
-      parentFp, meta: { dim: vec.length },
-    }).catch(() => {});
+    await this.provenance
+      ?.record("embed", mf.path, "embedding", text, {
+        parentFp,
+        meta: { dim: vec.length },
+      })
+      .catch(() => {});
   }
 
   private async build(file: TFile): Promise<MirrorFile | null> {
-    const fm = (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) as Record<string, unknown>;
+    const fm = (this.app.metadataCache.getFileCache(file)?.frontmatter ??
+      {}) as Record<string, unknown>;
     const type = String(fm["type"] ?? "");
     if (!type) return null;
     const raw = await this.app.vault.cachedRead(file);
@@ -114,7 +133,10 @@ export class MirrorSync {
     for (const field of this.edgeFields) {
       for (const link of this.arr(fm[field])) {
         const target = parseWikilink(String(link)) ?? String(link);
-        const dest = this.app.metadataCache.getFirstLinkpathDest(target, file.path);
+        const dest = this.app.metadataCache.getFirstLinkpathDest(
+          target,
+          file.path,
+        );
         if (dest) out.push({ to: dest.path, edgeType: field, directed: true });
       }
     }

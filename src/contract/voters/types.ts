@@ -30,10 +30,7 @@ export interface VoterAgent {
   voter: Voter;
   // Default per-voter weight. QuorumCouncil may override.
   weight: number;
-  vote(
-    proposal: RoundtableProposal,
-    ctx: VoterContext,
-  ): Promise<VoterDecision>;
+  vote(proposal: RoundtableProposal, ctx: VoterContext): Promise<VoterDecision>;
 }
 
 /**

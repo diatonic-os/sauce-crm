@@ -21,13 +21,18 @@ export class ConflictModal extends Modal {
     private title: string,
     private fields: ConflictField[],
     private onResolve: (r: ConflictResolution | null) => void,
-  ) { super(app); }
+  ) {
+    super(app);
+  }
 
   onOpen(): void {
     const c = this.contentEl;
     c.addClass("sauce-modal");
     c.createEl("h2", { text: `Conflict — ${this.title}` });
-    c.createEl("p", { cls: "sauce-conflict-hint", text: "Pick the value to keep per field. 'Both' concatenates lists / preserves history." });
+    c.createEl("p", {
+      cls: "sauce-conflict-hint",
+      text: "Pick the value to keep per field. 'Both' concatenates lists / preserves history.",
+    });
 
     for (const f of this.fields) {
       const row = c.createDiv({ cls: "sauce-conflict-row" });
@@ -43,15 +48,25 @@ export class ConflictModal extends Modal {
 
       const picker = row.createEl("div", { cls: "sauce-conflict-picker" });
       const sel = picker.createEl("select") as HTMLSelectElement;
-      for (const opt of ["local", "remote", "both", "skip"]) sel.createEl("option", { text: opt, value: opt });
+      for (const opt of ["local", "remote", "both", "skip"])
+        sel.createEl("option", { text: opt, value: opt });
       sel.value = "local";
       this.decisions[f.name] = "local";
-      sel.onchange = () => { this.decisions[f.name] = sel.value as any; };
+      sel.onchange = () => {
+        this.decisions[f.name] = sel.value as any;
+      };
     }
 
     const btns = c.createDiv({ cls: "sauce-buttons" });
-    btns.createEl("button", { text: "Resolve", cls: "sauce-button" }).onclick = () => this.resolve();
-    btns.createEl("button", { text: "Cancel", cls: "sauce-button sauce-button-secondary" }).onclick = () => { this.onResolve(null); this.close(); };
+    btns.createEl("button", { text: "Resolve", cls: "sauce-button" }).onclick =
+      () => this.resolve();
+    btns.createEl("button", {
+      text: "Cancel",
+      cls: "sauce-button sauce-button-secondary",
+    }).onclick = () => {
+      this.onResolve(null);
+      this.close();
+    };
   }
 
   private resolve(): void {
@@ -63,7 +78,9 @@ export class ConflictModal extends Modal {
       else if (choice === "remote") resolved[f.name] = f.remote;
       else if (choice === "both") {
         if (Array.isArray(f.local) && Array.isArray(f.remote)) {
-          resolved[f.name] = [...new Set([...(f.local as any[]), ...(f.remote as any[])])];
+          resolved[f.name] = [
+            ...new Set([...(f.local as any[]), ...(f.remote as any[])]),
+          ];
         } else {
           resolved[f.name] = { local: f.local, remote: f.remote };
         }
@@ -74,12 +91,17 @@ export class ConflictModal extends Modal {
     this.close();
   }
 
-  onClose(): void { this.contentEl.empty(); }
+  onClose(): void {
+    this.contentEl.empty();
+  }
 }
 
 function fmt(v: unknown): string {
   if (v == null) return "—";
   if (typeof v === "string") return v;
-  if (Array.isArray(v)) return v.map((x) => typeof x === "string" ? x : JSON.stringify(x)).join("\n");
+  if (Array.isArray(v))
+    return v
+      .map((x) => (typeof x === "string" ? x : JSON.stringify(x)))
+      .join("\n");
   return JSON.stringify(v, null, 2);
 }
