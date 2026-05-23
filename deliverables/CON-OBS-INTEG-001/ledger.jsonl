@@ -22,3 +22,6 @@
 {"_t":"ev","ts":"2026-05-23T00:03:03Z","actor":"orchestrator","action":"merge","entityId":"T-D-02","hash":"a27bf47","note":"CanonReadOnlyExtension"}
 {"_t":"ev","ts":"2026-05-23T00:03:04Z","actor":"orchestrator","action":"merge","entityId":"T-D-03","hash":"deb7633","note":"CanonViewRenderer; SH-D done"}
 {"_t":"ev","ts":"2026-05-23T00:04:01Z","actor":"orchestrator","action":"merge","entityId":"T-E-01","hash":"718e7df","note":"7 new entity schemas reconciled to 14"}
+{"_t":"ev","ts":"2026-05-23T00:04:02Z","actor":"orchestrator","action":"merge","entityId":"T-E-02","hash":"d82d496","note":"LanceDB graph tables"}
+{"_t":"ev","ts":"2026-05-23T00:04:03Z","actor":"orchestrator","action":"merge","entityId":"T-E-03","hash":"c1082a0","note":"GraphService"}
+{"_t":"ev","ts":"2026-05-23T00:04:04Z","actor":"orchestrator","action":"merge","entityId":"T-E-04","hash":"f59a3f5","note":"LinkResolver; SH-E done; Phase 2 complete"}
