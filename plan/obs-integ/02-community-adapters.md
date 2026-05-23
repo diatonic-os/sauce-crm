@@ -6,7 +6,7 @@
 
 | Task | Shard | Out | Acc | Status |
 |------|-------|-----|-----|--------|
-| T-B1-01 | SH-B1-tasks | `src/integrations/obsidian/TasksAdapter.ts` | facade wraps apiV1 + Quick-Reference; optimize patches data.json deterministically | TODO |
+| T-B1-01 | SH-B1-tasks | `src/integrations/obsidian/TasksAdapter.ts` | facade wraps apiV1 + Quick-Reference; optimize patches data.json deterministically | **DONE** (delegates to PluginConfigService; SH-F dep now satisfied but SH-F stays CLI-BLOCKED) |
 | T-B2-01 | SH-B2-dataview | `src/integrations/obsidian/DataviewAdapter.ts` | wraps dv.api.pages/pagePaths/query; optimize enables dataviewjs + sauce resolvers | TODO |
 | T-B3-01 | SH-B3-kanban | `src/integrations/obsidian/KanbanAdapter.ts` | enumerates boards; projects pl-<ulid> nodes + bidirectional edges | TODO |
 | T-B4-01 | SH-B4-metabind | `src/integrations/obsidian/MetaBindAdapter.ts` | registers sauce:* bind targets; read-only entity form binds | TODO |
