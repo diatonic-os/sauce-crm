@@ -1,7 +1,7 @@
 <!-- GENERATED — aggregated from sdk/groups/**/*.md member contracts. Do not edit by hand. -->
 # Sauce CRM SDK — Registry
 
-Total members: 34
+Total members: 38
 
 ## actions
 
@@ -30,6 +30,7 @@ Total members: 34
 | `google` | [desktop, mobile] | Google connector: pure request builder + response parser over requesturl-fetch; OAuth bearer token from caller. |
 | `microsoft` | [desktop, mobile] | Microsoft 365 connector: pure request builder + parser over requesturl-fetch; OAuth bearer from caller. |
 | `notion` | [desktop, mobile] | Notion connector: pure buildRequest + parseResponse over requesturl-fetch; Bearer token auth from caller. |
+| `twilio` | [desktop, mobile] | Twilio SMS connector — pure request builder (Basic auth) + parser over requesturl-fetch. |
 | `websearch` | [desktop, mobile] | Web-search connector — pure request builder + response parser over requesturl-fetch. |
 ## helpers
 
@@ -47,6 +48,9 @@ Total members: 34
 | id | platform | summary |
 | --- | --- | --- |
 | `infer-edges` | [desktop, mobile] | Derive relationship edges (knows / worked_with) from a note's frontmatter. |
+| `research-org` | [desktop, mobile] | Research an organization by composing the websearch connector. |
+| `research-person` | [desktop, mobile] | Research a person by composing the websearch connector. |
+| `summarize-thread` | [desktop, mobile] | Summarize a message thread via an LLM endpoint — pure builder/parser + thin call. |
 ## talents
 
 | id | platform | summary |
