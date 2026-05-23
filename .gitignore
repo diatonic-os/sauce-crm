@@ -44,3 +44,4 @@ coverage/
 
 # Git worktrees — per-task isolation off main (never tracked)
 .worktrees/
+.claude/
