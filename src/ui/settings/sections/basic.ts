@@ -1,4 +1,4 @@
-import { Setting, Notice } from "obsidian";
+import { Setting, Notice, setIcon } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 
 function markAdvanced(set: Setting): Setting {
@@ -66,33 +66,35 @@ export function renderBasic(containerEl: HTMLElement, plugin: SauceGraphPlugin):
     };
   }
 
-  // Stats strip
-  containerEl.createEl("h3", { text: "At a glance" });
-  const stats = containerEl.createDiv({ cls: "sg-stats-strip" });
+  // At a glance — KPI cards
+  containerEl.createEl("h3", { text: "At a glance", cls: "sauce-settings-section-title" });
+  const kpis = containerEl.createDiv({ cls: "sauce-view-kpis" });
   const peopleCount = plugin.entityService?.allPeople?.()?.length ?? 0;
   const orgsCount = plugin.entityService?.allOrgs?.()?.length ?? 0;
   const touchesCount = plugin.entityService?.allTouches?.()?.length ?? 0;
-  const mkStat = (label: string, value: number, commandId: string) => {
-    const cell = stats.createDiv({ cls: "sg-stat-cell" });
-    cell.createEl("div", { cls: "sg-stat-value", text: String(value) });
-    cell.createEl("div", { cls: "sg-stat-label", text: label });
-    cell.style.cursor = "pointer";
+  const mkStat = (label: string, value: number, icon: string, commandId: string) => {
+    const cell = kpis.createEl("button", { cls: "sauce-kpi sauce-kpi--btn", attr: { "aria-label": label } });
+    setIcon(cell.createDiv({ cls: "sauce-kpi-icon" }), icon);
+    cell.createDiv({ cls: "value", text: String(value) });
+    cell.createDiv({ cls: "label", text: label });
     cell.onclick = () => runCommand(plugin, commandId);
   };
-  mkStat("People", peopleCount, "sauce-graph:open-dashboard");
-  mkStat("Organizations", orgsCount, "sauce-graph:open-dashboard");
-  mkStat("Touches", touchesCount, "sauce-graph:open-dashboard");
+  mkStat("People", peopleCount, "users", "sauce-graph:open-dashboard");
+  mkStat("Organizations", orgsCount, "building-2", "sauce-graph:open-dashboard");
+  mkStat("Touches", touchesCount, "activity", "sauce-graph:open-dashboard");
 
-  // Quick actions
-  containerEl.createEl("h3", { text: "Quick actions" });
-  const actions = containerEl.createDiv({ cls: "sg-quick-actions" });
-  const mkBtn = (label: string, commandId: string) => {
-    const b = actions.createEl("button", { text: label });
+  // Quick actions — styled button row
+  containerEl.createEl("h3", { text: "Quick actions", cls: "sauce-settings-section-title" });
+  const actions = containerEl.createDiv({ cls: "sauce-button-row" });
+  const mkBtn = (label: string, icon: string, commandId: string, primary = false) => {
+    const b = actions.createEl("button", { cls: `sauce-btn ${primary ? "sauce-btn--primary" : "sauce-btn--secondary"}` });
+    setIcon(b.createSpan({ cls: "sauce-btn-icon" }), icon);
+    b.createSpan({ text: label });
     b.onclick = () => runCommand(plugin, commandId);
   };
-  mkBtn("New Person", "sauce-graph:new-person");
-  mkBtn("Log Touch", "sauce-graph:log-touch");
-  mkBtn("Open Dashboard", "sauce-graph:open-dashboard");
+  mkBtn("New person", "user-plus", "sauce-graph:new-person", true);
+  mkBtn("Log touch", "message-circle", "sauce-graph:log-touch");
+  mkBtn("Open dashboard", "layout-dashboard", "sauce-graph:open-dashboard");
 
   // Default-visible settings
   containerEl.createEl("h3", { text: "Settings" });

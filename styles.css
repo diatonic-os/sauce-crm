@@ -651,6 +651,12 @@
 }
 .sauce-icon-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
 
+/* Clickable KPI card (At a glance) + button icons */
+.sauce-kpi--btn { width: 100%; text-align: start; cursor: pointer; font: inherit; color: var(--text-normal); display: flex; flex-direction: column; gap: var(--sg-gap-2); }
+.sauce-kpi--btn:hover { background: var(--background-modifier-hover); }
+.sauce-kpi-icon { color: var(--interactive-accent); display: inline-flex; }
+.sauce-btn-icon { display: inline-flex; }
+
 /* ---------- Status bar ---------- */
 
 .sauce-statusbar {
