@@ -23,6 +23,7 @@ export class IntegrationCredentialsModal extends Modal {
     this.titleEl.setText(`Connect — ${m.label}`);
     const root = this.contentEl;
     root.empty();
+    root.addClass("sauce-modal");
     root.addClass("sg-creds-modal");
 
     const creds = this.plugin.credentials;

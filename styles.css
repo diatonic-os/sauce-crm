@@ -748,6 +748,45 @@
 .sauce-skill-autonomy { min-width: 120px; }
 .sauce-skill-autonomy:disabled { opacity: 0.7; cursor: not-allowed; }
 
+/* ---------- Modal design language (cards, sections, aligned fields) ---------- */
+.sauce-modal .modal-content { gap: var(--sg-gap-8); }
+.sauce-modal h2 {
+  padding-block-end: var(--sg-gap-5); border-bottom: 2px solid var(--interactive-accent);
+}
+.sauce-modal h3 {
+  font-size: 1.05em; font-weight: 600; margin: var(--sg-gap-13) 0 var(--sg-gap-5) 0;
+  padding-block-end: var(--sg-gap-3); border-bottom: 1px solid var(--background-modifier-border);
+}
+/* Field rows → cards (label/desc left, control right) */
+.sauce-modal .setting-item {
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m); border-top: none; padding: var(--sg-gap-13) var(--sg-gap-21);
+  margin-block-end: var(--sg-gap-8); display: flex; align-items: center; gap: var(--sg-gap-13); flex-wrap: wrap;
+}
+.sauce-modal .setting-item-info { flex: 1 1 200px; margin: 0; }
+.sauce-modal .setting-item-name { font-weight: 600; }
+.sauce-modal .setting-item-description { color: var(--text-muted); }
+.sauce-modal .setting-item-control { flex: 0 0 auto; justify-content: flex-end; }
+.sauce-modal .setting-item-control:has(> input[type="text"]),
+.sauce-modal .setting-item-control:has(> input[type="password"]),
+.sauce-modal .setting-item-control:has(> input[type="url"]) { flex: 1 1 240px; }
+.sauce-modal .setting-item-control input[type="text"],
+.sauce-modal .setting-item-control input[type="password"],
+.sauce-modal .setting-item-control input[type="url"] { width: 100%; }
+.sauce-modal .setting-item:has(textarea) { flex-direction: column; align-items: stretch; }
+.sauce-modal .setting-item:has(textarea) .setting-item-control { width: 100%; }
+.sauce-modal textarea { width: 100%; min-height: var(--sg-h-89); }
+/* Picker host (ProviderPicker etc.) → card */
+.sauce-onboarding-picker, .sauce-modal .sg-section-row {
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m); padding: var(--sg-gap-13) var(--sg-gap-21); margin-block-end: var(--sg-gap-8);
+}
+/* Footer button row → divider + right-aligned (works with .sauce-buttons / .sauce-modal-footer) */
+.sauce-modal .sauce-buttons, .sauce-modal .sauce-modal-footer {
+  padding-top: var(--sg-gap-13); margin-top: var(--sg-gap-8);
+  border-top: 1px solid var(--background-modifier-border);
+}
+
 /* ---------- Status bar ---------- */
 
 .sauce-statusbar {
