@@ -2,3 +2,5 @@
 {"_t":"ev","ts":"2026-05-23T00:00:01Z","actor":"orchestrator","action":"merge","entityId":"T-A-01","hash":"f00bd8a","note":"IObsidianPluginIntegration"}
 {"_t":"ev","ts":"2026-05-23T00:00:02Z","actor":"orchestrator","action":"merge","entityId":"T-A-03","hash":"f00bd8a","note":"PluginStateMachine, 392 tests green"}
 {"_t":"ev","ts":"2026-05-23T00:00:03Z","actor":"orchestrator","action":"merge","entityId":"T-A-02","hash":"29463c1","note":"ObsidianPluginRegistry"}
+{"_t":"ev","ts":"2026-05-23T00:00:04Z","actor":"orchestrator","action":"merge","entityId":"T-A-04","hash":"a71a219","note":"Community/Core plugin pages"}
+{"_t":"ev","ts":"2026-05-23T00:00:05Z","actor":"orchestrator","action":"merge","entityId":"T-A-05","hash":"a71a219","note":"IntegrationsSection 3-tab; SH-A DONE, 408 tests"}
