@@ -657,6 +657,78 @@
 .sauce-kpi-icon { color: var(--interactive-accent); display: inline-flex; }
 .sauce-btn-icon { display: inline-flex; }
 
+/* ---------- Apply the design language to ALL settings tabs ---------- */
+/* Every section header becomes an accent-underline divider (except the hero title). */
+.sg-tab-content h3:not(.sauce-hero-title) {
+  font-size: 1.05em; font-weight: 600;
+  margin: var(--sg-gap-21) 0 var(--sg-gap-8) 0; padding-block-end: var(--sg-gap-5);
+  border-bottom: 2px solid var(--interactive-accent); color: var(--text-normal);
+}
+.sg-section-row { margin-block: var(--sg-gap-8); }
+
+/* Empty / coming-soon states → gray card */
+.sg-empty-state {
+  display: flex; flex-direction: column; gap: var(--sg-gap-5); align-items: flex-start;
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m); padding: var(--sg-gap-21); margin-block-end: var(--sg-gap-13);
+}
+.sg-empty-state h4 { margin: 0; }
+.sg-empty-state p { margin: 0; color: var(--text-muted); }
+.sg-phase-pill {
+  align-self: flex-start; background: var(--interactive-accent); color: var(--text-on-accent);
+  border-radius: 999px; padding: 2px var(--sg-gap-8); font-size: 0.7em; text-transform: uppercase;
+  letter-spacing: 0.05em; font-weight: 700;
+}
+
+/* First-run banner → accent callout */
+.sg-first-run-banner {
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  border-inline-start: 3px solid var(--interactive-accent); border-radius: var(--radius-m);
+  padding: var(--sg-gap-13) var(--sg-gap-21); margin-block-end: var(--sg-gap-21);
+  display: flex; flex-direction: column; gap: var(--sg-gap-8);
+}
+.sg-first-run-head { display: flex; align-items: center; justify-content: space-between; }
+.sg-first-run-head h3 { margin: 0; border: none; padding: 0; }
+.sg-first-run-dismiss { background: transparent; border: none; cursor: pointer; font-size: 1.4em; color: var(--text-muted); line-height: 1; }
+.sg-first-run-dismiss:hover { color: var(--text-normal); }
+.sg-error { color: var(--text-error); font-size: 0.9em; }
+
+/* Integrations rail layout (sidebar of providers + panel) */
+.sg-integrations-layout { display: flex; gap: var(--sg-gap-13); align-items: flex-start; flex-wrap: wrap; }
+.sg-integrations-rail { display: flex; flex-direction: column; gap: var(--sg-gap-3); flex: 0 0 auto; min-width: 160px; }
+.sg-rail-btn {
+  text-align: start; background: transparent; border: 1px solid transparent; border-radius: var(--radius-s);
+  padding: var(--sg-gap-5) var(--sg-gap-8); cursor: pointer; color: var(--text-muted); font: inherit;
+}
+.sg-rail-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.sg-rail-btn[aria-selected="true"], .sg-rail-btn.is-active { background: var(--interactive-accent); color: var(--text-on-accent); }
+.sg-integrations-panel { flex: 1 1 320px; min-width: 0; }
+
+/* Every settings row → an aligned card: label/description left, control right. */
+.sg-tab-content .setting-item {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  border-top: none;
+  padding: var(--sg-gap-13) var(--sg-gap-21);
+  margin-block-end: var(--sg-gap-8);
+  display: flex; align-items: center; gap: var(--sg-gap-13); flex-wrap: wrap;
+}
+.sg-tab-content .setting-item-info { flex: 1 1 240px; margin: 0; }
+.sg-tab-content .setting-item-name { font-weight: 600; }
+.sg-tab-content .setting-item-description { color: var(--text-muted); }
+.sg-tab-content .setting-item-control { flex: 0 0 auto; justify-content: flex-end; gap: var(--sg-gap-5); }
+/* Consistent control widths so inputs/dropdowns align down the page. */
+.sg-tab-content .setting-item-control input[type="text"],
+.sg-tab-content .setting-item-control input[type="search"],
+.sg-tab-content .setting-item-control input[type="password"],
+.sg-tab-content .setting-item-control select,
+.sg-tab-content .setting-item-control .dropdown { min-width: 220px; }
+.sg-tab-content .setting-item-control textarea { width: 100%; min-width: 280px; min-height: var(--sg-h-89); }
+/* Full-width rows (textareas) stack the control under the label. */
+.sg-tab-content .setting-item:has(textarea) { align-items: stretch; flex-direction: column; }
+.sg-tab-content .setting-item:has(textarea) .setting-item-control { width: 100%; }
+
 /* ---------- Status bar ---------- */
 
 .sauce-statusbar {
