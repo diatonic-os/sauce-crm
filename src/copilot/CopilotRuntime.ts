@@ -186,6 +186,28 @@ export class CopilotRuntime {
 
   getSettings(): CopilotSettings { return this.settings; }
 
+  /** Single-shot completion (no RAG, no tools, no streaming surface) for
+   *  structured background tasks like enrichment classification. Accumulates
+   *  the streamed text and returns it; null on any provider error. */
+  async completeOnce(systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<string | null> {
+    try {
+      let text = "";
+      for await (const ev of this.provider().complete({
+        model: this.settings.model,
+        messages: [{ role: "user", content: userPrompt }],
+        systemPrompt,
+        temperature: opts.temperature ?? 0,
+        maxTokens: opts.maxTokens ?? 512,
+        stream: false,
+      })) {
+        if (ev.type === "text") text += ev.delta;
+      }
+      return text.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
   provider(): ICopilotProvider {
     const key = async () => this.settings.apiKey;
     switch (this.settings.provider) {

@@ -5,6 +5,7 @@ import { QueryService } from "./services/QueryService";
 import { SearchService } from "./services/SearchService";
 import { MirrorSync } from "./services/MirrorSync";
 import { EnrichmentService, defaultHeuristicStages, type EnrichmentHost, type EnrichmentInput } from "./services/EnrichmentService";
+import { llmClassifyStage } from "./services/enrichment/LlmClassifyStage";
 import { DocumentHarvestService, SUPPORTED_FORMATS, type DocFormat } from "./services/DocumentHarvest";
 import { SauceFeatureSettings, DEFAULT_FEATURE_SETTINGS, mergeFeatureSettings, activeEmbeddingProvider } from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
@@ -289,8 +290,20 @@ export default class SauceGraphPlugin extends Plugin {
         if (file instanceof TFile) await this.entityService.updateFrontmatter(file, (fm) => { mutate(fm); });
       },
     };
+    // classify = LLM-backed (validated against the vault's enum vocabulary);
+    // tag + graph stay heuristic. classify degrades to null when no model is
+    // reachable, so EnrichmentService just skips it.
     this.enrichment = new EnrichmentService(
-      defaultHeuristicStages(),
+      {
+        ...defaultHeuristicStages(),
+        classify: llmClassifyStage(
+          (system, user) => this.copilot?.completeOnce(system, user) ?? Promise.resolve(null),
+          () => ({
+            primaryTypes: this.settings.enums.primary_type_person ?? [],
+            roles: this.settings.enums.roles_person ?? [],
+          }),
+        ),
+      },
       enrichHost,
       () => this.settings.features.enrichment,
       this.v2?.provenance ?? null,
