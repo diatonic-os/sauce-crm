@@ -10,3 +10,7 @@
 {"_t":"ev","ts":"2026-05-23T00:00:08","actor":"orchestrator","action":"merge","entityId":"T-B4-01","hash":"709ccc8","note":"MetaBindAdapter"}
 {"_t":"ev","ts":"2026-05-23T00:00:05","actor":"orchestrator","action":"merge","entityId":"T-B5-01","hash":"b90070d","note":"QuickAddAdapter"}
 {"_t":"ev","ts":"2026-05-23T00:00:02","actor":"orchestrator","action":"merge","entityId":"T-B6-01","hash":"efc53eb","note":"BratAdapter"}
+{"_t":"ev","ts":"2026-05-23T00:01:03","actor":"orchestrator","action":"merge","entityId":"T-C1-01","hash":"1e915b7","note":"FilesService"}
+{"_t":"ev","ts":"2026-05-23T00:01:00","actor":"orchestrator","action":"merge","entityId":"T-C2-01","hash":"ff0903e","note":"SearchService"}
+{"_t":"ev","ts":"2026-05-23T00:01:05","actor":"orchestrator","action":"merge","entityId":"T-C3-01","hash":"15e7515","note":"ContentService"}
+{"_t":"ev","ts":"2026-05-23T00:01:02","actor":"orchestrator","action":"merge","entityId":"T-C4-01","hash":"5603700","note":"MetaService"}
