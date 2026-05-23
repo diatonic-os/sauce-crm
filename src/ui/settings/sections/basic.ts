@@ -7,11 +7,14 @@ function markAdvanced(set: Setting): Setting {
 }
 
 function runCommand(plugin: SauceGraphPlugin, id: string): void {
+  // Bare ids are prefixed with the plugin's manifest id (e.g. "sauce-crm:");
+  // hardcoding "sauce-graph:" broke after the rename.
+  const full = id.includes(":") ? id : `${plugin.manifest.id}:${id}`;
   const cmds: any = (plugin.app as any).commands;
   if (cmds && typeof cmds.executeCommandById === "function") {
-    cmds.executeCommandById(id);
+    cmds.executeCommandById(full);
   } else {
-    new Notice(`Command unavailable: ${id}`);
+    new Notice(`Command unavailable: ${full}`);
   }
 }
 
@@ -66,6 +69,27 @@ export function renderBasic(containerEl: HTMLElement, plugin: SauceGraphPlugin):
     };
   }
 
+  // Getting started — wizard / walkthrough / reset
+  containerEl.createEl("h3", { text: "Getting started", cls: "sauce-settings-section-title" });
+  const gs = containerEl.createDiv({ cls: "sauce-button-row" });
+  const gsBtn = (label: string, icon: string, primary: boolean, fn: () => void) => {
+    const b = gs.createEl("button", { cls: `sauce-btn ${primary ? "sauce-btn--primary" : "sauce-btn--secondary"}` });
+    setIcon(b.createSpan({ cls: "sauce-btn-icon" }), icon);
+    b.createSpan({ text: label });
+    b.onclick = fn;
+  };
+  gsBtn("Initialization wizard", "wand", true, () => runCommand(plugin, "onboarding"));
+  gsBtn("Walkthrough", "book-open", false, () => runCommand(plugin, "onboarding"));
+  gsBtn("Reset & reload settings", "rotate-ccw", false, async () => {
+    if (!window.confirm("Reset onboarding state and reload settings? Your notes, keys, and integrations are not affected.")) return;
+    s.hasInitialized = false;
+    s.hasDismissedFirstRun = false;
+    await plugin.saveSettings();
+    new Notice("Settings reloaded.");
+    containerEl.empty();
+    renderBasic(containerEl, plugin);
+  });
+
   // At a glance — KPI cards
   containerEl.createEl("h3", { text: "At a glance", cls: "sauce-settings-section-title" });
   const kpis = containerEl.createDiv({ cls: "sauce-view-kpis" });
@@ -79,9 +103,9 @@ export function renderBasic(containerEl: HTMLElement, plugin: SauceGraphPlugin):
     cell.createDiv({ cls: "label", text: label });
     cell.onclick = () => runCommand(plugin, commandId);
   };
-  mkStat("People", peopleCount, "users", "sauce-graph:open-dashboard");
-  mkStat("Organizations", orgsCount, "building-2", "sauce-graph:open-dashboard");
-  mkStat("Touches", touchesCount, "activity", "sauce-graph:open-dashboard");
+  mkStat("People", peopleCount, "users", "open-dashboard");
+  mkStat("Organizations", orgsCount, "building-2", "open-dashboard");
+  mkStat("Touches", touchesCount, "activity", "open-dashboard");
 
   // Quick actions — styled button row
   containerEl.createEl("h3", { text: "Quick actions", cls: "sauce-settings-section-title" });
@@ -92,9 +116,9 @@ export function renderBasic(containerEl: HTMLElement, plugin: SauceGraphPlugin):
     b.createSpan({ text: label });
     b.onclick = () => runCommand(plugin, commandId);
   };
-  mkBtn("New person", "user-plus", "sauce-graph:new-person", true);
-  mkBtn("Log touch", "message-circle", "sauce-graph:log-touch");
-  mkBtn("Open dashboard", "layout-dashboard", "sauce-graph:open-dashboard");
+  mkBtn("New person", "user-plus", "new-person", true);
+  mkBtn("Log touch", "message-circle", "log-touch");
+  mkBtn("Open dashboard", "layout-dashboard", "open-dashboard");
 
   // Default-visible settings
   containerEl.createEl("h3", { text: "Settings" });

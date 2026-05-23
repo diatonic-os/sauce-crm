@@ -729,6 +729,25 @@
 .sg-tab-content .setting-item:has(textarea) { align-items: stretch; flex-direction: column; }
 .sg-tab-content .setting-item:has(textarea) .setting-item-control { width: 100%; }
 
+/* ProviderPicker / custom section rows → cards (e.g. embedding-model rows) */
+.sg-section-row {
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m); padding: var(--sg-gap-13) var(--sg-gap-21); margin-block-end: var(--sg-gap-8);
+  display: flex; align-items: center; gap: var(--sg-gap-13); flex-wrap: wrap;
+}
+/* Text-like controls grow to fill the card; dropdowns/sliders stay compact. */
+.sg-tab-content .setting-item-control:has(> input[type="text"]),
+.sg-tab-content .setting-item-control:has(> input[type="url"]),
+.sg-tab-content .setting-item-control:has(> input[type="search"]),
+.sg-tab-content .setting-item-control:has(> input[type="password"]) { flex: 1 1 280px; }
+.sg-tab-content .setting-item-control input[type="text"],
+.sg-tab-content .setting-item-control input[type="url"],
+.sg-tab-content .setting-item-control input[type="search"],
+.sg-tab-content .setting-item-control input[type="password"] { width: 100%; }
+/* Per-skill autonomy select */
+.sauce-skill-autonomy { min-width: 120px; }
+.sauce-skill-autonomy:disabled { opacity: 0.7; cursor: not-allowed; }
+
 /* ---------- Status bar ---------- */
 
 .sauce-statusbar {

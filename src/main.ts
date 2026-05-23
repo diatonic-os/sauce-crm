@@ -100,6 +100,9 @@ export interface SauceGraphSettings {
   hasInitialized?: boolean;
   hasDismissedFirstRun?: boolean;
   showAdvanced?: Record<string, boolean>;
+  /** Global skill-autonomy mode: a concrete level applies to all skills;
+   *  "custom" lets each skill set its own. Defaults to "manual". */
+  skillsAutonomy?: "manual" | "suggest" | "assist" | "auto" | "custom";
 }
 
 const DEFAULT_SETTINGS: SauceGraphSettings = {
@@ -131,6 +134,7 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
   hasInitialized: false,
   hasDismissedFirstRun: false,
   showAdvanced: {},
+  skillsAutonomy: "manual",
 };
 
 /** Minimal Logger implementation that writes to console with a source
