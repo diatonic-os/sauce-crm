@@ -29,7 +29,7 @@ export class AuditLogView extends ItemView {
 
     const audit = this.plugin.v2?.auditLog ?? null;
     if (!audit) {
-      root.createEl("p", { text: "Audit log not yet initialized (requires SQLite backend)." });
+      root.createEl("p", { text: "Audit log not yet initialized (requires LanceDB backend)." });
       return;
     }
 

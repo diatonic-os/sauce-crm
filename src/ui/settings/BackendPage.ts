@@ -1,7 +1,7 @@
 import { SettingsPage, type SettingsHost, el } from './SettingsPage';
 export class BackendPage extends SettingsPage {
   readonly id = 'backend';
-  readonly title = 'Backend (SQLite)';
+  readonly title = 'Backend (LanceDB)';
   readonly group = 'system';
   constructor(private readonly host: SettingsHost) { super(); }
   render(containerEl: HTMLElement): void {

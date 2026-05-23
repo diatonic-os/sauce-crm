@@ -73,27 +73,73 @@ export function renderData(containerEl: HTMLElement, plugin: SauceGraphPlugin): 
     empty.createEl("span", { cls: "sg-phase-pill", text: "Phase P11" });
   }
 
-  containerEl.createEl("h3", { text: "Advanced" });
+  // ── Database (LanceDB) ──────────────────────────────────────────────
+  // LanceDB is the native vector + entity store (it replaced the former
+  // SQLite backend). When uninstalled the plugin runs graph-RAG-only; the
+  // Install button surfaces the host-install flow and Reindex rebuilds the
+  // mirror + embeddings.
+  containerEl.createEl("h3", { text: "Database (LanceDB)" });
 
-  const backendKind = plugin.v2?.backendKind ?? "unknown";
-  markAdvanced(new Setting(containerEl)
-    .setName("SQLite backend")
-    .setDesc(`Current backend: ${backendKind}`)
-    .addButton((b) => b.setButtonText("Refresh").onClick(() => {
-      new Notice(`Backend: ${plugin.v2?.backendKind ?? "unknown"}`);
-    })));
+  const cap = plugin.lancedbCapability;
+  const state = cap?.status?.state ?? "unknown";
+  const stateLabel: Record<string, string> = {
+    available: "Installed & active",
+    unavailable: "Not installed",
+    "mobile-unsupported": "Not supported on mobile",
+  };
+  const version = (cap?.status as any)?.version as string | undefined;
+  const dbEnabled = cap?.enabled ?? false;
 
-  markAdvanced(new Setting(containerEl)
-    .setName("Vacuum database")
-    .setDesc("Compact the SQLite database. Safe to run while idle.")
-    .addButton((b) => b.setButtonText("Vacuum").onClick(async () => {
-      try {
-        await (plugin.v2 as any)?.db?.vacuum?.();
-        new Notice("Vacuum complete.");
-      } catch (e: any) {
-        new Notice(`Vacuum failed: ${e?.message ?? e}`);
+  new Setting(containerEl)
+    .setName("Vector + entity store")
+    .setDesc(
+      "LanceDB powers semantic search, embeddings, and fast entity lookups. " +
+      `Status: ${stateLabel[state] ?? state}${version ? ` (v${version})` : ""}.`,
+    )
+    .addButton((b) => {
+      if (dbEnabled) {
+        b.setButtonText("Reindex vault")
+          .setTooltip("Re-mirror and re-embed every entity into LanceDB.")
+          .onClick(async () => {
+            if (!plugin.mirrorSync) { new Notice("LanceDB mirror not ready."); return; }
+            new Notice("Reindexing vault into LanceDB…");
+            try {
+              const n = await plugin.mirrorSync.fullResync({ embed: true });
+              new Notice(`Reindexed ${n} entit${n === 1 ? "y" : "ies"} into LanceDB.`);
+            } catch (e: any) {
+              new Notice(`Reindex failed: ${e?.message ?? e}`);
+            }
+          });
+      } else {
+        b.setButtonText("Install LanceDB")
+          .setCta()
+          .setTooltip("Install the LanceDB native backend on this device.")
+          .onClick(() => plugin.openLanceDBInstall());
       }
-    })));
+    });
+
+  new Setting(containerEl)
+    .setName("Index on plugin load")
+    .setDesc("Mirror every existing entity into LanceDB when the plugin starts (fast — embeddings append on change or via Reindex).")
+    .addToggle((t) => t
+      .setValue(s.lancedbIndexOnLoad !== false)
+      .setDisabled(!dbEnabled)
+      .onChange(async (v) => { s.lancedbIndexOnLoad = v; await plugin.saveSettings(); }));
+
+  new Setting(containerEl)
+    .setName("Realtime embeddings")
+    .setDesc("Re-embed entities as you edit them. Off = embeddings only update on manual Reindex (lower CPU).")
+    .addToggle((t) => t
+      .setValue(plugin.settings.features?.rag?.realtimeEmbeddings ?? false)
+      .setDisabled(!dbEnabled)
+      .onChange(async (v) => {
+        if (plugin.settings.features?.rag) {
+          plugin.settings.features.rag.realtimeEmbeddings = v;
+          await plugin.saveSettings();
+        }
+      }));
+
+  containerEl.createEl("h3", { text: "Advanced" });
 
   markAdvanced(new Setting(containerEl)
     .setName("Geocode provider")

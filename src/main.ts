@@ -92,6 +92,8 @@ export interface SauceGraphSettings {
   /** LanceDB install decision — persisted across reloads so we never
    *  re-prompt after the user picks "Install" or "Skip". */
   lancedb?: { installDecision: LanceDBInstallDecision };
+  /** Re-mirror all entities into LanceDB on plugin load (default true). */
+  lancedbIndexOnLoad?: boolean;
   /** Persistent approval decisions (approve-always / deny-always per
    *  action class). Read by every risky flow before executing. */
   approvals?: ApprovalRecord;
@@ -246,7 +248,10 @@ export default class SauceGraphPlugin extends Plugin {
     this.lancedbCapability = computeCapability(
       this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
     );
-    this.app.workspace.onLayoutReady(() => this.maybePromptLanceDBInstall());
+    this.app.workspace.onLayoutReady(() => {
+      this.maybePromptLanceDBInstall();
+      this.indexAllOnLoad();
+    });
 
     try { this.v2 = await initV2(this.app, this); }
     catch (e) { console.warn("Sauce V2 init failed", { error: String(e) }); }
@@ -707,6 +712,13 @@ export default class SauceGraphPlugin extends Plugin {
    *  every workspace.onLayoutReady. */
   private maybePromptLanceDBInstall(): void {
     if (!this.lancedbCapability.awaitingDecision) return;
+    this.openLanceDBInstall();
+  }
+
+  /** Open the LanceDB host-install modal unconditionally. Wired to the
+   *  Settings → Data → "Install LanceDB" button as well as the first-run
+   *  prompt. Re-detects capability after the operator decides. */
+  openLanceDBInstall(): void {
     const pluginDir = this.app.vault.adapter as unknown as { getBasePath?: () => string };
     const base = typeof pluginDir.getBasePath === "function" ? pluginDir.getBasePath() : "";
     const configDir = this.app.vault.configDir; // not hardcoded ".obsidian" — may be customized
@@ -727,6 +739,18 @@ export default class SauceGraphPlugin extends Plugin {
         this.lancedbCapability = computeCapability(next);
       },
     }).open();
+  }
+
+  /** Index-on-load: mirror every existing entity into LanceDB at startup so
+   *  search/stats see the whole vault immediately. Mirror-only (embed:false)
+   *  to keep load fast — embeddings append on change (realtime) or via the
+   *  Settings → Data → Reindex button. Best-effort; never blocks boot. */
+  private indexAllOnLoad(): void {
+    if (!this.mirrorSync) return;                            // LanceDB unavailable
+    if (this.settings.lancedbIndexOnLoad === false) return;  // operator opted out
+    void this.mirrorSync.fullResync({ embed: false })
+      .then((n) => this.logger?.info?.("lancedb.index_on_load", { indexed: n }))
+      .catch((e) => this.logger?.warn?.("lancedb.index_on_load_failed", { error: String(e) }));
   }
 
   private async openView(type: string): Promise<void> {
@@ -939,7 +963,7 @@ export default class SauceGraphPlugin extends Plugin {
 
   private async verifyAuditChain(): Promise<void> {
     const al = this.v2?.auditLog;
-    if (!al) { new Notice("Audit log not initialised (no SQLite backend)"); return; }
+    if (!al) { new Notice("Audit log not initialised (no LanceDB backend)"); return; }
     try { const r = await al.verifyChain(); new Notice(r.ok ? "Audit chain verified ✓" : `Chain broken at ts=${r.brokenAt}`); }
     catch (e) { new Notice(`Verify failed: ${(e as Error).message}`); }
   }

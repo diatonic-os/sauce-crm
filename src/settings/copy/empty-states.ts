@@ -20,7 +20,7 @@ export const EMPTY_STATE_FIXTURES: EmptyStateFixture[] = [
   { sectionId: "integrations.websearch",  phase: "P12", title: "Web Search",       body: "Let Skills do web research with your chosen search provider (or your self-hosted SearXNG).", actionLabel: "Choose provider" },
   { sectionId: "geocoding",              phase: "P13", title: "Map & Geocoding",  body: "Pin your contacts on a map; find who is near you.",                                   actionLabel: "Choose provider" },
   { sectionId: "sync",                   phase: "P14", title: "Background Sync",  body: "Schedule background updates from your connected accounts." },
-  { sectionId: "backend",                phase: "P8",  title: "Fast Database",    body: "Optional SQLite database makes search and stats up to 50× faster on large vaults.",   actionLabel: "Install SQLite" },
+  { sectionId: "backend",                phase: "P8",  title: "LanceDB Database",  body: "Install LanceDB to power semantic search and embeddings, and make search and stats far faster on large vaults.", actionLabel: "Install LanceDB" },
   { sectionId: "security",               phase: "P8",  title: "Security",         body: "Lock your API keys behind a master password; review every external call in the audit log.", actionLabel: "Set master password" },
   { sectionId: "import_export",          phase: "P14", title: "Import / Export",  body: "Bring in CSV, vCard, iCalendar, Notion exports; back up the whole graph." },
 ];
