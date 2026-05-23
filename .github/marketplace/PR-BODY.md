@@ -1,8 +1,12 @@
 # I am submitting a new Community Plugin
 
+<!-- CON-OBS-INTEG-001 · SH-I (T-I-02). Paste-ready body for a PR against
+     iamdrewfortini/obsidian-releases (fork of obsidianmd/obsidian-releases),
+     adding sauce-crm to community-plugins.json. Author the PR manually. -->
+
 ## Repo URL
 
-Link to my plugin: https://github.com/dacvisuals/sauce-graph
+Link to my plugin: https://github.com/Diatonic-OS/sauce-crm
 
 ## Release Checklist
 
@@ -10,45 +14,57 @@ Link to my plugin: https://github.com/dacvisuals/sauce-graph
   - [x] Windows
   - [x] macOS
   - [x] Linux
-  - [ ] Android *(not applicable — `isDesktopOnly: true`)*
-  - [ ] iOS     *(not applicable — `isDesktopOnly: true`)*
+  - [ ] Android *(degraded — the LanceDB graph/index backend is desktop-only; core notes still render)*
+  - [ ] iOS *(degraded — see above)*
 - [x] My GitHub release contains all required files
   - [x] `main.js`
   - [x] `manifest.json`
-  - [x] `styles.css` *(required for this plugin — ships custom CSS)*
-- [x] GitHub release name matches the exact version number specified in my manifest.json (Note: Use the exact version number, don't include a prefix `v`)
-- [x] The `id` in my `manifest.json` matches the `id` in the `community-plugins.json` file.
-- [x] My README.md describes the plugin's purpose and provides clear usage instructions.
-- [x] I have read the [tips in the developer docs](https://docs.obsidian.md/Plugins/Releases/Plugin+guidelines).
-- [x] The `fundingUrl` field is **not** an empty string. *(Field is omitted entirely; we do not solicit funding.)*
+  - [x] `styles.css` *(ships tokenized custom CSS)*
+- [x] GitHub release name matches the exact version number in `manifest.json` (no `v` prefix)
+- [x] The `id` in my `manifest.json` (`sauce-crm`) matches the `id` in the `community-plugins.json` entry
+- [x] My release is tagged with the version number (e.g. `0.3.0`)
+- [x] `minAppVersion` is set to `1.5.0` and the release works on it
+- [x] I have a `README.md` documenting setup + usage
+- [x] I have a `LICENSE` (MIT)
+- [x] My plugin does not use deprecated/internal APIs without a fallback
+- [x] No secrets/keys are committed; credentials live in an encrypted KeyVault
 
-## Summary of what this plugin does
+## What the plugin does
 
-Sauce CRM turns an Obsidian vault into a typed relationship-CRM workspace.
-Form-driven CRUD over People, Organizations, Touches, and Addenda, with a
-contract validator that keeps every entity / edge spec-compliant. Built-in
-Copilot picks models live from each provider's catalog (Ollama `/api/tags`,
-LM Studio `/v1/models`, NVIDIA NIM, Anthropic, OpenAI). All OAuth and API
-credentials live in an AES-256-GCM KeyVault behind a master password — no
-plaintext secrets in `data.json`.
+**Sauce CRM** turns an Obsidian vault into a relationship CRM with a typed,
+contract-validated entity surface and a public service layer downstream plugins
+can inherit.
 
-Notable v2 features:
+- **14-entity relationship graph** — people, orgs, touches, addenda, tasks,
+  ideas, playbooks, templates, vaults, pipelines, observations, notes, ledger,
+  events — backed by LanceDB (`graph_nodes` / `graph_edges`, bidirectional).
+- **State-aware plugin inheritance** — Install→Optimize buttons that detect and
+  optimize Obsidian core + community plugins (Tasks, Dataview, Kanban, Meta Bind,
+  QuickAdd, BRAT) for Sauce, with idempotent `data.json` configuration.
+- **Canonization** — `.md` files marked `sauce.canonized: true` become a
+  read-only graph projection, mutable only through a hash-chained mutation
+  contract (audited, secret-redacted, event-emitting).
+- **Public `svcV1`** — `app.plugins.plugins['sauce-crm'].svcV1`, a semver-stable
+  (`0.3.0`) facade exposing entities/touches/pipelines/graph/canon/events/tasks
+  + register hooks. See [`docs/services-api.md`](https://github.com/Diatonic-OS/sauce-crm/blob/main/docs/services-api.md).
+- **Copilot** — live model indexing across Anthropic, OpenAI, Ollama, LM Studio,
+  and NVIDIA NIM; RAG over the vault; encrypted KeyVault for OAuth + API keys.
 
-- **Structured telemetry** to `.sauce/memory/TRACE-LOG.jsonl` via Obsidian's
-  vault adapter.
-- **Auto model indexing** in the Copilot picker — no free-text model id input.
-- **Real OAuth (PKCE)** for Google Workspace + Microsoft 365 via a loopback
-  Node listener bound to an ephemeral port (49152–65535); refresh tokens
-  encrypted in the KeyVault.
-- **Bring-your-own OAuth client** — no shared Sauce-CRM app; users register
-  their own apps in each provider's developer console.
-- **24 vitest tests** covering telemetry, KeyVault crypto + envelope magic
-  (SGV2), and the ModelCatalog cache.
+## Screenshots
 
-## Why `isDesktopOnly`
+<!-- Replace with real screenshots before submitting:
+     1. Settings → Integrations (Services | Community Plugins | Core Plugins tabs)
+     2. A canonized entity view (read-only projection)
+     3. The relationship graph view -->
 
-The OAuth flow requires Node's `http` module (loopback listener for the
-PKCE redirect) and Electron's `shell.openExternal` (browser launch). Both
-are desktop-only. Mobile users can still configure API-key providers but
-not OAuth ones, so we ship desktop-only and document the limitation rather
-than half-supporting mobile.
+| Integrations settings | Canonized entity | Relationship graph |
+|---|---|---|
+| _(add screenshot)_ | _(add screenshot)_ | _(add screenshot)_ |
+
+## Notes for reviewers
+
+- Desktop-first: the LanceDB backend auto-installs on desktop; on mobile the
+  plugin degrades to vault-only features.
+- No telemetry. No donation prompts inside the plugin UI (sponsor info lives in
+  the README and `SPONSORS.md` only).
+- CI runs lint + typecheck + tests + `sdk:check` + build on every PR.
