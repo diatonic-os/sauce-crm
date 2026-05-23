@@ -845,17 +845,45 @@
   gap: var(--sg-gap-8);
   box-sizing: border-box;
 }
-.sauce-copilot-header {
+/* Toolbar styled as a card to match the global design language. */
+.sauce-copilot-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sg-gap-8);
   flex-wrap: wrap;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-lg);
+  padding: var(--sg-gap-8) var(--sg-gap-13);
+}
+.sauce-copilot-titlewrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-gap-2);
+  min-width: 0;
+}
+.sauce-copilot-title {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  line-height: 1.2;
 }
 .sauce-copilot-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sg-gap-3);
   color: var(--text-muted);
-  font-size: 0.85em;
+  font-size: 0.8em;
   overflow-wrap: anywhere;
+}
+.sauce-copilot-status.sauce-clickable { cursor: pointer; border-radius: var(--sg-radius-sm); }
+.sauce-copilot-status.sauce-clickable:hover { color: var(--text-normal); }
+.sauce-copilot-actions {
+  display: flex;
+  gap: var(--sg-gap-5);
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 .sauce-copilot-transcript {
   flex: 1 1 auto;
@@ -877,7 +905,13 @@
   color: var(--text-muted);
   margin-bottom: var(--sg-gap-2);
 }
-.sauce-copilot-user .sauce-copilot-body { color: var(--text-normal); }
+.sauce-copilot-user .sauce-copilot-body {
+  color: var(--text-normal);
+  background: var(--background-secondary);
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+  border-radius: var(--sg-radius-sm);
+  white-space: pre-wrap;
+}
 .sauce-copilot-assistant .sauce-copilot-body {
   color: var(--text-normal);
   background: var(--background-primary);

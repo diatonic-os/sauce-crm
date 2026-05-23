@@ -53,13 +53,24 @@ export class CopilotChatView extends ItemView {
   async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty(); root.addClass("sauce-view"); root.addClass("sauce-copilot");
-    root.createEl("h2", { text: "Sauce Copilot" });
 
-    const header = root.createDiv({ cls: "sauce-copilot-header" });
-    this.statusEl = header.createEl("span", { cls: "sauce-copilot-status sauce-clickable", text: this.statusLine() });
+    // Toolbar (card): title + live status pill on the left, actions on the right.
+    const bar = root.createDiv({ cls: "sauce-copilot-bar" });
+    const titleWrap = bar.createDiv({ cls: "sauce-copilot-titlewrap" });
+    titleWrap.createEl("h2", { cls: "sauce-copilot-title", text: "Sauce Copilot" });
+    this.statusEl = titleWrap.createEl("span", { cls: "sauce-copilot-status sauce-clickable", text: this.statusLine() });
     this.statusEl.title = "Click to switch provider / model";
     this.statusEl.onclick = () => this.openPicker();
-    const reload = header.createEl("button", { cls: "sauce-button sauce-button-secondary", text: "New session" });
+
+    const actions = bar.createDiv({ cls: "sauce-copilot-actions" });
+    const modelBtn = actions.createEl("button", { cls: "sauce-button", text: "⇆ Model" });
+    modelBtn.title = "Switch provider / model (live catalog)";
+    modelBtn.onclick = () => this.openPicker();
+    const settingsBtn = actions.createEl("button", { cls: "sauce-button sauce-button-secondary", text: "Settings" });
+    settingsBtn.title = "Open Copilot settings — API keys, providers, RAG";
+    settingsBtn.onclick = () => this.openSettings();
+    const reload = actions.createEl("button", { cls: "sauce-button sauce-button-secondary", text: "New session" });
+    reload.title = "Clear the transcript and start fresh";
     reload.onclick = () => { this.history = []; this.transcriptEl.empty(); this.statusEl.setText(this.statusLine()); };
 
     this.transcriptEl = root.createDiv({ cls: "sauce-copilot-transcript" });
@@ -146,11 +157,26 @@ export class CopilotChatView extends ItemView {
     this.isListening = false;
   }
 
+  /** Deep-link to the plugin's settings tab (Copilot) so the "no API key"
+   *  hint is actionable. Falls back to a Notice if the private API shifts. */
+  private openSettings(): void {
+    const setting = (this.plugin.app as unknown as {
+      setting?: { open?: () => void; openTabById?: (id: string) => void };
+    }).setting;
+    try {
+      setting?.open?.();
+      setting?.openTabById?.(this.plugin.manifest.id);
+    } catch {
+      new Notice("Open Settings → Sauce CRM → Copilot");
+    }
+  }
+
   private openPicker(): void {
     const cur = this.plugin.copilot?.getSettings();
     const modal = new Modal(this.plugin.app);
+    modal.modalEl.addClass("sauce-modal");
     modal.titleEl.setText("Switch model");
-    const host = modal.contentEl.createDiv();
+    const host = modal.contentEl.createDiv({ cls: "sauce-section" });
     new ProviderPicker({
       container: host,
       plugin: this.plugin,
