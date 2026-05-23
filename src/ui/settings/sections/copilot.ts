@@ -30,9 +30,9 @@ export function renderCopilot(containerEl: HTMLElement, plugin: SauceGraphPlugin
     return;
   }
 
-  containerEl.createEl("h3", { text: "Copilot" });
-  containerEl.createEl("p", {
-    cls: "setting-item-description",
+  containerEl.createEl("h3", { text: "Model", cls: "sauce-settings-section-title" });
+  const intro = containerEl.createDiv({ cls: "sauce-callout" });
+  intro.createSpan({
     text: "Pick a provider; the model list auto-populates from the provider's catalog (live for Ollama/LM Studio/NIM, curated for Anthropic/OpenAI). Hit Refresh after pulling a new model.",
   });
 
@@ -71,7 +71,23 @@ export function renderCopilot(containerEl: HTMLElement, plugin: SauceGraphPlugin
       .setValue(typeof cfg.temperature === "number" ? cfg.temperature : 0.3)
       .onChange(async (v) => { cfg.temperature = v; await plugin.saveSettings(); pushCopilotUpdate(plugin); }));
 
-  containerEl.createEl("h3", { text: "Advanced" });
+  new Setting(containerEl)
+    .setName("Stream responses")
+    .setDesc("Show tokens as they arrive instead of waiting for the full reply.")
+    .addToggle((t) => t
+      .setValue(cfg.stream !== false)
+      .onChange(async (v) => { cfg.stream = v; await plugin.saveSettings(); pushCopilotUpdate(plugin); }));
+
+  new Setting(containerEl)
+    .setName("Context turns")
+    .setDesc("How many prior conversation turns to include as context.")
+    .addSlider((s) => s
+      .setLimits(0, 50, 1)
+      .setDynamicTooltip()
+      .setValue(typeof cfg.contextTurns === "number" ? cfg.contextTurns : 15)
+      .onChange(async (v) => { cfg.contextTurns = v; await plugin.saveSettings(); pushCopilotUpdate(plugin); }));
+
+  containerEl.createEl("h3", { text: "Advanced", cls: "sauce-settings-section-title" });
 
   markAdvanced(new Setting(containerEl)
     .setName("Max tokens")
@@ -88,6 +104,14 @@ export function renderCopilot(containerEl: HTMLElement, plugin: SauceGraphPlugin
     .addTextArea((t) => t
       .setValue(cfg.systemPrompt ?? "")
       .onChange(async (v) => { cfg.systemPrompt = v; await plugin.saveSettings(); pushCopilotUpdate(plugin); })));
+
+  markAdvanced(new Setting(containerEl)
+    .setName("Custom commands folder")
+    .setDesc("Vault folder holding custom command / prompt .md files (surfaced as slash commands).")
+    .addText((t) => t
+      .setPlaceholder("copilot/sauce-commands")
+      .setValue(cfg.promptsFolder ?? "")
+      .onChange(async (v) => { cfg.promptsFolder = v || undefined; await plugin.saveSettings(); pushCopilotUpdate(plugin); })));
 
   markAdvanced(new Setting(containerEl)
     .setName("Base URL")

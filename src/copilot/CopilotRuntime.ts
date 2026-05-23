@@ -31,6 +31,12 @@ export interface CopilotSettings {
    *  Optional so older saved settings don't need migration; the UI lazily
    *  seeds defaults when absent. */
   slashCommands?: SlashCommand[];
+  /** Stream tokens as they arrive (vs await the full response). */
+  stream?: boolean;
+  /** How many prior conversation turns to include as context. */
+  contextTurns?: number;
+  /** Vault folder holding custom command/prompt `.md` files. */
+  promptsFolder?: string;
 }
 
 /** Embedding provider config — decoupled from the chat provider so RAG can use
@@ -54,6 +60,9 @@ export const COPILOT_DEFAULTS: CopilotSettings = {
     "Answer using the supplied context. Cite people and orgs by `[[Name]]` wikilinks. " +
     "If you don't know, say so. Refuse external information requests unless explicitly asked.",
   slashCommands: defaultSlashCommands(),
+  stream: true,
+  contextTurns: 15,
+  promptsFolder: "copilot/sauce-commands",
 };
 
 export class CopilotRuntime {
