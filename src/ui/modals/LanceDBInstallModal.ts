@@ -10,6 +10,7 @@ import {
   type InstallProgress,
   type LanceDBInstallDecision,
 } from "../../services/LanceDBInstaller";
+import type { ApprovalGate } from "../../contract/ApprovalGate";
 
 export interface LanceDBInstallModalOpts {
   app: App;
@@ -18,6 +19,10 @@ export interface LanceDBInstallModalOpts {
   /** Called when the user decides; the host persists this to plugin
    *  settings so subsequent reloads honor the choice. */
   onDecision: (next: LanceDBInstallDecision) => Promise<void>;
+  /** Optional — when supplied, the install path routes through the
+   *  approval gate so a previous "deny-always" for `install-package`
+   *  short-circuits the install before npm runs. Tests omit. */
+  approvalGate?: ApprovalGate;
 }
 
 export class LanceDBInstallModal extends Modal {
@@ -99,6 +104,28 @@ export class LanceDBInstallModal extends Modal {
 
     installBtn.onclick = async () => {
       if (this.installing || !this.consentChecked) return;
+      // Route through the approval gate so a prior "deny-always" on
+      // install-package or spawn-process short-circuits before we run
+      // any subprocess. Skipping the gate when none was supplied keeps
+      // the modal usable in test contexts.
+      if (this.opts.approvalGate) {
+        const r = await this.opts.approvalGate.ask({
+          actionClass: "install-package",
+          summary: "Install @lancedb/lancedb (native module) into the plugin directory",
+          details: `npm install @lancedb/lancedb --prefix ${this.opts.pluginDir}\n\nDownloads a native binary (~30MB) appropriate for your OS/arch.`,
+          risk: "medium",
+        });
+        if (!r.approved) {
+          new Notice(`LanceDB install ${r.verdict}; staying on graph-RAG.`);
+          await this.opts.onDecision({
+            state: "skipped",
+            decidedAt: new Date().toISOString(),
+            lastAttempt: { ok: false, error: `approval gate: ${r.verdict}`, ts: new Date().toISOString() },
+          });
+          this.close();
+          return;
+        }
+      }
       this.installing = true;
       installBtn.setAttribute("disabled", "true");
       skipBtn.setAttribute("disabled", "true");

@@ -1,5 +1,9 @@
 // SPEC §18.5 — HMAC-chained append-only audit log. Verify walks the chain.
-import type { ISqliteBackend } from '../backend/ISqliteBackend';
+//
+// Storage is abstracted behind IAuditStore (implemented by LanceAuditStore on
+// the LanceDB single-backend). The HMAC chaining is storage-agnostic: each row
+// signs `prevSignature + payload(row)`, so verify re-walks rows in ts order and
+// recomputes the chain.
 
 export interface AuditRow {
   ts: number;
@@ -13,6 +17,28 @@ export interface AuditRow {
   signature: string;
 }
 
+/** Storage-level row: `details` serialized to a JSON string, nulls preserved. */
+export interface StoredAuditRow {
+  ts: number;
+  op: string;
+  entityId: string | null;
+  agentId: string | null;
+  integration: string | null;
+  beforeHash: string | null;
+  afterHash: string | null;
+  details: string | null;
+  signature: string;
+}
+
+/** Append-only audit storage. Implemented by LanceAuditStore. */
+export interface IAuditStore {
+  append(row: StoredAuditRow): Promise<void>;
+  /** All rows ordered by ts ascending (chain order). */
+  allAsc(): Promise<StoredAuditRow[]>;
+  /** Signature of the most-recent row (ts desc), or null if empty. */
+  lastSignature(): Promise<string | null>;
+}
+
 export interface AuditHost {
   hmacHex(key: Uint8Array, msg: string): Promise<string>;
 }
@@ -21,7 +47,7 @@ export class AuditLog {
   private prevSig: string | null = null;
 
   constructor(
-    private readonly db: ISqliteBackend,
+    private readonly store: IAuditStore,
     private readonly host: AuditHost,
     private readonly masterKey: () => Promise<Uint8Array>,
   ) {}
@@ -33,29 +59,33 @@ export class AuditLog {
   async append(row: Omit<AuditRow, 'signature'>): Promise<AuditRow> {
     const key = await this.masterKey();
     if (this.prevSig === null) {
-      const last = await this.db.query<{ signature: string }>(`SELECT signature FROM audit_log ORDER BY ts DESC LIMIT 1`);
-      this.prevSig = last[0]?.signature ?? '';
+      this.prevSig = (await this.store.lastSignature()) ?? '';
     }
     const msg = (this.prevSig ?? '') + this.payload(row);
     const sig = await this.host.hmacHex(key, msg);
-    await this.db.exec(
-      `INSERT INTO audit_log (ts,op,entity_id,agent_id,integration,before_hash,after_hash,details,signature) VALUES (?,?,?,?,?,?,?,?,?)`,
-      [row.ts, row.op, row.entityId, row.agentId, row.integration, row.beforeHash, row.afterHash, JSON.stringify(row.details ?? null), sig],
-    );
+    await this.store.append({
+      ts: row.ts,
+      op: row.op,
+      entityId: row.entityId,
+      agentId: row.agentId,
+      integration: row.integration,
+      beforeHash: row.beforeHash,
+      afterHash: row.afterHash,
+      details: JSON.stringify(row.details ?? null),
+      signature: sig,
+    });
     this.prevSig = sig;
     return { ...row, signature: sig };
   }
 
   async verifyChain(): Promise<{ ok: boolean; brokenAt: number | null }> {
     const key = await this.masterKey();
-    const rows = await this.db.query<AuditRow & { entity_id: string | null; agent_id: string | null; before_hash: string | null; after_hash: string | null; details: string | null }>(
-      `SELECT ts,op,entity_id,agent_id,integration,before_hash,after_hash,details,signature FROM audit_log ORDER BY ts ASC`,
-    );
+    const rows = await this.store.allAsc();
     let prev = '';
     for (const r of rows) {
       const row: Omit<AuditRow, 'signature'> = {
-        ts: r.ts, op: r.op, entityId: r.entity_id, agentId: r.agent_id, integration: r.integration,
-        beforeHash: r.before_hash, afterHash: r.after_hash,
+        ts: r.ts, op: r.op, entityId: r.entityId, agentId: r.agentId, integration: r.integration,
+        beforeHash: r.beforeHash, afterHash: r.afterHash,
         details: r.details ? JSON.parse(r.details) : null,
       };
       const sig = await this.host.hmacHex(key, prev + this.payload(row));

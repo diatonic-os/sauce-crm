@@ -15,6 +15,13 @@ Hotkeys use `Mod` = Cmd on macOS, Ctrl on Linux/Windows.
 | `new-intro` | New Intro | Mod+Shift+I | Create a directional `intro_via` / `referral_to` edge between two contacts. |
 | `new-relation` | New Relation | — | Add a typed edge from the active note to another entity. |
 | `edit-current` | Edit Current Note | Mod+E | Re-open the modal appropriate to the active note's type. |
+| `new-note` | New Knowledge Note | — | Modal-first capture into `notes/` with structured relationship frontmatter. |
+| `new-idea` | New Idea | — | Capture an idea into `ideas/` with stage, impact, and next-action fields. |
+| `new-observation` | New Observation | — | Capture a relationship/opportunity/risk signal into `observations/`. |
+| `new-task` | New Task | — | Capture a follow-up or internal task into `tasks/` with status, priority, due date, and approval flag. |
+| `new-event` | New Event | — | Capture a calendar/interview/meeting event into `events/` for the calendar view. |
+| `new-ledger-entry` | New Ledger Entry | — | Capture AR/AP, favor, commitment, or relationship ledger rows into `ledger/`. |
+| `new-pipeline-deal` | New Pipeline Deal | — | Capture a deal/opportunity into `pipeline/` for the Kanban surface. |
 | `promote-prospect` | Promote Prospect | — | Convert a `primary_type: prospect` person into a fuller warm-contact (per CLAUDE.md §4.5 cold-promotion rule). |
 | `bump-last-touch` | Bump last_touch | — | Set the active entity's `last_touch:` to today. |
 
@@ -30,8 +37,8 @@ Hotkeys use `Mod` = Cmd on macOS, Ctrl on Linux/Windows.
 
 | Command ID | Display Name | Description |
 |---|---|---|
-| `open-dashboard` | Open Dashboard | Top-level overview (counts, overdue, recent touches). |
-| `open-pipeline` | Open Pipeline Kanban | Kanban over `primary_type`. |
+| `open-dashboard` | Open Dashboard | Command-center UI: KPIs, Copilot feed, touch velocity chart, tasks, ideas, events. |
+| `open-pipeline` | Open Pipeline Kanban | Kanban over `pipeline-deal.stage`, with prospect people in the prospect lane. |
 | `open-graph` | Open Typed-Edge Graph | Force-layout graph filtered by edge type. |
 | `open-compat` | Open Compatibility Matrix | Pairwise admissibility (`ρ_adm`) heatmap. |
 | `open-heatmap` | Open Touch Heatmap | Cadence vs. last_touch matrix. |
@@ -42,6 +49,10 @@ Hotkeys use `Mod` = Cmd on macOS, Ctrl on Linux/Windows.
 | `open-map` | Open Map | Geocoded entity map (requires Geocode skill). |
 | `open-ai-inbox` | Open AI Inbox | Queue of skill proposals awaiting review. |
 | `open-sync-status` | Open Sync Status | Integration sync state. |
+| `open-calendar` | Open Calendar | Month grid for touches, tasks, follow-ups, and event notes. |
+| `open-tasks-board` | Open Tasks Board | Reactive Svelte task board grouped by status. |
+| `open-inbox` | Open Inbox | Urgency queue for touch and follow-up activity. |
+| `open-ledger` | Open Ledger | ERP-lite ledger table with per-contact rollups. |
 
 ## V2 surface (SPEC §40)
 

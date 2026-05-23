@@ -20,6 +20,8 @@ Most CRMs assume you're an outbound sales team. Sauce CRM treats your vault as t
 - **OAuth (PKCE) + API-key integrations** — Google Workspace, Microsoft 365, Notion, Twilio, plus Copilot providers (Anthropic, OpenAI, Ollama, LM Studio, NVIDIA NIM). Bring-your-own OAuth clients — no shared Sauce-CRM app.
 - **Auto model indexing** — Copilot picker enumerates Ollama `/api/tags`, LM Studio `/v1/models`, NIM, and curated cloud lists. Refresh button busts the 30s cache.
 - **Structured telemetry** — every meaningful event lands in `.sauce/memory/TRACE-LOG.jsonl` via Obsidian's vault adapter. Filterable by level (trace/debug/info/warn/error); in-memory ring buffer fallback.
+- **CRM/ERP UI system** — modal-first capture for notes, ideas, observations, tasks, events, ledger entries, and pipeline deals; dashboard, calendar, task board, inbox, ledger, graph, heatmap, and Kanban views stay live as vault files change.
+- **Enterprise policy scaffold** — `_POLICY.md` and `PARENT-VAULT.md` define domain, department, founder-group, role, permission, approval, and upstream rollup rules for multi-user deployments.
 
 ## Install
 
@@ -46,6 +48,8 @@ Most CRMs assume you're an outbound sales team. Sauce CRM treats your vault as t
 3. **Master password** — on first vault unlock you'll set a password. This unlocks the KeyVault for the session; auto-locks after 30 min of idle.
 
 For provider-specific OAuth client setup (Google Cloud Console, Microsoft Entra, Notion integration token), see [`docs/oauth-byo/`](docs/oauth-byo/README.md).
+
+For the full UI and file-native record contract, see [`docs/UI-SYSTEM.md`](docs/UI-SYSTEM.md).
 
 ## Hotkeys (defaults)
 

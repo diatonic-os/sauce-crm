@@ -1,11 +1,11 @@
 // SPEC §18.2 — Argon2id-derived master key + AES-256-GCM secretbox per secret.
-// Storage: api_keys_enc table when an ISqliteBackend is present, else encrypted data.json blob.
+// Storage: the `api_keys_enc` table on the LanceDB single-backend, via the
+// ISecretStore interface (implemented by LanceSecretStore).
 // SGV2 envelope: every ciphertext written by secretboxSeal is prefixed with
 // the 5-byte magic `SGV2\x01` so we can reject anything that pre-dates the
 // async-AES-GCM rewrite (DEC §A2). secretboxOpen verifies the magic before
 // attempting decryption.
 
-import type { ISqliteBackend } from '../backend/ISqliteBackend';
 import type { Logger } from '../telemetry';
 
 export interface ISecretStore {
@@ -41,35 +41,12 @@ const KDF = { memKiB: 64 * 1024, passes: 3, parallelism: 2, outBytes: 32 };
 const NONCE_BYTES = 24;
 const SALT_BYTES = 16;
 
-export class SqliteSecretStore implements ISecretStore {
-  constructor(private readonly db: ISqliteBackend) {}
-  async put(service: string, row: EncryptedSecret): Promise<void> {
-    await this.db.exec(
-      `INSERT INTO api_keys_enc (service,ciphertext,nonce,kdf_salt,kdf_iters,created_ts,rotated_ts)
-       VALUES (?,?,?,?,?,?,?)
-       ON CONFLICT(service) DO UPDATE SET ciphertext=excluded.ciphertext, nonce=excluded.nonce,
-         kdf_salt=excluded.kdf_salt, kdf_iters=excluded.kdf_iters, rotated_ts=excluded.rotated_ts`,
-      [service, row.ciphertext, row.nonce, row.kdfSalt, row.kdfIters, row.createdTs, row.rotatedTs],
-    );
-  }
-  async get(service: string): Promise<EncryptedSecret | null> {
-    const rows = await this.db.query<EncryptedSecret & { kdf_salt: Uint8Array; kdf_iters: number; created_ts: number; rotated_ts: number | null }>(
-      `SELECT service,ciphertext,nonce,kdf_salt,kdf_iters,created_ts,rotated_ts FROM api_keys_enc WHERE service = ?`, [service],
-    );
-    const r = rows[0];
-    if (!r) return null;
-    return { service: r.service, ciphertext: r.ciphertext as unknown as Uint8Array, nonce: r.nonce as unknown as Uint8Array,
-      kdfSalt: r.kdf_salt, kdfIters: r.kdf_iters, createdTs: r.created_ts, rotatedTs: r.rotated_ts };
-  }
-  async list(): Promise<string[]> {
-    const rows = await this.db.query<{ service: string }>(`SELECT service FROM api_keys_enc ORDER BY service`);
-    return rows.map((r) => r.service);
-  }
-  async remove(service: string): Promise<void> {
-    await this.db.exec(`DELETE FROM api_keys_enc WHERE service = ?`, [service]);
-  }
-}
-
+/**
+ * In-memory / JSON-blob ISecretStore. **Test & dev harnesses only** — it is NOT
+ * wired into the plugin runtime, which uses LanceSecretStore (the LanceDB
+ * single-backend) exclusively. Kept so the live e2e scripts under test/ can run
+ * without a LanceDB connection.
+ */
 export class JsonSecretStore implements ISecretStore {
   constructor(private readonly load: () => Promise<Record<string, unknown>>, private readonly save: (d: Record<string, unknown>) => Promise<void>) {}
   async put(service: string, row: EncryptedSecret): Promise<void> {

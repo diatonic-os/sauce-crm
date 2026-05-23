@@ -9,6 +9,11 @@ import type { ConversationHost } from "./ConversationStore";
 import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
 import { parseWikilink } from "../util/Wikilink";
+import type { LanceVectorIndex } from "../backend/lance";
+
+/** Embeds query text for semantic RAG; returns null when embeddings are
+ *  unavailable so the host can fall back to lexical search. */
+export type EmbedFn = (text: string) => Promise<number[] | null>;
 
 export class ObsidianProviderHost implements ProviderHost {
   async fetch(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
@@ -69,6 +74,8 @@ export class ObsidianRagHost implements RagAssemblerHost {
     private entities: EntityService,
     private search: SearchService,
     private pinnedPaths: () => string[] = () => [],
+    private vectorIndex: LanceVectorIndex | null = null,
+    private embedFn: EmbedFn | null = null,
   ) {}
 
   async pinned(): Promise<string[]> { return this.pinnedPaths(); }
@@ -91,7 +98,26 @@ export class ObsidianRagHost implements RagAssemblerHost {
   }
 
   async semantic(query: string, topK: number): Promise<{ path: string; score: number }[]> {
-    // Until embeddings ship, use tag-cosine + fuzzy as a stand-in.
+    // Prefer LanceDB vector search when an embedding model is reachable; the
+    // mirror stores embeddings keyed by entity path (entity_id === path).
+    // Any gap — no index, no embed model, dim mismatch, empty index — falls
+    // through to lexical fuzzy/tag-cosine so RAG never hard-fails.
+    if (this.vectorIndex && this.embedFn) {
+      try {
+        if (!(await this.vectorIndex.isEmpty())) {
+          const vec = await this.embedFn(query);
+          if (vec && vec.length === this.vectorIndex.dim) {
+            const hits = await this.vectorIndex.query(vec, topK);
+            if (hits.length) {
+              // Convert distance → similarity (monotonic, in (0,1]).
+              return hits.map((h) => ({ path: h.id, score: 1 / (1 + h.distance) }));
+            }
+          }
+        }
+      } catch {
+        /* fall through to lexical */
+      }
+    }
     const fuzzy = this.search.fuzzy(query, topK);
     return fuzzy.map((h) => ({ path: h.file.path, score: h.score }));
   }

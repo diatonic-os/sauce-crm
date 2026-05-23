@@ -7,6 +7,13 @@ export interface VaultPaths {
   orgs: string;
   touches: string;
   addenda: string;
+  notes: string;
+  ideas: string;
+  observations: string;
+  tasks: string;
+  events: string;
+  ledger: string;
+  pipeline: string;
   templates: string;
   playbooks: string;
   user: string;
@@ -18,6 +25,13 @@ export const DEFAULT_PATHS: VaultPaths = {
   orgs: "orgs",
   touches: "touches",
   addenda: "_addenda",
+  notes: "notes",
+  ideas: "ideas",
+  observations: "observations",
+  tasks: "tasks",
+  events: "events",
+  ledger: "ledger",
+  pipeline: "pipeline",
   templates: "_templates",
   playbooks: "_playbooks",
   user: "$user",
@@ -90,6 +104,13 @@ export class EntityService {
   allOrgs(): Entity[] { return this.listEntitiesIn(this.paths.orgs); }
   allTouches(): Entity[] { return this.listEntitiesIn(this.paths.touches); }
   allAddenda(): Entity[] { return this.listEntitiesIn(this.paths.addenda); }
+  allNotes(): Entity[] { return this.listEntitiesIn(this.paths.notes); }
+  allIdeas(): Entity[] { return this.listEntitiesIn(this.paths.ideas); }
+  allObservations(): Entity[] { return this.listEntitiesIn(this.paths.observations); }
+  allTasks(): Entity[] { return this.listEntitiesIn(this.paths.tasks); }
+  allEvents(): Entity[] { return this.listEntitiesIn(this.paths.events); }
+  allLedgerEntries(): Entity[] { return this.listEntitiesIn(this.paths.ledger); }
+  allPipelineDeals(): Entity[] { return this.listEntitiesIn(this.paths.pipeline); }
 }
 
 function serializeFrontmatter(fm: Record<string, any>): string {

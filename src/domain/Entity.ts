@@ -47,6 +47,7 @@ export abstract class Entity implements IEntity {
 
 export const ENTITY_TYPES = [
   "warm-contact", "org", "subsidiary", "touch", "addendum",
+  "knowledge-note", "idea", "observation", "task", "event", "ledger-entry", "pipeline-deal",
   "user-agent", "sub-vault", "parent-vault", "plugin-config",
   "dashboard", "orientation", "vault-contract",
 ] as const;

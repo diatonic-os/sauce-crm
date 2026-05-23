@@ -1,0 +1,66 @@
+// LanceDB-backed ISecretStore — replaces SqliteSecretStore. Encrypted API-key
+// material lives in the `api_keys_enc` table. Byte fields are base64-encoded
+// (Arrow string columns) and decoded back to Uint8Array on read.
+
+import type { ISecretStore, EncryptedSecret } from "../../security/KeyVault";
+import { TABLES, type ApiKeyEncRow } from "./LanceSchema";
+import { sqlStr, type LanceTable } from "./LanceConnection";
+
+function b64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64");
+}
+function unb64(s: string): Uint8Array {
+  return new Uint8Array(Buffer.from(s, "base64"));
+}
+
+export class LanceSecretStore implements ISecretStore {
+  constructor(private readonly table: LanceTable) {}
+
+  async put(service: string, row: EncryptedSecret): Promise<void> {
+    const r: ApiKeyEncRow = {
+      service,
+      ciphertext: b64(row.ciphertext),
+      nonce: b64(row.nonce),
+      kdf_salt: b64(row.kdfSalt),
+      kdf_iters: row.kdfIters,
+      created_ts: row.createdTs,
+      rotated_ts: row.rotatedTs ?? -1,
+    };
+    await this.table
+      .mergeInsert("service")
+      .whenMatchedUpdateAll()
+      .whenNotMatchedInsertAll()
+      .execute([r as unknown as Record<string, unknown>]);
+  }
+
+  async get(service: string): Promise<EncryptedSecret | null> {
+    const rows = (await this.table
+      .query()
+      .where(`service = ${sqlStr(service)}`)
+      .limit(1)
+      .toArray()) as unknown as ApiKeyEncRow[];
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      service: r.service,
+      ciphertext: unb64(r.ciphertext),
+      nonce: unb64(r.nonce),
+      kdfSalt: unb64(r.kdf_salt),
+      kdfIters: r.kdf_iters,
+      createdTs: r.created_ts,
+      rotatedTs: r.rotated_ts < 0 ? null : r.rotated_ts,
+    };
+  }
+
+  async list(): Promise<string[]> {
+    const rows = (await this.table
+      .query()
+      .select(["service"])
+      .toArray()) as unknown as { service: string }[];
+    return rows.map((r) => r.service).sort();
+  }
+
+  async remove(service: string): Promise<void> {
+    await this.table.delete(`service = ${sqlStr(service)}`);
+  }
+}

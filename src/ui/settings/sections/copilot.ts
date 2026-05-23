@@ -4,6 +4,7 @@ import { Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
+import { renderRagEmbeddings } from "./rag";
 
 function markAdvanced(set: Setting): Setting {
   set.settingEl.addClass("sg-advanced");
@@ -102,4 +103,7 @@ export function renderCopilot(containerEl: HTMLElement, plugin: SauceGraphPlugin
       .addOption("auto", "Auto — act freely")
       .setValue(cfg.autonomy ?? "suggest")
       .onChange(async (v) => { cfg.autonomy = v; await plugin.saveSettings(); pushCopilotUpdate(plugin); })));
+
+  // RAG & embeddings (PLAN T3) — embedding provider parity + master toggle.
+  renderRagEmbeddings(containerEl, plugin);
 }

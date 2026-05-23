@@ -3,6 +3,7 @@
 
 import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import type SauceGraphPlugin from "../../main";
+import { Entity } from "../../domain/Entity";
 import { Person } from "../../domain/Person";
 import { Org } from "../../domain/Org";
 import { computeCompatibleSet } from "../../compat/CompatibleSet";
@@ -26,6 +27,8 @@ abstract class BaseView extends ItemView {
       void import("../modals/PersonModal").then(({ PersonModal }) => new PersonModal(this.app, this.plugin, file).open());
     } else if (fm.type === "org" || fm.type === "subsidiary") {
       void import("../modals/OrgModal").then(({ OrgModal }) => new OrgModal(this.app, this.plugin, file).open());
+    } else {
+      void this.app.workspace.openLinkText(file.path, "", false);
     }
   }
 }
@@ -35,25 +38,139 @@ export class DashboardView extends BaseView {
   getDisplayText(): string { return "Sauce: Dashboard"; }
   async onOpen(): Promise<void> {
     const root = this.contentEl; root.empty(); root.addClass("sauce-view");
-    root.createEl("h2", { text: "Sauce — Dashboard" });
-    const kpis = root.createDiv({ cls: "sauce-view-kpis" });
+    root.createEl("h2", { text: "Sauce CRM Command Center" });
     const people = this.plugin.entityService.allPeople();
     const orgs = this.plugin.entityService.allOrgs();
     const touches = this.plugin.entityService.allTouches();
     const addenda = this.plugin.entityService.allAddenda();
+    const notes = this.plugin.entityService.allNotes();
+    const ideas = this.plugin.entityService.allIdeas();
+    const observations = this.plugin.entityService.allObservations();
+    const tasks = this.plugin.entityService.allTasks();
+    const events = this.plugin.entityService.allEvents();
+    const ledger = this.plugin.entityService.allLedgerEntries();
+    const deals = this.plugin.entityService.allPipelineDeals();
     const prospects = people.filter((e) => (e.frontmatter.roles ?? []).includes("prospect")).length;
     const overdue = people.filter((e) => e instanceof Person && (e as Person).isOverdue()).length;
-    for (const [label, value] of [["People", people.length], ["Orgs", orgs.length], ["Touches", touches.length], ["Addenda", addenda.length], ["Prospects", prospects], ["Overdue", overdue]] as const) {
-      const k = kpis.createDiv({ cls: "sauce-kpi" });
+
+    const kpis = root.createDiv({ cls: "sauce-view-kpis sauce-dashboard-grid" });
+    for (const [label, value, tone] of [
+      ["People", people.length, "blue"], ["Orgs", orgs.length, "gold"],
+      ["Touches", touches.length, "green"], ["Notes", notes.length, "blue"],
+      ["Ideas", ideas.length, "purple"], ["Observations", observations.length, "cyan"],
+      ["Tasks", tasks.length, "orange"], ["Events", events.length, "green"],
+      ["Ledger", ledger.length, "red"], ["Pipeline", deals.length, "gold"],
+      ["Prospects", prospects, "purple"], ["Overdue", overdue, overdue ? "red" : "green"],
+      ["Addenda", addenda.length, "cyan"],
+    ] as const) {
+      const k = kpis.createDiv({ cls: `sauce-kpi sauce-kpi--${tone}` });
       k.createDiv({ cls: "label", text: String(label) });
       k.createDiv({ cls: "value", text: String(value) });
     }
-    root.createEl("h3", { text: "Recent touches" });
-    const recent = touches.slice().sort((a, b) => (b.frontmatter.date ?? "").localeCompare(a.frontmatter.date ?? "")).slice(0, 10);
-    const ul = root.createEl("ul");
-    for (const t of recent) ul.createEl("li", { text: `${t.frontmatter.date}  ·  ${t.frontmatter.contact}  ·  ${t.frontmatter.channel}` });
+
+    const top = root.createDiv({ cls: "sauce-dashboard-columns" });
+    const morning = top.createDiv({ cls: "sauce-section" });
+    morning.createEl("h3", { text: "Copilot Feed" });
+    for (const line of this.copilotFeed(people, tasks, events)) {
+      const row = morning.createDiv({ cls: "sauce-feed-row" });
+      row.createSpan({ cls: "sauce-feed-dot" });
+      row.createSpan({ text: line });
+    }
+
+    const chart = top.createDiv({ cls: "sauce-section" });
+    chart.createEl("h3", { text: "Touch Velocity" });
+    this.renderMonthlyBars(chart, touches.map((t) => String(t.frontmatter.date ?? "")));
+
+    const recent = root.createDiv({ cls: "sauce-dashboard-columns" });
+    this.renderListCard(recent, "Recent touches", touches
+      .slice().sort((a, b) => String(b.frontmatter.date ?? "").localeCompare(String(a.frontmatter.date ?? "")))
+      .slice(0, 8)
+      .map((t) => ({
+        title: `${String(t.frontmatter.contact ?? t.file.basename)}`,
+        meta: `${String(t.frontmatter.date ?? "?")} - ${String(t.frontmatter.channel ?? "?")}`,
+        file: t.file,
+      })));
+    this.renderListCard(recent, "Next tasks", tasks
+      .slice().sort((a, b) => String(a.frontmatter.due ?? "9999-99-99").localeCompare(String(b.frontmatter.due ?? "9999-99-99")))
+      .slice(0, 8)
+      .map((t) => ({
+        title: String(t.frontmatter.title ?? t.file.basename),
+        meta: `${String(t.frontmatter.status ?? "todo")} - due ${String(t.frontmatter.due ?? "none")}`,
+        file: t.file,
+      })));
+
+    const second = root.createDiv({ cls: "sauce-dashboard-columns" });
+    this.renderListCard(second, "Ideas to shape", ideas.slice(0, 8).map((i) => ({
+      title: String(i.frontmatter.title ?? i.file.basename),
+      meta: `${String(i.frontmatter.stage ?? "seed")} - ${String(i.frontmatter.next_action ?? "no next action")}`,
+      file: i.file,
+    })));
+    this.renderListCard(second, "Upcoming events", events
+      .slice().sort((a, b) => String(a.frontmatter.date ?? "").localeCompare(String(b.frontmatter.date ?? "")))
+      .slice(0, 8)
+      .map((e) => ({
+        title: String(e.frontmatter.title ?? e.file.basename),
+        meta: `${String(e.frontmatter.date ?? "?")} ${String(e.frontmatter.start ?? "")}`,
+        file: e.file,
+      })));
   }
   async onClose(): Promise<void> {}
+
+  private copilotFeed(people: Entity[], tasks: Entity[], events: Entity[]): string[] {
+    const overdue = people.filter((e) => e instanceof Person && (e as Person).isOverdue()).slice(0, 3);
+    const nextTasks = tasks
+      .filter((t) => String(t.frontmatter.status ?? "todo") !== "done")
+      .slice(0, 3);
+    const upcomingEvents = events
+      .filter((e) => String(e.frontmatter.date ?? "") >= todayIso())
+      .slice(0, 2);
+    const out: string[] = [];
+    for (const p of overdue) out.push(`Follow up with ${p.file.basename}; cadence is overdue.`);
+    for (const t of nextTasks) out.push(`Task pending: ${String(t.frontmatter.title ?? t.file.basename)}.`);
+    for (const e of upcomingEvents) out.push(`Prepare context for ${String(e.frontmatter.title ?? e.file.basename)}.`);
+    if (out.length === 0) out.push("No immediate relationship actions. Capture a note, touch, or idea to enrich the graph.");
+    return out;
+  }
+
+  private renderMonthlyBars(parent: HTMLElement, dates: string[]): void {
+    const buckets = new Map<string, number>();
+    for (const d of dates) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+      const m = d.slice(0, 7);
+      buckets.set(m, (buckets.get(m) ?? 0) + 1);
+    }
+    const months: string[] = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      months.push(d.toISOString().slice(0, 7));
+    }
+    const max = Math.max(1, ...months.map((m) => buckets.get(m) ?? 0));
+    const bars = parent.createDiv({ cls: "sauce-bar-chart" });
+    for (const m of months) {
+      const n = buckets.get(m) ?? 0;
+      const bar = bars.createDiv({ cls: "sauce-bar" });
+      bar.style.height = `${Math.max(8, Math.round((n / max) * 120))}px`;
+      bar.setAttribute("title", `${m}: ${n}`);
+      bar.createSpan({ text: String(n) });
+      bars.createDiv({ cls: "sauce-bar-label", text: m.slice(5) });
+    }
+  }
+
+  private renderListCard(parent: HTMLElement, title: string, rows: Array<{ title: string; meta: string; file: TFile }>): void {
+    const card = parent.createDiv({ cls: "sauce-section" });
+    card.createEl("h3", { text: title });
+    if (rows.length === 0) {
+      card.createEl("p", { cls: "sauce-field-help", text: "No records yet." });
+      return;
+    }
+    for (const r of rows) {
+      const row = card.createDiv({ cls: "sauce-list-row" });
+      row.createDiv({ cls: "sauce-list-title", text: r.title });
+      row.createDiv({ cls: "sauce-card-meta", text: r.meta });
+      row.onclick = () => this.openModalFor(r.file);
+    }
+  }
 }
 
 export class PipelineKanbanView extends BaseView {
@@ -62,14 +179,21 @@ export class PipelineKanbanView extends BaseView {
   async onOpen(): Promise<void> {
     const root = this.contentEl; root.empty(); root.addClass("sauce-view");
     root.createEl("h2", { text: "Pipeline" });
-    const lanes = ["prospect","mentor","advisor","connector","peer-founder","community"];
+    const lanes = ["prospect","first-touch","discovery","proposal","closed-won","closed-lost"];
     const board = root.createDiv({ cls: "sauce-kanban" });
     for (const lane of lanes) {
       const col = board.createDiv({ cls: "sauce-kanban-col" });
       col.createEl("h3", { text: lane });
+      for (const deal of this.plugin.entityService.allPipelineDeals()) {
+        if (String(deal.frontmatter.stage ?? "prospect") !== lane) continue;
+        const card = col.createDiv({ cls: "sauce-kanban-card" });
+        card.createDiv({ cls: "sauce-card-title", text: String(deal.frontmatter.title ?? deal.file.basename) });
+        card.createDiv({ cls: "sauce-card-meta", text: `${String(deal.frontmatter.org ?? deal.frontmatter.contact ?? "unlinked")} - ${String(deal.frontmatter.value ?? "no value")}` });
+        card.onclick = () => this.openModalFor(deal.file);
+      }
       for (const e of this.plugin.entityService.allPeople()) {
         const roles = e.frontmatter.roles ?? [];
-        if (!roles.includes(lane)) continue;
+        if (lane !== "prospect" || !roles.includes("prospect")) continue;
         const card = col.createDiv({ cls: "sauce-kanban-card", text: e.file.basename });
         card.onclick = () => this.openModalFor(e.file);
       }

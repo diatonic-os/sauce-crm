@@ -46,6 +46,16 @@ federation_policy:
   enum_resolution: parent-wins
   addendum_rollup: latest
   validation_gate: strict
+enterprise_policy:
+  policy_note: "[[_POLICY]]"
+  top_level_domain: sauce.local
+  founder_group: founder-group
+  default_department: general
+  invite_requires_role: true
+  upstream_rollups:
+    personal: private-by-default
+    department: kpi-summary
+    domain: approved-summary
 registry: []
 tags: [parent-vault, registry, contract]
 ---

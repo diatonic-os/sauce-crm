@@ -11,6 +11,7 @@ import { ObsidianProviderHost, ObsidianRagHost, ObsidianConversationHost } from 
 import { App } from "obsidian";
 import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
+import type { LanceVectorIndex } from "../backend/lance";
 
 export interface CopilotSettings {
   provider: "anthropic" | "openai" | "ollama" | "lmstudio";
@@ -20,6 +21,20 @@ export interface CopilotSettings {
   temperature: number;
   maxTokens: number;
   systemPrompt: string;
+  /** Model id used for embeddings (LanceDB vector RAG). Defaults to `model`
+   *  when unset; ignored by providers without an embeddings endpoint. Legacy
+   *  fallback only — prefer EmbeddingRuntimeConfig via setEmbeddingConfig. */
+  embedModel?: string;
+}
+
+/** Embedding provider config — decoupled from the chat provider so RAG can use
+ *  a local embed model (LM Studio/Ollama) while chatting with a cloud model. */
+export interface EmbeddingRuntimeConfig {
+  enabled: boolean;
+  provider: "lmstudio" | "openai" | "ollama";
+  endpoint: string;
+  model: string;
+  apiKey?: string;
 }
 
 export const COPILOT_DEFAULTS: CopilotSettings = {
@@ -45,10 +60,63 @@ export class CopilotRuntime {
     entities: EntityService,
     search: SearchService,
     private settings: CopilotSettings,
+    /** LanceDB vector index for semantic RAG. When present (and an embed model
+     *  is reachable), RagAssembler uses real embeddings; otherwise it falls
+     *  back to fuzzy/tag-cosine search. */
+    ragVectorIndex: LanceVectorIndex | null = null,
   ) {
-    this.rag = new RagAssembler(new ObsidianRagHost(app, entities, search));
+    const embedFn = ragVectorIndex ? (text: string) => this.embed(text) : null;
+    this.rag = new RagAssembler(
+      new ObsidianRagHost(app, entities, search, () => [], ragVectorIndex, embedFn),
+    );
     this.conversations = new ConversationStore(new ObsidianConversationHost(app));
     this.toolUse = new ToolUseAdapter();
+  }
+
+  /** Dedicated embedding provider config (decoupled from chat). When set and
+   *  disabled, embeddings are off (RAG master switch). */
+  private embedConfig: EmbeddingRuntimeConfig | null = null;
+
+  setEmbeddingConfig(cfg: EmbeddingRuntimeConfig | null): void {
+    this.embedConfig = cfg;
+  }
+
+  /** Embed text for LanceDB vector RAG. Uses the configured embedding provider
+   *  when set; otherwise falls back to the chat provider's embeddings endpoint.
+   *  Returns null when RAG is disabled, the provider lacks embeddings (e.g.
+   *  Anthropic), or the endpoint is unreachable — callers fall back to lexical
+   *  search. */
+  async embed(text: string): Promise<number[] | null> {
+    const c = this.embedConfig;
+    if (c && !c.enabled) return null; // RAG master switch off
+    try {
+      if (c) {
+        const vec = await this.embedProvider(c).embed(text, c.model);
+        return Array.from(vec);
+      }
+      const model = this.settings.embedModel ?? this.settings.model;
+      const vec = await this.provider().embed(text, model);
+      return Array.from(vec);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Build the embedding provider from its config (independent of chat). */
+  private embedProvider(c: EmbeddingRuntimeConfig): ICopilotProvider {
+    switch (c.provider) {
+      case "openai":
+        return new OpenAIProvider(this.providerHost, async () => c.apiKey ?? "", c.endpoint);
+      case "ollama":
+        return new OllamaProvider(this.providerHost, c.endpoint);
+      case "lmstudio":
+      default:
+        return new LMStudioProvider(this.providerHost, {
+          endpoint: c.endpoint,
+          apiKey: c.apiKey || undefined,
+          defaultModel: c.model,
+        });
+    }
   }
 
   updateSettings(s: Partial<CopilotSettings>): void {

@@ -1,0 +1,127 @@
+// Bridges Obsidian vault events to the LanceDB entity mirror + vector index.
+// The vault .md files stay the source of truth; this keeps LanceDB in step:
+// every create/modify upserts the entity (and re-embeds when the body changed),
+// deletes/renames propagate to all derived rows.
+//
+// Embeddings are best-effort: when no embed model is reachable (embedFn returns
+// null) or its dimension doesn't match the table, the vector write is skipped
+// and semantic RAG transparently falls back to lexical search.
+
+import { App, TFile } from "obsidian";
+import { parseWikilink } from "../util/Wikilink";
+import type { LanceEntityMirror, MirrorFile, LanceVectorIndex } from "../backend/lance";
+import type { ProvenanceService } from "./Provenance";
+
+export type MirrorEmbedFn = (text: string) => Promise<number[] | null>;
+export interface MirrorSyncOptions {
+  /** Embed during realtime vault-event syncs. Manual fullResync embeds by default. */
+  realtimeEmbeddings?: () => boolean;
+}
+
+/** Leading YAML frontmatter block, stripped to leave the markdown body. */
+const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n?/;
+const EMBED_TEXT_CAP = 8000;
+
+/** djb2 — fast non-cryptographic hash, used only for body change detection. */
+function hashString(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
+}
+
+export class MirrorSync {
+  constructor(
+    private readonly app: App,
+    private readonly mirror: LanceEntityMirror,
+    private readonly vectors: LanceVectorIndex | null,
+    private readonly edgeFields: string[],
+    private readonly embedFn: MirrorEmbedFn | null = null,
+    private readonly provenance: ProvenanceService | null = null,
+    private readonly opts: MirrorSyncOptions = {},
+  ) {}
+
+  async syncFile(file: TFile, opts: { embed?: boolean } = {}): Promise<boolean> {
+    if (file.extension !== "md") return false;
+    const mf = await this.build(file);
+    if (!mf) return false; // not a typed entity
+    const changed = await this.mirror.bodyChanged(mf);
+    await this.mirror.onModify(mf);
+    // Fingerprint the indexed entity; the embedding (if any) links to it as a
+    // child in the provenance lineage.
+    const entityFp = await this.provenance?.record("index", mf.path, "entity", mf.body, {
+      meta: { type: mf.type, tags: mf.tags },
+    }).then((r) => r.fp).catch(() => undefined);
+    const shouldEmbed = opts.embed ?? this.opts.realtimeEmbeddings?.() ?? true;
+    if ((changed || opts.embed === true) && shouldEmbed) await this.embed(mf, entityFp);
+    return true;
+  }
+
+  async deleteFile(path: string): Promise<void> {
+    await this.mirror.onDelete(path);
+  }
+
+  async renameFile(oldPath: string, newPath: string): Promise<void> {
+    await this.mirror.onRename(oldPath, newPath);
+  }
+
+  /** Full reconcile of every markdown entity — first install / manual rebuild.
+   *  Returns the count of entities synced. */
+  async fullResync(opts: { embed?: boolean } = { embed: true }): Promise<number> {
+    let n = 0;
+    for (const f of this.app.vault.getMarkdownFiles()) {
+      try {
+        if (await this.syncFile(f, opts)) n += 1;
+      } catch {
+        /* skip a single malformed file rather than abort the whole resync */
+      }
+    }
+    return n;
+  }
+
+  private async embed(mf: MirrorFile, parentFp?: string): Promise<void> {
+    if (!this.vectors || !this.embedFn) return;
+    const title = String(mf.frontmatter["name"] ?? mf.frontmatter["title"] ?? mf.path);
+    const text = `${title}\n\n${mf.body}`.slice(0, EMBED_TEXT_CAP);
+    const vec = await this.embedFn(text);
+    if (!vec || vec.length !== this.vectors.dim) return; // no model / dim mismatch
+    await this.vectors.store(mf.path, vec, "copilot", mf.bodyHash);
+    await this.provenance?.record("embed", mf.path, "embedding", text, {
+      parentFp, meta: { dim: vec.length },
+    }).catch(() => {});
+  }
+
+  private async build(file: TFile): Promise<MirrorFile | null> {
+    const fm = (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) as Record<string, unknown>;
+    const type = String(fm["type"] ?? "");
+    if (!type) return null;
+    const raw = await this.app.vault.cachedRead(file);
+    return {
+      path: file.path,
+      type,
+      primaryType: fm["primary_type"] ? String(fm["primary_type"]) : undefined,
+      frontmatter: fm,
+      body: raw.replace(FRONTMATTER_RE, ""),
+      bodyHash: hashString(raw),
+      mtime: file.stat.mtime,
+      ctime: file.stat.ctime,
+      tags: this.arr(fm["tags"]).map(String),
+      edges: this.edges(file, fm),
+    };
+  }
+
+  private edges(file: TFile, fm: Record<string, unknown>): MirrorFile["edges"] {
+    const out: MirrorFile["edges"] = [];
+    for (const field of this.edgeFields) {
+      for (const link of this.arr(fm[field])) {
+        const target = parseWikilink(String(link)) ?? String(link);
+        const dest = this.app.metadataCache.getFirstLinkpathDest(target, file.path);
+        if (dest) out.push({ to: dest.path, edgeType: field, directed: true });
+      }
+    }
+    return out;
+  }
+
+  private arr(v: unknown): unknown[] {
+    return Array.isArray(v) ? v : v == null || v === "" ? [] : [v];
+  }
+}

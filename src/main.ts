@@ -3,6 +3,8 @@ import { EntityService, DEFAULT_PATHS, VaultPaths } from "./services/EntityServi
 import { EdgeSyncService, DEFAULT_EDGE_RULES, EdgeRule } from "./services/EdgeSyncService";
 import { QueryService } from "./services/QueryService";
 import { SearchService } from "./services/SearchService";
+import { MirrorSync } from "./services/MirrorSync";
+import { SauceFeatureSettings, DEFAULT_FEATURE_SETTINGS, mergeFeatureSettings, activeEmbeddingProvider } from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
 import { ContractValidator } from "./contract/ContractValidator";
 import { RegistryService } from "./federation/RegistryService";
@@ -17,6 +19,7 @@ import { RelationModal } from "./ui/modals/RelationModal";
 import { TagModal } from "./ui/modals/TagModal";
 import { PromoteProspectModal } from "./ui/modals/PromoteProspectModal";
 import { RegisterSubVaultModal } from "./ui/modals/RegisterSubVaultModal";
+import { CaptureRecordModal, type CaptureRecordKind } from "./ui/modals/CaptureRecordModal";
 import { SauceGraphSettingTab } from "./ui/settings/SauceGraphSettingTab";
 import { ActionButton } from "./ui/widgets/ActionButton";
 import { initV2, teardownV2, V2Runtime } from "./v2-init";
@@ -30,6 +33,13 @@ import {
   type LanceDBCapability,
 } from "./services/LanceDBInstaller";
 import { LanceDBInstallModal } from "./ui/modals/LanceDBInstallModal";
+import {
+  ApprovalGate,
+  DEFAULT_APPROVAL_RECORD,
+  type ApprovalRecord,
+} from "./contract/ApprovalGate";
+import { ObsidianApprovalStore } from "./contract/ObsidianApprovalStore";
+import { ApprovalModalUI } from "./ui/modals/ApprovalModal";
 import { SkillRuntime } from "./skills/SkillRuntime";
 import { SkillPickerModal } from "./ui/modals/v2/SkillPickerModal";
 import { IntegrationRegistry } from "./integrations/IntegrationRegistry";
@@ -42,6 +52,11 @@ import { BackupService } from "./sync/BackupService";
 import { V2Registry } from "./v2/Registry";
 import { AuditLogViewReal, VIEW_AUDIT_LOG_REAL } from "./ui/views/v2/AuditLogViewReal";
 import { SkillRunLogViewReal, VIEW_SKILL_RUN_LOG_REAL, skillRunRing } from "./ui/views/v2/SkillRunLogViewReal";
+import { CalendarView, VIEW_CALENDAR } from "./ui/views/v2/CalendarView";
+import {
+  TasksView, InboxView, LedgerView,
+  VIEW_TASKS, VIEW_INBOX, VIEW_LEDGER,
+} from "./ui/views/v2/DashboardViews";
 import { OnboardingWizardModal } from "./ui/modals/v2/OnboardingWizardModal";
 import { EncryptedBackupService } from "./sync/EncryptedBackupService";
 import { todayIso, maxDate } from "./util/DateUtil";
@@ -67,9 +82,15 @@ export interface SauceGraphSettings {
   };
   enums: Record<string, string[]>;
   copilot: CopilotSettings;
+  /** Feature program toggles: RAG/embeddings, enrichment, prompts, documents.
+   *  See src/settings/FeatureSettings.ts. */
+  features: SauceFeatureSettings;
   /** LanceDB install decision — persisted across reloads so we never
    *  re-prompt after the user picks "Install" or "Skip". */
   lancedb?: { installDecision: LanceDBInstallDecision };
+  /** Persistent approval decisions (approve-always / deny-always per
+   *  action class). Read by every risky flow before executing. */
+  approvals?: ApprovalRecord;
   // Addendum A UI state — added by §K step 1
   activeTab?: string;
   hasInitialized?: boolean;
@@ -101,6 +122,7 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
     kind_addendum:       ["correction","enrichment","context","deprecation","merge-note"],
   },
   copilot: COPILOT_DEFAULTS,
+  features: DEFAULT_FEATURE_SETTINGS,
   activeTab: "TAB-BASIC",
   hasInitialized: false,
   hasDismissedFirstRun: false,
@@ -140,10 +162,12 @@ export default class SauceGraphPlugin extends Plugin {
   get syncEngine() { return this.v2?.sync ?? null; }
   get keyVault() { return this.v2?.keyVault ?? null; }
   get auditLog() { return this.v2?.auditLog ?? null; }
+  get provenance() { return this.v2?.provenance ?? null; }
   get inferenceEngine() { return this.v2?.inference ?? null; }
   get v2Scopes() { return this.v2?.scopes ?? null; }
   get v2Proxy() { return this.v2?.proxy ?? null; }
   copilot: CopilotRuntime | null = null;
+  mirrorSync: MirrorSync | null = null;
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
   v2Registry: V2Registry = new V2Registry();
@@ -154,6 +178,12 @@ export default class SauceGraphPlugin extends Plugin {
   // (when wired) and by the RAG semantic path. While `enabled` is false,
   // the RAG falls back to graph + fuzzy.
   lancedbCapability!: LanceDBCapability;
+  private viewRefreshTimer: number | null = null;
+
+  // Approval gate — single chokepoint every risky autonomous action
+  // routes through. Wired into the LanceDB install button, the swarm
+  // dispatch path, and any future spawn-process / send-network call.
+  approvalGate!: ApprovalGate;
 
   // Credentials accessor — lazily wraps the v2 KeyVault in an
   // IntegrationCredentials surface, which is what v2 modals expect.
@@ -186,6 +216,20 @@ export default class SauceGraphPlugin extends Plugin {
     // sauce-copilot, …) before any view/ribbon/setIcon call. Idempotent.
     IconRegistry.register(this);
 
+    // Approval gate — must be constructed before any flow that might
+    // route through it (LanceDB install, spawn-process, etc.). Persists
+    // decisions in settings.approvals via ObsidianApprovalStore.
+    this.approvalGate = new ApprovalGate(
+      new ObsidianApprovalStore({
+        read: () => this.settings.approvals ?? DEFAULT_APPROVAL_RECORD,
+        write: async (r: ApprovalRecord) => {
+          this.settings.approvals = r;
+          await this.saveSettings();
+        },
+      }),
+      new ApprovalModalUI(this.app),
+    );
+
     // LanceDB capability — pure detection at load. If unavailable + no
     // operator decision yet, the install modal surfaces after the first
     // workspace.onLayoutReady (so the UI isn't blocked while we boot).
@@ -216,14 +260,33 @@ export default class SauceGraphPlugin extends Plugin {
       },
     });
 
-    this.copilot = new CopilotRuntime(this.app, this.entityService, this.search, this.settings.copilot ?? COPILOT_DEFAULTS);
+    this.copilot = new CopilotRuntime(this.app, this.entityService, this.search, this.settings.copilot ?? COPILOT_DEFAULTS, this.v2?.lance?.vectors ?? null);
+    this.syncEmbeddingConfig();
+    // Mirror vault entities into LanceDB + embed them for semantic RAG. Only
+    // active when LanceDB is installed; embeddings are best-effort (skip when
+    // no embed model is reachable). Vault events are registered below.
+    if (this.v2?.lance) {
+      this.mirrorSync = new MirrorSync(
+        this.app,
+        this.v2.lance.mirror,
+        this.v2.lance.vectors,
+        Object.keys(this.settings.edge_rules ?? {}),
+        (text) => this.copilot?.embed(text) ?? Promise.resolve(null),
+        this.v2.provenance,
+        { realtimeEmbeddings: () => this.settings.features.rag.realtimeEmbeddings },
+      );
+    }
     this.skills = new SkillRuntime(this.app, this.entityService, this.search, this.query, () => this.copilot);
     if (this.copilot) this.skills.bindToCopilot(this.copilot.toolUse);
+    // Route every Copilot tool call through the approval gate.
+    // Per-skill action classes (`execute-skill:<id>`) let the operator
+    // approve-always for safe skills and deny-always for risky ones.
+    this.copilot?.toolUse.setApprovalGate(this.approvalGate);
     this.integrations = new IntegrationRegistry(this.app, {});
 
     // Addendum A §B — populate v2Registry capability descriptors. Each entry's `ready`
     // mirrors live module presence; sections check this to decide IMPLEMENTED/DEGRADED/COMING_SOON.
-    this.v2Registry.register({ id: "backend", phase: "P8", ready: !!this.v2?.backend, reason: this.v2?.backend ? undefined : "SQLite not detected; falling back to file-only" });
+    this.v2Registry.register({ id: "backend", phase: "P8", ready: !!this.v2?.lance, reason: this.v2?.lance ? undefined : "LanceDB not installed — approve install to enable persistence" });
     this.v2Registry.register({ id: "security", phase: "P8", ready: !!this.v2?.keyVault, reason: this.v2?.keyVault ? undefined : "KeyVault not initialized" });
     this.v2Registry.register({ id: "copilot", phase: "P9", ready: !!this.copilot });
     this.v2Registry.register({ id: "copilot.provider", phase: "P9", ready: !!this.copilot });
@@ -245,6 +308,10 @@ export default class SauceGraphPlugin extends Plugin {
     this.registerView(VIEW_AI_INBOX_REAL, (l) => new AIInboxViewReal(l, this));
     this.registerView(VIEW_AUDIT_LOG_REAL, (l) => new AuditLogViewReal(l, this));
     this.registerView(VIEW_SKILL_RUN_LOG_REAL, (l) => new SkillRunLogViewReal(l, this));
+    this.registerView(VIEW_CALENDAR, (l) => new CalendarView(l, this));
+    this.registerView(VIEW_TASKS,    (l) => new TasksView(l, this));
+    this.registerView(VIEW_INBOX,    (l) => new InboxView(l, this));
+    this.registerView(VIEW_LEDGER,   (l) => new LedgerView(l, this));
 
     this.registerViews();
     this.registerCommands();
@@ -289,6 +356,14 @@ export default class SauceGraphPlugin extends Plugin {
         .onClick(() => this.openView(VIEW_OVERDUE)));
       m.addItem((i) => i.setTitle("Map").setIcon("sauce-map")
         .onClick(() => this.openView(VIEW_MAP_REAL)));
+      m.addItem((i) => i.setTitle("Calendar").setIcon("sauce-touch")
+        .onClick(() => this.openView(VIEW_CALENDAR)));
+      m.addItem((i) => i.setTitle("Tasks Board").setIcon("sauce-skill")
+        .onClick(() => this.openView(VIEW_TASKS)));
+      m.addItem((i) => i.setTitle("Inbox").setIcon("sauce-ai-inbox")
+        .onClick(() => this.openView(VIEW_INBOX)));
+      m.addItem((i) => i.setTitle("Ledger").setIcon("sauce-audit")
+        .onClick(() => this.openView(VIEW_LEDGER)));
       m.addSeparator();
       m.addItem((i) => i.setTitle("Run Path Query").setIcon("git-branch")
         .onClick(() => this.runPathPrompt()));
@@ -317,6 +392,21 @@ export default class SauceGraphPlugin extends Plugin {
       const m = new Menu();
       m.addItem((i) => i.setTitle("Quick Capture").setIcon("plus-circle")
         .onClick(() => { try { const QCMod = require("./ui/modals/QuickCaptureModal"); new QCMod.QuickCaptureModal(this.app, this).open(); } catch (e) { new Notice("Quick Capture unavailable"); } }));
+      m.addItem((i) => i.setTitle("New Note").setIcon("sauce-note")
+        .onClick(() => new CaptureRecordModal(this.app, this, "knowledge-note").open()));
+      m.addItem((i) => i.setTitle("New Idea").setIcon("sauce-idea")
+        .onClick(() => new CaptureRecordModal(this.app, this, "idea").open()));
+      m.addItem((i) => i.setTitle("New Observation").setIcon("sauce-observation")
+        .onClick(() => new CaptureRecordModal(this.app, this, "observation").open()));
+      m.addItem((i) => i.setTitle("New Task").setIcon("sauce-task")
+        .onClick(() => new CaptureRecordModal(this.app, this, "task").open()));
+      m.addItem((i) => i.setTitle("New Event").setIcon("sauce-event")
+        .onClick(() => new CaptureRecordModal(this.app, this, "event").open()));
+      m.addItem((i) => i.setTitle("New Ledger Entry").setIcon("sauce-ledger")
+        .onClick(() => new CaptureRecordModal(this.app, this, "ledger-entry").open()));
+      m.addItem((i) => i.setTitle("New Pipeline Deal").setIcon("sauce-pipeline")
+        .onClick(() => new CaptureRecordModal(this.app, this, "pipeline-deal").open()));
+      m.addSeparator();
       m.addItem((i) => i.setTitle("New Addendum").setIcon("sauce-addendum")
         .onClick(() => { try { const AMod = require("./ui/modals/AddendumModal"); new AMod.AddendumModal(this.app, this, this.activeFile()).open(); } catch { new Notice("Addendum modal unavailable"); } }));
       m.addItem((i) => i.setTitle("New Relation").setIcon("link")
@@ -345,6 +435,18 @@ export default class SauceGraphPlugin extends Plugin {
 
     this.registerEvent(this.app.metadataCache.on("changed", (f) => {
       if (f instanceof TFile) this.edgeSync.scheduleReconcile(f);
+      // Keep the LanceDB mirror + embeddings in step (frontmatter is parsed by
+      // the time "changed" fires, so entity type/tags/edges are available).
+      if (f instanceof TFile) void this.mirrorSync?.syncFile(f).catch(() => {});
+      this.scheduleOpenViewRefresh();
+    }));
+    this.registerEvent(this.app.vault.on("delete", (f) => {
+      if (f instanceof TFile) void this.mirrorSync?.deleteFile(f.path).catch(() => {});
+      this.scheduleOpenViewRefresh();
+    }));
+    this.registerEvent(this.app.vault.on("rename", (f, oldPath) => {
+      if (f instanceof TFile) void this.mirrorSync?.renameFile(oldPath, f.path).catch(() => {});
+      this.scheduleOpenViewRefresh();
     }));
 
     this.registerMarkdownCodeBlockProcessor("sauce-button", (src, el, ctx) =>
@@ -378,6 +480,14 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCommand({ id: "new-addendum", name: "New Addendum", hotkeys: [{ modifiers: ["Mod","Shift"], key: "a" }], callback: () => new AddendumModal(this.app, this, this.activeFile()).open() });
     this.addCommand({ id: "new-intro", name: "New Intro", hotkeys: [{ modifiers: ["Mod","Shift"], key: "i" }], callback: () => new IntroModal(this.app, this).open() });
     this.addCommand({ id: "edit-current", name: "Edit Current Note", hotkeys: [{ modifiers: ["Mod"], key: "e" }], callback: () => this.editActive() });
+
+    this.addCaptureCommand("new-note", "New Knowledge Note", "knowledge-note");
+    this.addCaptureCommand("new-idea", "New Idea", "idea");
+    this.addCaptureCommand("new-observation", "New Observation", "observation");
+    this.addCaptureCommand("new-task", "New Task", "task");
+    this.addCaptureCommand("new-event", "New Event", "event");
+    this.addCaptureCommand("new-ledger-entry", "New Ledger Entry", "ledger-entry");
+    this.addCaptureCommand("new-pipeline-deal", "New Pipeline Deal", "pipeline-deal");
 
     this.addCommand({ id: "new-relation", name: "New Relation", callback: () => new RelationModal(this.app, this, this.activeFile()).open() });
     this.addCommand({ id: "promote-prospect", name: "Promote Prospect", callback: () => new PromoteProspectModal(this.app, this, this.activeFile()).open() });
@@ -414,6 +524,10 @@ export default class SauceGraphPlugin extends Plugin {
     } });
     this.addCommand({ id: "open-audit-log", name: "Open Audit Log", callback: () => this.openView(VIEW_AUDIT_LOG_REAL) });
     this.addCommand({ id: "open-skill-run-log", name: "Open Skill Run Log", callback: () => this.openView(VIEW_SKILL_RUN_LOG_REAL) });
+    this.addCommand({ id: "open-calendar", name: "Open Calendar", callback: () => this.openView(VIEW_CALENDAR) });
+    this.addCommand({ id: "open-tasks-board", name: "Open Tasks Board", callback: () => this.openView(VIEW_TASKS) });
+    this.addCommand({ id: "open-inbox", name: "Open Inbox", callback: () => this.openView(VIEW_INBOX) });
+    this.addCommand({ id: "open-ledger", name: "Open Ledger", callback: () => this.openView(VIEW_LEDGER) });
     this.addCommand({ id: "onboarding", name: "Onboarding Wizard", callback: () => new OnboardingWizardModal(this.app, this).open() });
     this.addCommand({ id: "encrypted-backup", name: "Encrypted Backup (passphrase)", callback: async () => {
       const pass = prompt("Passphrase for encrypted backup:");
@@ -466,6 +580,12 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCommand({ id: "validate-federation", name: "Validate Federation", callback: () => this.validateFederation() });
     this.addCommand({ id: "validate-vault", name: "Validate Vault", callback: async () => { const n = await this.validateAll(); new Notice(`${n} files validated`); } });
     this.addCommand({ id: "reconcile-edges", name: "Reconcile Edges", callback: async () => { const n = await this.edgeSync.fullVaultReconcile(); new Notice(`${n} reconciled`); } });
+    this.addCommand({ id: "rebuild-lance-index", name: "Rebuild LanceDB Index (full resync + embed)", callback: async () => {
+      if (!this.mirrorSync) { new Notice("LanceDB not installed — approve install first."); return; }
+      new Notice("Rebuilding LanceDB index…");
+      const n = await this.mirrorSync.fullResync();
+      new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
+    } });
     this.addCommand({ id: "export-graph-json", name: "Export Graph JSON", callback: () => this.exportGraphJson() });
     this.addCommand({ id: "rebuild-cache", name: "Rebuild Caches", callback: () => new Notice("Caches rebuilt") });
 
@@ -520,6 +640,9 @@ export default class SauceGraphPlugin extends Plugin {
       app: this.app,
       pluginDir: fullDir,
       initialDecision: this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
+      // Wire the approval gate so the install respects sticky
+      // approve-always / deny-always decisions for install-package.
+      approvalGate: this.approvalGate,
       onDecision: async (next: LanceDBInstallDecision) => {
         this.settings.lancedb = { installDecision: next };
         await this.saveSettings();
@@ -588,9 +711,62 @@ export default class SauceGraphPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded = (await this.loadData()) as Partial<SauceGraphSettings> | null;
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...(loaded ?? {}),
+      paths: { ...DEFAULT_SETTINGS.paths, ...(loaded?.paths ?? {}) },
+      federation: { ...DEFAULT_SETTINGS.federation, ...(loaded?.federation ?? {}) },
+      compat_config: { ...DEFAULT_SETTINGS.compat_config, ...(loaded?.compat_config ?? {}) },
+      copilot: { ...DEFAULT_SETTINGS.copilot, ...(loaded?.copilot ?? {}) },
+      features: mergeFeatureSettings(loaded?.features),
+      showAdvanced: { ...DEFAULT_SETTINGS.showAdvanced, ...(loaded?.showAdvanced ?? {}) },
+    };
   }
-  async saveSettings(): Promise<void> { await this.saveData(this.settings); }
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+    this.syncEmbeddingConfig();
+  }
+
+  /** Push the RAG/embedding settings into the Copilot runtime. Called after
+   *  construction and on every settings save so toggles take effect live. */
+  syncEmbeddingConfig(): void {
+    if (!this.copilot) return;
+    const active = activeEmbeddingProvider(this.settings.features);
+    this.copilot.setEmbeddingConfig(
+      active
+        ? {
+            enabled: true,
+            provider: active.provider,
+            endpoint: active.config.endpoint,
+            model: active.config.model,
+            // OpenAI embeddings reuse the copilot API key; local providers ignore it.
+            apiKey: this.settings.copilot.apiKey,
+          }
+        : { enabled: false, provider: this.settings.features.rag.provider, endpoint: "", model: "" },
+    );
+  }
+
+  private addCaptureCommand(id: string, name: string, kind: CaptureRecordKind): void {
+    this.addCommand({ id, name, callback: () => new CaptureRecordModal(this.app, this, kind).open() });
+  }
+
+  private scheduleOpenViewRefresh(): void {
+    if (this.viewRefreshTimer !== null) window.clearTimeout(this.viewRefreshTimer);
+    this.viewRefreshTimer = window.setTimeout(() => {
+      this.viewRefreshTimer = null;
+      for (const type of [
+        VIEW_DASHBOARD, VIEW_PIPELINE, VIEW_GRAPH, VIEW_COMPAT, VIEW_HEATMAP,
+        VIEW_HIERARCHY, VIEW_OVERDUE, VIEW_PARENT, VIEW_CALENDAR,
+        VIEW_TASKS, VIEW_INBOX, VIEW_LEDGER,
+      ]) {
+        for (const leaf of this.app.workspace.getLeavesOfType(type)) {
+          const view = leaf.view as unknown as { onOpen?: () => Promise<void> | void } | undefined;
+          void view?.onOpen?.();
+        }
+      }
+    }, 350);
+  }
 
 
   private async runSkillOnActive(skillId: string): Promise<void> {
@@ -620,6 +796,7 @@ export default class SauceGraphPlugin extends Plugin {
   }
 
   onunload(): void {
+    if (this.viewRefreshTimer !== null) window.clearTimeout(this.viewRefreshTimer);
     void teardownV2(this.v2);
     console.log("Sauce Graph unloaded");
   }

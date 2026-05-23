@@ -3,6 +3,9 @@ import process from "process";
 import { copyFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import builtins from "builtin-modules";
+import esbuildSvelte from "esbuild-svelte";
+// svelte-preprocess imported lazily inside the plugin config so v6+
+// missing-submodule errors don't fail the whole build.
 
 const SUBVAULT_PLUGIN_DIR = "../Sauce_Relationship_Graph/.obsidian/plugins/sauce-graph";
 const reinstallToSubVault = () => {
@@ -26,11 +29,16 @@ const ctx = await esbuild.context({
   banner: { js: banner },
   entryPoints: ["src/main.ts"],
   bundle: true,
+  plugins: [
+    // Svelte 5's compiler handles <script lang="ts"> natively, so we
+    // skip svelte-preprocess and just point esbuild at the compiler.
+    esbuildSvelte({
+      compilerOptions: { css: "injected" },
+    }),
+  ],
   external: [
     "obsidian",
     "electron",
-    "better-sqlite3",
-    "sql.js",
     "@lancedb/lancedb",
     "libsodium-wrappers",
     "argon2-browser",

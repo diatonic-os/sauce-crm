@@ -2,17 +2,16 @@
 // Each mount step is best-effort — V2 stays functional under partial init (e.g. no SQLite).
 
 import { App, Plugin, normalizePath } from "obsidian";
+import { initLanceBackend, type LanceBackend } from "./backend/lance";
+import { detectLanceDB } from "./services/LanceDBInstaller";
 import {
-  ISqliteBackend, BackendKind, selectBackend, describeBackend,
-} from "./backend";
-import {
-  KeyVault, JsonSecretStore, SqliteSecretStore,
-  AuditLog, ScopeRegistry, ProxyClient, DEFAULT_SCOPES,
+  KeyVault, AuditLog, ScopeRegistry, ProxyClient, DEFAULT_SCOPES,
   type CryptoBackend, type ProxyConfig,
 } from "./security";
 import { SGV2_MAGIC } from "./security/KeyVault";
 import { SyncEngine } from "./sync";
 import { InferenceEngine } from "./inference";
+import { ProvenanceService } from "./services/Provenance";
 
 // Web Crypto-backed CryptoBackend. Obsidian runs in Electron's renderer which exposes
 // window.crypto.subtle. KDF is PBKDF2-SHA256 (Argon2id needs a native dep we choose
@@ -83,33 +82,45 @@ async function sha256Hex(s: string): Promise<string> {
 }
 
 export interface V2Runtime {
-  backend: ISqliteBackend | null;
-  backendKind: BackendKind | "uninitialized";
+  /** The LanceDB single-backend, or null when LanceDB is not yet installed
+   *  (require-install mode — the install modal gates feature use). */
+  lance: LanceBackend | null;
+  backendKind: "lancedb" | "uninitialized";
   scopes: ScopeRegistry;
   keyVault: KeyVault | null;
   auditLog: AuditLog | null;
+  /** App-wide fingerprint + signed-provenance + trace service. Null until
+   *  LanceDB is installed. */
+  provenance: ProvenanceService | null;
   proxy: ProxyClient;
   sync: SyncEngine;
   inference: InferenceEngine;
 }
 
 export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
-  const pluginDir = normalizePath(`${app.vault.configDir}/plugins/sauce-graph`);
-  const dbPath = `${pluginDir}/sauce.db`;
+  const pluginId = plugin.manifest.id;
+  const pluginDir = normalizePath(`${app.vault.configDir}/plugins/${pluginId}`);
+  const lanceDir = `${pluginDir}/data/lancedb`;
+  const embeddingDim = (plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } })
+    .settings?.lancedb?.embeddingDim;
 
-  // ─── Backend (best-effort) ───────────────────────────────────────────
-  let backend: ISqliteBackend | null = null;
-  let backendKind: BackendKind | "uninitialized" = "uninitialized";
-  try {
-    const r = await selectBackend({ dbPath, preferNative: true });
-    backend = r.backend;
-    backendKind = r.kind;
-    if (backend) {
-      const info = await describeBackend(backend, backendKind);
-      console.log("Sauce V2 backend", { kind: backendKind, caps: info.capabilities, rows: info.rowCounts });
+  // ─── Backend: LanceDB single-backend (require-install) ───────────────
+  // LanceDB is the sole persistence engine. If its native binding is not yet
+  // installed we leave the backend null; main.ts surfaces the install modal
+  // and feature use is gated until the operator approves the install.
+  let lance: LanceBackend | null = null;
+  let backendKind: "lancedb" | "uninitialized" = "uninitialized";
+  const detect = detectLanceDB();
+  if (detect.state === "available") {
+    try {
+      lance = await initLanceBackend({ dataDir: lanceDir, embeddingDim });
+      backendKind = "lancedb";
+      console.log("Sauce V2 backend: LanceDB", { dir: lanceDir, version: detect.version, dim: lance.embeddingDim });
+    } catch (e) {
+      console.warn("Sauce V2 LanceDB init failed; backend unavailable", { error: String(e) });
     }
-  } catch (e) {
-    console.warn("Sauce V2 backend init failed; running without SQLite mirror", { error: String(e) });
+  } else {
+    console.log("Sauce V2 backend: LanceDB not available", { detect });
   }
 
   // ─── Scopes ──────────────────────────────────────────────────────────
@@ -117,32 +128,25 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   scopes.load(DEFAULT_SCOPES);
 
   // ─── KeyVault (locked at boot; user unlocks via Settings) ───────────
+  // Secrets live in LanceDB's api_keys_enc table. Without LanceDB there is no
+  // secret store (require-install) — keyVault stays null and the install modal
+  // gates anything that needs it.
   let keyVault: KeyVault | null = null;
-  try {
-    const cb = makeCryptoBackend();
-    const kvLogger = (plugin as unknown as { logger?: { child: (n: string) => unknown } }).logger?.child("keyvault") as unknown as ConstructorParameters<typeof KeyVault>[2];
-    if (backend) {
-      keyVault = new KeyVault(new SqliteSecretStore(backend), cb, kvLogger ?? null);
-    } else {
-      // Fallback to data.json blob
-      const store = new JsonSecretStore(
-        async () => ((await plugin.loadData()) ?? {}).secrets ?? {},
-        async (d) => {
-          const cur = (await plugin.loadData()) ?? {};
-          await plugin.saveData({ ...cur, secrets: d });
-        },
-      );
-      keyVault = new KeyVault(store, cb, kvLogger ?? null);
+  if (lance) {
+    try {
+      const cb = makeCryptoBackend();
+      const kvLogger = (plugin as unknown as { logger?: { child: (n: string) => unknown } }).logger?.child("keyvault") as unknown as ConstructorParameters<typeof KeyVault>[2];
+      keyVault = new KeyVault(lance.secrets, cb, kvLogger ?? null);
+    } catch (e) {
+      console.warn("Sauce V2 KeyVault init failed", { error: String(e) });
     }
-  } catch (e) {
-    console.warn("Sauce V2 KeyVault init failed", { error: String(e) });
   }
 
   // ─── AuditLog (active only when backend present) ────────────────────
   let auditLog: AuditLog | null = null;
-  if (backend) {
+  if (lance) {
     auditLog = new AuditLog(
-      backend,
+      lance.audit,
       { hmacHex },
       async () => {
         if (!keyVault || keyVault.isLocked()) {
@@ -153,6 +157,26 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
         }
         return await keyVault.masterKeyHmacBytes();
       },
+    );
+  }
+
+  // ─── ProvenanceService (fingerprint + sign + trace; needs backend) ──
+  // Shares the AuditLog's bootstrap-key fallback so tracing works pre-unlock
+  // and re-verifies once the vault is unlocked. Mirrors high-level ops into
+  // the AuditLog. This is the app-wide state-tracking spine (PLAN T2/T8).
+  let provenance: ProvenanceService | null = null;
+  if (lance) {
+    const masterKey = async (): Promise<Uint8Array> => {
+      if (!keyVault || keyVault.isLocked()) {
+        return new TextEncoder().encode("sauce-graph-bootstrap-hmac-key-v1-padding-32b");
+      }
+      return await keyVault.masterKeyHmacBytes();
+    };
+    provenance = new ProvenanceService(
+      lance.provenanceStore,
+      { sha256Hex, hmacHex },
+      masterKey,
+      auditLog,
     );
   }
 
@@ -176,12 +200,12 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   const sync = new SyncEngine();
   const inference = new InferenceEngine();
 
-  return { backend, backendKind, scopes, keyVault, auditLog, proxy, sync, inference };
+  return { lance, backendKind, scopes, keyVault, auditLog, provenance, proxy, sync, inference };
 }
 
 export async function teardownV2(rt: V2Runtime | null): Promise<void> {
   if (!rt) return;
   try { rt.sync.stop(); } catch { /* */ }
   try { rt.keyVault?.lock(); } catch { /* */ }
-  try { await rt.backend?.close(); } catch { /* */ }
+  try { await rt.lance?.close(); } catch { /* */ }
 }
