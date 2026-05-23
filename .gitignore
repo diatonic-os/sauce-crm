@@ -41,3 +41,6 @@ coverage/
 *.tmp
 *.tgz
 *.zip
+
+# Git worktrees — per-task isolation off main (never tracked)
+.worktrees/
