@@ -9,6 +9,6 @@ export default defineConfig({
       // importing from "obsidian") resolve correctly under vite's loader.
       obsidian: resolve(__dirname, 'test/_stubs/obsidian.ts'),
     },
-    include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
+    include: ['test/**/*.test.ts', 'src/**/*.test.ts', 'sdk/**/*.test.ts'],
   },
 });
