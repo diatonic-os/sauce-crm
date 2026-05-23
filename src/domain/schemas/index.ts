@@ -27,7 +27,16 @@ export type EntityType =
   | "thread"
   | "ledger-entry"
   | "metric"
-  | "rollup";
+  | "rollup"
+  // CON-OBS-INTEG-001 SH-E — DEC-003 new entities (people/orgs/touches/addenda/
+  // tasks/ideas/ledger already covered above; these complete the 14):
+  | "playbook"
+  | "template"
+  | "vault"
+  | "pipeline"
+  | "observation"
+  | "note"
+  | "event";
 
 export interface ValidationError {
   field: string;
@@ -445,6 +454,34 @@ export const RollupSchema: EntitySchema<RollupFrontmatter> = {
 
 // ---------- registry ----------
 
+// CON-OBS-INTEG-001 SH-E (T-E-01): the 7 genuinely-new DEC-003 entities. The
+// other 7 (people/orgs/touches/addenda/tasks/ideas/ledger) are already covered
+// by the schemas above — reconciled, not duplicated (CONFLICT-3). Imports are
+// hoisted; the type-guard fns these modules import from here are hoisted
+// function declarations, so the cycle resolves cleanly.
+import { PlaybookSchema } from "./playbooks";
+import { TemplateSchema } from "./templates";
+import { VaultSchema } from "./vaults";
+import { PipelineSchema } from "./pipelines";
+import { ObservationSchema } from "./observations";
+import { NoteSchema } from "./notes";
+import { EventSchema } from "./events";
+
+export { PlaybookSchema } from "./playbooks";
+export { TemplateSchema } from "./templates";
+export { VaultSchema } from "./vaults";
+export { PipelineSchema } from "./pipelines";
+export { ObservationSchema } from "./observations";
+export { NoteSchema } from "./notes";
+export { EventSchema } from "./events";
+export type { PlaybookFrontmatter } from "./playbooks";
+export type { TemplateFrontmatter } from "./templates";
+export type { VaultFrontmatter } from "./vaults";
+export type { PipelineFrontmatter } from "./pipelines";
+export type { ObservationFrontmatter } from "./observations";
+export type { NoteFrontmatter } from "./notes";
+export type { EventFrontmatter } from "./events";
+
 export const ENTITY_SCHEMAS = {
   "warm-contact": PersonSchema,
   org: OrgSchema,
@@ -455,6 +492,14 @@ export const ENTITY_SCHEMAS = {
   idea: IdeaSchema,
   "ledger-entry": LedgerEntrySchema,
   rollup: RollupSchema,
+  // DEC-003 new entities (SH-E):
+  playbook: PlaybookSchema,
+  template: TemplateSchema,
+  vault: VaultSchema,
+  pipeline: PipelineSchema,
+  observation: ObservationSchema,
+  note: NoteSchema,
+  event: EventSchema,
 } as const;
 
 /** Dispatch validation by the frontmatter's `type` field. Returns null
