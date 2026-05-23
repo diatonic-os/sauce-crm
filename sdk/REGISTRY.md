@@ -1,7 +1,7 @@
 <!-- GENERATED — aggregated from sdk/groups/**/*.md member contracts. Do not edit by hand. -->
 # Sauce CRM SDK — Registry
 
-Total members: 23
+Total members: 25
 
 ## actions
 
@@ -58,3 +58,5 @@ Total members: 23
 | `requesturl-fetch` | universal | Wrap Obsidian requestUrl into a typed, CORS-free fetch for connectors and embeddings. |
 | `vault-create-note` | universal | Create a plaintext note in the vault at a normalized path (Vault.create). |
 | `vault-process-note` | universal | Atomic read-modify-write of a note (Vault.process) — the safe edit primitive. |
+| `vault-read-note` | universal | Read a note's current contents via Vault.cachedRead (display-safe, fast). |
+| `workspace-get-leaf` | [desktop, mobile] | Get a right-sidebar leaf for placing a CRM view (Workspace.getRightLeaf). |
