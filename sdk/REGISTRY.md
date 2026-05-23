@@ -1,19 +1,23 @@
 <!-- GENERATED — aggregated from sdk/groups/**/*.md member contracts. Do not edit by hand. -->
 # Sauce CRM SDK — Registry
 
-Total members: 38
+Total members: 43
 
 ## actions
 
 | id | platform | summary |
 | --- | --- | --- |
+| `open-crm-inbox` | [desktop, mobile] | Register the Open-CRM-inbox command. |
 | `quick-capture` | [desktop, mobile] | Capture a note with merged frontmatter; register it as a command. |
 | `run-embedding-sync` | [desktop, mobile] | registerEmbeddingSync(plugin,run) command bound to running chainers/embedding-pipeline. |
+| `schedule-touch` | [desktop, mobile] | Set a note's next_touch and register the Schedule-touch command. |
 ## chainers
 
 | id | platform | summary |
 | --- | --- | --- |
+| `auto-touch-pipeline` | [desktop, mobile] | Atomically record a touch into a contact's frontmatter; idempotent via logical clock. |
 | `embedding-pipeline` | [desktop, mobile] | Deterministic pipeline — embed docs and upsert into the vector store; query by text. |
+| `intro-routing` | [desktop, mobile] | Score a contact's edges for introduction routing (worked_with > knows). |
 | `time-sync-loop` | [desktop, mobile] | Lifecycle-bound reconcile loop ordered by a logical clock (never wall-clock). |
 ## components
 
@@ -55,6 +59,7 @@ Total members: 38
 
 | id | platform | summary |
 | --- | --- | --- |
+| `outreach` | [desktop, mobile] | Capability pack bundling intro-routing for outreach planning. |
 | `relationship-intelligence` | [desktop, mobile] | Capability pack bundling relationship skills into one agent-facing talent. |
 ## tools
 
