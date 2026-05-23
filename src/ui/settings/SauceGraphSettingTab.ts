@@ -7,6 +7,7 @@ import { renderBasic } from "./sections/basic";
 import { renderVault } from "./sections/vault";
 import { renderContracts } from "./sections/contracts";
 import { renderCopilot } from "./sections/copilot";
+import { renderCommand } from "./sections/command";
 import { renderSkills } from "./sections/skills";
 import { renderIntegrations } from "./sections/integrations";
 import { renderData } from "./sections/data";
@@ -25,6 +26,7 @@ const TABS: TabDef[] = [
   { id: "TAB-VAULT",        label: "Vault",        tooltip: "Where your notes live and how sub-vaults connect",                                          icon: "folder-tree",  render: renderVault },
   { id: "TAB-CONTRACTS",    label: "Validation",   tooltip: "Rules that keep your data clean and consistent",                                            icon: "shield-check", render: renderContracts },
   { id: "TAB-COPILOT",      label: "Copilot",      tooltip: "Your AI assistant — pick a provider and tune it",                                           icon: "sparkles",     render: renderCopilot },
+  { id: "TAB-COMMAND",      label: "Commands",     tooltip: "Slash commands and editor menu actions — toggle, edit, and add prompts",                   icon: "terminal",     render: renderCommand },
   { id: "TAB-SKILLS",       label: "Skills",       tooltip: "AI helpers that run when you ask — turn on what you need",                                  icon: "zap",          render: renderSkills },
   { id: "TAB-INTEGRATIONS", label: "Integrations", tooltip: "Connect Google / Microsoft / Apple / Notion / Twilio / Email / Web Search",                 icon: "plug",         render: renderIntegrations },
   { id: "TAB-DATA",         label: "Data",         tooltip: "Backups; import; export; map; database; sync schedule",                                     icon: "database",     render: renderData },

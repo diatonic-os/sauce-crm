@@ -13,6 +13,7 @@ import { App } from "obsidian";
 import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
 import type { LanceVectorIndex } from "../backend/lance";
+import { SlashCommand, defaultSlashCommands } from "./SlashCommands";
 
 export interface CopilotSettings {
   provider: "anthropic" | "openai" | "ollama" | "lmstudio";
@@ -26,6 +27,10 @@ export interface CopilotSettings {
    *  when unset; ignored by providers without an embeddings endpoint. Legacy
    *  fallback only — prefer EmbeddingRuntimeConfig via setEmbeddingConfig. */
   embedModel?: string;
+  /** User-editable slash/menu command registry (Command settings tab).
+   *  Optional so older saved settings don't need migration; the UI lazily
+   *  seeds defaults when absent. */
+  slashCommands?: SlashCommand[];
 }
 
 /** Embedding provider config — decoupled from the chat provider so RAG can use
@@ -48,6 +53,7 @@ export const COPILOT_DEFAULTS: CopilotSettings = {
     "You are Sauce Graph, an assistant grounded in the user's personal relationship graph. " +
     "Answer using the supplied context. Cite people and orgs by `[[Name]]` wikilinks. " +
     "If you don't know, say so. Refuse external information requests unless explicitly asked.",
+  slashCommands: defaultSlashCommands(),
 };
 
 export class CopilotRuntime {

@@ -643,6 +643,13 @@
 .sauce-settings-table td { padding: var(--sg-gap-5) var(--sg-gap-8); border-bottom: 1px solid var(--background-modifier-border); }
 .sauce-settings-table tr:hover td { background: var(--background-modifier-hover); }
 .sauce-settings-table .col-center { text-align: center; }
+.sauce-row-end { justify-content: flex-end; }
+.sauce-cmd-prompt { width: 100%; font-family: var(--font-monospace); }
+.sauce-icon-btn {
+  background: transparent; border: none; cursor: pointer; color: var(--text-muted);
+  padding: var(--sg-gap-3); border-radius: var(--radius-s); display: inline-flex; align-items: center;
+}
+.sauce-icon-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
 
 /* ---------- Status bar ---------- */
 
