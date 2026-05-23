@@ -11,6 +11,7 @@ import { renderCommand } from "./sections/command";
 import { renderSkills } from "./sections/skills";
 import { renderIntegrations } from "./sections/integrations";
 import { renderData } from "./sections/data";
+import { renderBridge } from "./sections/bridge";
 import { renderAdvanced } from "./sections/advanced";
 
 interface TabDef {
@@ -79,6 +80,13 @@ const TABS: TabDef[] = [
     tooltip: "Backups; import; export; map; database; sync schedule",
     icon: "database",
     render: renderData,
+  },
+  {
+    id: "TAB-BRIDGE",
+    label: "Mobile",
+    tooltip: "Mobile memory bridge — serve desktop memory to your paired phone over Tailscale",
+    icon: "smartphone",
+    render: renderBridge,
   },
   {
     id: "TAB-ADVANCED",

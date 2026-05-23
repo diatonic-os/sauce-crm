@@ -44,7 +44,7 @@ function defaultRandomBytes(n: number): Uint8Array {
   }
   // Lazy, guarded Node fallback — only reached when Web Crypto is absent.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const nodeCrypto = require("node:crypto") as typeof import("node:crypto");
+  const nodeCrypto = require("crypto") as typeof import("node:crypto");
   return new Uint8Array(nodeCrypto.randomBytes(n));
 }
 

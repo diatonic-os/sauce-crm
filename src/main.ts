@@ -7,6 +7,7 @@ import {
   WorkspaceLeaf,
   Notice,
   MarkdownView,
+  requestUrl,
 } from "obsidian";
 import { injectMobileStyles } from "./ui/MobileStyles";
 import {
@@ -69,6 +70,25 @@ import {
 import { SauceGraphSettingTab } from "./ui/settings/SauceGraphSettingTab";
 import { ActionButton } from "./ui/widgets/ActionButton";
 import { initV2, teardownV2, V2Runtime } from "./v2-init";
+// MOB-BRIDGE-001 — mobile memory bridge (see MOBILE-BRIDGE-SPEC.md).
+import type { MemoryBackend } from "./bridge/contract";
+import {
+  makeContentHasher,
+  makeHttpRequestFn,
+  InMemoryResultCache,
+  createDesktopMemory,
+  createMobileMemory,
+} from "./bridge/wiring";
+import { BridgeService } from "./bridge/server/BridgeService";
+import { sha256Hex as bridgeSha256Hex, hmacHex as bridgeHmacHex } from "./bridge/crypto";
+import { HmacAuthSigner, tokenToKey } from "./bridge/auth";
+import { TailscaleReachabilityProbe } from "./bridge/mobile/orchestration";
+import { LocalHashIndex } from "./bridge/mobile/local";
+import {
+  makeVaultReader,
+  makeLexicalHost,
+  makeVaultFilePersist,
+} from "./bridge/obsidian/ObsidianAdapters";
 import {
   CopilotRuntime,
   CopilotSettings,
@@ -184,6 +204,21 @@ export interface SauceGraphSettings {
   /** Global skill-autonomy mode: a concrete level applies to all skills;
    *  "custom" lets each skill set its own. Defaults to "manual". */
   skillsAutonomy?: "manual" | "suggest" | "assist" | "auto" | "custom";
+  /** MOB-BRIDGE-001 — mobile memory bridge. Server is OFF by default. */
+  bridge?: BridgeSettings;
+}
+
+/** Mobile-bridge settings. Desktop fields: enabled/port/bindHost/pairingToken.
+ *  Mobile fields: baseUrl/pairingToken. */
+export interface BridgeSettings {
+  enabled: boolean;
+  port: number;
+  /** desktop bind address; "" → auto-discover Tailscale IPv4. */
+  bindHost: string;
+  /** mobile: desktop bridge URL, e.g. http://100.x.y.z:8787. */
+  baseUrl: string;
+  /** shared pairing token (hex). */
+  pairingToken: string;
 }
 
 const DEFAULT_SETTINGS: SauceGraphSettings = {
@@ -268,6 +303,7 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
   hasDismissedFirstRun: false,
   showAdvanced: {},
   skillsAutonomy: "manual",
+  bridge: { enabled: false, port: 8787, bindHost: "", baseUrl: "", pairingToken: "" },
 };
 
 /** Minimal Logger implementation that writes to console with a source
@@ -329,6 +365,11 @@ export default class SauceGraphPlugin extends Plugin {
   tasks: TasksService | null = null;
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
+  /** MOB-BRIDGE-001: platform memory backend (desktop = LanceDB; mobile =
+   *  bridge-when-reachable → lexical fallback). Null until onload. */
+  memory: MemoryBackend | null = null;
+  /** Desktop-only memory server lifecycle (default-OFF). */
+  bridgeService: BridgeService | null = null;
   v2Registry: V2Registry = new V2Registry();
   // Structured logger satisfying the Logger interface from telemetry/types.
   // Console-backed; v2 components reach for `event()` and `child()`.
@@ -542,6 +583,15 @@ export default class SauceGraphPlugin extends Plugin {
     // approve-always for safe skills and deny-always for risky ones.
     this.copilot?.toolUse.setApprovalGate(this.approvalGate);
     this.integrations = new IntegrationRegistry(this.app, {});
+
+    // MOB-BRIDGE-001 — build the platform memory backend and, on desktop,
+    // (re)start the memory server per settings (default-OFF). Never throws into
+    // boot: a bridge failure must not break plugin load.
+    try {
+      await this.refreshBridge();
+    } catch (e) {
+      console.warn("Sauce mobile-bridge init failed (non-fatal)", { error: String(e) });
+    }
 
     // Addendum A §B — populate v2Registry capability descriptors. Each entry's `ready`
     // mirrors live module presence; sections check this to decide IMPLEMENTED/DEGRADED/COMING_SOON.
@@ -1854,6 +1904,7 @@ export default class SauceGraphPlugin extends Plugin {
         ...(loaded?.compat_config ?? {}),
       },
       copilot: { ...DEFAULT_SETTINGS.copilot, ...(loaded?.copilot ?? {}) },
+      bridge: { ...DEFAULT_SETTINGS.bridge!, ...(loaded?.bridge ?? {}) },
       features: mergeFeatureSettings(loaded?.features),
       showAdvanced: {
         ...DEFAULT_SETTINGS.showAdvanced,
@@ -1864,6 +1915,90 @@ export default class SauceGraphPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
     this.syncEmbeddingConfig();
+  }
+
+  /** MOB-BRIDGE-001 — construct the platform-appropriate memory backend.
+   *  Desktop: LanceDB-backed (authoritative). Mobile: bridge-when-reachable
+   *  composed over a lexical offline fallback. Safe to call repeatedly. */
+  buildMemoryBackend(): void {
+    const hasher = makeContentHasher(bridgeSha256Hex);
+    if (!Platform.isMobile) {
+      if (this.v2?.lance) {
+        this.memory = createDesktopMemory({
+          vectors: this.v2.lance.vectors,
+          provenanceStore: this.v2.lance.provenanceStore,
+          embedFn: (text: string) => this.copilot?.embed(text) ?? Promise.resolve(null),
+        });
+      } else {
+        this.memory = null;
+      }
+      return;
+    }
+    // Mobile
+    const b = this.settings.bridge ?? {
+      enabled: false,
+      port: 8787,
+      bindHost: "",
+      baseUrl: "",
+      pairingToken: "",
+    };
+    const request = makeHttpRequestFn((r) =>
+      requestUrl({
+        url: r.url,
+        method: r.method,
+        headers: r.headers,
+        body: r.body,
+        throw: r.throw,
+      }),
+    );
+    const signer = new HmacAuthSigner({ hmacHex: bridgeHmacHex }, () =>
+      tokenToKey(b.pairingToken, { sha256Hex: bridgeSha256Hex }),
+    );
+    const probe = new TailscaleReachabilityProbe({ baseUrl: b.baseUrl, request });
+    const localIndex = new LocalHashIndex({
+      hasher,
+      persist: makeVaultFilePersist(
+        this.app,
+        `${this.app.vault.configDir}/plugins/${this.manifest.id}/data/mobile-hash-index.json`,
+      ),
+      vault: makeVaultReader(this.app),
+    });
+    this.memory = createMobileMemory({
+      baseUrl: b.baseUrl,
+      request,
+      signer,
+      hasher,
+      cache: new InMemoryResultCache(),
+      probe,
+      lexicalHost: makeLexicalHost(this.search),
+      localIndex,
+    });
+  }
+
+  /** MOB-BRIDGE-001 — rebuild the memory backend and, on desktop, (re)start the
+   *  memory server to match current settings. Called on load and after any
+   *  bridge settings change. Default-OFF: the server stays down unless enabled,
+   *  paired, and a Tailscale bind address is resolvable. */
+  async refreshBridge(): Promise<void> {
+    this.buildMemoryBackend();
+    if (Platform.isMobile || !this.memory) {
+      await this.bridgeService?.stop();
+      return;
+    }
+    const b = this.settings.bridge;
+    if (!b) return;
+    await this.bridgeService?.stop();
+    this.bridgeService = new BridgeService({
+      backend: this.memory,
+      crypto: { hmacHex: bridgeHmacHex, sha256Hex: bridgeSha256Hex },
+      lanceStatus: () => (this.v2?.lance ? "ready" : "missing"),
+    });
+    await this.bridgeService.start({
+      enabled: b.enabled,
+      port: b.port,
+      bindHost: b.bindHost,
+      pairingToken: b.pairingToken,
+    });
   }
 
   /** Push the RAG/embedding + prompt settings into the Copilot runtime. Called
@@ -2048,6 +2183,7 @@ export default class SauceGraphPlugin extends Plugin {
   onunload(): void {
     if (this.viewRefreshTimer !== null)
       window.clearTimeout(this.viewRefreshTimer);
+    void this.bridgeService?.stop();
     void teardownV2(this.v2);
     console.log("Sauce Graph unloaded");
   }

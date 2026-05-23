@@ -85,7 +85,7 @@ function statusForBridgeError(code: BridgeErrorCode): number {
  *  so this module imports no Node builtin at top level beyond a type. */
 function sha256Hex(raw: string): string {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const crypto = require("node:crypto") as typeof import("node:crypto");
+  const crypto = require("crypto") as typeof import("node:crypto");
   return crypto.createHash("sha256").update(raw, "utf8").digest("hex");
 }
 
@@ -129,7 +129,14 @@ export class MemoryHttpServer {
     if (this.server) return;
     // Lazy require keeps the top-level import map free of Node builtins.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const http = require("node:http") as typeof import("node:http");
+    const http = require("http") as typeof import("node:http");
+    // Security (CWE-319): plain HTTP is intentional and safe here. The server
+    // binds the Tailscale interface ONLY (constructor refuses 0.0.0.0/::), and
+    // Tailscale (WireGuard) encrypts all tailnet traffic end-to-end — it is the
+    // transport-encryption layer, so app-level TLS would add cert-management
+    // burden with no security gain. Requests are additionally HMAC-signed
+    // (auth + integrity + replay protection). Do NOT expose this off-tailnet.
+    // nosemgrep
     const server = http.createServer((req, res) => {
       this.handle(req, res).catch((err) => {
         // Last-resort guard: a handler should never throw, but if it does,
