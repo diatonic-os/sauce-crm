@@ -252,5 +252,13 @@ tags: [plugin-config, contract]
 
 # _PLUGIN-CONFIG
 
-Edit via the Settings tab.
+Edit enums / rules via the Settings tab.
+
+## Plugin auto-configuration
+
+Sauce CRM points supported plugins at this vault's structure. Review the proposed
+settings below and Apply — nothing is written to another plugin until you do.
+
+\`\`\`sauce-plugin-config
+\`\`\`
 `;

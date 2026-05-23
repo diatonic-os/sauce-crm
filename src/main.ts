@@ -1,4 +1,4 @@
-import { Menu, Plugin, TFile, WorkspaceLeaf, Notice, MarkdownView } from "obsidian";
+import { Menu, Modal, Plugin, TFile, WorkspaceLeaf, Notice, MarkdownView } from "obsidian";
 import { EntityService, DEFAULT_PATHS, VaultPaths } from "./services/EntityService";
 import { EdgeSyncService, DEFAULT_EDGE_RULES, EdgeRule } from "./services/EdgeSyncService";
 import { QueryService } from "./services/QueryService";
@@ -7,6 +7,9 @@ import { MirrorSync } from "./services/MirrorSync";
 import { EnrichmentService, defaultHeuristicStages, type EnrichmentHost, type EnrichmentInput } from "./services/EnrichmentService";
 import { llmClassifyStage } from "./services/enrichment/LlmClassifyStage";
 import { DocumentHarvestService, SUPPORTED_FORMATS, type DocFormat } from "./services/DocumentHarvest";
+import { PluginConfigService, defaultProfiles } from "./services/PluginConfigService";
+import { ObsidianPluginConfigHost } from "./services/ObsidianPluginConfigHost";
+import { renderPluginConfigBlock } from "./ui/PluginConfigBlock";
 import { SauceFeatureSettings, DEFAULT_FEATURE_SETTINGS, mergeFeatureSettings, activeEmbeddingProvider } from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
 import { ContractValidator } from "./contract/ContractValidator";
@@ -180,6 +183,7 @@ export default class SauceGraphPlugin extends Plugin {
   mirrorSync: MirrorSync | null = null;
   enrichment: EnrichmentService | null = null;
   documentHarvest: DocumentHarvestService | null = null;
+  pluginConfig: PluginConfigService | null = null;
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
   v2Registry: V2Registry = new V2Registry();
@@ -335,6 +339,13 @@ export default class SauceGraphPlugin extends Plugin {
       });
       this.copilot?.setTraceSink(this.v2.provenance ?? null);
     }
+    // Plugin auto-config engine (orchestrator): detect supported core/community
+    // plugins and propose canonical settings. Provenance-traced on apply.
+    this.pluginConfig = new PluginConfigService(
+      new ObsidianPluginConfigHost(this.app),
+      defaultProfiles(),
+      this.v2?.provenance ?? null,
+    );
     this.skills = new SkillRuntime(this.app, this.entityService, this.search, this.query, () => this.copilot);
     if (this.copilot) this.skills.bindToCopilot(this.copilot.toolUse);
     // Route every Copilot tool call through the approval gate.
@@ -522,6 +533,10 @@ export default class SauceGraphPlugin extends Plugin {
       else if (r.html) el.appendChild(r.html);
       else if (r.text) el.createEl("pre", { text: r.text });
     });
+    // Plugin auto-config dashboard — renders into _PLUGIN-CONFIG.md.
+    this.registerMarkdownCodeBlockProcessor("sauce-plugin-config", (_src, el) =>
+      void renderPluginConfigBlock(el, this),
+    );
 
     console.log("Sauce Graph loaded");
   }
@@ -649,6 +664,13 @@ export default class SauceGraphPlugin extends Plugin {
       new Notice("Rebuilding LanceDB index…");
       const n = await this.mirrorSync.fullResync();
       new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
+    } });
+    this.addCommand({ id: "plugin-auto-config", name: "Plugin auto-config (detect + apply canonical settings)", callback: () => {
+      const m = new Modal(this.app);
+      m.modalEl.addClass("sauce-modal");
+      m.titleEl.setText("Plugin auto-configuration");
+      void renderPluginConfigBlock(m.contentEl.createDiv({ cls: "sauce-section" }), this);
+      m.open();
     } });
     this.addCommand({ id: "enrich-current-note", name: "Enrich current note (classify / tag / graph)", checkCallback: (checking) => {
       const file = this.app.workspace.getActiveFile();
