@@ -28,7 +28,7 @@ const TABS: TabDef[] = [
   { id: "TAB-COPILOT",      label: "Copilot",      tooltip: "Your AI assistant — pick a provider and tune it",                                           icon: "sparkles",     render: renderCopilot },
   { id: "TAB-COMMAND",      label: "Commands",     tooltip: "Slash commands and editor menu actions — toggle, edit, and add prompts",                   icon: "terminal",     render: renderCommand },
   { id: "TAB-SKILLS",       label: "Skills",       tooltip: "AI helpers that run when you ask — turn on what you need",                                  icon: "zap",          render: renderSkills },
-  { id: "TAB-INTEGRATIONS", label: "Integrations", tooltip: "Connect Google / Microsoft / Apple / Notion / Twilio / Email / Web Search",                 icon: "plug",         render: renderIntegrations },
+  { id: "TAB-INTEGRATIONS", label: "Integrations", tooltip: "AI providers, 3rd-party tools (Google / Microsoft / Notion / Twilio …), and community plugins", icon: "plug",         render: renderIntegrations },
   { id: "TAB-DATA",         label: "Data",         tooltip: "Backups; import; export; map; database; sync schedule",                                     icon: "database",     render: renderData },
   { id: "TAB-ADVANCED",     label: "Advanced",     tooltip: "Security; AI inference tuning; diagnostics; about",                                         icon: "wrench",       render: renderAdvanced },
 ];
