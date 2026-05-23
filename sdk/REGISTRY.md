@@ -1,7 +1,7 @@
 <!-- GENERATED — aggregated from sdk/groups/**/*.md member contracts. Do not edit by hand. -->
 # Sauce CRM SDK — Registry
 
-Total members: 27
+Total members: 28
 
 ## actions
 
@@ -23,6 +23,7 @@ Total members: 27
 
 | id | platform | summary |
 | --- | --- | --- |
+| `google` | [desktop, mobile] | Google connector: pure request builder + response parser over requesturl-fetch; OAuth bearer token from caller. |
 | `websearch` | [desktop, mobile] | Web-search connector — pure request builder + response parser over requesturl-fetch. |
 ## helpers
 
