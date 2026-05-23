@@ -95,3 +95,57 @@ describe("ModelCatalog", () => {
     expect(events.map(e => e.name)).toContain("model_catalog.hit");
   });
 });
+
+describe("ModelCatalog — OpenAI live wiring + endpoint normalization", () => {
+  function openAiFetch() {
+    const calls: string[] = [];
+    const impl = vi.fn(async (url: string) => {
+      calls.push(url);
+      if (url.includes("api.openai.com") || url.endsWith("/v1/models")) {
+        return new Response(JSON.stringify({ data: [
+          { id: "gpt-4o" }, { id: "gpt-4.1-mini" }, { id: "o3" },
+          { id: "text-embedding-3-small" }, { id: "whisper-1" }, { id: "dall-e-3" },
+          { id: "gpt-4o-realtime-preview" }, { id: "omni-moderation-latest" },
+        ] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("nope", { status: 404 });
+    });
+    return { impl, calls };
+  }
+
+  it("fetches live OpenAI models when an API key is present, filtered to chat models", async () => {
+    const { impl } = openAiFetch();
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    const models = await cat.list({ provider: "openai", apiKey: "sk-test" });
+    const ids = models.map((m) => m.id);
+    expect(ids).toEqual(["gpt-4.1-mini", "gpt-4o", "o3"]); // sorted, chat-only
+    expect(ids).not.toContain("text-embedding-3-small");
+    expect(ids).not.toContain("whisper-1");
+    expect(ids).not.toContain("dall-e-3");
+    expect(ids).not.toContain("gpt-4o-realtime-preview");
+    expect(ids).not.toContain("omni-moderation-latest");
+  });
+
+  it("falls back to the curated list when no API key is set", async () => {
+    const { impl, calls } = openAiFetch();
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    const models = await cat.list({ provider: "openai" });
+    expect(models.some((m) => m.id === "gpt-4o")).toBe(true);
+    expect(calls.length).toBe(0); // no network call without a key
+  });
+
+  it("falls back to curated on an OpenAI fetch error", async () => {
+    const impl = vi.fn(async () => new Response("unauthorized", { status: 401 }));
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    const models = await cat.list({ provider: "openai", apiKey: "sk-bad" });
+    expect(models.some((m) => m.id === "gpt-4o")).toBe(true);
+  });
+
+  it("does not produce /v1/v1/models when the endpoint already ends in /v1", async () => {
+    const { impl, calls } = openAiFetch();
+    const cat = new ModelCatalog(impl as unknown as typeof fetch);
+    await cat.list({ provider: "lmstudio", endpoint: "http://localhost:1234/v1" });
+    expect(calls[0]).toBe("http://localhost:1234/v1/models");
+    expect(calls[0]).not.toContain("/v1/v1/");
+  });
+});

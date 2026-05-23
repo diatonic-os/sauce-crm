@@ -4,11 +4,15 @@
 //
 // Per-provider strategy:
 //   - ollama:    GET {endpoint}/api/tags         → models[].name
-//   - lmstudio:  LMStudioModelManager.listDownloaded() (SDK)
-//                fallback: GET {endpoint}/v1/models (REST)
-//   - openai:    static curated list (catalog is auth-walled)
-//   - anthropic: static curated list
+//   - lmstudio:  GET {endpoint}/v1/models (REST)  → data[].id
+//   - openai:    GET {endpoint}/v1/models with the API key → data[].id, filtered
+//                to chat-capable models; static curated list when no key / on error
+//   - anthropic: static curated list (no public catalog endpoint)
 //   - nim:       GET https://integrate.api.nvidia.com/v1/models (public)
+//
+// Endpoint normalization: callers may configure a base with or without a
+// trailing `/v1` (the chat baseUrl usually includes it). `modelsUrl` strips a
+// trailing `/v1` before appending `/v1/models` so we never hit `/v1/v1/models`.
 //
 // Catalog is cached per (provider, endpoint) for 30s. Every fetch emits a
 // telemetry event so we can observe cache hit rates + provider reachability
@@ -45,9 +49,11 @@ const STATIC: Record<"openai" | "anthropic", CatalogModel[]> = {
   openai: [
     { id: "gpt-4o", label: "GPT-4o", family: "gpt-4" },
     { id: "gpt-4o-mini", label: "GPT-4o mini", family: "gpt-4" },
-    { id: "gpt-4-turbo", label: "GPT-4 Turbo", family: "gpt-4" },
-    { id: "o1-mini", label: "o1-mini", family: "o1" },
-    { id: "o1-preview", label: "o1-preview", family: "o1" },
+    { id: "gpt-4.1", label: "GPT-4.1", family: "gpt-4" },
+    { id: "gpt-4.1-mini", label: "GPT-4.1 mini", family: "gpt-4" },
+    { id: "o3", label: "o3", family: "o3" },
+    { id: "o4-mini", label: "o4-mini", family: "o4" },
+    { id: "o1", label: "o1", family: "o1" },
   ],
   anthropic: [
     { id: "claude-opus-4-7", label: "Claude Opus 4.7", family: "claude-4" },
@@ -60,6 +66,19 @@ const STATIC: Record<"openai" | "anthropic", CatalogModel[]> = {
 function cacheKey(ctx: CatalogContext): string {
   return `${ctx.provider}::${(ctx.endpoint ?? "").replace(/\/+$/, "")}`;
 }
+
+/** `<base>/v1/models`, tolerating a base that already ends in `/v1` or has
+ *  trailing slashes — prevents `/v1/v1/models`. */
+function modelsUrl(endpoint: string): string {
+  const base = endpoint.replace(/\/+$/, "").replace(/\/v1$/, "");
+  return `${base}/v1/models`;
+}
+
+// Which OpenAI model ids the picker should surface — chat/completion models
+// only, excluding embeddings / audio / image / moderation / realtime variants
+// that share the gpt-/o-prefix but aren't chat completions.
+const OPENAI_CHAT_RE = /^(gpt-|o1|o3|o4|chatgpt)/i;
+const OPENAI_EXCLUDE_RE = /(embedding|whisper|tts|dall-e|audio|transcribe|realtime|moderation|image|search|computer-use|instruct)/i;
 
 export class ModelCatalog {
   private cache = new Map<string, CacheEntry>();
@@ -91,7 +110,7 @@ export class ModelCatalog {
         case "ollama":    models = await this.fetchOllama(ctx); break;
         case "lmstudio":  models = await this.fetchLmStudio(ctx); break;
         case "nim":       models = await this.fetchNim(ctx); break;
-        case "openai":    models = STATIC.openai; break;
+        case "openai":    models = await this.fetchOpenAI(ctx); break;
         case "anthropic": models = STATIC.anthropic; break;
       }
       log?.event("model_catalog.miss", { provider: ctx.provider, count: models.length });
@@ -123,8 +142,7 @@ export class ModelCatalog {
   }
 
   private async fetchLmStudio(ctx: CatalogContext): Promise<CatalogModel[]> {
-    const endpoint = ctx.endpoint || "http://localhost:1234";
-    const url = `${endpoint.replace(/\/+$/, "")}/v1/models`;
+    const url = modelsUrl(ctx.endpoint || "http://localhost:1234");
     const r = await (ctx.fetch ?? this.fetchImpl)(url, {
       headers: ctx.apiKey ? { authorization: `Bearer ${ctx.apiKey}` } : undefined,
     });
@@ -138,8 +156,7 @@ export class ModelCatalog {
   }
 
   private async fetchNim(ctx: CatalogContext): Promise<CatalogModel[]> {
-    const endpoint = ctx.endpoint || "https://integrate.api.nvidia.com";
-    const url = `${endpoint.replace(/\/+$/, "")}/v1/models`;
+    const url = modelsUrl(ctx.endpoint || "https://integrate.api.nvidia.com");
     const r = await (ctx.fetch ?? this.fetchImpl)(url, {
       headers: ctx.apiKey ? { authorization: `Bearer ${ctx.apiKey}` } : undefined,
     });
@@ -150,6 +167,25 @@ export class ModelCatalog {
       label: m.id ?? "unknown",
       family: m.owned_by,
     }));
+  }
+
+  /** Live OpenAI catalog via GET /v1/models (requires the API key). Filters to
+   *  chat-capable models and sorts. Falls back to the curated list when no key
+   *  is configured or the response yields no chat models. */
+  private async fetchOpenAI(ctx: CatalogContext): Promise<CatalogModel[]> {
+    if (!ctx.apiKey) return STATIC.openai; // catalog is auth-walled
+    const url = modelsUrl(ctx.endpoint || "https://api.openai.com");
+    const r = await (ctx.fetch ?? this.fetchImpl)(url, {
+      headers: { authorization: `Bearer ${ctx.apiKey}` },
+    });
+    if (!r.ok) throw new Error(`openai ${r.status}`);
+    const body = (await r.json()) as { data?: Array<{ id?: string; owned_by?: string }> };
+    const chat = (body.data ?? [])
+      .map((m) => m.id ?? "")
+      .filter((id) => OPENAI_CHAT_RE.test(id) && !OPENAI_EXCLUDE_RE.test(id))
+      .sort();
+    if (!chat.length) return STATIC.openai;
+    return chat.map((id) => ({ id, label: id, family: id.split(/[-.]/)[0] }));
   }
 }
 
