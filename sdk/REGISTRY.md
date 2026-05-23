@@ -1,7 +1,7 @@
 <!-- GENERATED — aggregated from sdk/groups/**/*.md member contracts. Do not edit by hand. -->
 # Sauce CRM SDK — Registry
 
-Total members: 31
+Total members: 34
 
 ## actions
 
@@ -20,6 +20,9 @@ Total members: 31
 | id | platform | summary |
 | --- | --- | --- |
 | `crm-card` | [desktop, mobile] | Headless CRM card builder — every style bound to a generated CSS token (zero literals). |
+| `inbox-view` | [desktop, mobile] | Headless inbox list — pending-item rows styled only via cssTokens. |
+| `setting-row` | [desktop, mobile] | Headless setting-row builder — label + optional description, styled only via cssTokens. |
+| `touch-timeline` | [desktop, mobile] | Headless touch-timeline — ordered touch rows styled only via cssTokens. |
 ## connectors
 
 | id | platform | summary |
