@@ -1,12 +1,14 @@
 import {
   Menu,
   Modal,
+  Platform,
   Plugin,
   TFile,
   WorkspaceLeaf,
   Notice,
   MarkdownView,
 } from "obsidian";
+import { injectMobileStyles } from "./ui/MobileStyles";
 import {
   EntityService,
   DEFAULT_PATHS,
@@ -377,6 +379,15 @@ export default class SauceGraphPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+
+    // Mobile (Apple-native) optimization: inject the .is-mobile stylesheet and
+    // surface a one-tap quick-capture ribbon for on-the-go recording.
+    if (Platform.isMobile) {
+      this.register(injectMobileStyles());
+      this.addRibbonIcon("plus-circle", "Sauce: Quick capture", () =>
+        new QuickCaptureModal(this.app, this).open(),
+      );
+    }
 
     // Register custom CRM glyphs (sauce-person, sauce-org, sauce-touch,
     // sauce-copilot, …) before any view/ribbon/setIcon call. Idempotent.
