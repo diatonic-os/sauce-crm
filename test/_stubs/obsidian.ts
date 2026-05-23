@@ -261,6 +261,12 @@ export const Platform = {
   isSafari: false,
   resourcePathPrefix: "",
 };
-export async function requestUrl(_init: unknown): Promise<{ status: number; text: string; json: unknown; headers: Record<string, string> }> {
-  return { status: 200, text: "", json: {}, headers: {} };
+export async function requestUrl(
+  init: unknown,
+): Promise<{ status: number; text: string; json: unknown; headers: Record<string, string> }> {
+  const url = typeof init === "string" ? init : ((init as { url?: string })?.url ?? "");
+  const method = typeof init === "object" && init ? ((init as { method?: string }).method ?? "GET") : "GET";
+  // Echo into headers (back-compat: status/text/json unchanged) so wrappers can
+  // assert request pass-through in tests.
+  return { status: 200, text: "", json: {}, headers: { "x-echo-url": url, "x-echo-method": method } };
 }
