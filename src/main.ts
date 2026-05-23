@@ -419,7 +419,7 @@ export default class SauceGraphPlugin extends Plugin {
         .onClick(() => this.runPathPrompt()));
       m.showAtMouseEvent(event);
     });
-    this.addRibbonIcon("sauce-copilot", "Sauce CRM — Copilot & AI", (event) => {
+    this.addRibbonIcon("bot", "Sauce CRM — Copilot & AI", (event) => {
       const m = new Menu();
       m.addItem((i) => i.setTitle("Open Copilot Chat").setIcon("sauce-copilot")
         .onClick(() => this.openView(VIEW_COPILOT_CHAT)));
