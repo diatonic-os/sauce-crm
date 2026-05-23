@@ -14,3 +14,6 @@
 {"_t":"ev","ts":"2026-05-23T00:01:00","actor":"orchestrator","action":"merge","entityId":"T-C2-01","hash":"ff0903e","note":"SearchService"}
 {"_t":"ev","ts":"2026-05-23T00:01:05","actor":"orchestrator","action":"merge","entityId":"T-C3-01","hash":"15e7515","note":"ContentService"}
 {"_t":"ev","ts":"2026-05-23T00:01:02","actor":"orchestrator","action":"merge","entityId":"T-C4-01","hash":"5603700","note":"MetaService"}
+{"_t":"ev","ts":"2026-05-23T00:02:01Z","actor":"orchestrator","action":"merge","entityId":"T-F-01","hash":"2097885","note":"introspector+schema"}
+{"_t":"ev","ts":"2026-05-23T00:02:02Z","actor":"orchestrator","action":"merge","entityId":"T-F-02","hash":"88407c9","note":"tasks.ts codegen"}
+{"_t":"ev","ts":"2026-05-23T00:02:03Z","actor":"orchestrator","action":"merge","entityId":"T-F-03","hash":"8e7e7f0","note":"ci sdk:check gate"}
