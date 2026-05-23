@@ -46,12 +46,12 @@ Recommend doing it on `dev` before merging the contract branch, NOT inside a T-*
 
 ---
 
-## BLOCKER-2 — Obsidian CLI disabled (blocks SH-F)
+## BLOCKER-2 — ✅ RESOLVED (operator enabled the Obsidian CLI, 2026-05-23)
 
-`obsidian eval` returns "Command line interface is not enabled" (Settings › General ›
-Advanced). Blocks A-005/A-006 empirical verification + SH-F (tasks-API auto-enumeration).
-SH-F stays `BLOCKED`; re-checked each iteration. Operator action: enable the CLI.
-All other shards proceed against documented API shapes. See [[obsidian-cli-disabled]] memory.
+`obsidian eval` now works. Ran the mandated enumeration: **A-005 PASS** (community +
+core plugins enumerable), **A-006 PASS** (tasks `apiV1` = exactly the 3 documented
+methods). Empirical JSON recorded in `plan/obs-integ/00-validate.md`. **SH-F is
+unblocked** (introspector can run `obsidian eval` against the live vault).
 
 ---
 

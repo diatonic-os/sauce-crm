@@ -15,14 +15,20 @@ The mandated first command:
 obsidian eval code="JSON.stringify({community:Object.keys(app.plugins.plugins).sort(),core:Object.keys(app.internalPlugins.plugins).sort(),tasksApi:Object.keys(app.plugins.plugins['obsidian-tasks-plugin']?.apiV1||{}).sort()})"
 ```
 
-**Result:** `obsidian` is on PATH (`/usr/bin/obsidian`) but the CLI is disabled:
+**Result (CLI enabled by operator 2026-05-23 — A-005/A-006 now empirically PASS):**
 
-```
-Command line interface is not enabled. Please turn it on in Settings > General > Advanced.
+```json
+{"community":["copilot","dataview","hot-reload","obsidian-tasks-plugin","sauce-crm","templater-obsidian"],
+ "core":["audio-recorder","backlink","bases","bookmarks","canvas","command-palette","daily-notes","editor-status","file-explorer","file-recovery","footnotes","global-search","graph","markdown-importer","note-composer","outgoing-link","outline","page-preview","properties","publish","random-note","slash-command","slides","switcher","sync","tag-pane","templates","webviewer","word-count","workspaces","zk-prefixer"],
+ "tasksApi":["createTaskLineModal","editTaskLineModal","executeToggleTaskDoneCommand"]}
 ```
 
-→ A-005 / A-006 **cannot be empirically confirmed** in this environment. No JSON dumped. **I will not fabricate the output.**
-This is **escalation trigger: "a task requires tools not available in this scope."** It hard-blocks **SH-F** (T-F-01 introspector runs via `obsidian eval`) and the empirical half of A-005/A-006. All other shards reference the *documented* API shapes (TOON `integration`/`corewrap` entries + the Tasks `apiV1` doc) and are testable with vitest mocks, so they are **not** blocked by this — but their `detect()`/`optimize()` against a live vault must be re-verified once the CLI is enabled.
+- **A-005 → PASS.** `app.plugins.plugins` (community) and `app.internalPlugins.plugins` (core) are both enumerable. Confirmed.
+- **A-006 → PASS as written.** `obsidian-tasks-plugin.apiV1` has **exactly** the 3 documented methods — no extras. `TasksAdapter`'s `TasksApiV1` interface is complete; SH-F introspector output is deterministic. **SH-F is UNBLOCKED.**
+
+**Findings carried forward:**
+- Installed community plugins here: copilot, dataview, hot-reload, obsidian-tasks-plugin, sauce-crm, templater-obsidian. **NOT installed:** obsidian-kanban, obsidian-meta-bind-plugin, quickadd, obsidian42-brat → B3–B6 adapters correctly `detect()` not-installed; their canonical IDs stand.
+- **Canonical core plugin IDs** differ from some CW-* labels (no code impact — core services use injected hosts, not literal ID lookups). Correct IDs for any future internalPlugins wiring: search→`global-search`, backlinks→`backlink`, outgoing-links→`outgoing-link`, quick-switcher→`switcher`, tags-view→`tag-pane`, unique-note-creator→`zk-prefixer`, format-converter→`markdown-importer`, properties-view→`properties`, web-viewer→`webviewer`, slash-commands→`slash-command`.
 
 ---
 
