@@ -68,24 +68,51 @@ body.is-mobile .sauce-section { padding: var(--sg-gap-8); }
 body.is-mobile .sauce-settings-section-title { font-size: 1.05em; }
 body.is-mobile .sauce-card { padding: var(--sg-gap-8); }
 body.is-mobile .sauce-card-foot { flex-direction: column; align-items: stretch; }
+/* Safe-area gutter so the last settings row clears the home indicator. */
+body.is-mobile .sauce-settings { padding-bottom: calc(var(--sg-gap-21) + var(--sg-mobile-bottom)); }
+/* Integration rail entries get a full tap target when the rail goes horizontal
+   (the column→row stack itself is handled by the width media query). */
+body.is-mobile .sg-rail-btn { min-height: var(--sg-tap-min); }
 
 /* --- Modals: full-width content + safe-area + scroll (Obsidian already
    near-fullscreens modals on phone; we avoid repositioning its container and
-   just optimize the content + a thumb-reachable footer). --- */
+   just optimize the content + a thumb-reachable footer). The field modals
+   (Person/Org/QuickCapture) render directly into .modal-content with NO
+   .sauce-section wrapper, so we scroll .modal-content itself — the previous
+   rule targeted only .sauce-section and was dead for those modals. --- */
 body.is-mobile .sauce-modal {
   padding-bottom: calc(var(--sg-gap-13) + var(--sg-mobile-bottom));
 }
+body.is-mobile .sauce-modal .modal-content,
 body.is-mobile .sauce-modal .sauce-section {
-  max-height: 72vh;
+  max-height: 80vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+/* Field rows: tokenized rhythm that out-specifies Obsidian core's
+   .is-mobile .setting-item rule (which otherwise dictates the spacing). Label
+   stacks above a full-width control with a consistent label-to-control gap. */
+body.is-mobile .sauce-modal .setting-item {
+  display: block;
+  padding: var(--sg-row-gap) 0;
+}
+body.is-mobile .sauce-modal .setting-item-info { margin-bottom: var(--sg-field-gap); }
+body.is-mobile .sauce-modal .setting-item-control {
+  width: 100%;
+  justify-content: flex-start;
+  margin-top: var(--sg-field-gap);
+}
+/* Sticky footer: a divider + safe-area bottom so the action row stays
+   reachable and clears the home indicator instead of overlapping content. */
 body.is-mobile .sauce-modal .sauce-button-row,
-body.is-mobile .sauce-modal .sauce-buttons {
+body.is-mobile .sauce-modal .sauce-buttons,
+body.is-mobile .sauce-modal .sauce-modal-footer {
   position: sticky;
   bottom: 0;
   background: var(--background-primary);
-  padding-top: var(--sg-gap-5);
+  padding-top: var(--sg-gap-8);
+  padding-bottom: calc(var(--sg-gap-5) + var(--sg-mobile-bottom));
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 /* --- Copilot view: stacked model picker, big composer above the home bar --- */
