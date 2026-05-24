@@ -1288,6 +1288,42 @@ select.sauce-input {
   background-size: 12px;
 }
 
+/* ===== SHARED COMPONENT: InlineStatus (.sg-inline-status) =====
+   Reusable transient success/failure line (idle/pending/success/error) used by
+   the onboarding wizard, credentials modal, and provider settings so feedback
+   is inline + persistent rather than a one-shot Notice toast. */
+.sg-inline-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sg-gap-5);
+  font-size: 0.85em;
+  min-height: 1.4em;
+  overflow-wrap: anywhere;
+}
+.sg-inline-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.sg-inline-status--pending { color: var(--text-muted); }
+.sg-inline-status--success { color: var(--text-success, var(--color-green)); }
+.sg-inline-status--success .sg-inline-status-icon {
+  background: var(--color-green);
+  color: var(--text-on-accent, #fff);
+}
+.sg-inline-status--error { color: var(--text-error, var(--color-red)); }
+.sg-inline-status--error .sg-inline-status-icon {
+  background: var(--color-red);
+  color: var(--text-on-accent, #fff);
+}
+
 /* ===== SURFACE: PRIMITIVES (Agent E) — components/** + widgets/** =====
    Scope: card/button/section-row/badge inter-control gap normalization,
    empty-state + status-row container↔child padding. */
