@@ -1324,6 +1324,76 @@ select.sauce-input {
   color: var(--text-on-accent, #fff);
 }
 
+/* ===== SURFACE: ONBOARDING WIZARD (.sauce-onboarding-*) =====
+   Most of these classes had no definitions, leaving the wizard cramped
+   (Image #1). Tokenized layout for the multi-step flow. */
+.sauce-onboarding-step-indicator {
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.sauce-onboarding-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-stack-gap);
+  margin: 0;
+  padding-inline-start: var(--sg-gap-21);
+}
+.sauce-onboarding-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-stack-gap);
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+}
+.sauce-onboarding-summary li {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-inline-gap);
+  overflow-wrap: anywhere;
+}
+.sauce-onboarding-active {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-stack-gap);
+}
+.sauce-onboarding-provider-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-stack-gap);
+  padding: var(--sg-card-pad);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-md);
+}
+/* Flatten nested setting-items so cards inside the provider card don't double
+   up the card chrome from .sauce-modal .setting-item. */
+.sauce-onboarding-provider-card .setting-item {
+  background: transparent;
+  border: none;
+  padding: var(--sg-field-gap) 0;
+  margin: 0;
+}
+.sauce-onboarding-skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-field-gap);
+  max-height: var(--sg-h-144);
+  overflow-y: auto;
+  padding: var(--sg-gap-8);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-sm);
+}
+.sauce-onboarding-skill-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-gap-8);
+  min-height: var(--sg-tap-min);
+}
+
 /* ===== SURFACE: PRIMITIVES (Agent E) — components/** + widgets/** =====
    Scope: card/button/section-row/badge inter-control gap normalization,
    empty-state + status-row container↔child padding. */
@@ -1359,6 +1429,7 @@ select.sauce-input {
   white-space: nowrap;
 }
 .sg-pill-info { background: var(--interactive-accent); color: var(--text-on-accent); }
+.sg-pill-success { background: var(--color-green); color: var(--text-on-accent, #fff); }
 .sg-pill-warning { background: var(--color-orange); color: var(--text-on-accent, #fff); }
 .sg-pill-error { background: var(--color-red); color: var(--text-on-accent, #fff); }
 .sg-pill-neutral { background: var(--background-modifier-border); color: var(--text-muted); }
