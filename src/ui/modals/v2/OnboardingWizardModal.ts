@@ -14,13 +14,16 @@
 // mirrored into plugin settings so chat works immediately. Non-active keys live
 // encrypted in the vault, ready for activation or the P15 runtime swap.
 
-import { App, Modal, Notice, Setting } from "obsidian";
+import { App, Modal, Notice, Platform, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { TemplateService } from "../../../services/TemplateService";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import { InlineStatus } from "../../components/v2/InlineStatus";
 import { testProviderConnection } from "../../../copilot/testProviderConnection";
-import { detectLmStudioEndpoint } from "../../../copilot/detectLmStudioEndpoint";
+import {
+  detectLmStudioEndpoint,
+  scanLanForLmStudio,
+} from "../../../copilot/detectLmStudioEndpoint";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
 import type { LocalProviderId } from "../../../settings/FeatureSettings";
 
@@ -448,8 +451,14 @@ export class OnboardingWizardModal extends Modal {
         cls: "sauce-button sauce-button-secondary",
       });
       detectBtn.onclick = () => void this.runLmDetect(status, endpointInput);
-      // Run once when the providers step first opens so the endpoint is
-      // pre-filled the moment the user reaches (or selects) LM Studio.
+      const scanBtn = btns.createEl("button", {
+        text: "Scan my LAN",
+        cls: "sauce-button sauce-button-secondary",
+      });
+      scanBtn.disabled = !Platform.isDesktopApp;
+      scanBtn.onclick = () => void this.runLmScan(status, endpointInput, scanBtn);
+      // Run quick (localhost + host-IP) detect once when the step first opens
+      // so the endpoint is pre-filled; the LAN sweep stays manual.
       if (!this.lmDetectRan) {
         this.lmDetectRan = true;
         void this.runLmDetect(status, endpointInput);
@@ -495,8 +504,41 @@ export class OnboardingWizardModal extends Modal {
       status.success(`Found LM Studio at ${r.endpoint} (${r.source})`);
     } else {
       status.error(
-        "LM Studio not found on localhost or this host's LAN. Start its server (Developer ▸ Start Server, port 1234) or paste the endpoint above.",
+        "LM Studio not found on localhost or this host's LAN. Start its server (Developer ▸ Start Server, port 1234), paste the endpoint above, or scan the LAN.",
       );
+    }
+  }
+
+  /** Sweep the host's LAN /24(s) for LM Studio on another machine. */
+  private async runLmScan(
+    status: InlineStatus,
+    endpointInput: HTMLInputElement | null,
+    btn: HTMLButtonElement,
+  ): Promise<void> {
+    if (!Platform.isDesktopApp) {
+      status.error("LAN scan needs desktop Obsidian.");
+      return;
+    }
+    btn.disabled = true;
+    status.pending("Scanning LAN…");
+    try {
+      const r = await scanLanForLmStudio({
+        onProgress: ({ scanned, total }) =>
+          status.pending(`Scanning LAN… ${scanned}/${total}`),
+      });
+      if (r.endpoint) {
+        this.localCfg("lmstudio").endpoint = r.endpoint;
+        if (this.activeProvider === "lmstudio") this.syncActive();
+        await this.plugin.saveSettings();
+        if (endpointInput) endpointInput.value = r.endpoint;
+        status.success(`Found LM Studio at ${r.endpoint} (LAN scan)`);
+      } else {
+        status.error(
+          `No LM Studio found across ${r.total} LAN host${r.total === 1 ? "" : "s"}. Start its server (port 1234) or paste the endpoint above.`,
+        );
+      }
+    } finally {
+      btn.disabled = false;
     }
   }
 

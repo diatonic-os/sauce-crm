@@ -1,11 +1,14 @@
 // V2 copilot section. Uses ProviderPicker (auto model indexing) instead of
 // free-text inputs so users pick from a live, per-provider catalog.
-import { Setting } from "obsidian";
+import { Platform, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import { InlineStatus } from "../../components/v2/InlineStatus";
 import { testProviderConnection } from "../../../copilot/testProviderConnection";
-import { detectLmStudioEndpoint } from "../../../copilot/detectLmStudioEndpoint";
+import {
+  detectLmStudioEndpoint,
+  scanLanForLmStudio,
+} from "../../../copilot/detectLmStudioEndpoint";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
 import { renderRagEmbeddings } from "./rag";
 import { renderEnrichment } from "./enrichment";
@@ -92,8 +95,39 @@ export function renderCopilot(
       status.success(`Found LM Studio at ${r.endpoint} (${r.source})`);
     } else {
       status.error(
-        "LM Studio not found on localhost or this host's LAN. Start its server (port 1234) or paste the endpoint above.",
+        "LM Studio not found on localhost or this host's LAN. Start its server (port 1234), paste the endpoint, or scan the LAN.",
       );
+    }
+  };
+  const runLmScan = async (
+    status: InlineStatus,
+    epInput: HTMLInputElement | null,
+    btn: HTMLButtonElement,
+  ): Promise<void> => {
+    if (!Platform.isDesktopApp) {
+      status.error("LAN scan needs desktop Obsidian.");
+      return;
+    }
+    btn.disabled = true;
+    status.pending("Scanning LAN…");
+    try {
+      const r = await scanLanForLmStudio({
+        onProgress: ({ scanned, total }) =>
+          status.pending(`Scanning LAN… ${scanned}/${total}`),
+      });
+      if (r.endpoint) {
+        cfg.baseUrl = r.endpoint;
+        await plugin.saveSettings();
+        pushCopilotUpdate(plugin);
+        if (epInput) epInput.value = r.endpoint;
+        status.success(`Found LM Studio at ${r.endpoint} (LAN scan)`);
+      } else {
+        status.error(
+          `No LM Studio found across ${r.total} LAN host${r.total === 1 ? "" : "s"}. Start its server (port 1234) or paste the endpoint.`,
+        );
+      }
+    } finally {
+      btn.disabled = false;
     }
   };
   renderCred = () => {
@@ -138,6 +172,12 @@ export function renderCopilot(
         text: "Detect endpoint",
         cls: "sauce-button sauce-button-secondary",
       }).onclick = () => void runLmDetect(status, epInput);
+      const scanBtn = row.createEl("button", {
+        text: "Scan my LAN",
+        cls: "sauce-button sauce-button-secondary",
+      });
+      scanBtn.disabled = !Platform.isDesktopApp;
+      scanBtn.onclick = () => void runLmScan(status, epInput, scanBtn);
       // Autodetect the moment LM Studio is selected with no endpoint set.
       if (!cfg.baseUrl) void runLmDetect(status, epInput);
     }
