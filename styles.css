@@ -1106,6 +1106,66 @@
    Scope: Quick Capture textarea/hint/preview classes, slider field rows,
    modal field rhythm, footer. Tokens only. */
 /* >>> Agent A begin */
+/* Quick Capture (CDEL) — QuickCaptureModal emits these four classes but they
+   had no definitions, so the textarea + preview fell back to browser defaults.
+   Define them on tokens to match the rest of the modal design language. */
+.sauce-quick-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85em;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.sauce-quick-input {
+  width: 100%;
+  min-height: var(--sg-h-89);
+  padding: var(--sg-gap-8);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-sm);
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  font-size: 0.95em;
+  line-height: 1.4;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.sauce-quick-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--interactive-accent) inset;
+}
+.sauce-quick-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-field-gap);
+}
+.sauce-quick-preview-wrap strong {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.sauce-quick-preview {
+  margin: 0;
+  max-height: var(--sg-h-144);
+  overflow: auto;
+  padding: var(--sg-gap-8);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-sm);
+  font-family: var(--font-monospace);
+  font-size: 0.8em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Slider field rows (Closeness 1–5, etc.) — fill the row and keep a
+   comfortable tap height so the track isn't a raw thin band. Value is shown
+   via the control's dynamic tooltip (no behavior change). */
+.sauce-modal .setting-item-control:has(> input[type="range"]) { flex: 1 1 100%; }
+.sauce-modal input[type="range"] { width: 100%; min-height: var(--sg-tap-min); }
 /* <<< Agent A end */
 
 /* ===== SURFACE: VIEWS (Agent B) — views/** + svelte/*.svelte =====
