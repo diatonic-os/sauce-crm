@@ -8,6 +8,7 @@
 
 import { Modal, Notice, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
+import { InlineStatus } from "../../components/v2/InlineStatus";
 import {
   IntegrationCredentials,
   PROVIDER_MANIFESTS,
@@ -143,17 +144,23 @@ export class IntegrationCredentialsModal extends Modal {
       statusRow.createEl("span", { text: "Not connected." });
     }
 
+    const status = new InlineStatus(root);
     const btns = root.createDiv({ cls: "sg-creds-buttons" });
     btns.createEl("button", {
       cls: "sauce-button",
       text: "Save client config",
     }).onclick = async () => {
       if (!cid) {
-        new Notice("Client ID is required");
+        status.error("Client ID is required");
         return;
       }
-      await creds.configureOAuth(this.providerId, cid, csec || undefined);
-      new Notice("Saved to vault");
+      status.pending("Saving…");
+      try {
+        await creds.configureOAuth(this.providerId, cid, csec || undefined);
+        status.success("Client config saved to vault");
+      } catch (e: unknown) {
+        status.error(e instanceof Error ? e.message : String(e));
+      }
     };
     const connectBtn = btns.createEl("button", {
       cls: "sauce-button mod-cta",
@@ -161,19 +168,20 @@ export class IntegrationCredentialsModal extends Modal {
     });
     connectBtn.onclick = async () => {
       if (!cid) {
-        new Notice("Save client config first");
+        status.error("Save client config first");
         return;
       }
       // Make sure latest config is registered before authorize()
       await creds.configureOAuth(this.providerId, cid, csec || undefined);
       try {
+        status.pending("Waiting for browser…");
         connectBtn.setText("Waiting for browser…");
         connectBtn.setAttribute("disabled", "true");
         await creds.connectOAuth(this.providerId);
         new Notice(`${m.label} connected`);
         this.onOpen(); // refresh status
       } catch (e: unknown) {
-        new Notice(
+        status.error(
           `Connect failed: ${e instanceof Error ? e.message : String(e)}`,
         );
         connectBtn.removeAttribute("disabled");
@@ -215,26 +223,35 @@ export class IntegrationCredentialsModal extends Modal {
       });
     }
 
+    const status = new InlineStatus(root);
     const btns = root.createDiv({ cls: "sg-creds-buttons" });
     btns.createEl("button", {
       cls: "sauce-button mod-cta",
       text: "Save to vault",
     }).onclick = async () => {
-      for (const f of m.keyFields!) {
-        if (values[f.id])
-          await creds.putKey(this.providerId, f.id, values[f.id]);
+      status.pending("Saving…");
+      try {
+        for (const f of m.keyFields!) {
+          if (values[f.id])
+            await creds.putKey(this.providerId, f.id, values[f.id]);
+        }
+        status.success(`${m.label} credentials saved to vault`);
+      } catch (e: unknown) {
+        status.error(e instanceof Error ? e.message : String(e));
       }
-      new Notice(`${m.label} credentials saved`);
-      this.close();
     };
     btns.createEl("button", { cls: "sauce-button", text: "Clear" }).onclick =
       async () => {
-        for (const f of m.keyFields!) {
-          // empty string write so KeyVault.get returns "" rather than missing-key throw
-          await creds.putKey(this.providerId, f.id, "");
+        status.pending("Clearing…");
+        try {
+          for (const f of m.keyFields!) {
+            // empty string write so KeyVault.get returns "" rather than missing-key throw
+            await creds.putKey(this.providerId, f.id, "");
+          }
+          status.success("Cleared");
+        } catch (e: unknown) {
+          status.error(e instanceof Error ? e.message : String(e));
         }
-        new Notice("Cleared");
-        this.onOpen();
       };
   }
 

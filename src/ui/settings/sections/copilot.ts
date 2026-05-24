@@ -3,6 +3,8 @@
 import { Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
+import { InlineStatus } from "../../components/v2/InlineStatus";
+import { testProviderConnection } from "../../../copilot/testProviderConnection";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
 import { renderRagEmbeddings } from "./rag";
 import { renderEnrichment } from "./enrichment";
@@ -67,7 +69,9 @@ export function renderCopilot(
 
   new Setting(containerEl)
     .setName("API key")
-    .setDesc("Stored locally. Will move to keyvault in P15.")
+    .setDesc(
+      "Stored locally. Set keys for multiple providers (encrypted) via the onboarding wizard's KeyVault step.",
+    )
     .addText((t) => {
       t.inputEl.type = "password";
       t.setValue(cfg.apiKey ?? "").onChange(async (v) => {
@@ -76,6 +80,26 @@ export function renderCopilot(
         pushCopilotUpdate(plugin);
       });
     });
+
+  // Success/failure helper: verify the provider endpoint/key by listing models.
+  const connRow = containerEl.createDiv({ cls: "sg-section-row" });
+  const connStatus = new InlineStatus(connRow);
+  new Setting(connRow)
+    .setName("Connection")
+    .setDesc("List models to verify the provider endpoint and key.")
+    .addButton((b) =>
+      b.setButtonText("Test connection").onClick(async () => {
+        connStatus.pending("Testing…");
+        const r = await testProviderConnection({
+          provider: (cfg.provider ?? "anthropic") as ProviderId,
+          endpoint: cfg.baseUrl,
+          apiKey: cfg.apiKey,
+          logger: plugin.logger ?? null,
+        });
+        if (r.ok) connStatus.success(r.detail);
+        else connStatus.error(r.detail);
+      }),
+    );
 
   new Setting(containerEl)
     .setName("Temperature")
