@@ -1,5 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
+import os from "os";
 import { copyFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import builtins from "builtin-modules";
@@ -7,13 +8,23 @@ import esbuildSvelte from "esbuild-svelte";
 // svelte-preprocess imported lazily inside the plugin config so v6+
 // missing-submodule errors don't fail the whole build.
 
-const SUBVAULT_PLUGIN_DIR = "../Sauce_Relationship_Graph/.obsidian/plugins/sauce-crm";
+// Auto-deploy the built artifacts into every vault that already has the plugin
+// folder, so Hot Reload picks up main.js on each build. A target is skipped if
+// its vault (.obsidian) isn't present, so this is safe across machines.
+const DEPLOY_TARGETS = [
+  "../Sauce_Relationship_Graph/.obsidian/plugins/sauce-crm",
+  "../demo-vault/.obsidian/plugins/sauce-crm",
+  `${os.homedir()}/Documents/Sauce_Relationship_Graph/.obsidian/plugins/sauce-crm`,
+];
 const reinstallToSubVault = () => {
-  if (!existsSync(SUBVAULT_PLUGIN_DIR)) return;
-  for (const f of ["main.js", "manifest.json", "versions.json", "styles.css"]) {
-    if (existsSync(f)) {
-      try { mkdirSync(dirname(`${SUBVAULT_PLUGIN_DIR}/${f}`), { recursive: true }); } catch { /* ok */ }
-      copyFileSync(f, `${SUBVAULT_PLUGIN_DIR}/${f}`);
+  for (const dir of DEPLOY_TARGETS) {
+    // Only deploy where the vault exists (the .obsidian parent of the plugin dir).
+    if (!existsSync(dirname(dirname(dir)))) continue;
+    for (const f of ["main.js", "manifest.json", "versions.json", "styles.css"]) {
+      if (existsSync(f)) {
+        try { mkdirSync(dirname(`${dir}/${f}`), { recursive: true }); } catch { /* ok */ }
+        copyFileSync(f, `${dir}/${f}`);
+      }
     }
   }
 };
