@@ -16,19 +16,43 @@ export type LanceConnection = Lance.Connection;
 export type LanceTable = Lance.Table;
 
 /** Lazily resolve the native LanceDB module. Throws if unavailable — callers
- *  in require-install mode catch this and surface the install prompt. */
-export function loadLance(): LanceModule {
+ *  in require-install mode catch this and surface the install prompt.
+ *
+ *  Resolution: try the bare specifier first (works in dev/tests and any host
+ *  whose require() searches the plugin dir). Obsidian's RENDERER require, however,
+ *  resolves from Electron internals (require stack `electron/js2c/renderer_init`)
+ *  and never walks the plugin folder — so a require-install at
+ *  `<pluginDir>/node_modules` is invisible to it. When `pluginDir` is supplied we
+ *  fall back to an ABSOLUTE require into the plugin's own node_modules; the
+ *  package's transitive deps (apache-arrow, the platform .node) resolve as
+ *  siblings there. */
+/** Module cache: once resolved (by bare OR absolute path) we keep the instance
+ *  so later bare callers (e.g. LanceFtsIndex) don't re-resolve and fail — the
+ *  absolute-path require uses a different module-cache key than the bare one. */
+let cachedLance: LanceModule | null = null;
+
+export function loadLance(pluginDir?: string): LanceModule {
+  if (cachedLance) return cachedLance;
   const req =
     (globalThis as unknown as { require?: NodeRequire }).require ??
     (typeof require !== "undefined" ? require : undefined);
   if (typeof req !== "function") {
     throw new Error("require() unavailable; LanceDB needs Electron/Node host");
   }
-  return req("@lancedb/lancedb") as LanceModule;
+  try {
+    cachedLance = req("@lancedb/lancedb") as LanceModule;
+  } catch (bareErr) {
+    if (!pluginDir) throw bareErr;
+    cachedLance = req(`${pluginDir}/node_modules/@lancedb/lancedb`) as LanceModule;
+  }
+  return cachedLance;
 }
 
-export async function openLance(dataDir: string): Promise<LanceConnection> {
-  const lancedb = loadLance();
+export async function openLance(
+  dataDir: string,
+  pluginDir?: string,
+): Promise<LanceConnection> {
+  const lancedb = loadLance(pluginDir);
   return lancedb.connect(dataDir);
 }
 

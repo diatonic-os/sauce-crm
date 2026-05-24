@@ -36,16 +36,20 @@ export interface LanceDBCapability {
 }
 
 /** Pure detection — no install attempts. Returns mobile-unsupported on
- *  any non-Electron host (which has no native module loader). */
-export function detectLanceDB(): LanceDBStatus {
+ *  any non-Electron host (which has no native module loader).
+ *
+ *  `pluginDir` (absolute) enables the same resolution fallback `loadLance` uses:
+ *  Obsidian's renderer require() resolves from Electron internals and never the
+ *  plugin folder, so a bare `require("@lancedb/lancedb")` reports "Cannot find
+ *  module" even when the require-install landed it at `<pluginDir>/node_modules`.
+ *  We retry by absolute path so detection agrees with what the connection loads. */
+export function detectLanceDB(pluginDir?: string): LanceDBStatus {
   const proc = (
     globalThis as unknown as { process?: { versions?: { electron?: string } } }
   ).process;
   if (typeof proc?.versions?.electron !== "string") {
     return { state: "mobile-unsupported" };
   }
-  // `@lancedb/lancedb` is declared as an esbuild external — a normal
-  // require() call resolves at runtime via Electron's CommonJS loader.
   const req = (globalThis as unknown as { require?: NodeRequire }).require;
   if (typeof req !== "function") {
     return {
@@ -53,11 +57,16 @@ export function detectLanceDB(): LanceDBStatus {
       reason: "require() unavailable in this environment",
     };
   }
+  const resolve = (): { version?: string; default?: { version?: string } } => {
+    try {
+      return req("@lancedb/lancedb");
+    } catch (bareErr) {
+      if (pluginDir) return req(`${pluginDir}/node_modules/@lancedb/lancedb`);
+      throw bareErr;
+    }
+  };
   try {
-    const lance = req("@lancedb/lancedb") as {
-      version?: string;
-      default?: { version?: string };
-    };
+    const lance = resolve();
     const version = lance.version ?? lance.default?.version ?? "unknown";
     return { state: "available", version };
   } catch (err) {
@@ -89,8 +98,9 @@ export const DEFAULT_LANCEDB_DECISION: LanceDBInstallDecision = {
  *  modal on onload. */
 export function computeCapability(
   decision: LanceDBInstallDecision,
+  pluginDir?: string,
 ): LanceDBCapability {
-  const detect = detectLanceDB();
+  const detect = detectLanceDB(pluginDir);
   switch (detect.state) {
     case "available":
       return { status: detect, enabled: true, awaitingDecision: false };

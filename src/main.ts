@@ -471,6 +471,7 @@ export default class SauceGraphPlugin extends Plugin {
     // workspace.onLayoutReady (so the UI isn't blocked while we boot).
     this.lancedbCapability = computeCapability(
       this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
+      this.absPluginDir(),
     );
     this.app.workspace.onLayoutReady(() => {
       this.maybePromptLanceDBInstall();
@@ -1784,7 +1785,7 @@ export default class SauceGraphPlugin extends Plugin {
         this.settings.lancedb = { installDecision: next };
         await this.saveSettings();
         // Re-detect after a successful install attempt.
-        this.lancedbCapability = computeCapability(next);
+        this.lancedbCapability = computeCapability(next, this.absPluginDir());
       },
     }).open();
   }
@@ -1958,6 +1959,20 @@ export default class SauceGraphPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
     this.syncEmbeddingConfig();
+  }
+
+  /** Absolute on-disk plugin dir (desktop only; undefined on mobile). Native
+   *  LanceDB resolves paths against cwd and is require-installed into the
+   *  plugin's own node_modules, so absolute resolution needs this. */
+  absPluginDir(): string | undefined {
+    const a = this.app.vault.adapter as unknown as {
+      getBasePath?: () => string;
+      basePath?: string;
+    };
+    const base = a.getBasePath?.() ?? a.basePath ?? "";
+    return base
+      ? `${base}/${this.app.vault.configDir}/plugins/${this.manifest.id}`
+      : undefined;
   }
 
   /** MOB-BRIDGE-001 — construct the platform-appropriate memory backend.

@@ -35,8 +35,14 @@ export { LanceProvenanceStore } from "./LanceProvenanceStore";
 export { LanceDocChunkStore, type ChunkHit } from "./LanceDocChunkStore";
 
 export interface InitLanceOpts {
+  /** ABSOLUTE filesystem path for the Lance store. Native connect() resolves
+   *  relative paths against process.cwd() (not the vault), so callers MUST pass
+   *  an absolute dir. */
   dataDir: string;
   embeddingDim?: number;
+  /** Absolute plugin dir, used to resolve the native module from the plugin's
+   *  own node_modules when the host require() can't (Obsidian renderer). */
+  requireBase?: string;
 }
 
 export interface LanceBackend {
@@ -60,7 +66,7 @@ export async function initLanceBackend(
   opts: InitLanceOpts,
 ): Promise<LanceBackend> {
   const embeddingDim = opts.embeddingDim ?? DEFAULT_EMBEDDING_DIM;
-  const db = await openLance(opts.dataDir);
+  const db = await openLance(opts.dataDir, opts.requireBase);
 
   const [
     entities,

@@ -160,7 +160,20 @@ export interface V2Runtime {
 export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   const pluginId = plugin.manifest.id;
   const pluginDir = normalizePath(`${app.vault.configDir}/plugins/${pluginId}`);
-  const lanceDir = `${pluginDir}/data/lancedb`;
+  // Native LanceDB resolves paths against process.cwd() (NOT the vault) and is
+  // require-installed into the plugin's own node_modules. Both need the ABSOLUTE
+  // on-disk plugin dir, which the desktop FileSystemAdapter exposes via
+  // getBasePath(); on mobile there is no base path (and no LanceDB anyway).
+  const vaultBase =
+    (app.vault.adapter as unknown as { getBasePath?: () => string }).getBasePath?.() ??
+    (app.vault.adapter as unknown as { basePath?: string }).basePath ??
+    "";
+  const absPluginDir = vaultBase
+    ? `${vaultBase}/${app.vault.configDir}/plugins/${pluginId}`
+    : undefined;
+  const lanceDir = absPluginDir
+    ? `${absPluginDir}/data/lancedb`
+    : `${pluginDir}/data/lancedb`;
   const embeddingDim = (
     plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }
   ).settings?.lancedb?.embeddingDim;
@@ -171,10 +184,14 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   // and feature use is gated until the operator approves the install.
   let lance: LanceBackend | null = null;
   let backendKind: "lancedb" | "uninitialized" = "uninitialized";
-  const detect = detectLanceDB();
+  const detect = detectLanceDB(absPluginDir);
   if (detect.state === "available") {
     try {
-      lance = await initLanceBackend({ dataDir: lanceDir, embeddingDim });
+      lance = await initLanceBackend({
+        dataDir: lanceDir,
+        embeddingDim,
+        requireBase: absPluginDir,
+      });
       backendKind = "lancedb";
       console.log("Sauce V2 backend: LanceDB", {
         dir: lanceDir,
