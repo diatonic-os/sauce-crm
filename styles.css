@@ -1226,4 +1226,43 @@
    Scope: card/button/section-row/badge inter-control gap normalization,
    empty-state + status-row container↔child padding. */
 /* >>> Agent E begin */
+/* EmptyStateCard (components/v2) renders sg-empty-state-header/-title/-body/
+   -action + sg-pill*, none of which were defined — so the h3 title inherited a
+   large default heading margin, the header didn't lay out as a row, and the
+   status pill was unstyled. Define them on --sg-* tokens. (Existing
+   .sg-empty-state p already covers -body margin/colour; this is explicit.) */
+.sg-empty-state-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sg-inline-gap);
+  flex-wrap: wrap;
+}
+.sg-empty-state-title { margin: 0; font-size: 1.05em; font-weight: 600; }
+.sg-empty-state-body { margin: 0; color: var(--text-muted); line-height: 1.5; overflow-wrap: anywhere; }
+.sg-empty-state-action { align-self: flex-start; }
+.sg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sg-gap-3);
+  padding-inline: var(--sg-gap-8);
+  padding-block: var(--sg-gap-2);
+  border-radius: 999px;
+  font-size: 0.72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.sg-pill-info { background: var(--interactive-accent); color: var(--text-on-accent); }
+.sg-pill-warning { background: var(--color-orange); color: var(--text-on-accent, #fff); }
+.sg-pill-error { background: var(--color-red); color: var(--text-on-accent, #fff); }
+.sg-pill-neutral { background: var(--background-modifier-border); color: var(--text-muted); }
+
+/* Inter-control gap normalization: .sauce-card-foot used a raw 3px gap while
+   .sauce-button-row / .sauce-buttons use the 8px inline gap. Align the card
+   foot to the shared alias so footer buttons share one rhythm across cards. */
+.sauce-card-foot { gap: var(--sg-inline-gap); padding-top: var(--sg-field-gap); }
 /* <<< Agent E end */
