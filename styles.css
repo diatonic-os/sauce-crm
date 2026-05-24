@@ -1222,6 +1222,72 @@
 }
 /* <<< Agent C end */
 
+/* ===== SHARED COMPONENT: ProviderPicker (.sg-provider-picker) =====
+   Used by 5 surfaces (OnboardingWizard, LocalLLMPage, settings copilot/rag/
+   localllm). The .sg-pp-* classes were emitted by ProviderPicker.ts but had NO
+   definitions — so label + dropdown were unstyled, cramped, and the selects
+   lacked a dropdown affordance. Define them on --sg-* tokens with an aligned
+   label↔control grid + an explicit chevron. */
+.sg-provider-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-stack-gap);
+}
+.sg-pp-row {
+  display: grid;
+  grid-template-columns: minmax(var(--sg-w-89), max-content) 1fr;
+  align-items: center;
+  gap: var(--sg-inline-gap);
+}
+.sg-pp-row > label {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  font-weight: 500;
+}
+.sg-pp-row > select {
+  width: 100%;
+  min-height: var(--sg-tap-min);
+  padding-block: var(--sg-gap-5);
+  padding-inline: var(--sg-gap-8) var(--sg-gap-21);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-sm);
+  color: var(--text-normal);
+  font-size: 0.95em;
+  box-sizing: border-box;
+}
+.sg-pp-row > select:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--interactive-accent) inset;
+}
+.sg-pp-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-inline-gap);
+  flex-wrap: wrap;
+}
+.sg-pp-status { color: var(--text-muted); font-size: 0.85em; }
+@media (max-width: 640px) {
+  .sg-pp-row { grid-template-columns: 1fr; gap: var(--sg-field-gap); }
+}
+
+/* Dropdown affordance — explicit chevron on the plugin's own <select>s so
+   they read as dropdowns across platforms/themes. Scoped to plugin selects;
+   Obsidian's native .dropdown already paints its own arrow, so exclude it. */
+.sg-pp-row > select,
+.sauce-field select:not(.dropdown),
+.sauce-modal select:not(.dropdown),
+select.sauce-input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: var(--sg-gap-21);
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='12'%20height='12'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23888888'%20stroke-width='2.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6%209l6%206%206-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--sg-gap-8) center;
+  background-size: 12px;
+}
+
 /* ===== SURFACE: PRIMITIVES (Agent E) — components/** + widgets/** =====
    Scope: card/button/section-row/badge inter-control gap normalization,
    empty-state + status-row container↔child padding. */
