@@ -68,7 +68,7 @@
 
 <div class="sauce-view sauce-tasks">
   <header class="sauce-section-header">
-    <h3 style="margin:0">Tasks</h3>
+    <h3>Tasks</h3>
     <span class="sauce-field-help">
       {totals.all} total · {totals.todo} todo · {totals.in_progress} in progress · {totals.blocked} blocked · {totals.done} done
     </span>
@@ -108,7 +108,7 @@
     {#each groups as g}
       <section class="sauce-section">
         <header class="sauce-section-header">
-          <h4 style="margin:0">{g.status} <span class="sauce-badge">{g.rows.length}</span></h4>
+          <h4>{g.status} <span class="sauce-badge">{g.rows.length}</span></h4>
         </header>
         <ul class="sauce-tasks-list">
           {#each g.rows as t}

@@ -44,7 +44,7 @@
 
 <div class="sauce-view sauce-inbox">
   <header class="sauce-section-header">
-    <h3 style="margin:0">Inbox</h3>
+    <h3>Inbox</h3>
     <span class="sauce-field-help">
       {buckets.overdue.length} overdue · {buckets.today.length} today · {buckets.upcoming.length} upcoming
     </span>
@@ -60,7 +60,7 @@
     {#if rows.length > 0}
       <section class="sauce-section">
         <header class="sauce-section-header">
-          <h4 style="margin:0">{title}</h4>
+          <h4>{title}</h4>
           <span class="sauce-badge">{rows.length}</span>
         </header>
         <ul class="sauce-inbox-list">

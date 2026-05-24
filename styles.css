@@ -1172,6 +1172,26 @@
    Scope: dashboard KPI density, bar-chart label spacing, list-row rhythm,
    removal of inline style="margin:0" via tokenized header rules. */
 /* >>> Agent B begin */
+/* Section-header h4 reset — h3 is already covered above; covering h4 lets the
+   Svelte dashboards drop their inline style="margin:0" (G-001). */
+.sauce-section-header h4 { margin: 0; }
+
+/* KPI cards: trim dead space under the value and tighten on the phone grid
+   (count/behavior unchanged — spacing only). */
+.sauce-kpi .value { margin-block-start: var(--sg-field-gap); }
+@media (max-width: 640px) {
+  .sauce-view-kpis { gap: var(--sg-stack-gap); }
+  .sauce-kpi { padding: var(--sg-card-pad-tight); }
+  .sauce-kpi .value { font-size: 1.7em; }
+}
+
+/* Touch-velocity bar chart: lift the month labels off the bars so they read
+   as a separate axis row rather than crowding the bar baseline. */
+.sauce-bar-label { margin-block-start: var(--sg-gap-3); }
+
+/* Feed / recent-touches rows: consistent inner padding + title↔meta breathing
+   room via the shared aliases. */
+.sauce-feed-row { padding: var(--sg-gap-8) var(--sg-card-pad-tight); }
 /* <<< Agent B end */
 
 /* ===== SURFACE: SETTINGS (Agent C) — settings/** =====

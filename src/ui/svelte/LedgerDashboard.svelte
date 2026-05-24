@@ -61,7 +61,7 @@
 
 <div class="sauce-view sauce-ledger">
   <header class="sauce-section-header">
-    <h3 style="margin:0">Ledger</h3>
+    <h3>Ledger</h3>
     <span class="sauce-field-help">
       {filtered.length} entries · in {fmt(totals.in)} · out {fmt(totals.out)} · net {fmt(totals.in - totals.out)}
     </span>
@@ -94,7 +94,7 @@
 
   {#if rollups.length > 0}
     <section class="sauce-section">
-      <header class="sauce-section-header"><h4 style="margin:0">Per-contact rollups</h4></header>
+      <header class="sauce-section-header"><h4>Per-contact rollups</h4></header>
       <div class="sauce-table-wrap">
         <table class="sauce-table">
           <thead><tr><th>Contact</th><th>In</th><th>Out</th><th>Net</th><th>Entries</th></tr></thead>
@@ -115,7 +115,7 @@
   {/if}
 
   <section class="sauce-section">
-    <header class="sauce-section-header"><h4 style="margin:0">Entries</h4></header>
+    <header class="sauce-section-header"><h4>Entries</h4></header>
     {#if sorted.length === 0}
       <p class="sauce-field-help">No entries match the current filters.</p>
     {:else}
