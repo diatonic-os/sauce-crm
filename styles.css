@@ -1198,6 +1198,28 @@
    Scope: Plugins / Install→Optimize cards, integrations rail + panel,
    narrow-window fallbacks for settings rows. */
 /* >>> Agent C begin */
+/* Integrations rail + panel: a 160px rail beside a 320px panel wraps into an
+   awkward floating column on narrow windows. Below the breakpoint, stack them
+   — a full-width horizontal rail above a full-width panel. (Phones get the
+   same via the width media query; body.is-mobile refinements live in
+   MobileStyles.ts.) */
+@media (max-width: 640px) {
+  .sg-integrations-layout { flex-direction: column; gap: var(--sg-stack-gap); }
+  .sg-integrations-rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    min-width: 0;
+    width: 100%;
+  }
+  .sg-integrations-panel { flex: 1 1 100%; width: 100%; min-width: 0; }
+
+  /* Plugins / Install→Optimize cards: single comfortable column with
+     consistent inter-card spacing on narrow windows. */
+  .sg-tab-content .sauce-card-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sg-stack-gap);
+  }
+}
 /* <<< Agent C end */
 
 /* ===== SURFACE: PRIMITIVES (Agent E) — components/** + widgets/** =====
