@@ -40,6 +40,8 @@ import {
   defaultProfiles,
 } from "./services/PluginConfigService";
 import { ObsidianPluginConfigHost } from "./services/ObsidianPluginConfigHost";
+import { wireSvcV1, type WiredSvc } from "./integrations/obsidian/wireSvcV1";
+import type { SvcV1 } from "./services/SauceServiceAPI";
 import { renderPluginConfigBlock } from "./ui/PluginConfigBlock";
 import { TasksService } from "./services/TasksService";
 import { renderTasksBlock, openAddTaskModal } from "./ui/TasksBlock";
@@ -80,7 +82,10 @@ import {
   createMobileMemory,
 } from "./bridge/wiring";
 import { BridgeService } from "./bridge/server/BridgeService";
-import { sha256Hex as bridgeSha256Hex, hmacHex as bridgeHmacHex } from "./bridge/crypto";
+import {
+  sha256Hex as bridgeSha256Hex,
+  hmacHex as bridgeHmacHex,
+} from "./bridge/crypto";
 import { HmacAuthSigner, tokenToKey } from "./bridge/auth";
 import { TailscaleReachabilityProbe } from "./bridge/mobile/orchestration";
 import { LocalHashIndex } from "./bridge/mobile/local";
@@ -303,7 +308,13 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
   hasDismissedFirstRun: false,
   showAdvanced: {},
   skillsAutonomy: "manual",
-  bridge: { enabled: false, port: 8787, bindHost: "", baseUrl: "", pairingToken: "" },
+  bridge: {
+    enabled: false,
+    port: 8787,
+    bindHost: "",
+    baseUrl: "",
+    pairingToken: "",
+  },
 };
 
 /** Minimal Logger implementation that writes to console with a source
@@ -365,6 +376,9 @@ export default class SauceGraphPlugin extends Plugin {
   tasks: TasksService | null = null;
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
+  /** CON-OBS-INTEG-001 — public svcV1 (mounted in onload) + its wiring handle. */
+  svcV1?: SvcV1;
+  private wiredSvc: WiredSvc | null = null;
   /** MOB-BRIDGE-001: platform memory backend (desktop = LanceDB; mobile =
    *  bridge-when-reachable → lexical fallback). Null until onload. */
   memory: MemoryBackend | null = null;
@@ -568,6 +582,29 @@ export default class SauceGraphPlugin extends Plugin {
       defaultProfiles(),
       this.v2?.provenance ?? null,
     );
+    // CON-OBS-INTEG-001 — mount the public svcV1 + Obsidian plugin adapter
+    // registry. Wrapped so a wiring failure can never block plugin startup.
+    try {
+      this.wiredSvc = wireSvcV1(
+        this as unknown as Record<string, unknown>,
+        this.app,
+        {
+          sha256Hex: bridgeSha256Hex,
+          isBetaOptIn: () =>
+            Boolean(
+              (this.settings as unknown as { beta?: { enabled?: boolean } })
+                .beta?.enabled,
+            ),
+        },
+      );
+      this.logger.event?.("svcv1.mounted", {
+        version: this.wiredSvc.svcV1.version,
+      });
+    } catch (e) {
+      this.logger.event?.("svcv1.mount_failed", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
     // Tasks ↔ Tasks-plugin checkbox bridge (W4): author/read tasks in _TASKS.md.
     this.tasks = new TasksService(this.app);
     this.skills = new SkillRuntime(
@@ -590,7 +627,9 @@ export default class SauceGraphPlugin extends Plugin {
     try {
       await this.refreshBridge();
     } catch (e) {
-      console.warn("Sauce mobile-bridge init failed (non-fatal)", { error: String(e) });
+      console.warn("Sauce mobile-bridge init failed (non-fatal)", {
+        error: String(e),
+      });
     }
 
     // Addendum A §B — populate v2Registry capability descriptors. Each entry's `ready`
@@ -1927,7 +1966,8 @@ export default class SauceGraphPlugin extends Plugin {
         this.memory = createDesktopMemory({
           vectors: this.v2.lance.vectors,
           provenanceStore: this.v2.lance.provenanceStore,
-          embedFn: (text: string) => this.copilot?.embed(text) ?? Promise.resolve(null),
+          embedFn: (text: string) =>
+            this.copilot?.embed(text) ?? Promise.resolve(null),
         });
       } else {
         this.memory = null;
@@ -1954,7 +1994,10 @@ export default class SauceGraphPlugin extends Plugin {
     const signer = new HmacAuthSigner({ hmacHex: bridgeHmacHex }, () =>
       tokenToKey(b.pairingToken, { sha256Hex: bridgeSha256Hex }),
     );
-    const probe = new TailscaleReachabilityProbe({ baseUrl: b.baseUrl, request });
+    const probe = new TailscaleReachabilityProbe({
+      baseUrl: b.baseUrl,
+      request,
+    });
     const localIndex = new LocalHashIndex({
       hasher,
       persist: makeVaultFilePersist(
@@ -2184,6 +2227,7 @@ export default class SauceGraphPlugin extends Plugin {
     if (this.viewRefreshTimer !== null)
       window.clearTimeout(this.viewRefreshTimer);
     void this.bridgeService?.stop();
+    this.wiredSvc?.dispose();
     void teardownV2(this.v2);
     console.log("Sauce Graph unloaded");
   }
