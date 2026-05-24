@@ -27,7 +27,9 @@ import { HybridMemoryBackend } from "./mobile/orchestration";
 // ───────────────────────── thin adapters ─────────────────────────
 
 /** Wrap the plugin's Web-Crypto `sha256Hex` helper as a ContentHasher. */
-export function makeContentHasher(sha256Hex: (s: string) => Promise<string>): ContentHasher {
+export function makeContentHasher(
+  sha256Hex: (s: string) => Promise<string>,
+): ContentHasher {
   return { sha256Hex };
 }
 
@@ -70,7 +72,7 @@ export function makeHttpRequestFn(requestUrl: RequestUrlLike) {
 export class InMemoryResultCache implements ResultCache {
   private readonly m = new Map<string, unknown>();
   async get<T>(key: string): Promise<T | null> {
-    return (this.m.has(key) ? (this.m.get(key) as T) : null);
+    return this.m.has(key) ? (this.m.get(key) as T) : null;
   }
   async set<T>(key: string, value: T): Promise<void> {
     this.m.set(key, value);
@@ -86,9 +88,13 @@ export class InMemoryResultCache implements ResultCache {
  *  app-scope embed (e.g. `(t) => copilot?.embed(t) ?? null`). */
 export function createDesktopMemory(deps: {
   vectors: ConstructorParameters<typeof LanceMemoryBackend>[0]["vectorIndex"];
-  provenanceStore: ConstructorParameters<typeof LanceMemoryBackend>[0]["provenanceStore"];
+  provenanceStore: ConstructorParameters<
+    typeof LanceMemoryBackend
+  >[0]["provenanceStore"];
   embedFn: (text: string) => Promise<number[] | null>;
-  resolveHit?: ConstructorParameters<typeof LanceMemoryBackend>[0]["resolveHit"];
+  resolveHit?: ConstructorParameters<
+    typeof LanceMemoryBackend
+  >[0]["resolveHit"];
 }): MemoryBackend {
   return new LanceMemoryBackend({
     vectorIndex: deps.vectors,
@@ -116,6 +122,9 @@ export function createMobileMemory(deps: {
     hasher: deps.hasher,
     cache: deps.cache,
   });
-  const local = new LexicalMemoryBackend({ host: deps.lexicalHost, index: deps.localIndex });
+  const local = new LexicalMemoryBackend({
+    host: deps.lexicalHost,
+    index: deps.localIndex,
+  });
   return new HybridMemoryBackend({ bridge, local, probe: deps.probe });
 }

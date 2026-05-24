@@ -78,7 +78,10 @@ export interface ContentHasher {
  *  strip CR, trim trailing whitespace per line, collapse trailing blank lines,
  *  ensure single trailing newline. Pure & deterministic. */
 export function normalizeForFingerprint(content: string): string {
-  const lines = content.replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/[ \t]+$/g, ""));
+  const lines = content
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => l.replace(/[ \t]+$/g, ""));
   while (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
   return lines.join("\n") + "\n";
 }
@@ -127,11 +130,13 @@ export interface ProvenanceResponse {
  *  bridge client (T-D) so paths never drift. */
 export const ROUTES = {
   health: `${BRIDGE_ROUTE_PREFIX}/health`,
-  byFp: (fp: string) => `${BRIDGE_ROUTE_PREFIX}/memory/by-fp/${encodeURIComponent(fp)}`,
+  byFp: (fp: string) =>
+    `${BRIDGE_ROUTE_PREFIX}/memory/by-fp/${encodeURIComponent(fp)}`,
   embed: `${BRIDGE_ROUTE_PREFIX}/memory/embed`,
   search: `${BRIDGE_ROUTE_PREFIX}/memory/search`,
   recall: `${BRIDGE_ROUTE_PREFIX}/memory/recall`,
-  provenance: (fp: string) => `${BRIDGE_ROUTE_PREFIX}/provenance/${encodeURIComponent(fp)}`,
+  provenance: (fp: string) =>
+    `${BRIDGE_ROUTE_PREFIX}/provenance/${encodeURIComponent(fp)}`,
 } as const;
 
 // ───────────────────────── Auth (HMAC) ─────────────────────────
@@ -157,7 +162,13 @@ export interface SignedRequestParts {
 /** Build the exact string that gets HMAC'd. Pure & shared so both sides agree
  *  byte-for-byte. Newline-delimited, method upper-cased. */
 export function canonicalRequestString(p: SignedRequestParts): string {
-  return [p.method.toUpperCase(), p.path, p.bodyHash, p.nonce, String(p.ts)].join("\n");
+  return [
+    p.method.toUpperCase(),
+    p.path,
+    p.bodyHash,
+    p.nonce,
+    String(p.ts),
+  ].join("\n");
 }
 
 /** Mobile side: produce signature headers for an outbound request. */
@@ -173,7 +184,14 @@ export interface AuthVerifier {
 
 export type AuthResult =
   | { ok: true }
-  | { ok: false; reason: "bad-signature" | "stale-timestamp" | "replayed-nonce" | "not-paired" };
+  | {
+      ok: false;
+      reason:
+        | "bad-signature"
+        | "stale-timestamp"
+        | "replayed-nonce"
+        | "not-paired";
+    };
 
 // ───────────────────────── Reachability ─────────────────────────
 

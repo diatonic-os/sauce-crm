@@ -12,12 +12,16 @@ function subtle(): SubtleCrypto {
 function toHex(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
   let out = "";
-  for (let i = 0; i < bytes.length; i++) out += bytes[i].toString(16).padStart(2, "0");
+  for (let i = 0; i < bytes.length; i++)
+    out += bytes[i].toString(16).padStart(2, "0");
   return out;
 }
 
 export async function sha256Hex(data: string): Promise<string> {
-  const digest = await subtle().digest("SHA-256", new TextEncoder().encode(data));
+  const digest = await subtle().digest(
+    "SHA-256",
+    new TextEncoder().encode(data),
+  );
   return toHex(digest);
 }
 
