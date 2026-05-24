@@ -5,6 +5,7 @@ import type SauceGraphPlugin from "../../../main";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import { InlineStatus } from "../../components/v2/InlineStatus";
 import { testProviderConnection } from "../../../copilot/testProviderConnection";
+import { detectLmStudioEndpoint } from "../../../copilot/detectLmStudioEndpoint";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
 import { renderRagEmbeddings } from "./rag";
 import { renderEnrichment } from "./enrichment";
@@ -51,6 +52,10 @@ export function renderCopilot(
     text: "Pick a provider; the model list auto-populates from the provider's catalog (live for Ollama/LM Studio/NIM, curated for Anthropic/OpenAI). Hit Refresh after pulling a new model.",
   });
 
+  // Forward declaration so the picker's provider-change can re-render the
+  // credential field (API key ↔ Endpoint depending on the provider).
+  let renderCred: () => void = () => {};
+
   const pickerHost = containerEl.createDiv({ cls: "sg-section-row" });
   new ProviderPicker({
     container: pickerHost,
@@ -60,26 +65,84 @@ export function renderCopilot(
     endpoint: cfg.baseUrl,
     apiKey: cfg.apiKey,
     onChange: async ({ provider, model }) => {
+      const providerChanged = provider !== cfg.provider;
       cfg.provider = provider;
       cfg.model = model;
       await plugin.saveSettings();
       pushCopilotUpdate(plugin);
+      if (providerChanged) renderCred();
     },
   }).render();
 
-  new Setting(containerEl)
-    .setName("API key")
-    .setDesc(
-      "Stored locally. Set keys for multiple providers (encrypted) via the onboarding wizard's KeyVault step.",
-    )
-    .addText((t) => {
-      t.inputEl.type = "password";
-      t.setValue(cfg.apiKey ?? "").onChange(async (v) => {
-        cfg.apiKey = v;
-        await plugin.saveSettings();
-        pushCopilotUpdate(plugin);
+  // Credential field swaps with the provider: local providers (Ollama / LM
+  // Studio) show an Endpoint field — LM Studio autodetects it — while cloud
+  // providers show an API key field.
+  const credHost = containerEl.createDiv({ cls: "sg-section-row" });
+  const runLmDetect = async (
+    status: InlineStatus,
+    epInput: HTMLInputElement | null,
+  ): Promise<void> => {
+    status.pending("Detecting LM Studio…");
+    const r = await detectLmStudioEndpoint({ logger: plugin.logger ?? null });
+    if (r.endpoint) {
+      cfg.baseUrl = r.endpoint;
+      await plugin.saveSettings();
+      pushCopilotUpdate(plugin);
+      if (epInput) epInput.value = r.endpoint;
+      status.success(`Found LM Studio at ${r.endpoint} (${r.source})`);
+    } else {
+      status.error(
+        "LM Studio not found on localhost or this host's LAN. Start its server (port 1234) or paste the endpoint above.",
+      );
+    }
+  };
+  renderCred = () => {
+    credHost.empty();
+    const isLocal = cfg.provider === "ollama" || cfg.provider === "lmstudio";
+    if (!isLocal) {
+      new Setting(credHost)
+        .setName("API key")
+        .setDesc(
+          "Stored locally. Set keys for multiple providers (encrypted) via the onboarding wizard's KeyVault step.",
+        )
+        .addText((t) => {
+          t.inputEl.type = "password";
+          t.setValue(cfg.apiKey ?? "").onChange(async (v) => {
+            cfg.apiKey = v;
+            await plugin.saveSettings();
+            pushCopilotUpdate(plugin);
+          });
+        });
+      return;
+    }
+    let epInput: HTMLInputElement | null = null;
+    new Setting(credHost)
+      .setName("Endpoint")
+      .setDesc(
+        cfg.provider === "lmstudio"
+          ? "OpenAI-compatible base, e.g. http://127.0.0.1:1234 (autodetected)"
+          : "e.g. http://localhost:11434",
+      )
+      .addText((t) => {
+        epInput = t.inputEl;
+        t.setValue(cfg.baseUrl ?? "").onChange(async (v) => {
+          cfg.baseUrl = v || undefined;
+          await plugin.saveSettings();
+          pushCopilotUpdate(plugin);
+        });
       });
-    });
+    if (cfg.provider === "lmstudio") {
+      const status = new InlineStatus(credHost);
+      const row = credHost.createDiv({ cls: "sauce-button-row" });
+      row.createEl("button", {
+        text: "Detect endpoint",
+        cls: "sauce-button sauce-button-secondary",
+      }).onclick = () => void runLmDetect(status, epInput);
+      // Autodetect the moment LM Studio is selected with no endpoint set.
+      if (!cfg.baseUrl) void runLmDetect(status, epInput);
+    }
+  };
+  renderCred();
 
   // Success/failure helper: verify the provider endpoint/key by listing models.
   const connRow = containerEl.createDiv({ cls: "sg-section-row" });

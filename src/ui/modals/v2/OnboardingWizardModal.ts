@@ -20,6 +20,7 @@ import { TemplateService } from "../../../services/TemplateService";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import { InlineStatus } from "../../components/v2/InlineStatus";
 import { testProviderConnection } from "../../../copilot/testProviderConnection";
+import { detectLmStudioEndpoint } from "../../../copilot/detectLmStudioEndpoint";
 import type { ProviderId } from "../../../copilot/ModelCatalog";
 import type { LocalProviderId } from "../../../settings/FeatureSettings";
 
@@ -60,6 +61,7 @@ export class OnboardingWizardModal extends Modal {
   private activeProvider: CopilotProvider = "anthropic";
   private activeModel = "";
   private providersConfigured = false;
+  private lmDetectRan = false;
 
   // Step 4 — skills draft (id -> enabled)
   private skillEnabled = new Map<string, boolean>();
@@ -406,22 +408,25 @@ export class OnboardingWizardModal extends Modal {
 
     const canStore = this.vaultUnlocked() || p.id === this.activeProvider;
 
+    // Local providers lead with the Endpoint field (no API key needed by
+    // default). LM Studio additionally autodetects its endpoint.
+    let endpointInput: HTMLInputElement | null = null;
     if (p.local) {
       new Setting(card)
         .setName("Endpoint")
         .setDesc(
           p.id === "lmstudio"
-            ? "OpenAI-compatible base, e.g. http://localhost:1234/v1"
+            ? "OpenAI-compatible base, e.g. http://127.0.0.1:1234 (autodetected)"
             : "e.g. http://localhost:11434",
         )
-        .addText((t) =>
-          t
-            .setValue(this.endpointFor(p.id) ?? "")
-            .onChange(async (v) => {
-              this.localCfg(p.id as LocalProviderId).endpoint = v;
-              await this.plugin.saveSettings();
-            }),
-        );
+        .addText((t) => {
+          endpointInput = t.inputEl;
+          t.setValue(this.endpointFor(p.id) ?? "").onChange(async (v) => {
+            this.localCfg(p.id as LocalProviderId).endpoint = v;
+            if (p.id === this.activeProvider) this.syncActive();
+            await this.plugin.saveSettings();
+          });
+        });
     }
 
     new Setting(card)
@@ -436,6 +441,21 @@ export class OnboardingWizardModal extends Modal {
 
     const status = new InlineStatus(card);
     const btns = card.createDiv({ cls: "sauce-button-row" });
+
+    if (p.id === "lmstudio") {
+      const detectBtn = btns.createEl("button", {
+        text: "Detect endpoint",
+        cls: "sauce-button sauce-button-secondary",
+      });
+      detectBtn.onclick = () => void this.runLmDetect(status, endpointInput);
+      // Run once when the providers step first opens so the endpoint is
+      // pre-filled the moment the user reaches (or selects) LM Studio.
+      if (!this.lmDetectRan) {
+        this.lmDetectRan = true;
+        void this.runLmDetect(status, endpointInput);
+      }
+    }
+
     const saveTest = btns.createEl("button", {
       text: "Save & test",
       cls: "sauce-button",
@@ -458,6 +478,26 @@ export class OnboardingWizardModal extends Modal {
         status.error(this.msg(e));
       }
     };
+  }
+
+  /** Autodetect LM Studio (localhost → host LAN) and fill the endpoint field. */
+  private async runLmDetect(
+    status: InlineStatus,
+    endpointInput: HTMLInputElement | null,
+  ): Promise<void> {
+    status.pending("Detecting LM Studio…");
+    const r = await detectLmStudioEndpoint({ logger: this.plugin.logger ?? null });
+    if (r.endpoint) {
+      this.localCfg("lmstudio").endpoint = r.endpoint;
+      if (this.activeProvider === "lmstudio") this.syncActive();
+      await this.plugin.saveSettings();
+      if (endpointInput) endpointInput.value = r.endpoint;
+      status.success(`Found LM Studio at ${r.endpoint} (${r.source})`);
+    } else {
+      status.error(
+        "LM Studio not found on localhost or this host's LAN. Start its server (Developer ▸ Start Server, port 1234) or paste the endpoint above.",
+      );
+    }
   }
 
   // ---------- Step 5: Skills ----------
