@@ -95,4 +95,16 @@ describe("renderIntegrationsSection — 3-tab grouping", () => {
     expect(tabs[2].getAttribute("aria-selected")).toBe("true");
     expect(tabs[0].getAttribute("aria-selected")).toBe("false");
   });
+
+  it("fires onPluginAction when a community card button is clicked (Install→Optimize)", async () => {
+    const onPluginAction = vi.fn();
+    const root = document.createElement("div");
+    renderIntegrationsSection(root, { ...host(), onPluginAction });
+    const communityTab = [...root.querySelectorAll(".sauce-tab")].find(
+      (t) => t.textContent === "Community Plugins",
+    ) as HTMLButtonElement;
+    communityTab.click();
+    (root.querySelector(".sauce-btn") as HTMLButtonElement).click();
+    expect(onPluginAction).toHaveBeenCalledWith("dataview", "optimize");
+  });
 });

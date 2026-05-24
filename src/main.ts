@@ -379,6 +379,10 @@ export default class SauceGraphPlugin extends Plugin {
   /** CON-OBS-INTEG-001 — public svcV1 (mounted in onload) + its wiring handle. */
   svcV1?: SvcV1;
   private wiredSvc: WiredSvc | null = null;
+  /** Obsidian plugin adapter registry — the Install→Optimize settings cards read this. */
+  get obsidianPlugins(): WiredSvc["registry"] | null {
+    return this.wiredSvc?.registry ?? null;
+  }
   /** MOB-BRIDGE-001: platform memory backend (desktop = LanceDB; mobile =
    *  bridge-when-reachable → lexical fallback). Null until onload. */
   memory: MemoryBackend | null = null;

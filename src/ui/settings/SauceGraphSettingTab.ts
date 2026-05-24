@@ -10,6 +10,7 @@ import { renderCopilot } from "./sections/copilot";
 import { renderCommand } from "./sections/command";
 import { renderSkills } from "./sections/skills";
 import { renderIntegrations } from "./sections/integrations";
+import { renderPlugins } from "./sections/plugins";
 import { renderData } from "./sections/data";
 import { renderBridge } from "./sections/bridge";
 import { renderAdvanced } from "./sections/advanced";
@@ -75,6 +76,14 @@ const TABS: TabDef[] = [
     render: renderIntegrations,
   },
   {
+    id: "TAB-PLUGINS",
+    label: "Plugins",
+    tooltip:
+      "Install→Optimize cards for Obsidian core + community plugins Sauce inherits (Tasks, Dataview, Kanban, …)",
+    icon: "blocks",
+    render: renderPlugins,
+  },
+  {
     id: "TAB-DATA",
     label: "Data",
     tooltip: "Backups; import; export; map; database; sync schedule",
@@ -84,7 +93,8 @@ const TABS: TabDef[] = [
   {
     id: "TAB-BRIDGE",
     label: "Mobile",
-    tooltip: "Mobile memory bridge — serve desktop memory to your paired phone over Tailscale",
+    tooltip:
+      "Mobile memory bridge — serve desktop memory to your paired phone over Tailscale",
     icon: "smartphone",
     render: renderBridge,
   },

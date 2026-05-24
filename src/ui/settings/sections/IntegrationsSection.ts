@@ -8,17 +8,20 @@
 // delegate. Tokenized `sauce-*` classes only (G-001); jsdom-testable DOM.
 
 import type { ObsidianPluginRegistry } from "../../../integrations/obsidian/ObsidianPluginRegistry";
+import type { PluginButtonEvent } from "../../../integrations/obsidian/IObsidianPluginIntegration";
 import { renderCommunityPluginsPage } from "../integrations/CommunityPluginsPage";
 import { renderCorePluginsPage } from "../integrations/CorePluginsPage";
 
 /**
  * Minimal host the section reads from. The live plugin exposes the registry as
  * `obsidianPlugins`; `renderServices` lets the existing services surface plug
- * into the first tab without this file depending on the whole plugin.
+ * into the first tab without this file depending on the whole plugin;
+ * `onPluginAction` makes the Install→Optimize card buttons actionable.
  */
 export interface IntegrationsSectionHost {
   obsidianPlugins?: ObsidianPluginRegistry;
   renderServices?: (containerEl: HTMLElement) => void;
+  onPluginAction?: (pluginId: string, event: PluginButtonEvent) => void;
 }
 
 type TabId = "services" | "community" | "core";
@@ -48,11 +51,19 @@ export function renderIntegrationsSection(
   const renderBody = (): void => {
     body.replaceChildren();
     const registry = host.obsidianPlugins;
+    // Wrap the host action so the cards re-render (reflecting new state) after
+    // it completes, without losing the active sub-tab.
+    const onAction = host.onPluginAction
+      ? (pluginId: string, event: PluginButtonEvent) =>
+          void Promise.resolve(host.onPluginAction!(pluginId, event)).then(() =>
+            renderBody(),
+          )
+      : undefined;
     if (active === "community") {
-      if (registry) renderCommunityPluginsPage(body, { registry });
+      if (registry) renderCommunityPluginsPage(body, { registry, onAction });
       else emptyHint(body, "Plugin registry not initialized.");
     } else if (active === "core") {
-      if (registry) renderCorePluginsPage(body, { registry });
+      if (registry) renderCorePluginsPage(body, { registry, onAction });
       else emptyHint(body, "Plugin registry not initialized.");
     } else {
       if (host.renderServices) host.renderServices(body);
