@@ -108,7 +108,7 @@ export function apiKeyGetter(
     const v = await source.get(service);
     if (!v)
       throw new Error(
-        `${service}: no credential available (label=${source.label}). Set the key in Settings → AI Copilot.`,
+        `${service}: no credential available (label=${source.label}). Set the key in Settings → SauceBot.`,
       );
     return v;
   };

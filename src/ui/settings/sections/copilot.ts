@@ -38,7 +38,7 @@ export function renderCopilot(
   const cfg: any = plugin.settings.copilot as any;
   if (!cfg) {
     const empty = containerEl.createDiv({ cls: "sg-empty-state" });
-    empty.createEl("h4", { text: "Copilot — coming soon" });
+    empty.createEl("h4", { text: "SauceBot — coming soon" });
     empty.createEl("p", {
       text: "Choose your AI assistant. Free local models (Ollama / LM Studio) or cloud (Anthropic / OpenAI).",
     });

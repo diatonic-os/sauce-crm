@@ -104,7 +104,7 @@ export class DashboardView extends BaseView {
 
     const top = root.createDiv({ cls: "sauce-dashboard-columns" });
     const morning = top.createDiv({ cls: "sauce-section" });
-    morning.createEl("h3", { text: "Copilot Feed" });
+    morning.createEl("h3", { text: "SauceBot Feed" });
     for (const line of this.copilotFeed(people, tasks, events)) {
       const row = morning.createDiv({ cls: "sauce-feed-row" });
       row.createSpan({ cls: "sauce-feed-dot" });

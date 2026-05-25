@@ -105,6 +105,7 @@ export const LABEL_ALLOWLIST = new Set([
   "General",
   "Vault",
   "Validation",
+  "SauceBot",
   "Copilot",
   "Skills",
   "Integrations",

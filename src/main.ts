@@ -869,11 +869,11 @@ export default class SauceGraphPlugin extends Plugin {
         m.showAtMouseEvent(event);
       },
     );
-    this.addRibbonIcon("bot", "Sauce CRM — Copilot & AI", (event) => {
+    this.addRibbonIcon("bot", "Sauce CRM — SauceBot & AI", (event) => {
       const m = new Menu();
       m.addItem((i) =>
         i
-          .setTitle("Open Copilot Chat")
+          .setTitle("Open SauceBot Chat")
           .setIcon("sauce-copilot")
           .onClick(() => this.openView(VIEW_COPILOT_CHAT)),
       );
@@ -1284,7 +1284,7 @@ export default class SauceGraphPlugin extends Plugin {
     });
     this.addCommand({
       id: "open-copilot",
-      name: "Open Copilot",
+      name: "Open SauceBot",
       callback: () => this.openView(VIEW_COPILOT_CHAT),
     });
     this.addCommand({

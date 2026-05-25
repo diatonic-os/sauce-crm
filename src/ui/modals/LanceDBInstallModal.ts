@@ -55,7 +55,7 @@ export class LanceDBInstallModal extends Modal {
     intro.createEl("p", {
       cls: "sauce-field-help",
       text:
-        "If you skip, the Copilot will keep working using graph + fuzzy " +
+        "If you skip, SauceBot will keep working using graph + fuzzy " +
         "search only. You can install later from Settings → Sauce CRM → " +
         "Data → LanceDB.",
     });

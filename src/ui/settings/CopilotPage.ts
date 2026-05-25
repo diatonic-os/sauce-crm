@@ -1,7 +1,7 @@
 import { SettingsPage, type SettingsHost, el } from "./SettingsPage";
 export class CopilotPage extends SettingsPage {
   readonly id = "copilot";
-  readonly title = "AI Copilot";
+  readonly title = "SauceBot";
   readonly group = "ai";
   constructor(private readonly host: SettingsHost) {
     super();

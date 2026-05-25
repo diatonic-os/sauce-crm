@@ -93,7 +93,7 @@ export class CopilotChatView extends ItemView {
     return VIEW_COPILOT_CHAT;
   }
   getDisplayText(): string {
-    return "Sauce: Copilot";
+    return "Sauce: SauceBot";
   }
   getIcon(): string {
     return "message-circle";
@@ -667,7 +667,7 @@ export class CopilotChatView extends ItemView {
   private async askNow(): Promise<void> {
     const copilot = this.plugin.copilot;
     if (!copilot) {
-      new Notice("Copilot not initialized");
+      new Notice("SauceBot not initialized");
       return;
     }
     const q = this.inputEl.value.trim();
@@ -704,7 +704,7 @@ export class CopilotChatView extends ItemView {
     const wrap = this.transcriptEl.createDiv({
       cls: `sauce-copilot-msg sauce-copilot-${role}`,
     });
-    wrap.createEl("strong", { text: role === "user" ? "you" : "copilot" });
+    wrap.createEl("strong", { text: role === "user" ? "you" : "saucebot" });
     return wrap.createDiv({ cls: "sauce-copilot-body", text });
   }
 }

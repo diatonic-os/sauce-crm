@@ -12,7 +12,7 @@ export const EMPTY_STATE_FIXTURES: EmptyStateFixture[] = [
   {
     sectionId: "copilot.provider",
     phase: "P9",
-    title: "Copilot",
+    title: "SauceBot",
     body: "Choose your AI assistant. Free local models (Ollama / LM Studio) or cloud (Anthropic / OpenAI).",
   },
   {

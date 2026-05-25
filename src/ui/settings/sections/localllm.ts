@@ -44,7 +44,7 @@ export function renderLocalLLM(
     cls: "sauce-settings-section-title",
   });
   containerEl.createDiv({ cls: "sauce-callout" }).createSpan({
-    text: "Configure Ollama and LM Studio endpoints and default chat models. The model list loads live from each endpoint. When a provider is your active Copilot provider, changes here apply to it immediately.",
+    text: "Configure Ollama and LM Studio endpoints and default chat models. The model list loads live from each endpoint. When a provider is your active SauceBot provider, changes here apply to it immediately.",
   });
 
   for (const { id, label } of LOCAL) {

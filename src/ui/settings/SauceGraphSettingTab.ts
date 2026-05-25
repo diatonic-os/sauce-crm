@@ -47,7 +47,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "TAB-COPILOT",
-    label: "Copilot",
+    label: "SauceBot",
     tooltip: "Your AI assistant — pick a provider and tune it",
     icon: "sparkles",
     render: renderCopilot,

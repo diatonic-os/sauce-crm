@@ -58,9 +58,9 @@ function providerBlurb(id: CredentialProviderId): string {
     case "twilio":
       return "Programmable SMS / Voice. Account SID + auth token.";
     case "anthropic":
-      return "Claude models for the Copilot. Key only — no OAuth.";
+      return "Claude models for SauceBot. Key only — no OAuth.";
     case "openai":
-      return "GPT models for the Copilot. Key only — no OAuth.";
+      return "GPT models for SauceBot. Key only — no OAuth.";
     case "nim":
       return "NVIDIA NIM cloud models (Llama 4 Maverick, Nemotron). NGC API key.";
   }
@@ -165,7 +165,7 @@ async function buildProviderCard(
   if (!CONNECTABLE.has(credId)) {
     status.createEl("span", {
       cls: "sauce-card-hint",
-      text: " Used by Copilot — save the key and the Copilot tab picks it up.",
+      text: " Used by SauceBot — save the key and the SauceBot tab picks it up.",
     });
     return;
   }
@@ -308,7 +308,7 @@ export function renderIntegrations(
   sectionTitle(
     containerEl,
     "AI & Intelligence",
-    "Model providers the Copilot and Skills runtimes call. Pick models per-runtime in the Copilot tab.",
+    "Model providers the SauceBot and Skills runtimes call. Pick models per-runtime in the SauceBot tab.",
   );
   const aiGrid = containerEl.createDiv({ cls: "sauce-card-grid" });
   for (const id of AI_PROVIDERS)

@@ -32,7 +32,7 @@ export function renderBasic(
   heroHead.createEl("span", { text: "Coming soon", cls: "sauce-badge" });
   hero.createEl("p", {
     cls: "sauce-hero-body",
-    text: "Sauce Plus takes your vault CRM further: hosted sync, multi-vault federation at scale, shared OAuth relays, and premium Copilot models — without leaving Obsidian. Join the waitlist to lock in early-access pricing.",
+    text: "Sauce Plus takes your vault CRM further: hosted sync, multi-vault federation at scale, shared OAuth relays, and premium SauceBot models — without leaving Obsidian. Join the waitlist to lock in early-access pricing.",
   });
   const heroRow = hero.createDiv({ cls: "sauce-hero-row" });
   const lic = heroRow.createEl("input", {

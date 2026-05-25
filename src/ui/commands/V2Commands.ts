@@ -23,7 +23,7 @@ export const V2_COMMANDS: V2CommandDescriptor[] = [
   },
   {
     id: "sauce:open-copilot",
-    name: "Open Copilot",
+    name: "Open SauceBot",
     defaultHotkey: "Mod+J",
     category: "view",
   },
