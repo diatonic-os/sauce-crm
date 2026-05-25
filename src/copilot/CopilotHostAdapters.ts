@@ -10,6 +10,7 @@ import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
 import { parseWikilink } from "../util/Wikilink";
 import type { LanceVectorIndex } from "../backend/lance";
+import type { VaultContextProvider } from "./VaultContextProvider";
 
 /** Embeds query text for semantic RAG; returns null when embeddings are
  *  unavailable so the host can fall back to lexical search. */
@@ -101,6 +102,10 @@ export class ObsidianRagHost implements RagAssemblerHost {
     private pinnedPaths: () => string[] = () => [],
     private vectorIndex: LanceVectorIndex | null = null,
     private embedFn: EmbedFn | null = null,
+    /** Optional VaultContextProvider (F2).  When supplied, oneHop uses the
+     *  real wikilink index instead of the hand-rolled CRM-frontmatter walk.
+     *  The CRM-frontmatter walk is kept as a fallback so existing tests pass. */
+    private linkProvider: VaultContextProvider | null = null,
   ) {}
 
   async pinned(): Promise<string[]> {
@@ -108,6 +113,11 @@ export class ObsidianRagHost implements RagAssemblerHost {
   }
 
   async oneHop(path: string): Promise<string[]> {
+    // Prefer the real wikilink index when available (F2 VaultContextProvider).
+    if (this.linkProvider) {
+      return this.linkProvider.oneHop(path);
+    }
+    // Fallback: CRM-frontmatter edge walk (pre-F2 behaviour; keeps existing tests green).
     const f = this.app.vault.getAbstractFileByPath(normalizePath(path));
     if (!(f instanceof TFile)) return [];
     const fm = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};

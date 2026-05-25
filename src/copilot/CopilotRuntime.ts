@@ -359,7 +359,7 @@ export class CopilotRuntime {
           ].slice(0, 12);
     let systemPlus =
       this.composeSystemPrompt() +
-      "\n\n## Context paths (read these via tool if needed)\n" +
+      "\n\n## Context paths (call read_note with any of these paths to retrieve content)\n" +
       centered.map((p) => `- ${p}`).join("\n") +
       `\n\n## Recent touches (${ctx.recentTouches.length})\n` +
       ctx.recentTouches
