@@ -23,6 +23,10 @@ export interface SkillRunOptions {
   autonomyOverride?: AutonomyLevel;
   agentId?: string;
   providerHint?: string;
+  /** Set to "scheduled" when invoked by SkillTaskScheduler (S3/S5). */
+  trigger?: "manual" | "scheduled" | "chat" | "command";
+  /** Task ID that triggered this run (populated by SkillTaskScheduler). */
+  taskId?: string;
 }
 
 export class SkillRuntime {

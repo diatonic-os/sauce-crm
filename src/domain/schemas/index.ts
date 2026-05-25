@@ -261,6 +261,18 @@ export interface TaskFrontmatter extends Record<string, unknown> {
   priority?: "low" | "medium" | "high" | "urgent";
   tags?: string[];
   blocked_by?: string[];
+  /** Skill to invoke when this task fires (S3/S5). */
+  skill_id?: string;
+  /** JSON-serializable arguments forwarded to the skill. */
+  skill_args?: Record<string, unknown>;
+  /** Trigger schedule: "manual" | "interval:<SyncFrequency>" | "cron:<5-field-expr>" */
+  schedule?: string;
+  /** ISO-8601 timestamp of the last successful skill run. */
+  last_run?: string;
+  /** ISO-8601 timestamp of the next scheduled skill run. */
+  next_run?: string;
+  /** Autonomy level override for scheduled runs of this task's skill. */
+  autonomy?: "propose" | "confirm-each" | "confirm-bulk" | "autonomous";
 }
 
 export const TaskSchema: EntitySchema<TaskFrontmatter> = {

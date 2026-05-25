@@ -1,5 +1,6 @@
 // SPEC §34.2 — Cron-ish wall-clock + reactive scheduler. Coalesces overlap; backoff on failure.
 import type { SyncFrequency } from "../integrations/IIntegration";
+import { nextAfter } from "./Cron";
 
 export interface ScheduledJob {
   id: string;
@@ -7,6 +8,13 @@ export interface ScheduledJob {
   resource: string;
   frequency: SyncFrequency;
   run: () => Promise<void>;
+  /**
+   * Optional next-run strategy. When provided it overrides the interval
+   * derived from `frequency`.
+   *   "interval" — use freqMs(frequency) as before (default).
+   *   "cron:<5-field-expr>" — compute next run via Cron.nextAfter.
+   */
+  nextRunStrategy?: "interval" | `cron:${string}`;
 }
 
 function freqMs(f: SyncFrequency): number {
@@ -30,6 +38,24 @@ function freqMs(f: SyncFrequency): number {
   }
 }
 
+/** Compute the next run timestamp (epoch ms) given the job strategy and a reference Date. */
+function computeNextRunMs(job: ScheduledJob, from: Date): number {
+  const strategy = job.nextRunStrategy ?? "interval";
+  if (strategy === "interval") {
+    return from.getTime() + freqMs(job.frequency);
+  }
+  if (strategy.startsWith("cron:")) {
+    try {
+      const expr = strategy.slice("cron:".length);
+      return nextAfter(expr, from).getTime();
+    } catch {
+      // Fallback to interval on bad cron expr so existing sync doesn't break.
+      return from.getTime() + freqMs(job.frequency);
+    }
+  }
+  return from.getTime() + freqMs(job.frequency);
+}
+
 interface RunState {
   lastRun: number;
   nextRun: number;
@@ -48,7 +74,7 @@ export class Scheduler {
     if (!this.state.has(job.id))
       this.state.set(job.id, {
         lastRun: 0,
-        nextRun: Date.now() + freqMs(job.frequency),
+        nextRun: computeNextRunMs(job, new Date()),
         running: false,
         failures: 0,
         lastError: null,
@@ -91,7 +117,7 @@ export class Scheduler {
       s.lastRun = Date.now();
       s.failures = 0;
       s.lastError = null;
-      s.nextRun = Date.now() + freqMs(job.frequency);
+      s.nextRun = computeNextRunMs(job, new Date());
     } catch (e) {
       s.failures += 1;
       s.lastError = e instanceof Error ? e.message : String(e);
