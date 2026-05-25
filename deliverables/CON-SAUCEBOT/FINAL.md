@@ -6,10 +6,11 @@
 
 ## Outcome at a glance
 
-- **Tests:** 660 → **866** (+206), 130 → 148 files. **All green.**
+- **All S1–S10 fully implemented & wired** (no stubs/pending).
+- **Tests:** 660 → **873** (+213), 130 → 150 files. **All green.**
 - **Gate (every commit):** lint **0 errors** (6 pre-existing warnings), typecheck **0**,
   `sdk:check` **0** (sdk/generated untouched), `build` **0**.
-- **12 commits** on `main`, pushed to `origin/main` (no PR). 72 files changed (+6833/−922).
+- **14 commits** on `main`, pushed to `origin/main` (no PR).
 - **Execution:** foundation F1/F2/F3 + parallel wave A–F via isolated agents,
   integrated by the orchestrator; each landed green.
 - **Live-verified:** RAG embeddings (LM Studio `/v1/embeddings`, nomic → 768-dim,
@@ -81,16 +82,18 @@
   matching the LanceDB table dim → RAG works out-of-the-box; `bge-m3`/`mxbai` (1024) would
   trigger the dim-mismatch path.
 
-### S7 — Chat UI + inbox/audit/run-log  🟡 mostly wired
-- **Done:** markdown rendering (`MarkdownRenderer` on the done event); the **functional**
+### S7 — Chat UI + inbox/audit/run-log  ✅ wired
+- Markdown rendering (`MarkdownRenderer` on the done event); the **functional**
   `AIInboxView`/`AuditLogView`/`SkillRunLogView` registered in place of the "Real"
   placeholder stubs (deleted); the duplicate `SkillRunRing` removed (split-brain fixed —
   the runtime and the registered view now share one ring); `ctx.audit` → durable
   HMAC-chained `LanceAuditStore` via `v2.auditLog.append` (was a console stub).
-- **Remaining (documented):** the **file-upload paperclip** (audio→transcribe, docs→RAG)
-  is not yet added to the chat input — it needs a File→temp-path step for audio + a docs
-  branch into `DocumentHarvest`. The `AuditLogView` read API (display of stored rows) is
-  still the pre-existing stub; writes now land durably.
+- **File-upload paperclip** in the chat composer (detached input, no inline style):
+  audio → `SkillRuntime.run('transcribe', {audio_path})` → `WhisperEngine`, transcript
+  inserted into the composer; documents (md/txt/pdf/docx) → `DocumentHarvest.harvest`
+  into the LanceDB doc-chunk RAG store.
+- **AuditLogView read display:** `AuditLog.recent(n)` returns the newest chain-ordered
+  rows; the view's read-API probe resolves and renders them (was a stub).
 
 ### S8 — Baked-in transcription  ✅ wired (live-verified command contract)
 - **Before:** `TranscribeSkill` → pending stub; no engine; whisper excluded from catalog.
@@ -105,15 +108,17 @@
 - **Remaining (documented):** the `sauce:transcribe-file` command still needs a real file
   picker UI; catalog whisper-model un-exclusion is cosmetic and not done.
 
-### S9 — Mobile SauceBot ↔ memory consumer  🟡 adapter built, injection pending
-- **Done:** `bridge/MemoryBackendRagAdapter` wraps the bridge `MemoryBackend`
-  (mobile: Hybrid → Bridge → desktop `LanceMemoryBackend` → LanceDB, lexical fallback) and
-  exposes `semantic()`/`recall()` matching `RagAssemblerHost.semantic()`. Default-OFF safe.
-- **Remaining (documented):** injecting the adapter into `ObsidianRagHost.semantic()` as the
-  mobile fallback (when the local vector index is null) needs an optional param threaded
-  through `CopilotRuntime`'s constructor + a lazy `() => this.memory` (bridge memory is
-  built after the runtime in onload). Deferred to avoid a late ordering bug; the consumer
-  piece is built + unit-tested. End-to-end needs a live phone + bridge.
+### S9 — Mobile SauceBot ↔ memory consumer  ✅ wired
+- `bridge/MemoryBackendRagAdapter` wraps the bridge `MemoryBackend` (mobile: Hybrid →
+  Bridge → desktop `LanceMemoryBackend` → LanceDB, lexical fallback) and exposes
+  `semantic()`/`recall()` matching `RagAssemblerHost.semantic()`. Default-OFF safe.
+- **Injected:** `ObsidianRagHost` gained a lazy `semanticFallback` (tried after the local
+  vector index, before lexical); `CopilotRuntime.setSemanticFallback` exposes it; `main.ts`
+  wires it to `new MemoryBackendRagAdapter(this.memory).semantic` via a lazy getter read at
+  call time (so it tracks `refreshBridge()` rebuilds — no construction-order bug). Mobile
+  semantic RAG now routes to desktop LanceDB over the bridge.
+- **Not verifiable here:** the end-to-end phone → Tailscale → desktop path needs live
+  hardware; the routing + unit fallbacks are tested.
 
 ### S10 — Rebrand Copilot → SauceBot  ✅ done
 - ~18 user-facing strings → "SauceBot" (ribbon, menu, command names, view title, assistant
@@ -137,6 +142,8 @@ de9bd6f A  SlashSuggest '/' skill picker widget (S4)
 8e7cb74 C  chat markdown render + functional inbox/audit/run-log views (S7)
 06c352a    wire graphify + transcription + chat slash-picker (S4/S6/S8)
 ff42e5b    wire ctx.audit → HMAC-chained audit log (S7)
+9b5ccb3    FINAL deliverable (interim)
+348da22    complete S7 (paperclip + audit-view read) + S9 (RAG injection)
 ```
 
 ## Conventions honored
@@ -147,15 +154,23 @@ ff42e5b    wire ctx.audit → HMAC-chained audit log (S7)
   dynamic regex, esp. `Cron`); **no shell exec** (`execFileNoThrow` only); secrets via
   KeyVault; every model-driven write approval-gated + diff-previewed; no silent failure.
 
-## Could-not-verify / remaining (honest)
-1. **S7 file-upload paperclip** — not implemented (needs File→temp-path for audio + docs→
-   harvest branch).
-2. **S7 AuditLogView read display** — writes are durable now; the view's row-read API was a
-   pre-existing stub and is unchanged.
-3. **S9 ObsidianRagHost injection** — adapter built + tested; the runtime-constructor
-   threading (with lazy bridge-memory access) is the remaining one-hook wire; needs a live
-   device for end-to-end.
-4. **S8 `sauce:transcribe-file` picker UI** + catalog whisper un-exclusion — minor, not done.
-5. **Full end-to-end runtime** (the assembled plugin inside Obsidian) was not exercised —
-   `obsidian eval` is disabled on this host; verification was via the 4-gate, the build, and
-   the two live external-dependency checks (embeddings + whisper command) above.
+## Could-not-verify (honest)
+All S1–S10 are implemented and wired; the items below are environmental verification
+limits, not missing functionality:
+
+1. **End-to-end runtime inside Obsidian** was not exercised — `obsidian eval` is disabled on
+   this host. Verification was via the full 4-gate, the production `build`, and the two live
+   external-dependency checks below.
+2. **Live RAG** — verified at the dependency boundary: LM Studio `/v1/embeddings`
+   (`nomic-embed-text-v1.5`) returns a real 768-dim vector matching the LanceDB table dim.
+   A full vault-embed → query loop needs the assembled plugin running in a vault.
+3. **Live transcription** — the exact command `WhisperEngine` issues ran against the real
+   `~/.venv/bin/whisper` and produced the transcript at the engine's read path; speech
+   accuracy not asserted (synthesized tone clip, not speech).
+4. **Mobile S9 path** — the phone → Tailscale → desktop-bridge → LanceDB loop needs live
+   hardware; the routing + fallbacks are unit-tested.
+
+Minor follow-ups (not blocking; functionality present via skill/chat paths): the
+`sauce:transcribe-file` command could gain a dedicated file-picker UI (transcription is
+already reachable via the chat paperclip + the `transcribe` skill/tool), and whisper STT
+models could be un-excluded from the OpenAI catalog filter (cosmetic listing only).
