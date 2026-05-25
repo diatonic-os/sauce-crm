@@ -22,6 +22,17 @@ export interface RagSettings {
    *  "Rebuild LanceDB Index". */
   realtimeEmbeddings: boolean;
   providers: Record<EmbedProviderId, EmbeddingProviderConfig>;
+  /** Mirror ALL markdown notes (not just typed entities) into the vector
+   *  index. Untyped notes receive a fallback type of "note". */
+  fullVaultIndex: boolean;
+  /** Glob patterns (minimatch syntax) for paths to skip during whole-vault
+   *  indexing. Each entry is tested against the file's vault-relative path.
+   *  Example: ["templates/**", "archive/**"] */
+  excludeGlobs: string[];
+  /** Override the LanceDB embedding vector dimension. Must match the model's
+   *  actual output dimension. Change requires a full index rebuild. Default
+   *  is the compiled DEFAULT_EMBEDDING_DIM (768). */
+  embeddingDim: number | null;
 }
 
 export interface EnrichmentSettings {
@@ -70,6 +81,9 @@ export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
     enabled: false,
     provider: "lmstudio",
     realtimeEmbeddings: false,
+    fullVaultIndex: false,
+    excludeGlobs: [],
+    embeddingDim: null,
     providers: {
       lmstudio: {
         enabled: true,
@@ -114,6 +128,9 @@ export function mergeFeatureSettings(
     rag: {
       ...d.rag,
       ...(l.rag ?? {}),
+      fullVaultIndex: l.rag?.fullVaultIndex ?? d.rag.fullVaultIndex,
+      excludeGlobs: l.rag?.excludeGlobs ?? d.rag.excludeGlobs,
+      embeddingDim: l.rag?.embeddingDim ?? d.rag.embeddingDim,
       providers: {
         lmstudio: {
           ...d.rag.providers.lmstudio,

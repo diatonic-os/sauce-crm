@@ -74,6 +74,10 @@ export interface WireOptions {
   /** sha256 hex for the mutation-contract ledger chain. */
   sha256Hex: Sha256Fn;
   actor?: string;
+  /** When present, hydrates the in-memory GraphService from the LanceDB graph
+   *  tables and persists mutations back. Supplied by main.ts after LanceDB
+   *  init; absent in contexts without a Lance backend (tests, mobile). */
+  graphStore?: import("../../backend/lance/graph").GraphStore;
 }
 
 export interface WiredSvc {
@@ -401,6 +405,12 @@ export function wireSvcV1(
 ): WiredSvc {
   const events = new EventBus();
   const graph = new GraphService();
+  // Hydrate the in-memory graph from the durable LanceDB store when available.
+  // This is best-effort: a failure (e.g. fresh install with empty tables) is
+  // swallowed and the graph starts empty, which is the correct initial state.
+  if (opts.graphStore) {
+    graph.hydrate(opts.graphStore).catch(() => {/* empty graph on first run */});
+  }
   const downstream = new DownstreamRegistry(SVC_V1_VERSION);
 
   // In-memory ledger for runtime mutation-contract writes (the durable audit

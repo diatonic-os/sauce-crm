@@ -17,6 +17,9 @@ import { LanceFtsIndex } from "./LanceFtsIndex";
 import { LanceCheckpoints } from "./LanceCheckpoints";
 import { LanceProvenanceStore } from "./LanceProvenanceStore";
 import { LanceDocChunkStore } from "./LanceDocChunkStore";
+import { ensureGraphTables, LanceGraphStore } from "./graph";
+export { LanceGraphStore } from "./graph";
+export type { GraphStore, GraphNodeRow, GraphEdgeRow, UpsertNodeInput } from "./graph";
 
 export * from "./LanceSchema";
 export * from "./LanceConnection";
@@ -59,6 +62,9 @@ export interface LanceBackend {
   provenanceStore: LanceProvenanceStore;
   /** Harvested document chunks (vector-indexed) for RAG document context. */
   docChunks: LanceDocChunkStore;
+  /** Graph persistence layer (graph_nodes + graph_edges tables). Bind this
+   *  into GraphService.hydrate/persist for durable graph storage. */
+  graphStore: LanceGraphStore;
   close(): Promise<void>;
 }
 
@@ -89,6 +95,7 @@ export async function initLanceBackend(
   ]);
   await ensureTable(db, TABLES.syncState, embeddingDim);
   const docChunks = await ensureTable(db, TABLES.docChunks, embeddingDim);
+  const { nodes: graphNodes, edges: graphEdges } = await ensureGraphTables(db);
 
   const fts = new LanceFtsIndex(entities);
   const mirrorTables: MirrorTables = {
@@ -110,6 +117,7 @@ export async function initLanceBackend(
     checkpoints: new LanceCheckpoints(db),
     provenanceStore: new LanceProvenanceStore(provenance),
     docChunks: new LanceDocChunkStore(docChunks, embeddingDim),
+    graphStore: new LanceGraphStore(graphNodes, graphEdges),
     async close() {
       // Release the native connection handle (prevents Rust-side handle leaks).
       if (db.isOpen()) db.close();

@@ -1,5 +1,9 @@
 import { App, TFile } from "obsidian";
 import { EntityService } from "./EntityService";
+import type { LanceVectorIndex } from "../backend/lance";
+
+/** Embed function for semantic queries. Returns null when no model is reachable. */
+export type SemanticEmbedFn = (text: string) => Promise<number[] | null>;
 
 export interface SearchHit {
   file: TFile;
@@ -7,11 +11,65 @@ export interface SearchHit {
   context: string;
 }
 
+export interface SemanticHit {
+  /** Vault-relative path of the matching note. */
+  path: string;
+  /** Similarity score in (0, 1] (higher = more similar). */
+  score: number;
+}
+
 export class SearchService {
   constructor(
     public app: App,
     public entities: EntityService,
+    /** Optional LanceDB vector index for semantic search (injected after Lance
+     *  init so the service can be constructed before Lance is ready). */
+    private vectorIndex: LanceVectorIndex | null = null,
+    /** Embed function that drives semantic queries. When null, `semantic()`
+     *  falls back to fuzzy lexical search. */
+    private embedFn: SemanticEmbedFn | null = null,
   ) {}
+
+  /** Inject or replace the vector index + embed function at runtime (called by
+   *  main.ts after LanceDB is initialised). */
+  setSemanticBackend(
+    index: LanceVectorIndex | null,
+    embedFn: SemanticEmbedFn | null,
+  ): void {
+    this.vectorIndex = index;
+    this.embedFn = embedFn;
+  }
+
+  /**
+   * Semantic search using the LanceDB vector index. When the index is empty,
+   * not available, or the embed call fails, falls back to `fuzzy()` lexical
+   * search so callers never get a hard failure.
+   */
+  async semantic(query: string, limit = 10): Promise<SemanticHit[]> {
+    if (this.vectorIndex && this.embedFn) {
+      try {
+        if (!(await this.vectorIndex.isEmpty())) {
+          const vec = await this.embedFn(query);
+          if (vec && vec.length === this.vectorIndex.dim) {
+            const hits = await this.vectorIndex.query(vec, limit);
+            if (hits.length > 0) {
+              return hits.map((h) => ({
+                path: h.id,
+                score: 1 / (1 + h.distance), // distance → similarity
+              }));
+            }
+          }
+        }
+      } catch {
+        /* fall through to lexical */
+      }
+    }
+    // Lexical fallback: map fuzzy hits to SemanticHit shape.
+    return this.fuzzy(query, limit).map((h) => ({
+      path: h.file.path,
+      score: h.score,
+    }));
+  }
 
   fuzzy(query: string, limit = 25): SearchHit[] {
     const ql = query.toLowerCase();

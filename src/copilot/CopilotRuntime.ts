@@ -212,6 +212,50 @@ export class CopilotRuntime {
     this.traceSink = sink;
   }
 
+  // ── B-patch: inline entity content ────────────────────────────────────────
+  // Total char budget shared across all inlined entities (~2 k tokens).
+  private static readonly ENTITY_INLINE_CEILING = 8000;
+  // Per-note cap so one large note cannot consume the whole budget.
+  private static readonly ENTITY_INLINE_PER_NOTE = 1200;
+  // Only inline when there are centered paths to show content for.
+  private static readonly ENTITY_INLINE_TOP_N = 6;
+  /** Strip leading YAML frontmatter block from a markdown string. */
+  private static stripFrontmatter(raw: string): string {
+    return raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
+  }
+
+  /**
+   * Read the top-N centered entity files and inline their trimmed bodies into
+   * the system prompt, budgeted by ENTITY_INLINE_CEILING. Returns the extra
+   * prompt section string (may be empty when vault reads fail or budget is 0).
+   * Best-effort: never throws.
+   */
+  private async inlineEntityContent(centered: string[]): Promise<string> {
+    const top = centered.slice(0, CopilotRuntime.ENTITY_INLINE_TOP_N);
+    if (top.length === 0) return "";
+    const parts: string[] = [];
+    let budget = CopilotRuntime.ENTITY_INLINE_CEILING;
+    for (const path of top) {
+      if (budget <= 0) break;
+      try {
+        const { TFile, normalizePath } = await import("obsidian");
+        const f = this.app.vault.getAbstractFileByPath(normalizePath(path));
+        if (!(f instanceof TFile)) continue;
+        const raw = await this.app.vault.cachedRead(f);
+        const body = CopilotRuntime.stripFrontmatter(raw).trim();
+        if (!body) continue;
+        const snippet = body.slice(0, CopilotRuntime.ENTITY_INLINE_PER_NOTE);
+        const used = Math.min(snippet.length, budget);
+        parts.push(`### ${path}\n${snippet.slice(0, used)}`);
+        budget -= used;
+      } catch {
+        /* single-file read failure → skip, keep inlining others */
+      }
+    }
+    if (parts.length === 0) return "";
+    return "\n\n## Entity content (inline)\n" + parts.join("\n\n");
+  }
+
   /** Fingerprint + trace a copilot query. Best-effort; never throws. */
   async recordQuery(query: string): Promise<void> {
     try {
@@ -383,6 +427,13 @@ export class CopilotRuntime {
         .slice(0, 10)
         .map((t) => `- ${t.date} · ${t.contactId}`)
         .join("\n");
+
+    // B-patch: inline trimmed entity bodies for the top centered paths so the
+    // model has immediate content without needing a read_note round-trip.
+    // Budgeted at ENTITY_INLINE_TOKEN_CEILING chars (~2 k tokens) shared across
+    // all inlined notes; each note is capped at ENTITY_INLINE_PER_NOTE chars.
+    // Best-effort: any vault read failure silently falls back to path-only mode.
+    systemPlus += await this.inlineEntityContent(centered);
 
     // T7: append harvested-document context when available.
     if (this.docSearch) {

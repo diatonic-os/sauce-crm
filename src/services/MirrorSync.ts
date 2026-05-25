@@ -20,6 +20,30 @@ export type MirrorEmbedFn = (text: string) => Promise<number[] | null>;
 export interface MirrorSyncOptions {
   /** Embed during realtime vault-event syncs. Manual fullResync embeds by default. */
   realtimeEmbeddings?: () => boolean;
+  /** When true, notes WITHOUT a `type:` frontmatter field are mirrored with a
+   *  fallback type of "note" rather than being skipped. Defaults to false to
+   *  preserve legacy behaviour. */
+  fullVaultIndex?: boolean;
+  /** Glob-like prefix patterns — files whose vault-relative path STARTS WITH any
+   *  of these segments (after splitting on "/") are excluded from indexing.
+   *  Uses simple prefix matching (no regex) so it is ReDoS-safe.
+   *  Example: ["templates", "archive"] excludes those top-level folders. */
+  excludeGlobs?: string[];
+}
+
+/** Returns true when `path` matches any of the simple exclude prefixes.
+ *  Each pattern is matched against the leading path segment(s) — e.g.
+ *  pattern "templates" matches "templates/Header.md" but not "my-templates/Foo.md". */
+function isExcluded(path: string, patterns: string[]): boolean {
+  if (patterns.length === 0) return false;
+  for (const pat of patterns) {
+    // Strip leading/trailing slashes for robustness
+    const p = pat.replace(/^\/|\/$/g, "");
+    if (!p) continue;
+    // Match exact segment prefix: path starts with "<pat>" or "<pat>/"
+    if (path === p || path.startsWith(p + "/")) return true;
+  }
+  return false;
 }
 
 /** Leading YAML frontmatter block, stripped to leave the markdown body. */
@@ -49,8 +73,9 @@ export class MirrorSync {
     opts: { embed?: boolean } = {},
   ): Promise<boolean> {
     if (file.extension !== "md") return false;
+    if (isExcluded(file.path, this.opts.excludeGlobs ?? [])) return false;
     const mf = await this.build(file);
-    if (!mf) return false; // not a typed entity
+    if (!mf) return false; // not a typed entity (and fullVaultIndex is off)
     const changed = await this.mirror.bodyChanged(mf);
     await this.mirror.onModify(mf);
     // Fingerprint the indexed entity; the embedding (if any) links to it as a
@@ -111,8 +136,12 @@ export class MirrorSync {
   private async build(file: TFile): Promise<MirrorFile | null> {
     const fm = (this.app.metadataCache.getFileCache(file)?.frontmatter ??
       {}) as Record<string, unknown>;
-    const type = String(fm["type"] ?? "");
-    if (!type) return null;
+    const rawType = String(fm["type"] ?? "");
+    // When fullVaultIndex is enabled, untyped notes fall back to type "note"
+    // so they are indexed for semantic search. Legacy typed-entity behaviour
+    // is unchanged when a `type:` is present.
+    if (!rawType && !this.opts.fullVaultIndex) return null;
+    const type = rawType || "note";
     const raw = await this.app.vault.cachedRead(file);
     return {
       path: file.path,
