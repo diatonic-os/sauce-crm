@@ -1,12 +1,18 @@
-// CopilotRuntime — the provider-selection switch is the load-bearing
-// piece that broke and ate hours of debugging. These tests pin which
-// provider class gets constructed per `settings.provider` value.
+// CopilotRuntime — the provider-selection path is the load-bearing piece
+// that broke and ate hours of debugging. Since CON-SAUCEBOT S1, provider
+// construction derives from the ProviderRegistry (buildProvider) instead of a
+// hardcoded switch; openai/lmstudio/nim/openrouter/groq/gemini all share the
+// OpenAICompatibleProvider harness. These tests pin which provider class +
+// endpoint the runtime resolves per `settings.provider`, and that an unknown
+// id still falls back to anthropic (no crash in the chat path).
 
 import { describe, expect, it } from "vitest";
-import { CopilotRuntime, type CopilotSettings } from "../../src/copilot/CopilotRuntime";
-import { LMStudioProvider } from "../../src/copilot/LMStudioProvider";
+import {
+  CopilotRuntime,
+  type CopilotSettings,
+} from "../../src/copilot/CopilotRuntime";
+import { OpenAICompatibleProvider } from "../../src/copilot/OpenAICompatibleProvider";
 import { AnthropicProvider } from "../../src/copilot/AnthropicProvider";
-import { OpenAIProvider } from "../../src/copilot/OpenAIProvider";
 import { OllamaProvider } from "../../src/copilot/OllamaProvider";
 
 // Minimal App + EntityService + SearchService stubs — CopilotRuntime
@@ -32,58 +38,81 @@ function makeSettings(provider: CopilotSettings["provider"]): CopilotSettings {
   };
 }
 
-describe("CopilotRuntime.provider() — switch wiring", () => {
-  it("provider=lmstudio constructs LMStudioProvider (regression test for s.content bug)", () => {
+describe("CopilotRuntime.provider() — registry-derived wiring", () => {
+  it("provider=lmstudio builds the shared OpenAI-compat harness named 'lmstudio'", () => {
     const { app, entities, search } = stubs();
     const rt = new CopilotRuntime(app, entities, search, makeSettings("lmstudio"));
     const p = rt.provider();
-    expect(p).toBeInstanceOf(LMStudioProvider);
+    expect(p).toBeInstanceOf(OpenAICompatibleProvider);
     expect(p.name).toBe("lmstudio");
   });
 
-  it("provider=anthropic constructs AnthropicProvider", () => {
+  it("provider=anthropic builds AnthropicProvider (distinct event taxonomy)", () => {
     const { app, entities, search } = stubs();
     const rt = new CopilotRuntime(app, entities, search, makeSettings("anthropic"));
     expect(rt.provider()).toBeInstanceOf(AnthropicProvider);
   });
 
-  it("provider=openai constructs OpenAIProvider", () => {
+  it("provider=openai builds the shared harness named 'openai'", () => {
     const { app, entities, search } = stubs();
     const rt = new CopilotRuntime(app, entities, search, makeSettings("openai"));
-    expect(rt.provider()).toBeInstanceOf(OpenAIProvider);
+    const p = rt.provider();
+    expect(p).toBeInstanceOf(OpenAICompatibleProvider);
+    expect(p.name).toBe("openai");
   });
 
-  it("provider=ollama constructs OllamaProvider", () => {
+  it("provider=ollama builds OllamaProvider", () => {
     const { app, entities, search } = stubs();
     const rt = new CopilotRuntime(app, entities, search, makeSettings("ollama"));
     expect(rt.provider()).toBeInstanceOf(OllamaProvider);
   });
 
-  it("unknown provider falls back to AnthropicProvider (NOT lmstudio)", () => {
+  it("provider=groq (new cloud config) builds the shared harness named 'groq'", () => {
     const { app, entities, search } = stubs();
-    // Cast-through-unknown lets us test the default branch.
+    const rt = new CopilotRuntime(app, entities, search, makeSettings("groq"));
+    const p = rt.provider();
+    expect(p).toBeInstanceOf(OpenAICompatibleProvider);
+    expect(p.name).toBe("groq");
+  });
+
+  it("unknown provider falls back to AnthropicProvider (NOT lmstudio, NOT a crash)", () => {
+    const { app, entities, search } = stubs();
     const bad = makeSettings("anthropic");
     (bad as unknown as { provider: string }).provider = "totally-fake";
     const rt = new CopilotRuntime(app, entities, search, bad);
-    // Fallthrough goes to Anthropic — historical default.
     expect(rt.provider()).toBeInstanceOf(AnthropicProvider);
+  });
+
+  it("memoizes the provider instance across calls (no re-new per ask)", () => {
+    const { app, entities, search } = stubs();
+    const rt = new CopilotRuntime(app, entities, search, makeSettings("openai"));
+    expect(rt.provider()).toBe(rt.provider());
+  });
+
+  it("invalidates the cached instance after updateSettings", () => {
+    const { app, entities, search } = stubs();
+    const rt = new CopilotRuntime(app, entities, search, makeSettings("openai"));
+    const first = rt.provider();
+    rt.updateSettings({ provider: "anthropic" });
+    const second = rt.provider();
+    expect(second).not.toBe(first);
+    expect(second).toBeInstanceOf(AnthropicProvider);
   });
 });
 
-describe("CopilotRuntime.provider() — settings hydration", () => {
+describe("CopilotRuntime.provider() — endpoint hydration", () => {
   it("lmstudio default endpoint is http://localhost:1234/v1 when baseUrl unset", () => {
     const { app, entities, search } = stubs();
-    const s = makeSettings("lmstudio");
-    const rt = new CopilotRuntime(app, entities, search, s);
-    const p = rt.provider() as LMStudioProvider;
-    expect(p.getConfig().endpoint).toBe("http://localhost:1234/v1");
+    const rt = new CopilotRuntime(app, entities, search, makeSettings("lmstudio"));
+    const p = rt.provider() as OpenAICompatibleProvider;
+    expect(p.endpoint).toBe("http://localhost:1234/v1");
   });
 
   it("lmstudio honors operator-overridden baseUrl", () => {
     const { app, entities, search } = stubs();
     const s = { ...makeSettings("lmstudio"), baseUrl: "http://10.0.0.5:9999/v1" };
     const rt = new CopilotRuntime(app, entities, search, s);
-    const p = rt.provider() as LMStudioProvider;
-    expect(p.getConfig().endpoint).toBe("http://10.0.0.5:9999/v1");
+    const p = rt.provider() as OpenAICompatibleProvider;
+    expect(p.endpoint).toBe("http://10.0.0.5:9999/v1");
   });
 });

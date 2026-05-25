@@ -1,20 +1,19 @@
 // Orchestrator: provider selection + RAG assembly + streaming completion.
 // Keeps the chat surface (CopilotView) thin.
 
+import { RagAssembler, ConversationStore, ToolUseAdapter } from "./index";
 import {
-  AnthropicProvider,
-  OpenAIProvider,
-  OllamaProvider,
-  RagAssembler,
-  ConversationStore,
-  ToolUseAdapter,
-} from "./index";
-import { LMStudioProvider } from "./LMStudioProvider";
+  buildProvider,
+  PROVIDER_REGISTRY,
+  type ProviderId,
+  type BuildProviderOpts,
+} from "./ProviderRegistry";
 import type {
   ChatMessage,
   ICopilotProvider,
   CompletionEvent,
 } from "./ICopilotProvider";
+import type { CredentialSource } from "./CredentialSource";
 import type { CopilotSession } from "./ConversationStore";
 import {
   ObsidianProviderHost,
@@ -28,7 +27,10 @@ import type { LanceVectorIndex } from "../backend/lance";
 import { SlashCommand, defaultSlashCommands } from "./SlashCommands";
 
 export interface CopilotSettings {
-  provider: "anthropic" | "openai" | "ollama" | "lmstudio";
+  /** Provider id — derived from the ProviderRegistry (S1). Older saved
+   *  settings only ever held anthropic/openai/ollama/lmstudio; the registry
+   *  superset (nim/openrouter/groq/gemini/lmstudio-sdk) is now valid too. */
+  provider: ProviderId;
   model: string;
   apiKey: string; // P15 swaps for KeyVault lookup
   baseUrl?: string; // ollama override / proxy URL / LM Studio endpoint
@@ -55,7 +57,7 @@ export interface CopilotSettings {
  *  a local embed model (LM Studio/Ollama) while chatting with a cloud model. */
 export interface EmbeddingRuntimeConfig {
   enabled: boolean;
-  provider: "lmstudio" | "openai" | "ollama";
+  provider: ProviderId;
   endpoint: string;
   model: string;
   apiKey?: string;
@@ -116,6 +118,7 @@ export class CopilotRuntime {
 
   setEmbeddingConfig(cfg: EmbeddingRuntimeConfig | null): void {
     this.embedConfig = cfg;
+    this.providerCache.clear(); // embed endpoint/provider may have changed
   }
 
   // ── Prompt + session management (PLAN T6) ──────────────────────────
@@ -243,27 +246,46 @@ export class CopilotRuntime {
 
   /** Build the embedding provider from its config (independent of chat). */
   private embedProvider(c: EmbeddingRuntimeConfig): ICopilotProvider {
-    switch (c.provider) {
-      case "openai":
-        return new OpenAIProvider(
-          this.providerHost,
-          async () => c.apiKey ?? "",
-          c.endpoint,
-        );
-      case "ollama":
-        return new OllamaProvider(this.providerHost, c.endpoint);
-      case "lmstudio":
-      default:
-        return new LMStudioProvider(this.providerHost, {
-          endpoint: c.endpoint,
-          apiKey: c.apiKey || undefined,
-          defaultModel: c.model,
-        });
+    return this.getOrBuildProvider(c.provider, {
+      apiKey: async () => c.apiKey || undefined,
+      baseUrl: c.endpoint,
+      defaultModel: c.model,
+    });
+  }
+
+  // ── Provider instance cache (S1) ────────────────────────────────────────
+  // Providers were re-`new`ed every ask()/embed(), discarding warm connections
+  // and dynamic refreshModels()/JIT state. Memoize by (id, endpoint); the
+  // apiKey getter closes over live settings so credential changes are still
+  // picked up, and updateSettings/setEmbeddingConfig invalidate the cache.
+  private providerCache = new Map<string, ICopilotProvider>();
+  /** Optional credential source for the lmstudio-sdk harness (JIT load). */
+  private credentialSource: CredentialSource | null = null;
+
+  setCredentialSource(src: CredentialSource | null): void {
+    this.credentialSource = src;
+    this.providerCache.clear();
+  }
+
+  private getOrBuildProvider(
+    id: ProviderId,
+    opts: BuildProviderOpts,
+  ): ICopilotProvider {
+    const key = `${id}::${opts.baseUrl ?? ""}`;
+    let p = this.providerCache.get(key);
+    if (!p) {
+      p = buildProvider(id, this.providerHost, {
+        ...opts,
+        credentialSource: this.credentialSource,
+      });
+      this.providerCache.set(key, p);
     }
+    return p;
   }
 
   updateSettings(s: Partial<CopilotSettings>): void {
     this.settings = { ...this.settings, ...s };
+    this.providerCache.clear(); // endpoint/provider may have changed
   }
 
   getSettings(): CopilotSettings {
@@ -297,33 +319,18 @@ export class CopilotRuntime {
   }
 
   provider(): ICopilotProvider {
-    const key = async () => this.settings.apiKey;
-    switch (this.settings.provider) {
-      case "openai":
-        return new OpenAIProvider(
-          this.providerHost,
-          key,
-          this.settings.baseUrl,
-        );
-      case "ollama":
-        return new OllamaProvider(
-          this.providerHost,
-          this.settings.baseUrl ?? "http://localhost:11434",
-        );
-      case "lmstudio":
-        return new LMStudioProvider(this.providerHost, {
-          endpoint: this.settings.baseUrl ?? "http://localhost:1234/v1",
-          apiKey: this.settings.apiKey || undefined,
-          defaultModel: this.settings.model,
-        });
-      case "anthropic":
-      default:
-        return new AnthropicProvider(
-          this.providerHost,
-          key,
-          this.settings.baseUrl,
-        );
-    }
+    // Guard against a corrupt/legacy provider value: an unknown id falls back
+    // to the historical default (anthropic) rather than throwing inside the
+    // chat path. Known ids derive from the registry (S1).
+    const id: ProviderId =
+      this.settings.provider in PROVIDER_REGISTRY
+        ? this.settings.provider
+        : "anthropic";
+    return this.getOrBuildProvider(id, {
+      apiKey: async () => this.settings.apiKey || undefined,
+      baseUrl: this.settings.baseUrl,
+      defaultModel: this.settings.model,
+    });
   }
 
   /**
