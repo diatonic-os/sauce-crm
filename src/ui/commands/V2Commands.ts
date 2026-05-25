@@ -37,12 +37,6 @@ export const V2_COMMANDS: V2CommandDescriptor[] = [
   { id: "sauce:open-sync-status", name: "Open Sync Status", category: "view" },
   { id: "sauce:open-audit-log", name: "Open Audit Log", category: "view" },
   {
-    id: "sauce:run-skill",
-    name: "Run Skill…",
-    defaultHotkey: "Mod+K",
-    category: "skill",
-  },
-  {
     id: "sauce:summarize-current",
     name: "Summarize Current Note",
     category: "skill",

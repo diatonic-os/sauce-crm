@@ -318,6 +318,23 @@ export class CopilotRuntime {
     }
   }
 
+  /** One-shot document rewrite for the `propose_edit` vault tool (S2). Applies
+   *  `instructions` to `original` and returns ONLY the revised full text.
+   *  Falls back to the original on any provider error (never throws), so the
+   *  diff a caller computes is a no-op rather than a destructive blank. */
+  async rewrite(original: string, instructions: string): Promise<string> {
+    const system =
+      "You are a precise document editor. Apply the user's instruction to the " +
+      "document and return ONLY the complete revised document text — no " +
+      "preamble, no code fences, no commentary.";
+    const user = `Instruction:\n${instructions}\n\nDocument:\n${original}`;
+    const out = await this.completeOnce(system, user, {
+      maxTokens: this.settings.maxTokens,
+      temperature: 0,
+    });
+    return out ?? original;
+  }
+
   provider(): ICopilotProvider {
     // Guard against a corrupt/legacy provider value: an unknown id falls back
     // to the historical default (anthropic) rather than throwing inside the

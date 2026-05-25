@@ -8,7 +8,18 @@ import {
   Notice,
   MarkdownView,
   requestUrl,
+  normalizePath,
 } from "obsidian";
+import {
+  registerVaultTools,
+  createUnifiedDiff,
+  formatUnifiedDiff,
+} from "./copilot/tools";
+import { VaultContextProvider } from "./copilot/VaultContextProvider";
+import {
+  SkillTaskScheduler,
+  type SkillTask,
+} from "./services/SkillTaskScheduler";
 import { injectMobileStyles } from "./ui/MobileStyles";
 import {
   EntityService,
@@ -119,7 +130,6 @@ import {
 import { ObsidianApprovalStore } from "./contract/ObsidianApprovalStore";
 import { ApprovalModalUI } from "./ui/modals/ApprovalModal";
 import { SkillRuntime } from "./skills/SkillRuntime";
-import { SkillPickerModal } from "./ui/modals/v2/SkillPickerModal";
 import { IntegrationRegistry } from "./integrations/IntegrationRegistry";
 import { MapViewReal, VIEW_MAP_REAL } from "./ui/views/v2/MapViewReal";
 import {
@@ -624,6 +634,107 @@ export default class SauceGraphPlugin extends Plugin {
     // Per-skill action classes (`execute-skill:<id>`) let the operator
     // approve-always for safe skills and deny-always for risky ones.
     this.copilot?.toolUse.setApprovalGate(this.approvalGate);
+
+    // F2 (S2) — register generic vault tools on SauceBot's tool loop:
+    // read_note / search_vault / propose_edit / apply_edit / create_note /
+    // web_research / get_links. Writes route through FilesService
+    // (canon-safe, G-003); apply_edit is risk:"high" → ApprovalGate shows the
+    // unified diff before any write. Link traversal feeds RAG one-hop too.
+    const filesSvc = this.wiredSvc?.svcV1.files;
+    if (this.copilot && filesSvc) {
+      const linkProvider = new VaultContextProvider(this.app.metadataCache);
+      linkProvider.rebuild();
+      this.registerEvent(
+        this.app.metadataCache.on("resolved", () => linkProvider.rebuild()),
+      );
+      const readNote = async (path: string): Promise<string | null> => {
+        const f = this.app.vault.getAbstractFileByPath(normalizePath(path));
+        return f instanceof TFile ? await this.app.vault.cachedRead(f) : null;
+      };
+      registerVaultTools(this.copilot.toolUse, {
+        vaultHost: this.app.vault,
+        files: filesSvc,
+        readHost: { read: readNote },
+        searchHost: {
+          search: async (query, limit) =>
+            this.search
+              .fuzzy(query, limit)
+              .map((h) => ({ path: h.file.path, score: h.score })),
+        },
+        editHost: {
+          read: readNote,
+          generateEdit: async (_path, original, instructions) =>
+            (await this.copilot?.rewrite(original, instructions)) ?? original,
+          diff: (original, updated, label) => {
+            const d = createUnifiedDiff(
+              original,
+              updated,
+              `a/${label}`,
+              `b/${label}`,
+            );
+            return d ? formatUnifiedDiff(d) : null;
+          },
+        },
+        webHost: {
+          fetch: async (url) => {
+            const r = await requestUrl({ url, method: "GET", throw: false });
+            return r.text;
+          },
+        },
+        linkProvider,
+      });
+    }
+
+    // F3 (S3/S5) — SkillTaskScheduler: runs skill-bound task notes (frontmatter
+    // type:task + skill_id + schedule) manually or on cron/interval, persisting
+    // last_run/next_run so schedules survive reload.
+    if (this.skills) {
+      const skillTaskSource = {
+        listSkillTasks: async (): Promise<SkillTask[]> => {
+          const out: SkillTask[] = [];
+          for (const f of this.app.vault.getMarkdownFiles()) {
+            const fm = this.app.metadataCache.getFileCache(f)?.frontmatter as
+              | Record<string, unknown>
+              | undefined;
+            if (!fm || fm.type !== "task" || !fm.skill_id) continue;
+            out.push({
+              id: f.path,
+              skill_id: String(fm.skill_id),
+              skill_args:
+                (fm.skill_args as Record<string, unknown>) ?? undefined,
+              schedule: String(fm.schedule ?? "manual"),
+              last_run: fm.last_run ? String(fm.last_run) : undefined,
+              next_run: fm.next_run ? String(fm.next_run) : undefined,
+              autonomy: fm.autonomy as SkillTask["autonomy"],
+            });
+          }
+          return out;
+        },
+      };
+      const skillTaskPersister = {
+        updateScheduleState: async (
+          taskId: string,
+          patch: { last_run?: string; next_run?: string },
+        ): Promise<void> => {
+          const f = this.app.vault.getAbstractFileByPath(taskId);
+          if (!(f instanceof TFile)) return;
+          await this.entityService.updateFrontmatter(f, (fm) => {
+            if (patch.last_run !== undefined)
+              (fm as Record<string, unknown>).last_run = patch.last_run;
+            if (patch.next_run !== undefined)
+              (fm as Record<string, unknown>).next_run = patch.next_run;
+          });
+        },
+      };
+      const scheduler = new SkillTaskScheduler(
+        this.skills,
+        skillTaskSource,
+        skillTaskPersister,
+      );
+      scheduler.start(60_000);
+      this.register(() => scheduler.stop());
+    }
+
     this.integrations = new IntegrationRegistry(this.app, {});
 
     // MOB-BRIDGE-001 — build the platform memory backend and, on desktop,
@@ -884,12 +995,6 @@ export default class SauceGraphPlugin extends Plugin {
           .onClick(() => this.openView(VIEW_AI_INBOX_REAL)),
       );
       m.addSeparator();
-      m.addItem((i) =>
-        i
-          .setTitle("Run Skill…")
-          .setIcon("sauce-skill")
-          .onClick(() => new SkillPickerModal(this.app, this).open()),
-      );
       m.addItem((i) =>
         i
           .setTitle("Audit Log")
@@ -1286,11 +1391,6 @@ export default class SauceGraphPlugin extends Plugin {
       id: "open-copilot",
       name: "Open SauceBot",
       callback: () => this.openView(VIEW_COPILOT_CHAT),
-    });
-    this.addCommand({
-      id: "run-skill",
-      name: "Run Skill…",
-      callback: () => new SkillPickerModal(this.app, this).open(),
     });
     this.addCommand({
       id: "open-map",
