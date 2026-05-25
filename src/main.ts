@@ -132,10 +132,7 @@ import { ApprovalModalUI } from "./ui/modals/ApprovalModal";
 import { SkillRuntime } from "./skills/SkillRuntime";
 import { IntegrationRegistry } from "./integrations/IntegrationRegistry";
 import { MapViewReal, VIEW_MAP_REAL } from "./ui/views/v2/MapViewReal";
-import {
-  AIInboxViewReal,
-  VIEW_AI_INBOX_REAL,
-} from "./ui/views/v2/AIInboxViewReal";
+import { AIInboxView, VIEW_AI_INBOX } from "./ui/views/v2/AIInboxView";
 import {
   SyncStatusViewReal,
   VIEW_SYNC_STATUS_REAL,
@@ -144,15 +141,11 @@ import { QuickCaptureModal } from "./ui/modals/v2/QuickCaptureModal";
 import { ImportMappingModal } from "./ui/modals/v2/ImportMappingModal";
 import { BackupService } from "./sync/BackupService";
 import { V2Registry } from "./v2/Registry";
+import { AuditLogView, VIEW_AUDIT_LOG } from "./ui/views/v2/AuditLogView";
 import {
-  AuditLogViewReal,
-  VIEW_AUDIT_LOG_REAL,
-} from "./ui/views/v2/AuditLogViewReal";
-import {
-  SkillRunLogViewReal,
-  VIEW_SKILL_RUN_LOG_REAL,
-  skillRunRing,
-} from "./ui/views/v2/SkillRunLogViewReal";
+  SkillRunLogView,
+  VIEW_SKILL_RUN_LOG,
+} from "./ui/views/v2/SkillRunLogView";
 import { GraphAtlasService } from "./services/GraphAtlasService";
 import { CalendarView, VIEW_CALENDAR } from "./ui/views/v2/CalendarView";
 import {
@@ -828,14 +821,15 @@ export default class SauceGraphPlugin extends Plugin {
       (l) => new SyncStatusViewReal(l, this),
     );
     this.registerView(VIEW_MAP_REAL, (l) => new MapViewReal(l, this));
-    this.registerView(VIEW_AI_INBOX_REAL, (l) => new AIInboxViewReal(l, this));
+    // CON-SAUCEBOT S7 — register the FUNCTIONAL inbox/audit/run-log views in
+    // place of the dormant "Real" placeholder stubs. The functional
+    // SkillRunLogView reads the same SkillRunRing singleton the SkillRuntime
+    // pushes to (the Real stub had a second, never-populated ring).
+    this.registerView(VIEW_AI_INBOX, (l) => new AIInboxView(l, this));
+    this.registerView(VIEW_AUDIT_LOG, (l) => new AuditLogView(l, this));
     this.registerView(
-      VIEW_AUDIT_LOG_REAL,
-      (l) => new AuditLogViewReal(l, this),
-    );
-    this.registerView(
-      VIEW_SKILL_RUN_LOG_REAL,
-      (l) => new SkillRunLogViewReal(l, this),
+      VIEW_SKILL_RUN_LOG,
+      (l) => new SkillRunLogView(l, this),
     );
     this.registerView(VIEW_CALENDAR, (l) => new CalendarView(l, this));
     this.registerView(VIEW_TASKS, (l) => new TasksView(l, this));
@@ -992,20 +986,20 @@ export default class SauceGraphPlugin extends Plugin {
         i
           .setTitle("AI Inbox")
           .setIcon("sauce-ai-inbox")
-          .onClick(() => this.openView(VIEW_AI_INBOX_REAL)),
+          .onClick(() => this.openView(VIEW_AI_INBOX)),
       );
       m.addSeparator();
       m.addItem((i) =>
         i
           .setTitle("Audit Log")
           .setIcon("sauce-audit")
-          .onClick(() => this.openView(VIEW_AUDIT_LOG_REAL)),
+          .onClick(() => this.openView(VIEW_AUDIT_LOG)),
       );
       m.addItem((i) =>
         i
           .setTitle("Skill Run Log")
           .setIcon("sauce-skill")
-          .onClick(() => this.openView(VIEW_SKILL_RUN_LOG_REAL)),
+          .onClick(() => this.openView(VIEW_SKILL_RUN_LOG)),
       );
       m.addItem((i) =>
         i
@@ -1400,7 +1394,7 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCommand({
       id: "open-ai-inbox",
       name: "Open AI Inbox",
-      callback: () => this.openView(VIEW_AI_INBOX_REAL),
+      callback: () => this.openView(VIEW_AI_INBOX),
     });
     this.addCommand({
       id: "quick-capture",
@@ -1440,12 +1434,12 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCommand({
       id: "open-audit-log",
       name: "Open Audit Log",
-      callback: () => this.openView(VIEW_AUDIT_LOG_REAL),
+      callback: () => this.openView(VIEW_AUDIT_LOG),
     });
     this.addCommand({
       id: "open-skill-run-log",
       name: "Open Skill Run Log",
-      callback: () => this.openView(VIEW_SKILL_RUN_LOG_REAL),
+      callback: () => this.openView(VIEW_SKILL_RUN_LOG),
     });
     this.addCommand({
       id: "open-calendar",
@@ -1846,7 +1840,7 @@ export default class SauceGraphPlugin extends Plugin {
   // stay in the main split where they have room to breathe.
   private static readonly _RIGHT_SIDEBAR_VIEWS: ReadonlySet<string> = new Set([
     VIEW_COPILOT_CHAT,
-    VIEW_AI_INBOX_REAL,
+    VIEW_AI_INBOX,
     VIEW_SYNC_STATUS_REAL,
   ]);
 

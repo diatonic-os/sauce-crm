@@ -255,6 +255,20 @@ export class ItemView {
   getIcon(): string { return ""; }
 }
 
+export class MarkdownRenderer {
+  // Minimal stub: render markdown as text content so view tests can run
+  // without a real Obsidian renderer.
+  static async render(
+    _app: unknown,
+    markdown: string,
+    el: HTMLElement,
+    _sourcePath: string,
+    _component: unknown,
+  ): Promise<void> {
+    el.textContent = markdown;
+  }
+}
+
 export class WorkspaceLeaf {
   view: ItemView | null = null;
   async setViewState(_s: unknown): Promise<void> {}

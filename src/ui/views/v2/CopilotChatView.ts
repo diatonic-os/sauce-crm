@@ -10,6 +10,7 @@
 
 import {
   ItemView,
+  MarkdownRenderer,
   Modal,
   Menu,
   Notice,
@@ -683,11 +684,18 @@ export class CopilotChatView extends ItemView {
       for await (const ev of copilot.ask(q, activePath, this.history)) {
         if (ev.type === "text") {
           text += ev.delta;
+          // Stream as plain text for responsiveness (re-rendering markdown on
+          // every token is too costly); the final markdown render happens on
+          // the `done` event below.
           assistantEl.setText(text);
           this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
         } else if (ev.type === "done") {
-          if (ev.reason === "error")
+          if (ev.reason === "error") {
             assistantEl.setText(text + `\n\n[error: ${ev.error ?? "unknown"}]`);
+          } else {
+            await this.renderMarkdownInto(assistantEl, text);
+          }
+          this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
         }
       }
       this.history.push({ role: "user", content: q });
@@ -706,5 +714,28 @@ export class CopilotChatView extends ItemView {
     });
     wrap.createEl("strong", { text: role === "user" ? "you" : "saucebot" });
     return wrap.createDiv({ cls: "sauce-copilot-body", text });
+  }
+
+  /** Render assistant markdown into `el` (replacing any plain-text stream).
+   *  Uses Obsidian's MarkdownRenderer so links, code blocks, lists, and
+   *  `[[wikilinks]]` render properly (S7). Best-effort: on failure the plain
+   *  text already shown remains. */
+  private async renderMarkdownInto(
+    el: HTMLElement,
+    markdown: string,
+  ): Promise<void> {
+    try {
+      const sourcePath = this.plugin.app.workspace.getActiveFile()?.path ?? "";
+      el.empty?.();
+      await MarkdownRenderer.render(
+        this.plugin.app,
+        markdown,
+        el,
+        sourcePath,
+        this,
+      );
+    } catch {
+      el.textContent = markdown;
+    }
   }
 }

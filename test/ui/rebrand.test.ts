@@ -34,3 +34,19 @@ describe("rebrand MUST NOT touch persisted internal identifiers", () => {
     expect(V2_COMMANDS.some((c) => c.id === "sauce:open-copilot")).toBe(true);
   });
 });
+
+describe("chat markdown rendering (S7)", () => {
+  it("renderMarkdownInto populates the element with the rendered content", async () => {
+    const el = document.createElement("div");
+    const fakeThis = {
+      plugin: { app: { workspace: { getActiveFile: () => null } } },
+    };
+    await (
+      CopilotChatView.prototype as unknown as {
+        renderMarkdownInto(el: HTMLElement, md: string): Promise<void>;
+      }
+    ).renderMarkdownInto.call(fakeThis, el, "# Heading\n\nbody text");
+    expect(el.textContent).toContain("Heading");
+    expect(el.textContent).toContain("body text");
+  });
+});
