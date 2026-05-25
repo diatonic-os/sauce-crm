@@ -51,6 +51,20 @@ export class SkillRuntime {
     this.transcriber = t;
   }
 
+  /** Durable audit sink for ctx.audit (S7). Null until wired at onload — when
+   *  set, skill runs are recorded to the HMAC-chained LanceAuditStore; when
+   *  unset, ctx.audit falls back to a console line. */
+  private auditSink:
+    | ((
+        op: string,
+        entityId: string | null,
+        details: Record<string, unknown>,
+      ) => Promise<void>)
+    | null = null;
+  setAuditSink(fn: SkillRuntime["auditSink"]): void {
+    this.auditSink = fn;
+  }
+
   list(): Skill[] {
     return this.registry.list();
   }
@@ -105,14 +119,20 @@ export class SkillRuntime {
       call: <T>(serviceId: string, callArgs: unknown) =>
         this.dispatch<T>(serviceId, callArgs ?? args),
       audit: async (op, entityId, details) => {
-        // P15 → write to AuditLog; for now log to console only.
-        // eslint-disable-next-line no-restricted-syntax -- intentional placeholder until P15 AuditLog wiring
-        console.log("Sauce skill audit", {
-          op,
-          entityId,
-          ...details,
-          skill: id,
-        });
+        // S7: record to the durable HMAC-chained audit store when wired;
+        // best-effort, falling back to a console line so a sink failure never
+        // breaks a skill run.
+        const enriched = { ...details, skill: id };
+        if (this.auditSink) {
+          try {
+            await this.auditSink(op, entityId, enriched);
+            return;
+          } catch {
+            /* fall through to console */
+          }
+        }
+        // eslint-disable-next-line no-restricted-syntax -- fallback when no audit sink is wired
+        console.log("Sauce skill audit", { op, entityId, ...enriched });
       },
       scope: {
         require: (integration: string, scope: string) => {

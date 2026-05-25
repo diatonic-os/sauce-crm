@@ -806,6 +806,25 @@ export default class SauceGraphPlugin extends Plugin {
       /* desktop-only; mobile uses cloud/bridge STT */
     }
 
+    // C (S7): route skill ctx.audit to the durable HMAC-chained audit log so
+    // manual + scheduled skill runs are recorded and visible in the Audit Log
+    // view (was a console-only stub).
+    const auditLog = this.v2?.auditLog;
+    if (this.skills && auditLog) {
+      this.skills.setAuditSink(async (op, entityId, details) => {
+        await auditLog.append({
+          ts: Date.now(),
+          op,
+          entityId,
+          agentId: null,
+          integration: null,
+          beforeHash: null,
+          afterHash: null,
+          details,
+        });
+      });
+    }
+
     this.integrations = new IntegrationRegistry(this.app, {});
 
     // MOB-BRIDGE-001 — build the platform memory backend and, on desktop,
