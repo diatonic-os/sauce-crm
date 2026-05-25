@@ -20,6 +20,11 @@ import {
   SkillTaskScheduler,
   type SkillTask,
 } from "./services/SkillTaskScheduler";
+import {
+  VaultGraphIndexer,
+  buildVaultGraphIndexerHost,
+} from "./services/VaultGraphIndexer";
+import { WhisperEngine } from "./services/transcribe/WhisperEngine";
 import { injectMobileStyles } from "./ui/MobileStyles";
 import {
   EntityService,
@@ -532,7 +537,17 @@ export default class SauceGraphPlugin extends Plugin {
         {
           realtimeEmbeddings: () =>
             this.settings.features.rag.realtimeEmbeddings,
+          // B (S6): whole-vault coverage — mirror untyped notes as type:"note"
+          // and honor the operator's exclude-folder list.
+          fullVaultIndex: this.settings.features.rag.fullVaultIndex,
+          excludeGlobs: this.settings.features.rag.excludeGlobs,
         },
+      );
+      // B (S6): give vault search a semantic path over the same Lance vectors
+      // the copilot embeds with (lexical fallback stays inside SearchService).
+      this.search.setSemanticBackend(
+        this.v2.lance.vectors,
+        (text) => this.copilot?.embed(text) ?? Promise.resolve(null),
       );
     }
     // Auto-enrichment (T5): classify/tag/graph stages writing vault frontmatter
@@ -603,6 +618,9 @@ export default class SauceGraphPlugin extends Plugin {
               (this.settings as unknown as { beta?: { enabled?: boolean } })
                 .beta?.enabled,
             ),
+          // B (S6): hydrate the in-memory GraphService from the persistent
+          // LanceDB graph tables (graphify activation).
+          graphStore: this.v2?.lance?.graphStore,
         },
       );
       this.logger.event?.("svcv1.mounted", {
@@ -611,6 +629,34 @@ export default class SauceGraphPlugin extends Plugin {
     } catch (e) {
       this.logger.event?.("svcv1.mount_failed", {
         error: e instanceof Error ? e.message : String(e),
+      });
+    }
+    // B (S6): VaultGraphIndexer — walk the whole vault's wikilinks into the
+    // persistent graph tables. Initial best-effort rebuild + a manual command
+    // (full rebuilds are O(vault) so they're not bound to every metadata tick).
+    const graphSvc = this.wiredSvc?.svcV1.graph;
+    if (graphSvc) {
+      const vaultIndexer = new VaultGraphIndexer(
+        graphSvc,
+        buildVaultGraphIndexerHost(this.app),
+        {
+          store: this.v2?.lance?.graphStore,
+          excludeGlobs: this.settings.features.rag.excludeGlobs ?? [],
+        },
+      );
+      void vaultIndexer.rebuild().catch(() => {
+        /* empty graph on first run / no vault access */
+      });
+      this.addCommand({
+        id: "rebuild-vault-graph",
+        name: "Rebuild Vault Graph Index",
+        callback: () => {
+          void vaultIndexer
+            .rebuild()
+            .then((n) =>
+              new Notice(`SauceBot: indexed ${n} notes into the vault graph`),
+            );
+        },
       });
     }
     // Tasks ↔ Tasks-plugin checkbox bridge (W4): author/read tasks in _TASKS.md.
@@ -726,6 +772,38 @@ export default class SauceGraphPlugin extends Plugin {
       );
       scheduler.start(60_000);
       this.register(() => scheduler.stop());
+    }
+
+    // D (S8): wire local whisper transcription on desktop (the `transcribe`
+    // skill + chat audio uploads route through this). Mobile/sandboxed
+    // runtimes lack child_process/fs, so the engine stays unset there and
+    // dispatch reports "not configured" rather than failing silently.
+    try {
+      const nodeRequire =
+        typeof require !== "undefined"
+          ? (require as (m: string) => unknown)
+          : null;
+      const fsMod = nodeRequire?.("fs") as
+        | { promises: { readFile(p: string, enc: string): Promise<string> } }
+        | undefined;
+      const osMod = nodeRequire?.("os") as { tmpdir(): string } | undefined;
+      if (this.skills && fsMod && osMod) {
+        this.skills.setTranscriber(
+          new WhisperEngine({
+            readText: async (p) => {
+              try {
+                return await fsMod.promises.readFile(p, "utf8");
+              } catch {
+                return null;
+              }
+            },
+            outputDir: osMod.tmpdir(),
+            defaultModel: "large-v3-turbo",
+          }),
+        );
+      }
+    } catch {
+      /* desktop-only; mobile uses cloud/bridge STT */
     }
 
     this.integrations = new IntegrationRegistry(this.app, {});

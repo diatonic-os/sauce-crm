@@ -404,6 +404,7 @@ export class CopilotRuntime {
     query: string,
     focus?: string,
     prior: ChatMessage[] = [],
+    opts: { forceSkill?: string } = {},
   ): AsyncIterable<CompletionEvent> {
     void this.recordQuery(query); // T8: fingerprint/trace the query (fire-and-forget)
     const ctx = await this.rag.assemble(query, focus);
@@ -447,6 +448,15 @@ export class CopilotRuntime {
       } catch {
         /* document context is best-effort */
       }
+    }
+
+    // S4: when the chat slash-picker forces a specific skill, instruct the
+    // model to call that tool immediately with the message as its arguments.
+    // The tool must already be registered (skills bound via bindToCopilot).
+    if (opts.forceSkill && this.toolUse.has(opts.forceSkill)) {
+      systemPlus +=
+        `\n\n## Required action\nYou MUST call the \`${opts.forceSkill}\` tool now, ` +
+        `passing the user's message as its arguments. Do not reply with text first.`;
     }
 
     const provider = this.provider();

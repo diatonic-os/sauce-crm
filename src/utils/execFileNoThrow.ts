@@ -99,8 +99,7 @@ export async function execFileNoThrow(
         { cwd: opts.cwd, timeoutMs: opts.timeoutMs },
         (err, stdout, stderr) => {
           const errCode = (err as unknown as { code?: unknown } | null)?.code;
-          const code =
-            typeof errCode === "number" ? errCode : err ? 1 : 0;
+          const code = typeof errCode === "number" ? errCode : err ? 1 : 0;
           resolve({
             code,
             stdout: stdout ?? "",

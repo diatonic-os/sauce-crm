@@ -27,6 +27,7 @@ import {
   type CatalogModel,
 } from "../../../copilot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
+import { SlashSuggest, type SlashItem } from "../../widgets/SlashSuggest";
 
 export const VIEW_COPILOT_CHAT = "sauce-copilot-chat";
 
@@ -74,6 +75,9 @@ export class CopilotChatView extends ItemView {
   private embedSel!: HTMLSelectElement;
   private micButton: HTMLButtonElement | null = null;
   private recognition: SpeechRecognitionLike | null = null;
+  // S4: "/" slash picker + the skill it forces on the next send (if any).
+  private slashSuggest: SlashSuggest | null = null;
+  private pendingForceSkill: string | null = null;
   private isListening = false;
   private showRelevant = true;
   private showSuggested = true;
@@ -398,6 +402,42 @@ export class CopilotChatView extends ItemView {
         void this.askNow();
       }
     });
+
+    // S4: typing "/" opens the skill/command picker. Skills force a tool call
+    // on the next send; command macros substitute their prompt text.
+    this.slashSuggest = new SlashSuggest(this.inputEl, {
+      getItems: () => {
+        const skills: SlashItem[] = (this.plugin.skills?.enabled() ?? []).map(
+          (s) => ({ id: s.id, label: s.id, detail: s.description, kind: "skill" }),
+        );
+        const cmds: SlashItem[] = (
+          this.plugin.settings.copilot?.slashCommands ?? []
+        ).map((c) => ({ id: c.id, label: c.name, kind: "command" }));
+        return [...skills, ...cmds];
+      },
+      onSelect: (item) => this.onSlashSelect(item),
+    });
+    this.slashSuggest.attach();
+  }
+
+  /** S4: a "/" pick — a skill arms forceSkill for the next send; a command
+   *  macro substitutes its prompt text into the input for the user to edit. */
+  private onSlashSelect(item: SlashItem): void {
+    if (item.kind === "skill") {
+      this.pendingForceSkill = item.id;
+      this.inputEl.value = "";
+      this.inputEl.setAttribute(
+        "placeholder",
+        `Running /${item.id} — type your message and send…`,
+      );
+      this.inputEl.focus();
+      return;
+    }
+    const cmd = (this.plugin.settings.copilot?.slashCommands ?? []).find(
+      (c) => c.id === item.id,
+    );
+    this.inputEl.value = (cmd?.prompt ?? "").replace("{}", "");
+    this.inputEl.focus();
   }
 
   private newSession(): void {
@@ -661,6 +701,8 @@ export class CopilotChatView extends ItemView {
       this.recognition = null;
     }
     this.isListening = false;
+    this.slashSuggest?.detach();
+    this.slashSuggest = null;
     await this.persistCurrentSession();
   }
 
@@ -675,13 +717,22 @@ export class CopilotChatView extends ItemView {
     if (!q) return;
     if (!this.firstUserMsg) this.firstUserMsg = q;
     this.inputEl.value = "";
+    // Consume any armed slash-skill for this send, then reset the affordance.
+    const forceSkill = this.pendingForceSkill ?? undefined;
+    this.pendingForceSkill = null;
+    this.inputEl.setAttribute(
+      "placeholder",
+      "Ask about your graph…  ( ⌘/Ctrl + Enter to send )",
+    );
     this.suggestionsEl.hide();
     this.appendMessage("user", q);
     const assistantEl = this.appendMessage("assistant", "");
     let text = "";
     try {
       const activePath = this.plugin.app.workspace.getActiveFile()?.path;
-      for await (const ev of copilot.ask(q, activePath, this.history)) {
+      for await (const ev of copilot.ask(q, activePath, this.history, {
+        forceSkill,
+      })) {
         if (ev.type === "text") {
           text += ev.delta;
           // Stream as plain text for responsiveness (re-rendering markdown on

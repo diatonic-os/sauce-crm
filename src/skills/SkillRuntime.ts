@@ -18,6 +18,7 @@ import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
 import { QueryService } from "../services/QueryService";
 import { runPath } from "../query/PathQuery";
+import type { TranscriptionProvider } from "../services/transcribe/TranscriptionProvider";
 
 export interface SkillRunOptions {
   autonomyOverride?: AutonomyLevel;
@@ -41,6 +42,13 @@ export class SkillRuntime {
     private copilot: () => CopilotRuntime | null,
   ) {
     this.registry = new SkillRegistry();
+  }
+
+  /** Local/cloud STT engine for the `transcribe` skill (S8). Null until wired
+   *  at onload (desktop) — dispatch reports a clear "not configured" otherwise. */
+  private transcriber: TranscriptionProvider | null = null;
+  setTranscriber(t: TranscriptionProvider | null): void {
+    this.transcriber = t;
   }
 
   list(): Skill[] {
@@ -179,8 +187,10 @@ export class SkillRuntime {
       case "export-graph":
         return this.exportGraph() as T;
 
-      case "geocode":
       case "transcribe":
+        return (await this.runTranscribe(a)) as T;
+
+      case "geocode":
       case "capture-call":
       case "schedule-touch":
       case "import-contacts":
@@ -211,6 +221,28 @@ export class SkillRuntime {
         return { error: ev.error ?? "unknown" };
     }
     return { text };
+  }
+
+  /** S8: run the configured transcription engine on an audio file path. */
+  private async runTranscribe(args: Record<string, unknown>): Promise<unknown> {
+    if (!this.transcriber)
+      return {
+        pending: "transcribe",
+        reason: "no transcription engine configured (desktop only)",
+      };
+    const path = String(args.path ?? args.file ?? args.audio ?? "");
+    if (!path) return { error: "transcribe: missing audio path (pass `path`)" };
+    try {
+      const r = await this.transcriber.transcribe(path, {
+        language: args.language ? String(args.language) : undefined,
+        model: args.model ? String(args.model) : undefined,
+      });
+      return { text: r.text, language: r.language, durationMs: r.durationMs };
+    } catch (e) {
+      return {
+        error: `transcribe failed: ${e instanceof Error ? e.message : String(e)}`,
+      };
+    }
   }
 
   private routeIntroduction(args: Record<string, unknown>): {
