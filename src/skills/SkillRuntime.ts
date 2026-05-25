@@ -250,8 +250,11 @@ export class SkillRuntime {
         pending: "transcribe",
         reason: "no transcription engine configured (desktop only)",
       };
-    const path = String(args.path ?? args.file ?? args.audio ?? "");
-    if (!path) return { error: "transcribe: missing audio path (pass `path`)" };
+    const path = String(
+      args.audio_path ?? args.path ?? args.file ?? args.audio ?? "",
+    );
+    if (!path)
+      return { error: "transcribe: missing audio path (pass `audio_path`)" };
     try {
       const r = await this.transcriber.transcribe(path, {
         language: args.language ? String(args.language) : undefined,

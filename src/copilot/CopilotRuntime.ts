@@ -96,20 +96,39 @@ export class CopilotRuntime {
     ragVectorIndex: LanceVectorIndex | null = null,
   ) {
     const embedFn = ragVectorIndex ? (text: string) => this.embed(text) : null;
-    this.rag = new RagAssembler(
-      new ObsidianRagHost(
-        app,
-        entities,
-        search,
-        () => [],
-        ragVectorIndex,
-        embedFn,
-      ),
+    this.ragHost = new ObsidianRagHost(
+      app,
+      entities,
+      search,
+      () => [],
+      ragVectorIndex,
+      embedFn,
     );
+    this.rag = new RagAssembler(this.ragHost);
     this.conversations = new ConversationStore(
       new ObsidianConversationHost(app),
     );
     this.toolUse = new ToolUseAdapter();
+  }
+
+  /** The RAG host (kept so the link provider + S9 remote-semantic fallback can
+   *  be injected after construction). */
+  private ragHost: ObsidianRagHost;
+
+  /** S9: route semantic RAG through the bridge memory backend when no local
+   *  vector index is usable (mobile). The getter is read at call time so it
+   *  picks up `this.memory` once the bridge starts. */
+  setSemanticFallback(
+    fn:
+      | (() =>
+          | ((
+              query: string,
+              topK: number,
+            ) => Promise<{ path: string; score: number }[]>)
+          | null)
+      | null,
+  ): void {
+    this.ragHost.setSemanticFallback(fn);
   }
 
   /** Dedicated embedding provider config (decoupled from chat). When set and

@@ -25,6 +25,7 @@ import {
   buildVaultGraphIndexerHost,
 } from "./services/VaultGraphIndexer";
 import { WhisperEngine } from "./services/transcribe/WhisperEngine";
+import { MemoryBackendRagAdapter } from "./bridge/MemoryBackendRagAdapter";
 import { injectMobileStyles } from "./ui/MobileStyles";
 import {
   EntityService,
@@ -837,6 +838,17 @@ export default class SauceGraphPlugin extends Plugin {
         error: String(e),
       });
     }
+
+    // F (S9): route the copilot's semantic RAG through the bridge memory
+    // backend when no local vector index is usable (mobile → desktop LanceDB
+    // over the bridge). Lazy getter so it tracks refreshBridge() rebuilds.
+    this.copilot?.setSemanticFallback(() => {
+      const mem = this.memory;
+      return mem
+        ? (q: string, k: number) =>
+            new MemoryBackendRagAdapter(mem).semantic(q, k)
+        : null;
+    });
 
     // Addendum A §B — populate v2Registry capability descriptors. Each entry's `ready`
     // mirrors live module presence; sections check this to decide IMPLEMENTED/DEGRADED/COMING_SOON.

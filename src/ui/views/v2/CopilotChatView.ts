@@ -28,6 +28,7 @@ import {
 } from "../../../copilot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 import { SlashSuggest, type SlashItem } from "../../widgets/SlashSuggest";
+import type { DocFormat } from "../../../services/DocumentHarvest";
 
 export const VIEW_COPILOT_CHAT = "sauce-copilot-chat";
 
@@ -389,6 +390,26 @@ export class CopilotChatView extends ItemView {
       );
       this.micButton.addClass("sauce-copilot-mic");
     }
+    // S7: paperclip upload — audio → transcribe (inserts the transcript into
+    // the composer), documents → RAG harvest. Uses a detached file input so no
+    // inline style is needed to hide it (G-001).
+    const attach = this.iconButton(
+      inputRow,
+      "paperclip",
+      "Attach audio (transcribe) or a document (RAG)",
+      () => {
+        const fi = document.createElement("input");
+        fi.type = "file";
+        fi.accept =
+          ".m4a,.mp3,.wav,.mp4,.ogg,.webm,.flac,.md,.txt,.pdf,.docx";
+        fi.onchange = () => {
+          const f = fi.files?.[0];
+          if (f) void this.handleUpload(f);
+        };
+        fi.click();
+      },
+    );
+    attach.addClass("sauce-cp-attach");
     const send = this.iconButton(
       inputRow,
       "send",
@@ -765,6 +786,70 @@ export class CopilotChatView extends ItemView {
     });
     wrap.createEl("strong", { text: role === "user" ? "you" : "saucebot" });
     return wrap.createDiv({ cls: "sauce-copilot-body", text });
+  }
+
+  /** S7: handle a paperclip upload — audio is transcribed (transcript inserted
+   *  into the composer); documents are harvested into the RAG doc-chunk store. */
+  private async handleUpload(file: File): Promise<void> {
+    const name = file.name.toLowerCase();
+    if (/\.(m4a|mp3|wav|mp4|ogg|webm|flac)$/.test(name)) {
+      const path = (file as { path?: string }).path;
+      if (!path) {
+        new Notice("Audio transcription needs a desktop file path.");
+        return;
+      }
+      new Notice("SauceBot: transcribing…");
+      const r = await this.plugin.skills?.run("transcribe", {
+        audio_path: path,
+      });
+      if (r && r.ok) {
+        const text = (
+          (r.payload as { text?: string } | undefined)?.text ?? ""
+        ).trim();
+        if (text) {
+          this.inputEl.value =
+            (this.inputEl.value ? this.inputEl.value + "\n\n" : "") + text;
+          this.inputEl.focus();
+          new Notice("SauceBot: transcript inserted into the composer.");
+        } else {
+          new Notice("SauceBot: transcription produced no text.");
+        }
+      } else {
+        new Notice(
+          `SauceBot: transcribe failed${r && !r.ok ? ` — ${r.reason}` : ""}.`,
+        );
+      }
+      return;
+    }
+    // Document → RAG harvest (embedded into LanceDB doc chunks).
+    if (!this.plugin.documentHarvest) {
+      new Notice("Document RAG is unavailable (LanceDB off).");
+      return;
+    }
+    try {
+      const format: DocFormat = name.endsWith(".pdf")
+        ? "pdf"
+        : name.endsWith(".docx")
+          ? "docx"
+          : name.endsWith(".md")
+            ? "md"
+            : "txt";
+      const input =
+        format === "md" || format === "txt"
+          ? { id: file.name, name: file.name, format, text: await file.text() }
+          : {
+              id: file.name,
+              name: file.name,
+              format,
+              bytes: new Uint8Array(await file.arrayBuffer()),
+            };
+      await this.plugin.documentHarvest.harvest(input);
+      new Notice(`SauceBot: added "${file.name}" to document context.`);
+    } catch (e) {
+      new Notice(
+        `SauceBot: harvest failed — ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   /** Render assistant markdown into `el` (replacing any plain-text stream).

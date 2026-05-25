@@ -108,4 +108,11 @@ export class AuditLog {
     }
     return { ok: true, brokenAt: null };
   }
+
+  /** Most-recent `n` rows (ts descending) for the Audit Log view (S7). Reads
+   *  the chain-ordered store and returns the tail, newest first. */
+  async recent(n: number): Promise<StoredAuditRow[]> {
+    const rows = await this.store.allAsc();
+    return rows.slice(Math.max(0, rows.length - n)).reverse();
+  }
 }

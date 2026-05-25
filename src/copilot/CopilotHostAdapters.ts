@@ -108,6 +108,21 @@ export class ObsidianRagHost implements RagAssemblerHost {
     private linkProvider: VaultContextProvider | null = null,
   ) {}
 
+  /** S9: lazy remote-semantic fallback (the bridge memory adapter). Read at
+   *  call time because the bridge memory backend is built after the runtime.
+   *  Returns null when no remote backend is wired. */
+  private semanticFallback:
+    | (() =>
+        | ((
+            query: string,
+            topK: number,
+          ) => Promise<{ path: string; score: number }[]>)
+        | null)
+    | null = null;
+  setSemanticFallback(fn: ObsidianRagHost["semanticFallback"]): void {
+    this.semanticFallback = fn;
+  }
+
   async pinned(): Promise<string[]> {
     return this.pinnedPaths();
   }
@@ -164,6 +179,20 @@ export class ObsidianRagHost implements RagAssemblerHost {
               }));
             }
           }
+        }
+      } catch {
+        /* fall through to remote/lexical */
+      }
+    }
+    // S9: when there's no usable local vector index (mobile) but a bridge
+    // memory backend is wired, route semantic search through it (→ desktop
+    // LanceDB) before falling back to lexical.
+    if (this.semanticFallback) {
+      try {
+        const fn = this.semanticFallback();
+        if (fn) {
+          const hits = await fn(query, topK);
+          if (hits.length) return hits;
         }
       } catch {
         /* fall through to lexical */
