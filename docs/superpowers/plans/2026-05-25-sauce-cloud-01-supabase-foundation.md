@@ -479,9 +479,13 @@ git commit -m "feat(sauce-cloud): seed plans + model catalog (placeholder pricin
 
 ```ts
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-const URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-const ANON = process.env.SUPABASE_ANON_KEY!;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// `supabase status -o env` emits API_URL / ANON_KEY / SERVICE_ROLE_KEY (CLI 2.84).
+// Accept SUPABASE_* fallbacks too. NOTE: this local stack runs on remapped ports
+// (api 54521) because other Supabase stacks occupy the defaults — always source
+// the values from `supabase status -o env`, never hardcode 54321.
+const URL = process.env.API_URL ?? process.env.SUPABASE_URL ?? "http://127.0.0.1:54521";
+const ANON = (process.env.ANON_KEY ?? process.env.SUPABASE_ANON_KEY)!;
+const SERVICE = (process.env.SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY)!;
 
 export const service = (): SupabaseClient =>
   createClient(URL, SERVICE, { auth: { persistSession: false } });
@@ -507,7 +511,7 @@ export async function makeUser(plan = "free") {
 
 - [ ] **Step 2: Document the test run sequence in `sauce-cloud/README.md`**
 
-Append: `Run tests: \`supabase start\`, then export the printed keys — \`export SUPABASE_URL=… SUPABASE_ANON_KEY=… SUPABASE_SERVICE_ROLE_KEY=…\` — then \`npm test\`. \`supabase db reset\` between full runs for a clean ledger.`
+Append: `Run tests: \`supabase start\`, then \`export $(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')\` and \`npm test\`. \`supabase db reset\` between full runs for a clean ledger.` (The helper also accepts SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY.)
 
 - [ ] **Step 3: Commit**
 
