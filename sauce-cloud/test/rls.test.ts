@@ -20,4 +20,10 @@ describe("RLS isolation", () => {
     const { data } = await a.client.from("model_catalog").select("id").eq("enabled", true);
     expect((data ?? []).length).toBeGreaterThan(0);
   });
+
+  it("authenticated clients cannot execute the service-role credit RPCs", async () => {
+    const u = await makeUser();
+    const { error } = await u.client.rpc("reserve_credits", { p_account: u.id, p_estimate: 1 });
+    expect(error).toBeTruthy();                       // execute revoked from authenticated
+  });
 });

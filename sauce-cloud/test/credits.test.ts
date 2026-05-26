@@ -50,4 +50,33 @@ describe("credit RPCs", () => {
     expect(after1).toBe(250000000000);
     expect(after2).toBe(after1);
   });
+
+  it("commit_usage is single-shot — a duplicate commit does not double-refund", async () => {
+    const u = await makeUser(); await setBalance(u.id, 1000);
+    const svc = service();
+    const { data: resId } = await svc.rpc("reserve_credits", { p_account: u.id, p_estimate: 400 });
+    const args = { p_reservation: resId, p_account: u.id, p_actual: 250, p_model: "openai/gpt-4o-mini", p_input: 1, p_output: 1, p_request_id: "r" };
+    await svc.rpc("commit_usage", args);
+    await svc.rpc("commit_usage", args);            // duplicate must be a no-op
+    expect(await getBalance(u.id)).toBe(750);        // charged once (not 900)
+  });
+
+  it("release after commit is a no-op (no double refund)", async () => {
+    const u = await makeUser(); await setBalance(u.id, 1000);
+    const svc = service();
+    const { data: resId } = await svc.rpc("reserve_credits", { p_account: u.id, p_estimate: 400 });
+    await svc.rpc("commit_usage", { p_reservation: resId, p_account: u.id, p_actual: 250, p_model: "m", p_input: 1, p_output: 1, p_request_id: "r" });
+    await svc.rpc("release_reservation", { p_reservation: resId, p_account: u.id });
+    expect(await getBalance(u.id)).toBe(750);        // not 1150
+  });
+
+  it("commit_usage rejects a reservation not owned by the account", async () => {
+    const a = await makeUser(); const b = await makeUser();
+    await setBalance(a.id, 1000);
+    const svc = service();
+    const { data: resId } = await svc.rpc("reserve_credits", { p_account: a.id, p_estimate: 100 });
+    const { error } = await svc.rpc("commit_usage", { p_reservation: resId, p_account: b.id, p_actual: 50, p_model: "m", p_input: 1, p_output: 1, p_request_id: "r" });
+    expect(error).toBeTruthy();                       // unknown reservation for b
+    expect(await getBalance(a.id)).toBe(900);         // a's hold untouched
+  });
 });
