@@ -511,7 +511,7 @@ export async function makeUser(plan = "free") {
 
 - [ ] **Step 2: Document the test run sequence in `sauce-cloud/README.md`**
 
-Append: `Run tests: \`supabase start\`, then \`export $(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')\` and \`npm test\`. \`supabase db reset\` between full runs for a clean ledger.` (The helper also accepts SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY.)
+Append: `Run tests: \`supabase start\`, then \`eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' | sed 's/^/export /')"\` (eval — the values are double-quoted, so a bare \`export $(...)\` malforms the keys) and \`npm test\`. \`supabase db reset\` between full runs for a clean ledger.` (The helper also accepts SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY.)
 
 - [ ] **Step 3: Commit**
 

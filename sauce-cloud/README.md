@@ -2,7 +2,12 @@ Sauce Cloud control plane. `npm install && npm run db:start`, then export the ke
 
 ## Running tests
 
+`supabase status -o env` emits double-quoted values, so export them with `eval`
+(a bare `export $(…)` injects literal quotes and malforms the keys):
+
 ```bash
-export $(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')
+npm run db:start
+eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' | sed 's/^/export /')"
+npm run db:reset   # clean ledger
 npm test
 ```
