@@ -16,7 +16,7 @@ export class TouchModal extends Modal {
   private follows: string[] = [];
 
   constructor(
-    public app: App,
+    public override app: App,
     public plugin: SauceGraphPlugin,
     prefill?: Record<string, any>,
   ) {
@@ -26,7 +26,7 @@ export class TouchModal extends Modal {
     if (prefill) Object.assign(this.fm, prefill);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "Log Touch" });
@@ -170,7 +170,7 @@ export class TouchModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

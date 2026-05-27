@@ -45,7 +45,7 @@ export class ProxyClient {
       return this.host.fetch(url, {
         method,
         headers: init.headers ?? {},
-        body: body || undefined,
+        ...(body ? { body } : {}),
       });
     }
     const ts = String(Date.now());
@@ -63,7 +63,7 @@ export class ProxyClient {
     return this.host.fetch(this.cfg.baseUrl, {
       method,
       headers,
-      body: body || undefined,
+      ...(body ? { body } : {}),
     });
   }
 }

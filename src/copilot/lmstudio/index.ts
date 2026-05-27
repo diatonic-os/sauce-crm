@@ -57,7 +57,7 @@ export async function buildLMStudioIntegration(
   opts: BuildLMStudioOpts,
 ): Promise<LMStudioIntegration> {
   const factory = new LMStudioClientFactory(opts.source, opts.config ?? {}, {
-    sdkLoader: opts.sdkLoader,
+    ...(opts.sdkLoader !== undefined ? { sdkLoader: opts.sdkLoader } : {}),
   });
   const client = await factory.build();
   const sdkExports = opts.sdkLoader

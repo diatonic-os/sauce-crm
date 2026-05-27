@@ -7,11 +7,8 @@ function markAdvanced(set: Setting): Setting {
 }
 
 function runCommand(plugin: SauceGraphPlugin, id: string): boolean {
-  const cmds: any = (plugin.app as any).commands;
-  if (cmds && typeof cmds.executeCommandById === "function") {
-    return !!cmds.executeCommandById(id);
-  }
-  return false;
+  // app.commands is ambient-typed in src/types/obsidian-augment.ts
+  return !!plugin.app.commands?.executeCommandById?.(id);
 }
 
 export function renderData(
@@ -19,7 +16,7 @@ export function renderData(
   plugin: SauceGraphPlugin,
 ): void {
   plugin.logger?.debug?.("settings.section_render", { section: "data" });
-  const s: any = plugin.settings as any;
+  const s = plugin.settings as unknown as Record<string, unknown>;
 
   containerEl.createEl("h3", { text: "Data" });
 
@@ -31,7 +28,7 @@ export function renderData(
         .addOption("off", "Off")
         .addOption("daily", "Daily")
         .addOption("weekly", "Weekly")
-        .setValue(s.backupSchedule ?? "off")
+        .setValue(typeof s.backupSchedule === "string" ? s.backupSchedule : "off")
         .onChange(async (v) => {
           s.backupSchedule = v;
           await plugin.saveSettings();
@@ -60,7 +57,11 @@ export function renderData(
       }),
     );
 
-  const syncRt: any = plugin.v2?.sync;
+  const syncRt = plugin.v2?.sync as unknown as {
+    isRunning?(): boolean;
+    start?(): Promise<void>;
+    stop?(): Promise<void>;
+  } | null | undefined;
   if (syncRt) {
     new Setting(containerEl)
       .setName("Sync")
@@ -76,8 +77,8 @@ export function renderData(
             else await syncRt.stop?.();
             s.syncEnabled = v;
             await plugin.saveSettings();
-          } catch (e: any) {
-            new Notice(`Sync toggle failed: ${e?.message ?? e}`);
+          } catch (e: unknown) {
+            new Notice(`Sync toggle failed: ${e instanceof Error ? e.message : String(e)}`);
           }
         });
       });
@@ -104,7 +105,7 @@ export function renderData(
     unavailable: "Not installed",
     "mobile-unsupported": "Not supported on mobile",
   };
-  const version = (cap?.status as any)?.version as string | undefined;
+  const version = (cap?.status as unknown as { version?: string } | undefined)?.version;
   const dbEnabled = cap?.enabled ?? false;
 
   new Setting(containerEl)
@@ -128,8 +129,8 @@ export function renderData(
               new Notice(
                 `Reindexed ${n} entit${n === 1 ? "y" : "ies"} into LanceDB.`,
               );
-            } catch (e: any) {
-              new Notice(`Reindex failed: ${e?.message ?? e}`);
+            } catch (e: unknown) {
+              new Notice(`Reindex failed: ${e instanceof Error ? e.message : String(e)}`);
             }
           });
       } else {
@@ -184,7 +185,7 @@ export function renderData(
           .addOption("google", "Google")
           .addOption("mapbox", "Mapbox")
           .addOption("none", "Disabled")
-          .setValue(s.geocodeProvider ?? "nominatim")
+          .setValue(typeof s.geocodeProvider === "string" ? s.geocodeProvider : "nominatim")
           .onChange(async (v) => {
             s.geocodeProvider = v;
             await plugin.saveSettings();
@@ -202,7 +203,7 @@ export function renderData(
           .addOption("external_wins", "External wins")
           .addOption("latest_wins", "Latest timestamp wins")
           .addOption("prompt", "Prompt me")
-          .setValue(s.conflictPolicy ?? "vault_wins")
+          .setValue(typeof s.conflictPolicy === "string" ? s.conflictPolicy : "vault_wins")
           .onChange(async (v) => {
             s.conflictPolicy = v;
             await plugin.saveSettings();
@@ -219,7 +220,7 @@ export function renderData(
           .addOption("osm", "OpenStreetMap")
           .addOption("carto", "Carto")
           .addOption("mapbox", "Mapbox")
-          .setValue(s.mapTileProvider ?? "osm")
+          .setValue(typeof s.mapTileProvider === "string" ? s.mapTileProvider : "osm")
           .onChange(async (v) => {
             s.mapTileProvider = v;
             await plugin.saveSettings();

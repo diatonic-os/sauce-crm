@@ -7,8 +7,9 @@ import { mount, unmount } from "svelte";
 import Calendar from "../../svelte/Calendar.svelte";
 import type { CalendarEvent } from "../../svelte/CalendarTypes";
 import type SauceGraphPlugin from "../../../main";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_CALENDAR = "sauce-crm-calendar";
+export const VIEW_CALENDAR: ViewTypeId = asViewTypeId("sauce-crm-calendar");
 
 export class CalendarView extends ItemView {
   private svelteApp: ReturnType<typeof mount> | undefined;
@@ -26,11 +27,11 @@ export class CalendarView extends ItemView {
   getDisplayText(): string {
     return "Sauce CRM — Calendar";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "sauce-touch";
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("sauce-view");
     const events = this.collectEvents();
@@ -48,7 +49,7 @@ export class CalendarView extends ItemView {
     });
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     if (this.svelteApp) {
       unmount(this.svelteApp);
       this.svelteApp = undefined;

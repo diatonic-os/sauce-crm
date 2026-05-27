@@ -5,14 +5,14 @@ import { evalExpr, BUILTIN_FUNCS } from "../contract/PropositionEvaluator";
 export interface QueryRow {
   file: string; // basename
   path: string; // full vault path
-  frontmatter: Record<string, any>;
+  frontmatter: Record<string, unknown>;
 }
 
 export interface EvalResult {
   shape: DqlQuery["shape"];
   headers?: string[];
   rows?: QueryRow[];
-  data?: any; // path/graph/matrix payload
+  data?: unknown; // path/graph/matrix payload
 }
 
 export class DqlEvaluator {

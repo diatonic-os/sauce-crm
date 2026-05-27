@@ -91,14 +91,14 @@ export class CaptureRecordModal extends Modal {
   private body = "";
 
   constructor(
-    public app: App,
+    public override app: App,
     public plugin: SauceGraphPlugin,
     private kind: CaptureRecordKind,
   ) {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const def = CAPTURE_DEFS[this.kind];
     const { contentEl } = this;
     contentEl.addClass("sauce-modal");
@@ -340,7 +340,7 @@ export class CaptureRecordModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

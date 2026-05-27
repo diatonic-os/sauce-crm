@@ -114,11 +114,13 @@ export class ProviderPicker {
   }
 
   private contextForCatalog(): CatalogContext {
+    const endpoint = this.opts.endpoint ?? this.endpointFromSettings();
+    const apiKey = this.opts.apiKey ?? this.apiKeyFromSettings();
     return {
       provider: this.provider,
-      endpoint: this.opts.endpoint ?? this.endpointFromSettings(),
-      apiKey: this.opts.apiKey ?? this.apiKeyFromSettings(),
-      kind: this.opts.kind,
+      ...(endpoint !== undefined ? { endpoint } : {}),
+      ...(apiKey !== undefined ? { apiKey } : {}),
+      ...(this.opts.kind !== undefined ? { kind: this.opts.kind } : {}),
       logger: this.opts.plugin.logger ?? null,
     };
   }
@@ -171,7 +173,8 @@ export class ProviderPicker {
     if (!matched) {
       // Pre-select the first option and propagate so the consumer's settings
       // never end up with an empty model id while a non-empty list is visible.
-      this.model = models[0].id;
+      // models.length > 0 is guaranteed: the early-return above handles empty list.
+      this.model = models[0]!.id;
       sel.value = this.model;
       this.fire();
     }

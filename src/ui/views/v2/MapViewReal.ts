@@ -3,8 +3,9 @@
 // a placeholder message so operators can see the registration succeeded.
 
 import { ItemView, type Plugin, WorkspaceLeaf } from "obsidian";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_MAP_REAL = "sauce-crm-map";
+export const VIEW_MAP_REAL: ViewTypeId = asViewTypeId("sauce-crm-map");
 
 export class MapViewReal extends ItemView {
   constructor(leaf: WorkspaceLeaf, _plugin: Plugin) {
@@ -16,17 +17,17 @@ export class MapViewReal extends ItemView {
   getDisplayText(): string {
     return "Sauce CRM — Map";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "map";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.createEl("h3", { text: "Sauce CRM Map" });
     this.contentEl.createEl("p", {
       text: "Map view — implementation pending.",
     });
   }
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     /* nothing to clean up */
   }
 }

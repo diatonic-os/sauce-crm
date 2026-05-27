@@ -76,7 +76,7 @@ class FakeBackend implements MemoryBackend {
     return this.searchHits;
   }
   async recall(q: string, k?: number): Promise<MemoryHit[]> {
-    this.lastRecall = { q, k };
+    this.lastRecall = { q, ...(k !== undefined ? { k } : {}) };
     return this.recallHits;
   }
   async embed(text: string, fp: string): Promise<EmbedResult | null> {

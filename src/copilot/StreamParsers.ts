@@ -29,7 +29,7 @@ export async function* parseSse(
         if (currentData.length > 0) {
           const data = currentData.join("\n");
           if (data === "[DONE]") return;
-          yield { event: currentEvent, data };
+          yield { ...(currentEvent !== undefined ? { event: currentEvent } : {}), data };
         }
         currentEvent = undefined;
         currentData = [];
@@ -47,7 +47,7 @@ export async function* parseSse(
   // Flush a final event if the stream ended without a trailing blank line
   if (currentData.length > 0) {
     const data = currentData.join("\n");
-    if (data !== "[DONE]") yield { event: currentEvent, data };
+    if (data !== "[DONE]") yield { ...(currentEvent !== undefined ? { event: currentEvent } : {}), data };
   }
 }
 

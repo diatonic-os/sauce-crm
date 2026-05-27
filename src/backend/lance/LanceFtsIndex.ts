@@ -69,7 +69,7 @@ export class LanceFtsIndex implements MirrorFtsHook {
       .query()
       .fullTextSearch(query, { columns: [FTS_COLUMN] })
       .limit(limit)
-      .toArray()) as unknown as { id: string; _score?: number }[];
+      .toArray()) as { id: string; _score?: number }[];
     return rows.map((r) => ({ entityId: r.id, score: r._score ?? 0 }));
   }
 }

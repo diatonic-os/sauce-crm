@@ -21,12 +21,14 @@ function pathSetting(
     .setDesc(desc)
     .addText((t) =>
       t
-        .setValue((plugin.settings.paths as any)[key] ?? "")
+        .setValue((plugin.settings.paths as unknown as Record<string, string>)[key] ?? "")
         .onChange(async (v) => {
-          (plugin.settings.paths as any)[key] = v;
+          (plugin.settings.paths as unknown as Record<string, string>)[key] = v;
           await plugin.saveSettings();
-          if (plugin.entityService && (plugin.entityService as any).paths) {
-            (plugin.entityService as any).paths = plugin.settings.paths;
+          // EntityService caches a paths reference; update it after save.
+          const svc = plugin.entityService as unknown as { paths?: unknown } | null;
+          if (svc?.paths !== undefined) {
+            svc.paths = plugin.settings.paths;
           }
         }),
     );
@@ -172,7 +174,7 @@ export function renderVault(
         .addOption("off", "Off")
         .setValue(plugin.settings.federation?.validation_gate ?? "warn")
         .onChange(async (v) => {
-          plugin.settings.federation.validation_gate = v as any;
+          plugin.settings.federation.validation_gate = v as "strict" | "warn" | "off";
           await plugin.saveSettings();
         }),
     );

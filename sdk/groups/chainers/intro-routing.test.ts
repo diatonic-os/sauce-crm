@@ -15,7 +15,8 @@ describe('chainers/intro-routing', () => {
     setFm(cache, 'people/Frank.md', { knows: ['[[Jane]]', '[[Amy]]'], worked_with: ['[[Acme]]'] });
     const ranked = routeIntro(cache, file, 'Frank');
     expect(ranked.map((e) => e.to)).toEqual(['Acme', 'Amy', 'Jane']); // Acme(2), then knows ties by to asc
-    expect(ranked[0].score).toBe(2);
+    const top = ranked[0]!; // safe: toEqual above asserts 3-element array
+    expect(top.score).toBe(2);
   });
 
   it('returns [] when no edges', async () => {

@@ -97,13 +97,13 @@ export class OnboardingWizardModal extends Modal {
     }
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     this.contentEl.addClass("sauce-modal");
     this.contentEl.addClass("sauce-onboarding-wizard");
     this.renderStep(this.step);
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 
@@ -161,10 +161,10 @@ export class OnboardingWizardModal extends Modal {
     cfg.provider = this.activeProvider;
     if (this.activeProvider === "ollama" || this.activeProvider === "lmstudio") {
       const lc = this.localCfg(this.activeProvider);
-      cfg.baseUrl = lc.endpoint || undefined;
+      if (lc.endpoint) cfg.baseUrl = lc.endpoint; else delete cfg.baseUrl;
       if (lc.model) cfg.model = lc.model;
     } else {
-      cfg.baseUrl = undefined;
+      delete cfg.baseUrl;
     }
     if (this.activeModel) cfg.model = this.activeModel;
     this.plugin.copilot?.updateSettings?.(cfg);
@@ -359,12 +359,13 @@ export class OnboardingWizardModal extends Modal {
     });
 
     const pickerHost = activeSection.createDiv({ cls: "sauce-onboarding-picker" });
+    const _ep362 = this.endpointFor(this.activeProvider);
     new ProviderPicker({
       container: pickerHost,
       plugin: this.plugin,
       lockedProvider: this.activeProvider as ProviderId,
       initialModel: this.activeModel,
-      endpoint: this.endpointFor(this.activeProvider),
+      ...(_ep362 !== undefined ? { endpoint: _ep362 } : {}),
       apiKey: this.keyDraft.get(this.activeProvider) ?? "",
       onChange: ({ model }) => {
         this.activeModel = model;
@@ -475,10 +476,12 @@ export class OnboardingWizardModal extends Modal {
       try {
         const key = this.keyDraft.get(p.id) ?? "";
         if (key) await this.storeProviderKey(p.id, key);
+        const _ep478 = this.endpointFor(p.id);
+        const _key478 = key || undefined;
         const r = await testProviderConnection({
           provider: p.id as ProviderId,
-          endpoint: this.endpointFor(p.id),
-          apiKey: key || undefined,
+          ...(_ep478 !== undefined ? { endpoint: _ep478 } : {}),
+          ...(_key478 !== undefined ? { apiKey: _key478 } : {}),
           logger: this.plugin.logger ?? null,
         });
         if (r.ok) status.success(r.detail);

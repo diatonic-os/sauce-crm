@@ -11,7 +11,15 @@ export function renderAdvanced(
   plugin: SauceGraphPlugin,
 ): void {
   plugin.logger?.debug?.("settings.section_render", { section: "advanced" });
-  const s: any = plugin.settings as any;
+  // plugin.settings only types the public contract; this section reads/writes
+  // additional dynamic keys (diagnostics, proxyMode, devMode, …) that live in
+  // the persisted JSON but are not promoted to the interface yet.
+  const s = plugin.settings as unknown as Record<string, unknown>;
+  /** Narrow a bag entry to string, falling back to `fallback`. */
+  const str = (key: string, fallback: string): string => {
+    const v = s[key];
+    return typeof v === "string" ? v : fallback;
+  };
 
   containerEl.createEl("h3", { text: "Security & diagnostics" });
 
@@ -63,13 +71,14 @@ export function renderAdvanced(
       .addButton((b) =>
         b.setButtonText("Verify").onClick(async () => {
           try {
-            const res = await (plugin.v2 as any)?.auditLog?.verifyChain?.();
+            const auditLog = plugin.auditLog as unknown as { verifyChain?(): Promise<unknown> } | null;
+            const res = await auditLog?.verifyChain?.();
             if (res === undefined) new Notice("Audit log not available.");
-            else if (res === true || res?.ok === true)
+            else if (res === true || (res !== null && typeof res === "object" && (res as { ok?: unknown }).ok === true))
               new Notice("Audit chain OK.");
             else new Notice(`Audit chain failed: ${JSON.stringify(res)}`);
-          } catch (e: any) {
-            new Notice(`Verify failed: ${e?.message ?? e}`);
+          } catch (e: unknown) {
+            new Notice(`Verify failed: ${e instanceof Error ? e.message : String(e)}`);
           }
         }),
       ),
@@ -118,7 +127,7 @@ export function renderAdvanced(
           .addOption("off", "Off")
           .addOption("local", "Local only")
           .addOption("anonymous", "Anonymous")
-          .setValue(s.telemetryDetail ?? "off")
+          .setValue(str("telemetryDetail", "off"))
           .onChange(async (v) => {
             s.telemetryDetail = v;
             await plugin.saveSettings();
@@ -137,7 +146,7 @@ export function renderAdvanced(
           .addOption("info", "Info")
           .addOption("debug", "Debug")
           .addOption("trace", "Trace")
-          .setValue(s.logLevel ?? "info")
+          .setValue(str("logLevel", "info"))
           .onChange(async (v) => {
             s.logLevel = v;
             await plugin.saveSettings();
@@ -165,8 +174,8 @@ export function renderAdvanced(
         t
           .setValue(
             Array.isArray(s.experimentalFlags)
-              ? s.experimentalFlags.join(", ")
-              : (s.experimentalFlags ?? ""),
+              ? (s.experimentalFlags as string[]).join(", ")
+              : str("experimentalFlags", ""),
           )
           .onChange(async (v) => {
             s.experimentalFlags = v
@@ -181,7 +190,7 @@ export function renderAdvanced(
   // About panel
   const about = containerEl.createDiv({ cls: "sg-about-panel sg-advanced" });
   about.createEl("h4", { text: "About" });
-  const version = (plugin as any).manifest?.version ?? "unknown";
-  const id = (plugin as any).manifest?.id ?? "sauce-graph";
+  const version = plugin.manifest.version ?? "unknown";
+  const id = plugin.manifest.id ?? "sauce-graph";
   about.createEl("p", { text: `${id} v${version}` });
 }

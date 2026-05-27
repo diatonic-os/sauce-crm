@@ -2,8 +2,9 @@
 import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import type { Change } from "../../../sync";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_SYNC_STATUS = "sauce-sync-status";
+export const VIEW_SYNC_STATUS: ViewTypeId = asViewTypeId("sauce-sync-status");
 
 const RING_MAX = 100;
 
@@ -24,11 +25,11 @@ export class SyncStatusView extends ItemView {
   getDisplayText(): string {
     return "Sauce: Sync Status";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "refresh-cw";
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const engine = this.plugin.v2?.sync ?? null;
     if (engine) {
       this.unsubscribe = engine.changes.subscribe((c) => {
@@ -37,10 +38,10 @@ export class SyncStatusView extends ItemView {
       });
     }
     this.render();
-    this.refreshTimer = window.setInterval(() => this.render(), 4000);
+    this.refreshTimer = this.registerInterval(window.setInterval(() => this.render(), 4000));
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     if (this.refreshTimer) {
       window.clearInterval(this.refreshTimer);
       this.refreshTimer = null;

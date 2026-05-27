@@ -71,7 +71,7 @@ export class LexicalMemoryBackend implements MemoryBackend {
       path: r.path,
       score: r.score,
       fp: this.index.fpFor(r.path) ?? "",
-      snippet: r.snippet,
+      ...(r.snippet !== undefined ? { snippet: r.snippet } : {}),
       degraded: true,
     }));
   }

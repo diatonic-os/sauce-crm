@@ -19,7 +19,7 @@ export class RelationModal extends Modal {
   private target = "";
 
   constructor(
-    public app: App,
+    public override app: App,
     public plugin: SauceGraphPlugin,
     srcFile: TFile | null = null,
   ) {
@@ -27,7 +27,7 @@ export class RelationModal extends Modal {
     this.srcFile = srcFile;
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "New Relation" });
@@ -93,7 +93,7 @@ export class RelationModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

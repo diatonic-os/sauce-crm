@@ -44,7 +44,8 @@ export function lexDql(src: string): DqlTok[] {
   const out: DqlTok[] = [];
   let i = 0;
   while (i < src.length) {
-    const c = src[i];
+    // i < src.length guarantees src[i] is defined
+    const c = src[i]!;
     if (/\s/.test(c)) {
       i++;
       continue;
@@ -53,8 +54,9 @@ export function lexDql(src: string): DqlTok[] {
       const q = c;
       let j = i + 1;
       let v = "";
-      while (j < src.length && src[j] !== q) {
-        v += src[j];
+      // j < src.length guarantees src[j] is defined
+      while (j < src.length && src[j]! !== q) {
+        v += src[j]!;
         j++;
       }
       out.push({ kind: "str", value: v });
@@ -70,14 +72,16 @@ export function lexDql(src: string): DqlTok[] {
     }
     if (/[0-9]/.test(c)) {
       let j = i;
-      while (j < src.length && /[0-9.]/.test(src[j])) j++;
+      // j < src.length guarantees src[j] is defined
+      while (j < src.length && /[0-9.]/.test(src[j]!)) j++;
       out.push({ kind: "num", value: Number(src.slice(i, j)) });
       i = j;
       continue;
     }
     if (/[a-zA-Z_]/.test(c)) {
       let j = i;
-      while (j < src.length && /[a-zA-Z0-9_.]/.test(src[j])) j++;
+      // j < src.length guarantees src[j] is defined
+      while (j < src.length && /[a-zA-Z0-9_.]/.test(src[j]!)) j++;
       const word = src.slice(i, j);
       out.push(
         KEYWORDS.has(word.toUpperCase())

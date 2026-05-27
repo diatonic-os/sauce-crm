@@ -1,0 +1,40 @@
+{"_t":"run.start","run_id":"run-20260526-obsidian-lattice-01","plugin":"sauce-crm","ts":"2026-05-26"}
+{"_t":"phase.enter","phase":"P-001","name":"DISCOVERY","ts":"2026-05-26"}
+{"_t":"meta.plugin","id":"sauce-crm","version":"0.3.0","minAppVersion":"1.5.0","isDesktopOnly":false,"files_ts_svelte":405,"loc":54995,"bundle_bytes":575339,"test_files":101}
+{"_t":"meta.strictness","baseline_tsc":"0 errors (tsc -noEmit -skipLibCheck PASSES)","strict_all_flags_errors":629,"strict_all_flags_files":178}
+{"_t":"meta.entrypoints","Plugin":1,"ItemView":11,"Modal":22,"PluginSettingTab":1,"addCommand":81,"registerView":27}
+{"_t":"defect.census","as_any":73,"as_X_casts":231,"colon_any":115,"as_unknown_as":85,"angle_any":14,"ts_ignore":0,"ts_expect_error":0}
+{"_t":"defect.lifecycle","raw_addEventListener":29,"registerDomEvent":6,"raw_setInterval":5,"registerInterval":2,"registerEvent":6,"severity":"P0","axiom":"AX-003"}
+{"_t":"defect.deferred_view","getLeavesOfType":4,"iterateAllLeaves":2,"instanceof_guards_present":122,"severity":"P0","axiom":"AX-004","note":"per-site audit required"}
+{"_t":"defect.types","brands_existing":0,"src_types_dir":"ABSENT","exhaustiveness_sentinels":0,"discriminant_fields":1525,"axiom":"AX-002,R-005,R-006"}
+{"_t":"flag.marginal","noFallthroughCasesInSwitch":0,"strict_group":1,"strictPropertyInitialization":1,"noImplicitThis":1,"noImplicitOverride":131,"exactOptionalPropertyTypes":121,"noUncheckedIndexedAccess":374}
+{"_t":"devvault.probe","present":["../Sauce_Relationship_Graph/.obsidian","../demo-vault/.obsidian","~/Documents/Sauce_Relationship_Graph/.obsidian"],"gates_feasible":["G-004","G-005","G-006"]}
+{"_t":"correction","note":"initial strict probe reported 7486 errors; probe file in /tmp inherited a stray /tmp/tsconfig.json via relative extends, typechecking out-of-repo /tmp trees. True in-repo count=629. Verified by relocating probe into repo root."}
+{"_t":"dec.lock","ids":["DEC-001","DEC-002","DEC-003","DEC-004"]}
+{"_t":"phase.exit","phase":"P-001","exit_criteria_met":true,"deliverable":"LATTICE_MAP.toon.md","ts":"2026-05-26"}
+{"_t":"phase.enter","phase":"P-002","name":"TYPE_CRYSTALLIZATION","ts":"2026-05-26"}
+{"_t":"wave.enter","wave":"W0","scope":"free-tier flags: noFallthroughCasesInSwitch + strict-group + strictPropertyInitialization + noImplicitThis","expected_errors":"~3"}
+{"_t":"defect.repaired","id":"DEF-W0-001","axiom":"AX-002","files":["src/bridge/contract.ts","src/bridge/mobile/bridge/BridgeMemoryBackend.ts","src/bridge/mobile/orchestration/ReachabilityProbe.ts","src/bridge/wiring.ts","src/bridge/mobile/bridge/BridgeMemoryBackend.test.ts"],"desc":"merged duplicate HttpRequestFn/HttpResponse to canonical contract.ts; headers? optional; json:any->unknown with narrowing; fixed test regression caught by R-019 wave-verify"}
+{"_t":"wave.exit","wave":"W0","tsc_strict":"0 errors","baseline":"0 errors","tests":"142/142 bridge pass","tsconfig_flags_added":["strict","noFallthroughCasesInSwitch"],"ts":"2026-05-26"}
+{"_t":"wave.enter","wave":"W1","scope":"noImplicitOverride","expected_errors":131,"axiom":"R-003"}
+{"_t":"repair.fleet","wave":"W1","agents":6,"parallel_cap":8,"cpu_count":64,"batches":{"A":30,"B":21,"C":37,"D":14,"E":16,"F":13},"blocked":0,"override_keywords_added":131,"files":54}
+{"_t":"wave.exit","wave":"W1","tsc_noImplicitOverride":"0 errors","baseline":"0 errors","tests":"873/873 pass","diff_audit":"0 logic-drift in 54 files","tsconfig_flags_added":["noImplicitOverride"],"ts":"2026-05-26"}
+{"_t":"deliverable.written","id":"D-001","file":".crystallize/LATTICE_MAP.toon.md"}
+{"_t":"checkpoint","phase":"P-002","status":"W0+W1 locked & green","build_gate":"0 errors","tests":"873/873","next":"W2 exactOptionalPropertyTypes (121, judgment-heavy, type-level)","ts":"2026-05-26"}
+{"_t":"wave.enter","wave":"W2","scope":"exactOptionalPropertyTypes","expected_errors":121,"axiom":"R-003,R-007,AX-002"}
+{"_t":"dispatch.plan","wave":"W2","method":"connected-component partition of (file<->named-type) graph; 66 components, 2 cross-file (CatalogContext,MemoryQuery); binned into 8 conflict-free domain agents","agents":{"copilot":34,"integrations":23,"ui":14,"entry-misc":13,"services":12,"bridge":11,"contract-security":10,"skills":4},"invariant":"no file or named type split across agents (proven)"}
+{"_t":"repair.fleet","wave":"W2","agents":8,"method":"connected-component dependency partition","blocked":0,"decisions":{"omit_at_construction":"~115","guard_before_assign":"~6","default":"~2","widen_target":0},"anti_pattern_blind_widening":0}
+{"_t":"wave.exit","wave":"W2","tsc_exactOptional":"0 errors (was 121)","baseline":"0","tests":"873/873","tsconfig_flags_added":["exactOptionalPropertyTypes"],"ts":"2026-05-26"}
+{"_t":"wave.enter","wave":"W3","scope":"noUncheckedIndexedAccess","expected_errors":379,"axiom":"R-003,AX-004"}
+{"_t":"dispatch.plan","wave":"W3","method":"component analysis: 78 components, 1 real cross-file type (ConfidenceConfig->inference trio kept together); binned into 8 conflict-free domain agents","invariant":"no file or named type split"}
+{"_t":"repair.fleet","wave":"W3","agents":8,"method":"connected-component dependency partition (78 comps, 1 cross-file type)","blocked":0,"mix":"provably-safe locals/assertions + real guards per-site; notable real-guards: ragged-CSV, malformed-API choices[0], dynamic adapter/edge-color keys"}
+{"_t":"wave.exit","wave":"W3","tsc_noUncheckedIndexedAccess":"0 (was 379)","baseline":"0","tests":"873/873","tsconfig_flags_added":["noUncheckedIndexedAccess"],"ts":"2026-05-26"}
+{"_t":"milestone","id":"R-003-COMPLETE","desc":"all 12 R-003 strict flags ON, tsc 0 errors (T-002-005 exit criterion MET)","gate_G002":"production build PASS","bundle_bytes":579661,"bundle_baseline":575339,"growth_pct":0.75,"SS003_limit_pct":25,"tests":"873/873"}
+{"_t":"phase.enter","phase":"P-002/P-003 parallel","scope":"R-004 + R-005 + R-006 + AX-003 + AX-004","ts":"2026-05-26"}
+{"_t":"foundation.built","files":["src/types/brands.ts","src/types/obsidian-augment.ts"],"dec":["DEC-005","DEC-006","DEC-007"]}
+{"_t":"dispatch.plan","method":"file-ownership fleet, 8 agents over 94 union files, all-concerns-per-file","invariant":"no file split (verified)"}
+{"_t":"repair.fleet","phase":"final-parallel","agents":"8(R004/R005/AX003/AX004 file-ownership) + 2(R005 switches) + 1(R006 viewtype)","blocked":1,"blocked_detail":"AX-003 on Modal: Modal does NOT extend Component (no registerDomEvent); contentEl.empty() on close removes listeners — correct to leave raw"}
+{"_t":"concern.result","R004":"as any 73->4 (3 comments + 1 obsidian-any-boundary); :any 115->54 (all API-signature string data); augmentation killed app.commands/setting/adapter casts","R005":"6 sentinels on closed unions; open-string switches correctly skipped","R006":"brands.ts foundation + 21 ViewTypeId consts adopted","AX003":"registerInterval 2->5; raw addEventListener remain only on non-Component Modal/SettingTab (no leak via contentEl.empty)","AX004":"main.ts leaf.view instanceof-guarded"}
+{"_t":"gate.final","G001_tsc":"PASS","G002_build":"PASS","G003_tests":"873/873","bundle_bytes":580947,"growth_from_baseline_pct":1.0}
+{"_t":"regression.caught","gate":"G-003 integration","detail":"R-006 agent used @/ tsconfig-path alias; tsc+esbuild resolve it natively but vitest did not -> test/ui/rebrand.test.ts import failure","fix":"added regex @/ alias to vitest.config.ts (root cause, not symptom)","result":"873/873 restored"}
+{"_t":"phase.exit","phase":"P-002 + P-003(partial)","R003":"complete","R004":"complete","R005":"complete","R006":"foundation+viewtype adoption","AX003":"complete","AX004":"complete","ts":"2026-05-26"}

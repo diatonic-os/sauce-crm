@@ -11,7 +11,7 @@ export class AddendumModal extends Modal {
   private body = "";
 
   constructor(
-    public app: App,
+    public override app: App,
     public plugin: SauceGraphPlugin,
     target: TFile | null = null,
   ) {
@@ -19,7 +19,7 @@ export class AddendumModal extends Modal {
     if (target) this.fm.addends = wrapWikilink(target.basename);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "New Addendum" });
@@ -79,7 +79,7 @@ export class AddendumModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

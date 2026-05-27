@@ -73,7 +73,9 @@ export class DqlParser {
     return this.toks[this.pos + k] ?? null;
   }
   private eat(): DqlTok {
-    return this.toks[this.pos++];
+    const tok = this.toks[this.pos++];
+    if (tok === undefined) throw new Error("unexpected end of input");
+    return tok;
   }
   private matchKw(k: string): boolean {
     const t = this.peek();
@@ -91,10 +93,9 @@ export class DqlParser {
     this.eat(); // shape keyword
     const cols: string[] = [];
     if (shape === "TABLE") {
-      while (
-        this.peek() &&
-        !(this.peek()!.kind === "kw" && (this.peek() as any).value === "FROM")
-      ) {
+      while (this.peek()) {
+        const next = this.peek()!;
+        if (next.kind === "kw" && next.value === "FROM") break;
         const t = this.eat();
         if (t.kind === "ident" || t.kind === "str") cols.push(t.value);
         if (t.kind === "punct" && t.value === ",") continue;
@@ -203,8 +204,7 @@ export class DqlParser {
         if (t.kind === "str") buf.push(`"${t.value}"`);
         else if (t.kind === "wikilink") buf.push(`"[[${t.target}]]"`);
         else if (t.kind === "num") buf.push(String(t.value));
-        else if ("value" in t) buf.push(String((t as any).value));
-        else buf.push("");
+        else buf.push(String(t.value)); // kw | ident | op | punct — all carry .value
       }
       q.where = buf.join(" ");
     }
@@ -264,7 +264,8 @@ export class DqlParser {
       (this.peek()!.kind === "str" || this.peek()!.kind === "ident")
     ) {
       const t = this.eat();
-      out.push((t as any).value);
+      // peek() guards t.kind to "str" | "ident" — both carry .value
+      if (t.kind === "str" || t.kind === "ident") out.push(t.value);
       if (!this.matchPunct(",")) break;
     }
     return out;

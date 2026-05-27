@@ -3,6 +3,7 @@ import {
   combineSignals,
   verdict,
   DEFAULT_THRESHOLDS,
+  getThreshold,
   type Verdict,
 } from "./ConfidenceModel";
 
@@ -62,7 +63,10 @@ export class EdgeInferrer {
     const now = Date.now();
     const out: EdgeProposal[] = [];
     for (const [k, r] of pairs) {
-      const [from, to] = k.split("|");
+      const parts = k.split("|");
+      // provably defined: k was constructed as "${a}|${b}" so split yields exactly 2 elements
+      const from = parts[0]!;
+      const to = parts[1]!;
       const recencyDays = Math.max(0, (now - r.lastTs) / 86400000);
       const recencyFeature = Math.exp(-recencyDays / 180);
       const knowsConf = combineSignals(
@@ -74,7 +78,7 @@ export class EdgeInferrer {
         toId: to,
         edgeType: "knows",
         confidence: knowsConf,
-        verdict: verdict(knowsConf, this.thresholds.knows),
+        verdict: verdict(knowsConf, getThreshold(this.thresholds, "knows")),
         sources: [...r.sources],
       });
       if (r.advice + r.intro > 0) {
@@ -87,7 +91,7 @@ export class EdgeInferrer {
           toId: to,
           edgeType: "worked_with",
           confidence: wwConf,
-          verdict: verdict(wwConf, this.thresholds.worked_with),
+          verdict: verdict(wwConf, getThreshold(this.thresholds, "worked_with")),
           sources: [...r.sources],
         });
       }

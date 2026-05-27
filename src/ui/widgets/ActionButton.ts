@@ -22,7 +22,8 @@ export class ActionButton {
     });
     btn.onclick = () => {
       if (cfg.command)
-        (this.plugin.app as any).commands?.executeCommandById?.(cfg.command);
+        // app.commands is ambient-typed in src/types/obsidian-augment.ts
+        this.plugin.app.commands?.executeCommandById?.(cfg.command);
     };
   }
 }

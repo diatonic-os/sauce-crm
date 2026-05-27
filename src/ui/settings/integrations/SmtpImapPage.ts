@@ -104,7 +104,7 @@ export class SmtpImapPage extends SettingsPage {
     pwInput.setAttribute("type", "password");
     pwInput.setAttribute("placeholder", "xxxx xxxx xxxx xxxx");
     pwInput.addEventListener("change", async () => {
-      const accountId = inputs["account.id"].value || "default";
+      const accountId = inputs["account.id"]!.value || "default"; // key set by static field loop above
       if (this.host.saveSecret && pwInput.value) {
         await this.host.saveSecret(
           `smtp_imap:${accountId}:app-password`,
@@ -188,7 +188,7 @@ export class SmtpImapPage extends SettingsPage {
       el("span", { class: "sauce-settings-status" }),
     );
     testBtn.addEventListener("click", async () => {
-      const accountId = inputs["account.id"].value || "default";
+      const accountId = inputs["account.id"]!.value || "default"; // key set by static field loop above
       if (!this.host.testConnection) {
         status.textContent = "Test handler not wired";
         return;
@@ -217,14 +217,14 @@ export class SmtpImapPage extends SettingsPage {
     const help = helpForEmail(email);
     if (!help) return;
     if (help.imap) {
-      inputs["account.imapHost"].value = help.imap.host;
-      inputs["account.imapPort"].value = String(help.imap.port);
+      inputs["account.imapHost"]!.value = help.imap.host; // key set by static field loop
+      inputs["account.imapPort"]!.value = String(help.imap.port);
       void this.host.setConfig("account.imapHost", help.imap.host);
       void this.host.setConfig("account.imapPort", help.imap.port);
     }
     if (help.smtp) {
-      inputs["account.smtpHost"].value = help.smtp.host;
-      inputs["account.smtpPort"].value = String(help.smtp.port);
+      inputs["account.smtpHost"]!.value = help.smtp.host; // key set by static field loop
+      inputs["account.smtpPort"]!.value = String(help.smtp.port);
       void this.host.setConfig("account.smtpHost", help.smtp.host);
       void this.host.setConfig("account.smtpPort", help.smtp.port);
     }

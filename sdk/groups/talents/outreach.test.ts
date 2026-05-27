@@ -20,6 +20,7 @@ describe('talents/outreach', () => {
     setFm(cache, 'people/Frank.md', { knows: ['[[Jane]]'], worked_with: ['[[Acme]]'] });
     const plan = analyzeOutreach(cache, file, 'Frank');
     expect(plan.subject).toBe('Frank');
-    expect(plan.ranked[0].to).toBe('Acme'); // worked_with ranks first
+    const top = plan.ranked[0]!; // safe: test sets two edges so ranked has ≥1 entry
+    expect(top.to).toBe('Acme'); // worked_with ranks first
   });
 });

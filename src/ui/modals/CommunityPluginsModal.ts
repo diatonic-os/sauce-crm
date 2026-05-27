@@ -7,6 +7,7 @@ import {
   detectCommunityPlugins,
   openCommunityPluginsPage,
   type CommunityPluginStatus,
+  type PluginHostShape,
 } from "../../services/CommunityPluginInstaller";
 
 export interface CommunityPluginsModalOpts {
@@ -22,7 +23,7 @@ export class CommunityPluginsModal extends Modal {
     super(opts.app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     this.modalEl.addClass("sauce-modal");
     this.titleEl.setText("Sauce CRM — Community Plugin Integrations");
     const c = this.contentEl;
@@ -43,7 +44,7 @@ export class CommunityPluginsModal extends Modal {
     });
 
     const statuses = detectCommunityPlugins(
-      this.opts.app as unknown as Parameters<typeof detectCommunityPlugins>[0],
+      this.opts.app as unknown as PluginHostShape,
     );
     const list = c.createDiv({ cls: "sauce-card-grid" });
     for (const s of statuses) {
@@ -96,9 +97,7 @@ export class CommunityPluginsModal extends Modal {
       });
       install.onclick = () => {
         openCommunityPluginsPage(
-          this.opts.app as unknown as Parameters<
-            typeof openCommunityPluginsPage
-          >[0],
+          this.opts.app as unknown as PluginHostShape,
           s.spec.id,
         );
         new Notice(`Opening community plugins → ${s.spec.name}`);
@@ -110,9 +109,7 @@ export class CommunityPluginsModal extends Modal {
       });
       enable.onclick = () => {
         openCommunityPluginsPage(
-          this.opts.app as unknown as Parameters<
-            typeof openCommunityPluginsPage
-          >[0],
+          this.opts.app as unknown as PluginHostShape,
         );
       };
     } else {
@@ -124,7 +121,7 @@ export class CommunityPluginsModal extends Modal {
     }
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

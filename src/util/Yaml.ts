@@ -12,9 +12,9 @@ export function slugify(name: string): string {
     .replace(/\s+/g, " ");
 }
 
-export function asArray<T = any>(v: any): T[] {
+export function asArray<T = unknown>(v: unknown): T[] {
   if (v == null) return [];
-  return Array.isArray(v) ? v : [v];
+  return (Array.isArray(v) ? v : [v]) as T[];
 }
 
 export function uniq<T>(xs: T[]): T[] {

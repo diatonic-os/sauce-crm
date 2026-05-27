@@ -3,6 +3,7 @@ import {
   combineSignals,
   verdict,
   DEFAULT_THRESHOLDS,
+  getThreshold,
   type Verdict,
 } from "./ConfidenceModel";
 
@@ -38,8 +39,9 @@ export class MergeProposer {
     for (const [, group] of byNorm) {
       for (let i = 0; i < group.length; i++) {
         for (let j = i + 1; j < group.length; j++) {
-          const a = group[i],
-            b = group[j];
+          // provably defined: i < group.length, j < group.length
+          const a = group[i]!;
+          const b = group[j]!;
           const reasons: string[] = ["name_match"];
           let emailMatch = 0;
           for (const e of a.emails)
@@ -54,7 +56,7 @@ export class MergeProposer {
             aId: a.id,
             bId: b.id,
             confidence: conf,
-            verdict: verdict(conf, DEFAULT_THRESHOLDS.merge),
+            verdict: verdict(conf, getThreshold(DEFAULT_THRESHOLDS, "merge")),
             reason: reasons,
           });
         }

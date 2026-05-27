@@ -30,7 +30,7 @@ export function extractSignatureBlock(body: string): string {
   // Find earliest delimiter line, take everything after
   let cut = -1;
   for (let i = 0; i < lines.length; i++) {
-    const t = lines[i].trim();
+    const t = lines[i]!.trim(); // i < lines.length — bounds-checked
     if (SIG_DELIMITERS.some((d) => t === d || t.startsWith(d))) {
       cut = i;
       break;
@@ -56,9 +56,9 @@ function extractEmails(text: string): string[] {
     const at = text.indexOf("@", i);
     if (at === -1) break;
     let l = at - 1;
-    while (l >= 0 && EMAIL_CHARS.test(text[l])) l--;
+    while (l >= 0 && EMAIL_CHARS.test(text[l]!)) l--; // l >= 0 bounds-checked
     let r = at + 1;
-    while (r < text.length && EMAIL_CHARS.test(text[r])) r++;
+    while (r < text.length && EMAIL_CHARS.test(text[r]!)) r++; // r < text.length bounds-checked
     if (r > at + 1 && l + 1 < at && text.slice(at + 1, r).includes(".")) {
       out.push(text.slice(l + 1, r));
     }
@@ -120,7 +120,7 @@ export function parseSignature(body: string): ParsedSignature {
   let title: string | undefined;
   let company: string | undefined;
   for (let i = 0; i < lines.length && i < 6; i++) {
-    const l = lines[i];
+    const l = lines[i]!; // i < lines.length — bounds-checked
     if (emails.some((e) => l.includes(e))) continue;
     if (urls.some((u) => l.includes(u))) continue;
     if (phones.some((p) => l.includes(p))) continue;
@@ -137,5 +137,14 @@ export function parseSignature(body: string): ParsedSignature {
       continue;
     }
   }
-  return { raw, name, title, company, email: emails[0], phones, urls, social };
+  return {
+    raw,
+    ...(name !== undefined ? { name } : {}),
+    ...(title !== undefined ? { title } : {}),
+    ...(company !== undefined ? { company } : {}),
+    ...(emails[0] !== undefined ? { email: emails[0] } : {}),
+    phones,
+    urls,
+    social,
+  };
 }

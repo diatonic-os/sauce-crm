@@ -20,7 +20,7 @@ export interface LMStudioConfig {
 }
 
 export class LMStudioProvider extends OpenAICompatibleProvider {
-  models: ModelDescriptor[] = [];
+  override models: ModelDescriptor[] = [];
   private cfg: LMStudioConfig;
 
   constructor(host: ProviderHost, cfg: Partial<LMStudioConfig> = {}) {
@@ -32,8 +32,8 @@ export class LMStudioProvider extends OpenAICompatibleProvider {
     });
     this.cfg = {
       endpoint: cfg.endpoint ?? "http://localhost:1234/v1",
-      apiKey: cfg.apiKey,
-      defaultModel: cfg.defaultModel,
+      ...(cfg.apiKey !== undefined ? { apiKey: cfg.apiKey } : {}),
+      ...(cfg.defaultModel !== undefined ? { defaultModel: cfg.defaultModel } : {}),
       toolUse: cfg.toolUse ?? false,
     };
   }
@@ -47,16 +47,16 @@ export class LMStudioProvider extends OpenAICompatibleProvider {
   }
 
   // ── Harness hooks routed at the live config ──────────────────────────────
-  protected supportsToolUse(): boolean {
+  protected override supportsToolUse(): boolean {
     return !!this.cfg.toolUse;
   }
-  protected base(): string {
+  protected override base(): string {
     return this.cfg.endpoint.replace(/\/+$/, "");
   }
-  protected modelOf(req: CompletionRequest): string {
+  protected override modelOf(req: CompletionRequest): string {
     return req.model || this.cfg.defaultModel || "local-model";
   }
-  protected async headers(): Promise<Record<string, string>> {
+  protected override async headers(): Promise<Record<string, string>> {
     const h: Record<string, string> = { "content-type": "application/json" };
     if (this.cfg.apiKey) h.authorization = `Bearer ${this.cfg.apiKey}`;
     return h;
@@ -92,7 +92,7 @@ export class LMStudioProvider extends OpenAICompatibleProvider {
       return {
         ok: r.status < 400,
         latencyMs: Date.now() - start,
-        error: r.status >= 400 ? `HTTP ${r.status}` : undefined,
+        ...(r.status >= 400 ? { error: `HTTP ${r.status}` } : {}),
       };
     } catch (e) {
       return {

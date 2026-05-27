@@ -1,8 +1,9 @@
 // SPEC §X — Skill run log viewer. In-memory ring buffer; SkillRuntime pushes on every run.
 import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_SKILL_RUN_LOG = "sauce-skill-run-log";
+export const VIEW_SKILL_RUN_LOG: ViewTypeId = asViewTypeId("sauce-skill-run-log");
 
 export interface SkillRunRow {
   ts: number;
@@ -43,15 +44,15 @@ export class SkillRunLogView extends ItemView {
   getDisplayText(): string {
     return "Sauce: Skill Run Log";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "play";
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.render();
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     /* no-op */
   }
 

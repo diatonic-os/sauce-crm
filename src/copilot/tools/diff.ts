@@ -39,10 +39,15 @@ export function diffLines(a: string[], b: string[]): DiffOp[] {
 
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+      // in-bounds: i in [1,n], j in [1,m]; dp has n+1 rows × m+1 cols
+      const ai = a[i - 1]!;
+      const bj = b[j - 1]!;
+      const dpPrev = dp[i - 1]!;
+      const dpCur = dp[i]!;
+      if (ai === bj) {
+        dpCur[j] = dpPrev[j - 1]! + 1;
       } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        dpCur[j] = Math.max(dpPrev[j]!, dpCur[j - 1]!);
       }
     }
   }
@@ -52,15 +57,16 @@ export function diffLines(a: string[], b: string[]): DiffOp[] {
   let i = n;
   let j = m;
   while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-      opsRev.push({ kind: "equal", value: a[i - 1] });
+    // in-bounds: each branch is guarded by i > 0 / j > 0 before access
+    if (i > 0 && j > 0 && a[i - 1]! === b[j - 1]!) {
+      opsRev.push({ kind: "equal", value: a[i - 1]! });
       i--;
       j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      opsRev.push({ kind: "insert", value: b[j - 1] });
+    } else if (j > 0 && (i === 0 || dp[i]![j - 1]! >= dp[i - 1]![j]!)) {
+      opsRev.push({ kind: "insert", value: b[j - 1]! });
       j--;
     } else {
-      opsRev.push({ kind: "delete", value: a[i - 1] });
+      opsRev.push({ kind: "delete", value: a[i - 1]! });
       i--;
     }
   }
@@ -141,7 +147,8 @@ export function createUnifiedDiff(
 
   while (i < ann.length) {
     // Skip until we hit a change.
-    if (ann[i].kind === "equal") {
+    // in-bounds: i < ann.length checked by while condition
+    if (ann[i]!.kind === "equal") {
       i++;
       continue;
     }
@@ -149,18 +156,20 @@ export function createUnifiedDiff(
     const start = Math.max(0, i - CONTEXT);
     // Find the end of the changed region.
     let end = i;
-    while (end < ann.length && ann[end].kind !== "equal") end++;
+    // in-bounds: end < ann.length checked by while condition
+    while (end < ann.length && ann[end]!.kind !== "equal") end++;
     // Extend end by CONTEXT equal lines.
     end = Math.min(ann.length, end + CONTEXT);
     // Merge with any nearby subsequent hunk: advance i to end and look for more
     // changes within CONTEXT*2 equal lines; if found, extend end to include them.
     let j = end;
     while (j < ann.length) {
-      if (ann[j].kind !== "equal") {
+      // in-bounds: j < ann.length checked by while condition
+      if (ann[j]!.kind !== "equal") {
         // Another change within reach — extend this hunk.
         end = Math.min(ann.length, j + 1);
-        // find end of this sub-change
-        while (end < ann.length && ann[end].kind !== "equal") end++;
+        // find end of this sub-change; in-bounds: end < ann.length checked by while
+        while (end < ann.length && ann[end]!.kind !== "equal") end++;
         end = Math.min(ann.length, end + CONTEXT);
         j = end;
       } else if (j < end) {
@@ -338,7 +347,8 @@ export function applyUnifiedDiff(original: string, diff: UnifiedDiff): string {
         throw new DiffApplyError(
           `Hunk starts at line ${hunk.fromStart} but original has only ${origLines.length} lines`,
         );
-      out.push(origLines[srcIdx++]);
+      // in-bounds: srcIdx < origLines.length verified by the guard above
+      out.push(origLines[srcIdx++]!);
     }
     // Apply the hunk lines.
     for (const l of hunk.lines) {
@@ -369,7 +379,8 @@ export function applyUnifiedDiff(original: string, diff: UnifiedDiff): string {
   }
   // Copy any remaining lines after the last hunk.
   while (srcIdx < origLines.length) {
-    out.push(origLines[srcIdx++]);
+    // in-bounds: srcIdx < origLines.length checked by while condition
+    out.push(origLines[srcIdx++]!);
   }
   return out.join("\n");
 }

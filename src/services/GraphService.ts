@@ -64,7 +64,7 @@ export class GraphService implements PipelineGraphSink {
   ): void {
     const list = this.adj.get(src) ?? [];
     if (list.some((e) => e.dst === dst && e.kind === kind)) return;
-    list.push({ src, dst, kind, weight: 1, props });
+    list.push({ src, dst, kind, weight: 1, ...(props !== undefined && { props }) });
     this.adj.set(src, list);
   }
 
@@ -168,8 +168,8 @@ export class GraphService implements PipelineGraphSink {
         id: n.id,
         type: n.type,
         fields: n.fields,
-        hash: n.hash,
-        ts: n.ts,
+        ...(n.hash !== undefined && { hash: n.hash }),
+        ...(n.ts !== undefined && { ts: n.ts }),
       });
     }
     for (const list of this.adj.values()) {

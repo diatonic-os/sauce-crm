@@ -34,7 +34,7 @@ export class LMStudioSdkProvider implements ICopilotProvider {
     this.integration = await buildLMStudioIntegration({
       source: this.source,
       config: this.cfg,
-      sdkLoader: this.sdkLoader,
+      ...(this.sdkLoader !== undefined ? { sdkLoader: this.sdkLoader } : {}),
     });
     return this.integration;
   }
@@ -96,8 +96,8 @@ export class LMStudioSdkProvider implements ICopilotProvider {
         content:
           typeof m.content === "string" ? m.content : JSON.stringify(m.content),
       })),
-      temperature: req.temperature,
-      maxTokens: req.maxTokens,
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
     })) {
       if (ev.type === "text" && ev.delta)
         yield { type: "text", delta: ev.delta };
@@ -116,7 +116,7 @@ export class LMStudioSdkProvider implements ICopilotProvider {
               : ev.reason === "aborted"
                 ? "stop"
                 : "error",
-          error: ev.error,
+          ...(ev.error !== undefined ? { error: ev.error } : {}),
         };
       }
     }

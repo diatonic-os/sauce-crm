@@ -170,8 +170,10 @@ export class SmtpImapClient {
       // SELECT INBOX to confirm full e2e
       const selResp = await this.sendCommand(socket, "A3 SELECT INBOX");
       const existsMatch = /\* (\d+) EXISTS/.exec(selResp);
-      const messageCount = existsMatch
-        ? parseInt(existsMatch[1], 10)
+      // capture group 1 (\d+) is always present when the regex matches
+      const existsStr = existsMatch?.[1];
+      const messageCount = existsStr !== undefined
+        ? parseInt(existsStr, 10)
         : undefined;
 
       await this.sendCommand(socket, "A4 LOGOUT");
@@ -182,7 +184,7 @@ export class SmtpImapClient {
         greeting: greeting.trim(),
         authMode: account.authMode,
         selectedFolder: "INBOX",
-        messageCount,
+        ...(messageCount !== undefined ? { messageCount } : {}),
         loginLatencyMs,
       };
     } catch (e) {
@@ -202,22 +204,28 @@ export class SmtpImapClient {
     cmd: string,
   ): Promise<string> {
     socket.write(cmd + "\r\n");
-    const tag = cmd.split(" ")[0];
-    return this.readUntil(socket, new RegExp(`^${tag} (OK|NO|BAD)`, "m"));
+    // Tag is always alphanumeric (e.g. "A1"). Pass it as a plain string so
+    // readUntil never constructs a dynamic RegExp.
+    const tag = cmd.split(" ")[0]!.replace(/[^A-Za-z0-9]/g, ""); // split always produces ≥1 element
+    return this.readUntil(socket, tag);
   }
 
   private readUntil(
     socket: tls.TLSSocket | net.Socket,
-    terminator: string | RegExp,
+    terminator: string,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       let buf = "";
       const onData = (chunk: Buffer): void => {
         buf += chunk.toString("utf-8");
+        // A tagged response line looks like "<tag> OK ...", "<tag> NO ...", or
+        // "<tag> BAD ...". Checking for the tag followed by a space and one of
+        // the three status words is sufficient and avoids any dynamic RegExp.
+        const t = terminator + " ";
         const done =
-          typeof terminator === "string"
-            ? buf.includes(terminator)
-            : terminator.test(buf);
+          buf.includes(t + "OK") ||
+          buf.includes(t + "NO") ||
+          buf.includes(t + "BAD");
         if (done) {
           socket.removeListener("data", onData);
           socket.removeListener("error", onError);
@@ -236,7 +244,8 @@ export class SmtpImapClient {
 
   private parseCapabilities(line: string): string[] {
     const m = /\* CAPABILITY ([^\r\n]+)/.exec(line);
-    return m ? m[1].split(/\s+/).filter(Boolean) : [];
+    const cap = m?.[1]; // capture group 1 is always present when regex matches
+    return cap ? cap.split(/\s+/).filter(Boolean) : [];
   }
 
   private imapQuote(s: string): string {

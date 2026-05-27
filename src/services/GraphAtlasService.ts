@@ -149,6 +149,10 @@ const EDGE_COLORS: Record<string, string> = {
   geo: "#34d399",
   default: "#94a3b8",
 };
+/** Look up an edge colour, falling back to the hardcoded default. */
+function edgeColor(rel: string): string {
+  return EDGE_COLORS[rel] ?? "#94a3b8";
+}
 
 export class GraphAtlasService {
   constructor(
@@ -228,8 +232,8 @@ export class GraphAtlasService {
       y: 0,
       vx: 0,
       vy: 0,
-      lat,
-      lon,
+      ...(lat !== undefined && { lat }),
+      ...(lon !== undefined && { lon }),
       file: entity.file,
     };
   }
@@ -274,7 +278,7 @@ export class GraphAtlasService {
           directed,
           weight,
           length: desiredLength(weight, node, target),
-          color: EDGE_COLORS[rel.relation] ?? EDGE_COLORS.default,
+          color: edgeColor(rel.relation),
         });
       }
     }
@@ -300,7 +304,7 @@ export class GraphAtlasService {
             directed: false,
             weight,
             length: clamp(170 - weight * 70, 80, 220),
-            color: EDGE_COLORS.geo,
+            color: edgeColor("geo"),
           });
         }
       }
@@ -564,8 +568,9 @@ export class GraphAtlasService {
     for (const node of nodes) {
       const seed = hash(node.id);
       const angle = ((seed % 3600) / 3600) * Math.PI * 2;
-      const radius =
-        layerRadius[node.layer] ?? layerRadius[layerRadius.length - 1];
+      // Clamp layer index to layerRadius bounds so the access is provably in-bounds.
+      const layerIdx = Math.min(Math.max(node.layer, 0), layerRadius.length - 1);
+      const radius = layerRadius[layerIdx] ?? 0; // in-bounds: clamped above
       node.x = centerX + Math.cos(angle) * (radius + (node.geo ? 22 : 0));
       node.y = centerY + Math.sin(angle) * (radius + (node.geo ? 22 : 0));
       node.vx = 0;
@@ -608,8 +613,10 @@ export class GraphAtlasService {
     for (let step = 0; step < iterations; step++) {
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
+        if (a === undefined) continue; // in-bounds: for-loop over nodes.length
         for (let j = i + 1; j < nodes.length; j++) {
           const b = nodes[j];
+          if (b === undefined) continue; // in-bounds: for-loop over nodes.length
           let dx = b.x - a.x;
           let dy = b.y - a.y;
           let dist2 = dx * dx + dy * dy;
@@ -655,8 +662,8 @@ export class GraphAtlasService {
       }
 
       for (const node of nodes) {
-        const anchorRadius =
-          layerRadius[node.layer] ?? layerRadius[layerRadius.length - 1];
+        const anchorLayerIdx = Math.min(Math.max(node.layer, 0), layerRadius.length - 1);
+        const anchorRadius = layerRadius[anchorLayerIdx] ?? 0; // in-bounds: clamped above
         const angle =
           ((hash(`${node.kind}:${node.id}`) % 3600) / 3600) * Math.PI * 2;
         const ax = centerX + Math.cos(angle) * anchorRadius;

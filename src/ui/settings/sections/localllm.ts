@@ -28,7 +28,7 @@ function syncActiveProvider(
   };
   if (cfg.provider !== id) return;
   const lc = plugin.settings.features.localLLM[id];
-  cfg.baseUrl = lc.endpoint || undefined;
+  if (lc.endpoint) cfg.baseUrl = lc.endpoint; else delete cfg.baseUrl;
   if (lc.model) cfg.model = lc.model;
   plugin.copilot?.updateSettings?.(plugin.settings.copilot);
 }

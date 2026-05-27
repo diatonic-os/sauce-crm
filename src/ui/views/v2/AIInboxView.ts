@@ -7,8 +7,9 @@ import { InferenceEngine, type InferenceEntity } from "../../../inference";
 import type { TouchRecord } from "../../../inference/EdgeInferrer";
 import { wrapWikilink, parseWikilink } from "../../../util/Wikilink";
 import { uniq } from "../../../util/Yaml";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_AI_INBOX = "sauce-ai-inbox";
+export const VIEW_AI_INBOX: ViewTypeId = asViewTypeId("sauce-ai-inbox");
 
 interface Row {
   ix: number;
@@ -51,11 +52,11 @@ export class AIInboxView extends ItemView {
   getDisplayText(): string {
     return "Sauce: AI Inbox";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "inbox";
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -101,13 +102,13 @@ export class AIInboxView extends ItemView {
     rejectSel.onclick = () => void this.bulk("reject");
   }
 
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 
   private gatherProposals(): InferenceEntity[] {
     const touches: TouchRecord[] = this.plugin.entityService
       .allTouches()
       .map((t) => {
-        const fm = t.frontmatter as any;
+        const fm = t.frontmatter;
         const attendees: string[] = Array.isArray(fm.attendees)
           ? fm.attendees.map(
               (a: string) => parseWikilink(String(a)) ?? String(a),
@@ -123,7 +124,7 @@ export class AIInboxView extends ItemView {
     const edgeProposals = this.engine.edgeProposals(touches);
     const mergeProposals = this.engine.mergeProposals(
       this.plugin.entityService.allPeople().map((p) => {
-        const fm = p.frontmatter as any;
+        const fm = p.frontmatter;
         const emails = fm.email ? [String(fm.email)] : [];
         const phones = fm.phone ? [String(fm.phone)] : [];
         return {
@@ -223,7 +224,7 @@ export class AIInboxView extends ItemView {
     } else if (p.inference_kind === "attribute") {
       const file = this.app.metadataCache.getFirstLinkpathDest(p.target, "");
       if (!file) return;
-      const val = p.proposed_value as { attribute: string; value: any };
+      const val = p.proposed_value as { attribute: string; value: unknown };
       await this.plugin.entityService.updateFrontmatter(file, (fm) => {
         fm[val.attribute] = val.value;
       });

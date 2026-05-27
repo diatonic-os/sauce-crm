@@ -27,8 +27,10 @@ export type CdelNode = CdelDirective | CdelNatural;
 export function parse(tokens: Token[]): CdelNode[] {
   const out: CdelNode[] = [];
   let i = 0;
-  const peek = () => tokens[i];
-  const eat = () => tokens[i++];
+  // tokens always ends with an EOF sentinel (lex() guarantees this), so
+  // tokens[i] is in-bounds for every valid i while the loop runs.
+  const peek = (): Token => tokens[i]!; // in-bounds: EOF sentinel guarantees tokens[i] exists
+  const eat = (): Token => tokens[i++]!; // in-bounds: same invariant; caller checks peek() first
   while (peek().kind !== "EOF") {
     if (peek().kind === "NEWLINE") {
       eat();

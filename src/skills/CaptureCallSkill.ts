@@ -9,7 +9,7 @@ import {
 
 export class CaptureCallSkill extends Skill {
   readonly id = "capture-call";
-  readonly description = "Pull Twilio recording, transcribe, draft Touch";
+  override readonly description = "Pull Twilio recording, transcribe, draft Touch";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "call_sid", type: "string", required: true }],

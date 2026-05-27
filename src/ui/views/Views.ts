@@ -2,6 +2,7 @@
 // to keep main.ts wiring concise.
 
 import { ItemView, WorkspaceLeaf, TFile, setIcon } from "obsidian";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import type SauceGraphPlugin from "../../main";
 import { Entity } from "../../domain/Entity";
 import { Person } from "../../domain/Person";
@@ -14,14 +15,14 @@ import {
   type GraphEdge,
 } from "../../services/GraphAtlasService";
 
-export const VIEW_DASHBOARD = "sauce-dashboard";
-export const VIEW_PIPELINE = "sauce-pipeline";
-export const VIEW_GRAPH = "sauce-graph-view";
-export const VIEW_COMPAT = "sauce-compat";
-export const VIEW_HEATMAP = "sauce-heatmap";
-export const VIEW_HIERARCHY = "sauce-hierarchy";
-export const VIEW_OVERDUE = "sauce-overdue";
-export const VIEW_PARENT = "sauce-parent-dashboard";
+export const VIEW_DASHBOARD: ViewTypeId = asViewTypeId("sauce-dashboard");
+export const VIEW_PIPELINE: ViewTypeId = asViewTypeId("sauce-pipeline");
+export const VIEW_GRAPH: ViewTypeId = asViewTypeId("sauce-graph-view");
+export const VIEW_COMPAT: ViewTypeId = asViewTypeId("sauce-compat");
+export const VIEW_HEATMAP: ViewTypeId = asViewTypeId("sauce-heatmap");
+export const VIEW_HIERARCHY: ViewTypeId = asViewTypeId("sauce-hierarchy");
+export const VIEW_OVERDUE: ViewTypeId = asViewTypeId("sauce-overdue");
+export const VIEW_PARENT: ViewTypeId = asViewTypeId("sauce-parent-dashboard");
 
 abstract class BaseView extends ItemView {
   constructor(
@@ -30,7 +31,7 @@ abstract class BaseView extends ItemView {
   ) {
     super(leaf);
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "network";
   }
   protected openModalFor(file: TFile): void {
@@ -56,7 +57,7 @@ export class DashboardView extends BaseView {
   getDisplayText(): string {
     return "Sauce: Dashboard";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -182,7 +183,7 @@ export class DashboardView extends BaseView {
         })),
     );
   }
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 
   private copilotFeed(
     people: Entity[],
@@ -270,7 +271,7 @@ export class PipelineKanbanView extends BaseView {
   getDisplayText(): string {
     return "Sauce: Pipeline";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -311,7 +312,7 @@ export class PipelineKanbanView extends BaseView {
       }
     }
   }
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 }
 
 export class TypedEdgeGraphView extends BaseView {
@@ -329,7 +330,7 @@ export class TypedEdgeGraphView extends BaseView {
     return "Sauce: Relationship Atlas";
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -366,7 +367,7 @@ export class TypedEdgeGraphView extends BaseView {
     this.scheduleRender();
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.highlightId = null;
@@ -539,7 +540,7 @@ export class CompatibilityMatrixView extends BaseView {
   getDisplayText(): string {
     return "Sauce: Compatibility Matrix";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -575,7 +576,7 @@ export class CompatibilityMatrixView extends BaseView {
       }
     }
   }
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 }
 
 export class TouchHeatmapView extends BaseView {
@@ -585,7 +586,7 @@ export class TouchHeatmapView extends BaseView {
   getDisplayText(): string {
     return "Sauce: Touch Heatmap";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -609,7 +610,7 @@ export class TouchHeatmapView extends BaseView {
       cell.setAttribute("title", `${iso}: ${n}`);
     }
   }
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 }
 
 export class HierarchyTreeView extends BaseView {
@@ -619,7 +620,7 @@ export class HierarchyTreeView extends BaseView {
   getDisplayText(): string {
     return "Sauce: Hierarchy";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -648,7 +649,7 @@ export class HierarchyTreeView extends BaseView {
     };
     for (const t of tops) render(t, root);
   }
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 }
 
 export class OverdueQueueView extends BaseView {
@@ -658,7 +659,7 @@ export class OverdueQueueView extends BaseView {
   getDisplayText(): string {
     return "Sauce: Overdue Queue";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -685,7 +686,7 @@ export class OverdueQueueView extends BaseView {
       r.onclick = () => this.openModalFor(row.person.file);
     }
   }
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 }
 
 export class ParentDashboardView extends BaseView {
@@ -695,7 +696,7 @@ export class ParentDashboardView extends BaseView {
   getDisplayText(): string {
     return "Sauce: Parent Vault Dashboard";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -723,7 +724,7 @@ export class ParentDashboardView extends BaseView {
     }
     root.createEl("p", { text: `Generated ${todayIso()}` });
   }
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 }
 
 function clamp(value: number, min: number, max: number): number {

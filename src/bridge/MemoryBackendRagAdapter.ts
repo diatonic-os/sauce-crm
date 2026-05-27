@@ -101,7 +101,7 @@ function toSemanticResult(h: MemoryHit): SemanticResult {
   return {
     path: h.path,
     score: h.score,
-    snippet: h.snippet,
-    degraded: h.degraded,
+    ...(h.snippet !== undefined ? { snippet: h.snippet } : {}),
+    ...(h.degraded !== undefined ? { degraded: h.degraded } : {}),
   };
 }

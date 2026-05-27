@@ -22,14 +22,14 @@ export function parseCssVars(markdown: string): CssToken[] {
   for (const line of lines) {
     const h = line.match(HEADING_RE);
     if (h) {
-      section = h[1].trim();
+      section = h[1]!.trim(); // safe: regex requires capture group when match succeeds
       continue;
     }
     const r = line.match(ROW_RE);
     if (r) {
-      const token = r[1];
+      const token = r[1]!; // safe: regex requires group 1 when match succeeds
       if (!byToken.has(token)) {
-        byToken.set(token, { token, description: r[2].trim(), section });
+        byToken.set(token, { token, description: r[2]!.trim(), section }); // safe: regex requires group 2
       }
     }
   }

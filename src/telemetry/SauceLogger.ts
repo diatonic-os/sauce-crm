@@ -29,7 +29,7 @@ function makeEvent(
     source,
     message,
     timestamp: isoNow(),
-    data,
+    ...(data !== undefined ? { data } : {}),
   };
 }
 
@@ -75,7 +75,7 @@ class SauceLogger implements Logger {
       source: this.source,
       event: name,
       timestamp: isoNow(),
-      data,
+      ...(data !== undefined ? { data } : {}),
     };
     this.sink.emit(ev);
   }

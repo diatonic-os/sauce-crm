@@ -17,6 +17,7 @@ import { SGV2_MAGIC } from "./security/KeyVault";
 import { SyncEngine } from "./sync";
 import { InferenceEngine } from "./inference";
 import { ProvenanceService } from "./services/Provenance";
+import type { Logger } from "./telemetry/types";
 
 // Web Crypto-backed CryptoBackend. Obsidian runs in Electron's renderer which exposes
 // window.crypto.subtle. KDF is PBKDF2-SHA256 (Argon2id needs a native dep we choose
@@ -165,8 +166,8 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   // on-disk plugin dir, which the desktop FileSystemAdapter exposes via
   // getBasePath(); on mobile there is no base path (and no LanceDB anyway).
   const vaultBase =
-    (app.vault.adapter as unknown as { getBasePath?: () => string }).getBasePath?.() ??
-    (app.vault.adapter as unknown as { basePath?: string }).basePath ??
+    app.vault.adapter.getBasePath?.() ??
+    app.vault.adapter.basePath ??
     "";
   const absPluginDir = vaultBase
     ? `${vaultBase}/${app.vault.configDir}/plugins/${pluginId}`
@@ -174,9 +175,8 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   const lanceDir = absPluginDir
     ? `${absPluginDir}/data/lancedb`
     : `${pluginDir}/data/lancedb`;
-  const embeddingDim = (
-    plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }
-  ).settings?.lancedb?.embeddingDim;
+  const pluginSettings = (plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }).settings; // Plugin subclass field; base Plugin type lacks it
+  const embeddingDim = pluginSettings?.lancedb?.embeddingDim;
 
   // ─── Backend: LanceDB single-backend (require-install) ───────────────
   // LanceDB is the sole persistence engine. If its native binding is not yet
@@ -189,8 +189,8 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
     try {
       lance = await initLanceBackend({
         dataDir: lanceDir,
-        embeddingDim,
-        requireBase: absPluginDir,
+        ...(embeddingDim !== undefined ? { embeddingDim } : {}),
+        ...(absPluginDir !== undefined ? { requireBase: absPluginDir } : {}),
       });
       backendKind = "lancedb";
       console.log("Sauce V2 backend: LanceDB", {
@@ -219,11 +219,8 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   if (lance) {
     try {
       const cb = makeCryptoBackend();
-      const kvLogger = (
-        plugin as unknown as { logger?: { child: (n: string) => unknown } }
-      ).logger?.child("keyvault") as unknown as ConstructorParameters<
-        typeof KeyVault
-      >[2];
+      const pluginLogger = (plugin as unknown as { logger?: Logger }).logger; // Plugin subclass field; base Plugin type lacks it
+      const kvLogger: Logger | null = pluginLogger?.child("keyvault") ?? null;
       keyVault = new KeyVault(lance.secrets, cb, kvLogger ?? null);
     } catch (e) {
       console.warn("Sauce V2 KeyVault init failed", { error: String(e) });
@@ -280,7 +277,7 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
           url,
           method: init.method,
           headers: init.headers,
-          body: init.body,
+          ...(init.body !== undefined ? { body: init.body } : {}),
           throw: false,
         });
         return { status: r.status, headers: r.headers, body: r.text };

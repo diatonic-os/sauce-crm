@@ -56,7 +56,7 @@ export class AutoTouchPipeline {
     const channel = inferChannel(ev, this.opts.inferChannel ?? true);
     const contactEmails = others.map((a) => a.email);
     const contactBasenameHints = others.map(
-      (a) => a.displayName ?? a.email.split("@")[0],
+      (a) => a.displayName ?? a.email.split("@")[0]!, // split("@") always produces ≥1 element
     );
 
     const date = ev.startIso.slice(0, 10);
@@ -75,9 +75,9 @@ export class AutoTouchPipeline {
       channel,
       contactEmails,
       contactBasenameHints,
-      subject: ev.subject,
-      meetingUrl: ev.meetingUrl,
-      webLink: ev.webLink,
+      ...(ev.subject !== undefined ? { subject: ev.subject } : {}),
+      ...(ev.meetingUrl !== undefined ? { meetingUrl: ev.meetingUrl } : {}),
+      ...(ev.webLink !== undefined ? { webLink: ev.webLink } : {}),
       notes,
       source: `${ev.source}:cal/${ev.id}`,
       followups: [],

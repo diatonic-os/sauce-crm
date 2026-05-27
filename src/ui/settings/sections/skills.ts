@@ -9,7 +9,14 @@ export function renderSkills(
   plugin: SauceGraphPlugin,
 ): void {
   plugin.logger?.debug?.("settings.section_render", { section: "skills" });
-  const skillsRt: any = (plugin as any).skills;
+  // plugin.skills is SkillRuntime | null; narrow via the public field.
+  const skillsRt = plugin.skills as {
+    list?(): { id: string; description?: string }[];
+    registry?: {
+      getSettings?(id: string): { enabled?: boolean; autonomy?: string };
+      setSettings?(id: string, patch: Record<string, unknown>): void;
+    };
+  } | null;
   if (!skillsRt) {
     const empty = containerEl.createDiv({ cls: "sg-empty-state" });
     empty.createEl("h4", { text: "Skills — coming soon" });
@@ -22,8 +29,8 @@ export function renderSkills(
 
   containerEl.createEl("h3", { text: "Skills" });
 
-  const skills: any[] = skillsRt.list?.() ?? [];
-  const s: any = plugin.settings;
+  const skills = skillsRt.list?.() ?? [];
+  const s = plugin.settings as unknown as Record<string, unknown>;
   if (!s.skillsAutonomy) s.skillsAutonomy = "manual";
   const save = () => plugin.saveSettings();
   const rerender = () => {
@@ -32,7 +39,7 @@ export function renderSkills(
   };
   const setSkill = (id: string, patch: Record<string, unknown>) => {
     try {
-      skillsRt.registry.setSettings(id, patch);
+      skillsRt.registry?.setSettings?.(id, patch);
     } catch {
       /* noop */
     }
@@ -71,7 +78,7 @@ export function renderSkills(
     .addDropdown((d) => {
       for (const lvl of LEVELS) d.addOption(lvl, cap(lvl));
       d.addOption("custom", "Custom (per skill)");
-      d.setValue(s.skillsAutonomy).onChange(async (v) => {
+      d.setValue(typeof s.skillsAutonomy === "string" ? s.skillsAutonomy : "manual").onChange(async (v) => {
         s.skillsAutonomy = v;
         if (v !== "custom")
           for (const sk of skills) setSkill(sk.id, { autonomy: v });
@@ -127,7 +134,9 @@ export function renderSkills(
       o.value = lvl;
     }
     // Never blank: fall back to "manual" (|| also catches an empty string).
-    sel.value = custom ? cur.autonomy || "manual" : s.skillsAutonomy;
+    sel.value = custom
+      ? (typeof cur.autonomy === "string" && cur.autonomy) || "manual"
+      : (typeof s.skillsAutonomy === "string" ? s.skillsAutonomy : "manual");
     sel.disabled = !custom; // follows the global setting unless Custom
     sel.title = custom
       ? ""

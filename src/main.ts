@@ -7,6 +7,7 @@ import {
   WorkspaceLeaf,
   Notice,
   MarkdownView,
+  ItemView,
   requestUrl,
   normalizePath,
 } from "obsidian";
@@ -220,6 +221,8 @@ export interface SauceGraphSettings {
   skillsAutonomy?: "manual" | "suggest" | "assist" | "auto" | "custom";
   /** MOB-BRIDGE-001 — mobile memory bridge. Server is OFF by default. */
   bridge?: BridgeSettings;
+  /** Forward-compat beta opt-in gate. Absent in production releases. */
+  beta?: { enabled?: boolean };
 }
 
 /** Mobile-bridge settings. Desktop fields: enabled/port/bindHost/pairingToken.
@@ -445,7 +448,7 @@ export default class SauceGraphPlugin extends Plugin {
     return this.settings.enums;
   }
 
-  async onload(): Promise<void> {
+  override async onload(): Promise<void> {
     await this.loadSettings();
 
     // Mobile (Apple-native) optimization: inject the .is-mobile stylesheet and
@@ -509,7 +512,7 @@ export default class SauceGraphPlugin extends Plugin {
       strictness: this.settings.strictness,
       enums: this.enums(),
       vaultLookup: (link) => {
-        const t = link.replace(/\[\[|\]\]/g, "").split("|")[0];
+        const t = link.replace(/\[\[|\]\]/g, "").split("|")[0]!; // split always produces ≥1 element
         const f = this.app.metadataCache.getFirstLinkpathDest(t, "");
         if (!f) return null;
         return this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
@@ -610,18 +613,16 @@ export default class SauceGraphPlugin extends Plugin {
     // registry. Wrapped so a wiring failure can never block plugin startup.
     try {
       this.wiredSvc = wireSvcV1(
-        this as unknown as Record<string, unknown>,
+        this as unknown as Record<string, unknown>, // wireSvcV1 uses duck-typing; class instance not directly assignable to index-sig type
         this.app,
         {
           sha256Hex: bridgeSha256Hex,
-          isBetaOptIn: () =>
-            Boolean(
-              (this.settings as unknown as { beta?: { enabled?: boolean } })
-                .beta?.enabled,
-            ),
+          isBetaOptIn: () => Boolean(this.settings.beta?.enabled),
           // B (S6): hydrate the in-memory GraphService from the persistent
           // LanceDB graph tables (graphify activation).
-          graphStore: this.v2?.lance?.graphStore,
+          ...(this.v2?.lance?.graphStore !== undefined
+            ? { graphStore: this.v2.lance.graphStore }
+            : {}),
         },
       );
       this.logger.event?.("svcv1.mounted", {
@@ -641,7 +642,9 @@ export default class SauceGraphPlugin extends Plugin {
         graphSvc,
         buildVaultGraphIndexerHost(this.app),
         {
-          store: this.v2?.lance?.graphStore,
+          ...(this.v2?.lance?.graphStore !== undefined
+            ? { store: this.v2.lance.graphStore }
+            : {}),
           excludeGlobs: this.settings.features.rag.excludeGlobs ?? [],
         },
       );
@@ -740,12 +743,15 @@ export default class SauceGraphPlugin extends Plugin {
             out.push({
               id: f.path,
               skill_id: String(fm.skill_id),
-              skill_args:
-                (fm.skill_args as Record<string, unknown>) ?? undefined,
+              ...(fm.skill_args !== undefined
+                ? { skill_args: fm.skill_args as Record<string, unknown> }
+                : {}),
               schedule: String(fm.schedule ?? "manual"),
-              last_run: fm.last_run ? String(fm.last_run) : undefined,
-              next_run: fm.next_run ? String(fm.next_run) : undefined,
-              autonomy: fm.autonomy as SkillTask["autonomy"],
+              ...(fm.last_run ? { last_run: String(fm.last_run) } : {}),
+              ...(fm.next_run ? { next_run: String(fm.next_run) } : {}),
+              ...(fm.autonomy !== undefined
+                ? { autonomy: fm.autonomy as NonNullable<SkillTask["autonomy"]> }
+                : {}),
             });
           }
           return out;
@@ -856,15 +862,15 @@ export default class SauceGraphPlugin extends Plugin {
       id: "backend",
       phase: "P8",
       ready: !!this.v2?.lance,
-      reason: this.v2?.lance
-        ? undefined
-        : "LanceDB not installed — approve install to enable persistence",
+      ...(this.v2?.lance
+        ? {}
+        : { reason: "LanceDB not installed — approve install to enable persistence" }),
     });
     this.v2Registry.register({
       id: "security",
       phase: "P8",
       ready: !!this.v2?.keyVault,
-      reason: this.v2?.keyVault ? undefined : "KeyVault not initialized",
+      ...(this.v2?.keyVault ? {} : { reason: "KeyVault not initialized" }),
     });
     this.v2Registry.register({
       id: "copilot",
@@ -905,7 +911,7 @@ export default class SauceGraphPlugin extends Plugin {
         id,
         phase,
         ready: live,
-        reason: live ? undefined : "not connected",
+        ...(live ? {} : { reason: "not connected" }),
       });
     }
     this.v2Registry.register({
@@ -1233,7 +1239,7 @@ export default class SauceGraphPlugin extends Plugin {
           .setTitle("Export Graph JSON")
           .setIcon("download")
           .onClick(() => {
-            const cmd = (this.app as any).commands?.executeCommandById?.(
+            const cmd = this.app.commands?.executeCommandById?.(
               "sauce-crm:export-graph-json",
             );
             if (!cmd) new Notice("Export command unavailable");
@@ -1244,7 +1250,7 @@ export default class SauceGraphPlugin extends Plugin {
           .setTitle("Run Backup Now")
           .setIcon("hard-drive")
           .onClick(() => {
-            (this.app as any).commands?.executeCommandById?.(
+            this.app.commands?.executeCommandById?.(
               "sauce-crm:run-backup",
             );
           }),
@@ -1254,7 +1260,7 @@ export default class SauceGraphPlugin extends Plugin {
           .setTitle("Prune Old Backups")
           .setIcon("trash-2")
           .onClick(() => {
-            (this.app as any).commands?.executeCommandById?.(
+            this.app.commands?.executeCommandById?.(
               "sauce-crm:prune-backups",
             );
           }),
@@ -1265,7 +1271,7 @@ export default class SauceGraphPlugin extends Plugin {
           .setTitle("Initialize Vault")
           .setIcon("folder-plus")
           .onClick(() => {
-            (this.app as any).commands?.executeCommandById?.(
+            this.app.commands?.executeCommandById?.(
               "sauce-crm:initialize-vault",
             );
           }),
@@ -1275,7 +1281,7 @@ export default class SauceGraphPlugin extends Plugin {
           .setTitle("Initialize Parent Vault")
           .setIcon("folder-tree")
           .onClick(() => {
-            (this.app as any).commands?.executeCommandById?.(
+            this.app.commands?.executeCommandById?.(
               "sauce-crm:initialize-parent-vault",
             );
           }),
@@ -1285,7 +1291,7 @@ export default class SauceGraphPlugin extends Plugin {
           .setTitle("Onboarding…")
           .setIcon("compass")
           .onClick(() => {
-            (this.app as any).commands?.executeCommandById?.(
+            this.app.commands?.executeCommandById?.(
               "sauce-crm:onboarding",
             );
           }),
@@ -1296,8 +1302,8 @@ export default class SauceGraphPlugin extends Plugin {
           .setTitle("Sauce CRM Settings")
           .setIcon("settings")
           .onClick(() => {
-            (this.app as any).setting?.open?.();
-            (this.app as any).setting?.openTabById?.("sauce-crm");
+            this.app.setting?.open?.();
+            this.app.setting?.openTabById?.("sauce-crm");
           }),
       );
       m.showAtMouseEvent(event);
@@ -1801,8 +1807,9 @@ export default class SauceGraphPlugin extends Plugin {
           new Notice("No SubVaults registered");
           return;
         }
-        await this.registry.unregisterSubVault(subs[0].vault_id);
-        new Notice(`Unregistered ${subs[0].vault_id}`);
+        const sub0 = subs[0]!; // subs.length === 0 guard above ensures this is defined
+        await this.registry.unregisterSubVault(sub0.vault_id);
+        new Notice(`Unregistered ${sub0.vault_id}`);
       },
     });
     this.addCommand({
@@ -1965,13 +1972,7 @@ export default class SauceGraphPlugin extends Plugin {
    *  Settings → Data → "Install LanceDB" button as well as the first-run
    *  prompt. Re-detects capability after the operator decides. */
   openLanceDBInstall(): void {
-    const pluginDir = this.app.vault.adapter as unknown as {
-      getBasePath?: () => string;
-    };
-    const base =
-      typeof pluginDir.getBasePath === "function"
-        ? pluginDir.getBasePath()
-        : "";
+    const base = this.app.vault.adapter.getBasePath?.() ?? "";
     const configDir = this.app.vault.configDir; // not hardcoded ".obsidian" — may be customized
     const fullDir = base
       ? `${base}/${configDir}/plugins/${this.manifest.id}`
@@ -2013,7 +2014,7 @@ export default class SauceGraphPlugin extends Plugin {
   private async openView(type: string): Promise<void> {
     const leaves = this.app.workspace.getLeavesOfType(type);
     if (leaves.length) {
-      this.app.workspace.revealLeaf(leaves[0]);
+      this.app.workspace.revealLeaf(leaves[0]!); // leaves.length > 0 confirmed above
       return;
     }
     let leaf: WorkspaceLeaf | null;
@@ -2168,11 +2169,7 @@ export default class SauceGraphPlugin extends Plugin {
    *  LanceDB resolves paths against cwd and is require-installed into the
    *  plugin's own node_modules, so absolute resolution needs this. */
   absPluginDir(): string | undefined {
-    const a = this.app.vault.adapter as unknown as {
-      getBasePath?: () => string;
-      basePath?: string;
-    };
-    const base = a.getBasePath?.() ?? a.basePath ?? "";
+    const base = this.app.vault.adapter.getBasePath?.() ?? this.app.vault.adapter.basePath ?? "";
     return base
       ? `${base}/${this.app.vault.configDir}/plugins/${this.manifest.id}`
       : undefined;
@@ -2204,15 +2201,7 @@ export default class SauceGraphPlugin extends Plugin {
       baseUrl: "",
       pairingToken: "",
     };
-    const request = makeHttpRequestFn((r) =>
-      requestUrl({
-        url: r.url,
-        method: r.method,
-        headers: r.headers,
-        body: r.body,
-        throw: r.throw,
-      }),
-    );
+    const request = makeHttpRequestFn((r) => requestUrl(r));
     const signer = new HmacAuthSigner({ hmacHex: bridgeHmacHex }, () =>
       tokenToKey(b.pairingToken, { sha256Hex: bridgeSha256Hex }),
     );
@@ -2386,10 +2375,10 @@ export default class SauceGraphPlugin extends Plugin {
         VIEW_LEDGER,
       ]) {
         for (const leaf of this.app.workspace.getLeavesOfType(type)) {
-          const view = leaf.view as unknown as
-            | { onOpen?: () => Promise<void> | void }
-            | undefined;
-          void view?.onOpen?.();
+          if (leaf.view instanceof ItemView) {
+            // onOpen is protected; cast to access it for force-refresh after settings change
+            void (leaf.view as unknown as { onOpen(): Promise<void> }).onOpen();
+          }
         }
       }
     }, 350);
@@ -2407,7 +2396,7 @@ export default class SauceGraphPlugin extends Plugin {
     }
     try {
       const res = await this.skills.run(skillId, { target: file.path });
-      new Notice(`Skill ${skillId}: ${(res as any)?.ok ? "ok" : "failed"}`);
+      new Notice(`Skill ${skillId}: ${res.ok ? "ok" : "failed"}`);
     } catch (e) {
       new Notice(`Skill ${skillId} error: ${(e as Error).message}`);
     }
@@ -2445,7 +2434,7 @@ export default class SauceGraphPlugin extends Plugin {
     }
   }
 
-  onunload(): void {
+  override onunload(): void {
     if (this.viewRefreshTimer !== null)
       window.clearTimeout(this.viewRefreshTimer);
     void this.bridgeService?.stop();

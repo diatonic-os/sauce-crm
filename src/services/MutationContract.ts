@@ -78,7 +78,7 @@ function randByte(): number {
       crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array };
     }
   ).crypto;
-  if (g?.getRandomValues) return g.getRandomValues(new Uint8Array(1))[0];
+  if (g?.getRandomValues) return g.getRandomValues(new Uint8Array(1))[0]!; // in-bounds: Uint8Array(1) always has index 0
   return Math.floor(Math.random() * 256);
 }
 
@@ -96,8 +96,10 @@ export function ulid(now = Date.now()): string {
   if (now === lastTime) {
     // increment the random component for monotonicity
     for (let i = lastRand.length - 1; i >= 0; i--) {
-      if (lastRand[i] < 31) {
-        lastRand[i]++;
+      const cur = lastRand[i]; // in-bounds: loop iterates within lastRand.length
+      if (cur === undefined) break;
+      if (cur < 31) {
+        lastRand[i] = cur + 1;
         break;
       }
       lastRand[i] = 0;

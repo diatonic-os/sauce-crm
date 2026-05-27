@@ -103,9 +103,9 @@ describe("MemoryBackendRagAdapter", () => {
     const results = await adapter.semantic("Alice CRM update", 5);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0].method).toBe("semanticSearch");
-    expect((calls[0].args[0] as MemoryQuery).query).toBe("Alice CRM update");
-    expect((calls[0].args[0] as MemoryQuery).k).toBe(5);
+    expect(calls[0]!.method).toBe("semanticSearch");
+    expect((calls[0]!.args[0] as MemoryQuery).query).toBe("Alice CRM update");
+    expect((calls[0]!.args[0] as MemoryQuery).k).toBe(5);
     expect(results).toHaveLength(1);
   });
 
@@ -124,7 +124,7 @@ describe("MemoryBackendRagAdapter", () => {
 
     const results = await adapter.semantic("follow up with Bob", 8);
 
-    expect(calls[0].method).toBe("semanticSearch");
+    expect(calls[0]!.method).toBe("semanticSearch");
     expect(results).toHaveLength(2);
     expect(results[0]).toMatchObject<SemanticResult>({
       path: "Contacts/Bob.md",
@@ -147,8 +147,8 @@ describe("MemoryBackendRagAdapter", () => {
 
     const results = await adapter.semantic("plain notes", 3);
 
-    expect(results[0].degraded).toBe(true);
-    expect(results[0].path).toBe("Notes/plain.md");
+    expect(results[0]!.degraded).toBe(true);
+    expect(results[0]!.path).toBe("Notes/plain.md");
   });
 
   // ── Recall ────────────────────────────────────────────────────────────────
@@ -160,10 +160,10 @@ describe("MemoryBackendRagAdapter", () => {
 
     const results = await adapter.recall("recent touch with Alice", 4);
 
-    expect(calls[0].method).toBe("recall");
-    expect(calls[0].args).toEqual(["recent touch with Alice", 4]);
+    expect(calls[0]!.method).toBe("recall");
+    expect(calls[0]!.args).toEqual(["recent touch with Alice", 4]);
     expect(results).toHaveLength(1);
-    expect(results[0].path).toBe("Addenda/2024-01-01.md");
+    expect(results[0]!.path).toBe("Addenda/2024-01-01.md");
   });
 
   // ── Gap-safety: null backend ──────────────────────────────────────────────
@@ -238,7 +238,8 @@ describe("MemoryBackendRagAdapter", () => {
     const { backend } = makeMockBackend({ hits: [hit] });
     const adapter = new MemoryBackendRagAdapter(backend);
 
-    const [r] = await adapter.semantic("Q1", 1);
+    const results2 = await adapter.semantic("Q1", 1);
+    const r = results2[0]!; // test sets up exactly 1 hit
 
     expect(r.path).toBe("Projects/Q1.md");
     expect(r.score).toBe(0.95);
@@ -251,7 +252,7 @@ describe("MemoryBackendRagAdapter", () => {
     const { backend } = makeMockBackend({ hits: [hit] });
     const adapter = new MemoryBackendRagAdapter(backend);
 
-    const [r] = await adapter.semantic("x", 1);
+    const r = (await adapter.semantic("x", 1))[0]!; // test sets up exactly 1 hit
     expect(r.snippet).toBeUndefined();
   });
 });

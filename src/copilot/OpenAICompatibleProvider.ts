@@ -266,6 +266,10 @@ export class OpenAICompatibleProvider implements ICopilotProvider {
     };
     const j = JSON.parse(resp.body) as R;
     const choice = j.choices[0];
+    if (choice === undefined) {
+      yield { type: "done", reason: "stop" };
+      return;
+    }
     if (choice.message.content)
       yield { type: "text", delta: choice.message.content };
     for (const tc of choice.message.tool_calls ?? []) {
@@ -303,7 +307,10 @@ export class OpenAICompatibleProvider implements ICopilotProvider {
     });
     if (resp.status >= 400) throw new Error(resp.body);
     const j = JSON.parse(resp.body) as { data: Array<{ embedding: number[] }> };
-    return new Float32Array(j.data[0].embedding);
+    const first = j.data[0];
+    if (first === undefined)
+      throw new Error(`${this.name} embeddings response contains no data`);
+    return new Float32Array(first.embedding);
   }
 }
 

@@ -35,6 +35,10 @@ function freqMs(f: SyncFrequency): number {
       return 86_400_000;
     case "manual":
       return Infinity;
+    default: {
+      const _exhaustive: never = f;
+      throw new Error(`unhandled: ${String(_exhaustive)}`);
+    }
   }
 }
 
@@ -87,6 +91,10 @@ export class Scheduler {
 
   start(tickMs = 10_000): void {
     if (this.timer) return;
+    // Scheduler is a standalone class (not a Plugin/Component), so
+    // this.registerInterval is unavailable. The timer is always cleared
+    // via stop(), which callers must invoke (e.g. SyncEngine.stop() and
+    // Plugin.register(() => scheduler.stop()) in main.ts).
     this.timer = setInterval(() => this.tick(), tickMs);
   }
   stop(): void {

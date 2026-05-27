@@ -9,7 +9,7 @@ import {
 
 export class MergeDuplicatesSkill extends Skill {
   readonly id = "merge-duplicates";
-  readonly description = "Detect + propose entity merges";
+  override readonly description = "Detect + propose entity merges";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "entity_type", type: "string", required: true }],

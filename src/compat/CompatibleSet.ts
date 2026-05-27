@@ -14,8 +14,8 @@ export interface CompatibleSetResult {
 }
 
 export function computeCompatibleSet(
-  a: Record<string, any>,
-  b: Record<string, any>,
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
   fields: string[],
 ): CompatibleSetResult {
   const xa = new Set<string>();
@@ -43,7 +43,7 @@ export function computeCompatibleSet(
   };
 }
 
-function toTokenSet(v: any): string[] {
+function toTokenSet(v: unknown): string[] {
   if (v == null) return [];
   if (Array.isArray(v))
     return v.map((x) => String(x).toLowerCase()).filter(Boolean);

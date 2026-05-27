@@ -33,7 +33,7 @@ export class CardDAVClient {
         Depth: depth,
         "Content-Type": "application/xml; charset=utf-8",
       },
-      body,
+      ...(body !== undefined ? { body } : {}),
     });
     return { status: r.status, body: r.body };
   }
@@ -115,5 +115,14 @@ function parseVCard(vcf: string, href: string, etag?: string): VCardSummary {
     else if (key === "ORG") org = val.split(";")[0];
     else if (key === "TITLE") title = val;
   }
-  return { href, uid, fullName, emails, phones, org, title, etag };
+  return {
+    href,
+    uid,
+    ...(fullName !== undefined ? { fullName } : {}),
+    emails,
+    phones,
+    ...(org !== undefined ? { org } : {}),
+    ...(title !== undefined ? { title } : {}),
+    ...(etag !== undefined ? { etag } : {}),
+  };
 }

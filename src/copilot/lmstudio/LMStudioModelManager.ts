@@ -29,9 +29,9 @@ export class LMStudioModelManager {
     const rows = await this.client.system.listDownloadedModels();
     return rows.map((r) => ({
       modelKey: r.modelKey ?? r.path ?? "unknown",
-      path: r.path,
-      type: r.type,
-      sizeBytes: r.sizeBytes,
+      ...(r.path !== undefined ? { path: r.path } : {}),
+      ...(r.type !== undefined ? { type: r.type } : {}),
+      ...(r.sizeBytes !== undefined ? { sizeBytes: r.sizeBytes } : {}),
     }));
   }
 
@@ -39,7 +39,7 @@ export class LMStudioModelManager {
     const rows = await this.client.llm.listLoaded();
     return rows.map((r) => ({
       identifier: r.identifier ?? r.path ?? "unknown",
-      path: r.path,
+      ...(r.path !== undefined ? { path: r.path } : {}),
     }));
   }
 
@@ -49,8 +49,8 @@ export class LMStudioModelManager {
     if (opts.gpuLayers !== undefined) config.gpuLayers = opts.gpuLayers;
     const handle = await this.client.llm.load({
       model: modelKey,
-      ttl: opts.ttlSeconds,
-      signal: opts.signal,
+      ...(opts.ttlSeconds !== undefined ? { ttl: opts.ttlSeconds } : {}),
+      ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
       config,
     });
     return { identifier: handle.identifier ?? modelKey };

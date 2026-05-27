@@ -26,10 +26,12 @@ export class VcardImportAdapter implements IImportAdapter {
         const line = rawLine.replace(/\s+$/, "");
         if (/^END:VCARD/i.test(line)) break;
         if (!line) continue;
-        const [keyAndParams, ...rest] = line.split(":");
+        const colonParts = line.split(":");
+        const keyAndParams = colonParts[0]; // split always produces ≥1 element
+        const rest = colonParts.slice(1);
         if (!keyAndParams || rest.length === 0) continue;
         const value = rest.join(":");
-        const key = keyAndParams.split(";")[0].toUpperCase();
+        const key = keyAndParams.split(";")[0]!.toUpperCase(); // split always produces ≥1 element
         if (key === "FN") fm.name = value;
         else if (key === "N") fm.fullName = value;
         else if (key === "EMAIL") emails.push(value);

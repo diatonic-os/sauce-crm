@@ -24,9 +24,11 @@ function cosine(a: number[], b: number[]): number {
   let nb = 0;
   const len = Math.min(a.length, b.length);
   for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
+    const ai = a[i]!; // safe: i < Math.min(a.length, b.length) ≤ a.length
+    const bi = b[i]!; // safe: i < Math.min(a.length, b.length) ≤ b.length
+    dot += ai * bi;
+    na += ai * ai;
+    nb += bi * bi;
   }
   if (na === 0 || nb === 0) return 0;
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
@@ -42,13 +44,13 @@ export class InMemoryVectorStore implements IVectorStore {
   private entries = new Map<string, Entry>();
 
   async upsert(id: string, vector: number[], metadata?: Record<string, unknown>): Promise<void> {
-    this.entries.set(id, { vector: [...vector], metadata });
+    this.entries.set(id, { vector: [...vector], ...(metadata !== undefined ? { metadata } : {}) });
   }
 
   async query(vector: number[], k: number): Promise<VectorHit[]> {
     const hits: VectorHit[] = [];
     for (const [id, entry] of this.entries) {
-      hits.push({ id, score: cosine(vector, entry.vector), metadata: entry.metadata });
+      hits.push({ id, score: cosine(vector, entry.vector), ...(entry.metadata !== undefined ? { metadata: entry.metadata } : {}) });
     }
     // sort by score desc, ties by id asc → deterministic
     const byId = stableSort(hits, (h) => h.id);

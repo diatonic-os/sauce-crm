@@ -9,7 +9,7 @@ import {
 
 export class GeocodeSkill extends Skill {
   readonly id = "geocode";
-  readonly description = "Geocode an address string";
+  override readonly description = "Geocode an address string";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "address", type: "string", required: true }],

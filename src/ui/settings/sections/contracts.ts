@@ -25,7 +25,7 @@ export function renderContracts(
         .addOption("log", "Log — save silently")
         .setValue(plugin.settings.strictness ?? "warn")
         .onChange(async (v) => {
-          plugin.settings.strictness = v as any;
+          plugin.settings.strictness = v as "block" | "warn" | "log";
           await plugin.saveSettings();
         }),
     );
@@ -55,8 +55,8 @@ export function renderContracts(
         "Compatibility field weights (technical: w_i per field, comma-separated key=value pairs).",
       )
       .addText((t) => {
-        const cfg: any = plugin.settings.compat_config as any;
-        const weights = cfg.weights ?? {};
+        const cfg = plugin.settings.compat_config as unknown as { weights?: Record<string, unknown> };
+        const weights: Record<string, unknown> = cfg.weights ?? {};
         const initial = Object.entries(weights)
           .map(([k, v]) => `${k}=${v}`)
           .join(", ");
@@ -70,7 +70,7 @@ export function renderContracts(
             const n = Number(val);
             if (k && Number.isFinite(n)) out[k] = n;
           }
-          cfg.weights = out;
+          (cfg as Record<string, unknown>).weights = out;
           await plugin.saveSettings();
         });
       }),
@@ -83,11 +83,11 @@ export function renderContracts(
         "Which contract grammar tier to enforce (technical: contract grammar level).",
       )
       .addDropdown((d) => {
-        const cfg: any = plugin.settings as any;
+        const cfg = plugin.settings as unknown as Record<string, unknown>;
         d.addOption("core", "Core")
           .addOption("simple", "Simple")
           .addOption("full", "Full")
-          .setValue(cfg.grammarLevel ?? "simple")
+          .setValue(typeof cfg.grammarLevel === "string" ? cfg.grammarLevel : "simple")
           .onChange(async (v) => {
             cfg.grammarLevel = v;
             await plugin.saveSettings();
@@ -100,7 +100,7 @@ export function renderContracts(
       .setName("Propositional: AND required")
       .setDesc("Require all clauses to hold (technical: propositional AND).")
       .addToggle((t) => {
-        const cfg: any = plugin.settings as any;
+        const cfg = plugin.settings as unknown as Record<string, unknown>;
         t.setValue(cfg.propAndRequired === true).onChange(async (v) => {
           cfg.propAndRequired = v;
           await plugin.saveSettings();
@@ -115,7 +115,7 @@ export function renderContracts(
         "Permit alternative clause sets to satisfy contract (technical: propositional OR).",
       )
       .addToggle((t) => {
-        const cfg: any = plugin.settings as any;
+        const cfg = plugin.settings as unknown as Record<string, unknown>;
         t.setValue(cfg.propOrAllowed !== false).onChange(async (v) => {
           cfg.propOrAllowed = v;
           await plugin.saveSettings();

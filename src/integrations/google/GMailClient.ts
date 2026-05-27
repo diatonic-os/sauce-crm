@@ -26,8 +26,8 @@ export class GMailClient {
     });
     return {
       messages: r.messages ?? [],
-      nextPageToken: r.nextPageToken,
-      resultSizeEstimate: r.resultSizeEstimate,
+      ...(r.nextPageToken !== undefined ? { nextPageToken: r.nextPageToken } : {}),
+      ...(r.resultSizeEstimate !== undefined ? { resultSizeEstimate: r.resultSizeEstimate } : {}),
     };
   }
 
@@ -48,7 +48,8 @@ export class GMailClient {
     id: string;
     threadId: string;
     snippet?: string;
-    payload: any;
+    /** Gmail MIME message part tree — shape is recursive and API-version-dependent. */
+    payload: unknown;
     internalDate?: string;
   }> {
     return googleGetJson(

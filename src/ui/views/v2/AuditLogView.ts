@@ -1,8 +1,9 @@
 // SPEC §18.5 — Audit log viewer. Reads from V2Runtime.auditLog (HMAC-chained append-only).
 import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_AUDIT_LOG = "sauce-audit-log";
+export const VIEW_AUDIT_LOG: ViewTypeId = asViewTypeId("sauce-audit-log");
 
 const PAGE_SIZE = 50;
 
@@ -21,15 +22,15 @@ export class AuditLogView extends ItemView {
   getDisplayText(): string {
     return "Sauce: Audit Log";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "shield";
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     await this.render();
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     /* no-op */
   }
 

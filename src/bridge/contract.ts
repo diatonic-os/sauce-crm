@@ -15,6 +15,30 @@ export const BRIDGE_PROTOCOL_VERSION = "1.0.0";
 /** URL path prefix for every RPC route. */
 export const BRIDGE_ROUTE_PREFIX = "/v1";
 
+// ───────────────────────── Transport contract ─────────────────────────
+
+/** Minimal injected HTTP response. The production adapter maps Obsidian's
+ *  `requestUrl` response onto this shape. `json` is `unknown` — callers MUST
+ *  narrow before use (no `any` leaks across the transport boundary). */
+export interface HttpResponse {
+  status: number;
+  json: unknown;
+  text: string;
+}
+
+/** Injected transport. Never the global `fetch` — keeps the bundle mobile-safe
+ *  and every consumer unit-testable. `headers` is optional so probe-style GETs
+ *  may omit it; the adapter forwards whatever is supplied to `requestUrl`.
+ *
+ *  Canonical home (AX-002): the bridge backend and the reachability probe
+ *  re-export this single definition rather than declaring parallel shapes. */
+export type HttpRequestFn = (req: {
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+}) => Promise<HttpResponse>;
+
 // ───────────────────────── Core memory contract ─────────────────────────
 
 export interface MemoryQuery {

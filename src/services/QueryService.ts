@@ -18,8 +18,8 @@ export class QueryService {
     let q;
     try {
       q = this.parser.parse(src);
-    } catch (e: any) {
-      return { error: e?.message ?? String(e) };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
 
     if (q.shape === "PATH") {
@@ -116,7 +116,7 @@ export class QueryService {
   }
 }
 
-function fmt(v: any): string {
+function fmt(v: unknown): string {
   if (v == null) return "";
   if (Array.isArray(v)) return v.join(", ");
   if (typeof v === "object") return JSON.stringify(v);

@@ -42,9 +42,9 @@ export async function testProviderConnection(
   try {
     const models = await catalog.list({
       provider: input.provider,
-      endpoint: input.endpoint,
-      apiKey: input.apiKey,
-      kind: input.kind,
+      ...(input.endpoint !== undefined ? { endpoint: input.endpoint } : {}),
+      ...(input.apiKey !== undefined ? { apiKey: input.apiKey } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
       logger: input.logger ?? null,
     });
     const n = models.length;

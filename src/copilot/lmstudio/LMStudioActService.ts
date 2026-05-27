@@ -72,7 +72,7 @@ export class LMStudioActService {
     let finalMessage = "";
     const opts: LMStudioActOpts = {
       maxParallelToolCallCount: req.maxParallelToolCalls ?? 1,
-      signal: req.signal,
+      ...(req.signal !== undefined ? { signal: req.signal } : {}),
       onMessage: (m) => {
         if (req.onMessage) req.onMessage(m);
         if (m && typeof m === "object" && "getText" in m) {
@@ -83,16 +83,18 @@ export class LMStudioActService {
           }
         }
       },
-      guardToolCall: req.approveToolCall
-        ? async (_round, _id, ctx) => {
-            const ok = await req.approveToolCall!(
-              ctx.toolCallRequest.name,
-              ctx.toolCallRequest.arguments,
-            );
-            if (ok) ctx.allow();
-            else ctx.deny("Denied by user policy");
+      ...(req.approveToolCall !== undefined
+        ? {
+            guardToolCall: async (_round, _id, ctx) => {
+              const ok = await req.approveToolCall!(
+                ctx.toolCallRequest.name,
+                ctx.toolCallRequest.arguments,
+              );
+              if (ok) ctx.allow();
+              else ctx.deny("Denied by user policy");
+            },
           }
-        : undefined,
+        : {}),
     };
 
     const result = await model.act(

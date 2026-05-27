@@ -46,18 +46,18 @@ export class LMStudioChatService {
     const model = await this.client.llm.model(req.modelId);
     const chat = this.toSdkChat(req.messages);
     const opts: LMStudioRespondOpts = {
-      temperature: req.temperature,
-      maxTokens: req.maxTokens,
-      topK: req.topK,
-      topP: req.topP,
-      signal: req.signal,
-      draftModel: req.draftModelId,
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
+      ...(req.topK !== undefined ? { topK: req.topK } : {}),
+      ...(req.topP !== undefined ? { topP: req.topP } : {}),
+      ...(req.signal !== undefined ? { signal: req.signal } : {}),
+      ...(req.draftModelId !== undefined ? { draftModel: req.draftModelId } : {}),
       structured: req.structuredSchema,
     };
     const res = await model.respond(chat, opts);
     return {
       content: res.content ?? "",
-      reasoning: res.reasoningContent,
+      ...(res.reasoningContent !== undefined ? { reasoning: res.reasoningContent } : {}),
       stats: res.stats ?? {},
     };
   }
@@ -77,10 +77,10 @@ export class LMStudioChatService {
     };
 
     const opts: LMStudioRespondOpts = {
-      temperature: req.temperature,
-      maxTokens: req.maxTokens,
-      signal: req.signal,
-      draftModel: req.draftModelId,
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
+      ...(req.signal !== undefined ? { signal: req.signal } : {}),
+      ...(req.draftModelId !== undefined ? { draftModel: req.draftModelId } : {}),
       structured: req.structuredSchema,
       onPredictionFragment: collect,
       onFirstToken: () => {
@@ -110,11 +110,16 @@ export class LMStudioChatService {
         await new Promise((r) => setTimeout(r, 5));
         if (firstSeen && consumed === 0) yield { type: "first-token" };
         while (consumed < fragments.length) {
-          yield { type: "text", delta: fragments[consumed++] };
+          // in-bounds: consumed < fragments.length checked by while condition
+          const frag = fragments[consumed++]!;
+          yield { type: "text", delta: frag };
         }
       }
-      while (consumed < fragments.length)
-        yield { type: "text", delta: fragments[consumed++] };
+      while (consumed < fragments.length) {
+        // in-bounds: consumed < fragments.length checked by while condition
+        const frag = fragments[consumed++]!;
+        yield { type: "text", delta: frag };
+      }
       if (err) {
         const msg = err instanceof Error ? err.message : String(err);
         yield {
@@ -125,7 +130,7 @@ export class LMStudioChatService {
         return;
       }
       const finalStats = (result as { stats?: LMStudioStats } | null)?.stats;
-      yield { type: "done", reason: "end", stats: finalStats };
+      yield { type: "done", reason: "end", ...(finalStats !== undefined ? { stats: finalStats } : {}) };
     } catch (e) {
       yield {
         type: "done",

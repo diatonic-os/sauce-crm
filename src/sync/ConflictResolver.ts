@@ -41,6 +41,10 @@ export class ConflictResolver {
           payload: w === "vault" ? c.vault.payload : c.external.payload,
         };
       }
+      default: {
+        const _exhaustive: never = policy;
+        throw new Error(`unhandled: ${String(_exhaustive)}`);
+      }
     }
   }
 }

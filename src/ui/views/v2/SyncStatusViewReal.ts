@@ -1,6 +1,7 @@
 import { ItemView, type Plugin, WorkspaceLeaf } from "obsidian";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_SYNC_STATUS_REAL = "sauce-crm-sync-status";
+export const VIEW_SYNC_STATUS_REAL: ViewTypeId = asViewTypeId("sauce-crm-sync-status");
 
 export class SyncStatusViewReal extends ItemView {
   constructor(leaf: WorkspaceLeaf, _plugin: Plugin) {
@@ -12,17 +13,17 @@ export class SyncStatusViewReal extends ItemView {
   getDisplayText(): string {
     return "Sauce CRM — Sync Status";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "sync";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.createEl("h3", { text: "Sauce CRM Sync Status" });
     this.contentEl.createEl("p", {
       text: "Sync status — pending implementation.",
     });
   }
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     /* nothing to clean up */
   }
 }

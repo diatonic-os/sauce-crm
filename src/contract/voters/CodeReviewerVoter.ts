@@ -105,7 +105,7 @@ export function scanDiff(
   const findings: Finding[] = [];
   const lines = diff.split("\n");
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    const raw = lines[i]!; // provably defined: i < lines.length
     // Only look at added lines in unified diff format. If the input is
     // not a unified diff at all (no +/- prefixes anywhere) we treat
     // every line as added so the scanner also works on raw code.

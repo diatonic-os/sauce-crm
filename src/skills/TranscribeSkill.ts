@@ -9,7 +9,7 @@ import {
 
 export class TranscribeSkill extends Skill {
   readonly id = "transcribe";
-  readonly description = "Transcribe an audio file";
+  override readonly description = "Transcribe an audio file";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "audio_path", type: "string", required: true }],

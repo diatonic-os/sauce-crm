@@ -38,6 +38,7 @@ export function buildBratRuntimeHost(
   isBetaOptIn: () => boolean,
   betaList: { has: (r: string) => boolean; add: (r: string) => void },
 ): BratRuntimeHost {
+  // app.plugins is a real runtime API not exposed in Obsidian's public .d.ts.
   const get = () =>
     (
       app as unknown as {

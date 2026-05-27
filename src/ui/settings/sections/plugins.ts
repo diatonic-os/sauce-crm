@@ -35,7 +35,7 @@ export function renderPlugins(
   };
 
   renderIntegrationsSection(containerEl, {
-    obsidianPlugins: registry,
+    ...(registry ? { obsidianPlugins: registry } : {}),
     renderServices: (el) => renderIntegrations(el, plugin),
     onPluginAction,
   });

@@ -21,7 +21,7 @@ export class ConfirmModal extends Modal {
     this.input = input;
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl, titleEl } = this;
     const {
       title,
@@ -94,7 +94,7 @@ export class ConfirmModal extends Modal {
     };
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

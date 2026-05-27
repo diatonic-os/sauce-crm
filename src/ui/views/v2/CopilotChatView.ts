@@ -29,8 +29,9 @@ import {
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 import { SlashSuggest, type SlashItem } from "../../widgets/SlashSuggest";
 import type { DocFormat } from "../../../services/DocumentHarvest";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_COPILOT_CHAT = "sauce-copilot-chat";
+export const VIEW_COPILOT_CHAT: ViewTypeId = asViewTypeId("sauce-copilot-chat");
 
 type ChatProvider = "anthropic" | "openai" | "ollama" | "lmstudio";
 const CHAT_PROVIDERS: { id: ChatProvider; label: string }[] = [
@@ -101,11 +102,11 @@ export class CopilotChatView extends ItemView {
   getDisplayText(): string {
     return "Sauce: SauceBot";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "message-circle";
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -210,8 +211,8 @@ export class CopilotChatView extends ItemView {
     try {
       models = await sharedModelCatalog(this.plugin.logger ?? null).list({
         provider,
-        endpoint: cur?.baseUrl,
-        apiKey: cur?.apiKey,
+        ...(cur?.baseUrl !== undefined ? { endpoint: cur.baseUrl } : {}),
+        ...(cur?.apiKey !== undefined ? { apiKey: cur.apiKey } : {}),
         logger: this.plugin.logger ?? null,
       });
     } catch {
@@ -231,7 +232,7 @@ export class CopilotChatView extends ItemView {
         m.id === cur?.model,
       );
     if (!models.some((m) => m.id === cur?.model))
-      this.modelSel.value = models[0].id;
+      this.modelSel.value = models[0]!.id; // models.length > 0 confirmed by early-return above
   }
 
   private async refreshEmbedOptions(): Promise<void> {
@@ -417,7 +418,7 @@ export class CopilotChatView extends ItemView {
       () => void this.askNow(),
     );
     send.addClass("sauce-cp-send");
-    this.inputEl.addEventListener("keydown", (e) => {
+    this.registerDomEvent(this.inputEl, "keydown", (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         void this.askNow();
@@ -680,11 +681,11 @@ export class CopilotChatView extends ItemView {
       let finalText = "",
         interim = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const res = ev.results[i] as ArrayLike<{ transcript: string }> & {
+        const res = ev.results[i]! as ArrayLike<{ transcript: string }> & { // i < results.length — bounds-checked
           isFinal?: boolean;
         };
-        if (res.isFinal) finalText += res[0].transcript;
-        else interim += res[0].transcript;
+        if (res.isFinal) finalText += res[0]!.transcript; // SpeechRecognition result always has ≥1 alternative
+        else interim += res[0]!.transcript;
       }
       if (finalText) baseValue += finalText;
       this.inputEl.value = baseValue + interim;
@@ -712,7 +713,7 @@ export class CopilotChatView extends ItemView {
     if (this.micButton) this.micButton.removeClass("is-listening");
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     if (this.recognition) {
       try {
         this.recognition.stop();
@@ -752,7 +753,7 @@ export class CopilotChatView extends ItemView {
     try {
       const activePath = this.plugin.app.workspace.getActiveFile()?.path;
       for await (const ev of copilot.ask(q, activePath, this.history, {
-        forceSkill,
+        ...(forceSkill !== undefined ? { forceSkill } : {}),
       })) {
         if (ev.type === "text") {
           text += ev.delta;
@@ -772,8 +773,9 @@ export class CopilotChatView extends ItemView {
       }
       this.history.push({ role: "user", content: q });
       this.history.push({ role: "assistant", content: text });
-    } catch (e: any) {
-      assistantEl.setText(`[error: ${e?.message ?? String(e)}]`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      assistantEl.setText(`[error: ${msg}]`);
     }
   }
 

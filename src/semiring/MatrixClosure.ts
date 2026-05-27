@@ -10,26 +10,35 @@ export function zeroMatrix<T>(sr: Semiring<T>, n: number): Matrix<T> {
 
 export function identityMatrix<T>(sr: Semiring<T>, n: number): Matrix<T> {
   const m = zeroMatrix(sr, n);
-  for (let i = 0; i < n; i++) m[i][i] = sr.one;
+  // square matrix: i < n, row exists
+  for (let i = 0; i < n; i++) m[i]![i] = sr.one;
   return m;
 }
 
 export function add<T>(sr: Semiring<T>, a: Matrix<T>, b: Matrix<T>): Matrix<T> {
   const n = a.length;
   const out = zeroMatrix(sr, n);
-  for (let i = 0; i < n; i++)
-    for (let j = 0; j < n; j++) out[i][j] = sr.add(a[i][j], b[i][j]);
+  // square matrices: i,j < n — all row/cell accesses are in-bounds
+  for (let i = 0; i < n; i++) {
+    const rowOut = out[i]!;
+    const rowA = a[i]!;
+    const rowB = b[i]!;
+    for (let j = 0; j < n; j++) rowOut[j] = sr.add(rowA[j]!, rowB[j]!);
+  }
   return out;
 }
 
 export function mul<T>(sr: Semiring<T>, a: Matrix<T>, b: Matrix<T>): Matrix<T> {
   const n = a.length;
   const out = zeroMatrix(sr, n);
+  // square matrices: i,j,k < n — all row/cell accesses are in-bounds
   for (let i = 0; i < n; i++) {
+    const rowA = a[i]!;
+    const rowOut = out[i]!;
     for (let j = 0; j < n; j++) {
       let acc: T = sr.zero;
-      for (let k = 0; k < n; k++) acc = sr.add(acc, sr.mul(a[i][k], b[k][j]));
-      out[i][j] = acc;
+      for (let k = 0; k < n; k++) acc = sr.add(acc, sr.mul(rowA[k]!, b[k]![j]!));
+      rowOut[j] = acc;
     }
   }
   return out;
@@ -41,8 +50,12 @@ export function eqMatrix<T>(
   b: Matrix<T>,
 ): boolean {
   const n = a.length;
-  for (let i = 0; i < n; i++)
-    for (let j = 0; j < n; j++) if (!sr.eq(a[i][j], b[i][j])) return false;
+  // square matrices: i,j < n — all row/cell accesses are in-bounds
+  for (let i = 0; i < n; i++) {
+    const rowA = a[i]!;
+    const rowB = b[i]!;
+    for (let j = 0; j < n; j++) if (!sr.eq(rowA[j]!, rowB[j]!)) return false;
+  }
   return true;
 }
 
@@ -81,37 +94,42 @@ export function bestPath<T>(
   for (let _step = 0; _step < n; _step++) {
     let u = -1;
     let best: T = sr.zero;
+    // v < n: dist[] has length n, all accesses in-bounds
     for (let v = 0; v < n; v++) {
       if (visited.has(v)) continue;
-      if (u === -1 || !sr.eq(sr.add(best, dist[v]), best)) {
-        if (u === -1 || dominates(sr, dist[v], best)) {
+      if (u === -1 || !sr.eq(sr.add(best, dist[v]!), best)) {
+        if (u === -1 || dominates(sr, dist[v]!, best)) {
           u = v;
-          best = dist[v];
+          best = dist[v]!;
         }
       }
     }
     if (u === -1 || sr.eq(best, sr.zero)) break;
     visited.add(u);
     if (u === j) break;
+    // u,v < n: dist[], h[], prev[] all have length n; h rows have length n
     for (let v = 0; v < n; v++) {
       if (visited.has(v)) continue;
-      const alt = sr.mul(dist[u], h[u][v]);
-      const merged = sr.add(dist[v], alt);
-      if (!sr.eq(merged, dist[v])) {
+      const alt = sr.mul(dist[u]!, h[u]![v]!);
+      const merged = sr.add(dist[v]!, alt);
+      if (!sr.eq(merged, dist[v]!)) {
         dist[v] = merged;
         prev[v] = u;
       }
     }
   }
-  if (prev[j] === -1 && i !== j) return null;
+  // j is a valid node index (caller guards j < n via buildIndex)
+  if (prev[j]! === -1 && i !== j) return null;
   const path: number[] = [];
   let cur = j;
   while (cur !== -1) {
     path.unshift(cur);
     if (cur === i) break;
-    cur = prev[cur];
+    // cur is either a valid node index or -1 (loop terminates on -1)
+    cur = prev[cur]!;
   }
-  return path[0] === i ? path : null;
+  // path always contains at least j; path[0] is defined
+  return path[0]! === i ? path : null;
 }
 
 function dominates<T>(sr: Semiring<T>, a: T, b: T): boolean {

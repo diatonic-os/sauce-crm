@@ -153,6 +153,7 @@ export class ProvenanceService {
       const rows = await this.store.byFingerprint(cur);
       if (!rows.length) break;
       const r = rows.sort((a, b) => a.ts - b.ts)[0];
+      if (r === undefined) break; // rows is non-empty (checked above); guard for noUncheckedIndexedAccess
       chain.push(r);
       cur = r.parentFp;
     }

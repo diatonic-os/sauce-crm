@@ -96,15 +96,18 @@ export async function execFileNoThrow(
       impl(
         cmd,
         args,
-        { cwd: opts.cwd, timeoutMs: opts.timeoutMs },
+        {
+          ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+          ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+        },
         (err, stdout, stderr) => {
-          const errCode = (err as unknown as { code?: unknown } | null)?.code;
+          const errCode = err && "code" in err ? (err as { code?: unknown }).code : undefined;
           const code = typeof errCode === "number" ? errCode : err ? 1 : 0;
           resolve({
             code,
             stdout: stdout ?? "",
             stderr: stderr ?? "",
-            error: err ? err.message : undefined,
+            ...(err ? { error: err.message } : {}),
           });
         },
       );

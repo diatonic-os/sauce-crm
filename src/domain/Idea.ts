@@ -1,7 +1,7 @@
 import { KnowledgeNote } from "./KnowledgeNote";
 
 export class Idea extends KnowledgeNote {
-  static readonly TYPE = "idea";
+  static override readonly TYPE = "idea";
 
   get stage(): string {
     return this.frontmatter.stage ?? "seed";

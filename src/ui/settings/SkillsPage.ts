@@ -5,6 +5,7 @@
 import { SettingsPage, type SettingsHost, el } from "./SettingsPage";
 import type { SkillRegistry, SkillSettings } from "../../skills/SkillRegistry";
 import type SauceGraphPlugin from "../../main";
+import type { SkillRuntime } from "../../skills/SkillRuntime";
 
 const AUTONOMY_LEVELS = [
   "propose",
@@ -36,8 +37,8 @@ export class SkillsPage extends SettingsPage {
       "plugin.handle",
       null,
     );
-    const registry: SkillRegistry | null =
-      (plugin as any)?.skills?.registry ?? null;
+    const skillsRt: SkillRuntime | null = plugin?.skills ?? null;
+    const registry: SkillRegistry | null = skillsRt?.registry ?? null;
 
     if (!registry) {
       containerEl.appendChild(
@@ -137,7 +138,7 @@ export class SkillsPage extends SettingsPage {
 
       // Description.
       const descCell = tr.appendChild(el("td", { class: "sauce-skill-desc" }));
-      descCell.textContent = (sk as any).description ?? "";
+      descCell.textContent = sk.description ?? "";
     }
   }
 }

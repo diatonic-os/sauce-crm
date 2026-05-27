@@ -19,7 +19,7 @@ describe('components/crm-card', () => {
     const all = [el, ...Array.from(el.querySelectorAll<HTMLElement>('*'))];
     for (const node of all) {
       for (let i = 0; i < node.style.length; i++) {
-        const prop = node.style[i];
+        const prop = node.style[i]!; // safe: i < node.style.length
         expect(node.style.getPropertyValue(prop)).toMatch(/^var\(--/);
       }
     }

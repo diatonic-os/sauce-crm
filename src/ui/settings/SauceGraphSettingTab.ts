@@ -154,14 +154,15 @@ export class SauceGraphSettingTab extends PluginSettingTab {
       };
     }
 
-    // Initial content render
-    const active = TABS.find((t) => t.id === activeId) ?? TABS[0];
+    // Initial content render — TABS is a static non-empty constant
+    const active = TABS.find((t) => t.id === activeId) ?? TABS[0]!;
     body.setAttribute("aria-labelledby", `sg-tab-${active.id}`);
     this.renderTabBody(body, active);
 
     // Keyboard nav (A11Y-01 — arrow keys)
     stripWrap.addEventListener("keydown", (ev) => {
       const tabs = Array.from(stripWrap.children) as HTMLElement[];
+      if (!tabs.length) return; // no tabs rendered yet — nothing to navigate
       const cur = tabs.findIndex(
         (el) => el.getAttribute("aria-selected") === "true",
       );
@@ -173,8 +174,9 @@ export class SauceGraphSettingTab extends PluginSettingTab {
       else if (ev.key === "End") next = tabs.length - 1;
       else return;
       ev.preventDefault();
-      tabs[next].click();
-      tabs[next].focus();
+      const nextTab = tabs[next]!; // next is bounded: [0, tabs.length) — modulo/clamp above
+      nextTab.click();
+      nextTab.focus();
     });
   }
 
@@ -187,10 +189,10 @@ export class SauceGraphSettingTab extends PluginSettingTab {
     body.setAttribute("data-advanced-visible", String(adv));
     try {
       tab.render(body, this.plugin);
-    } catch (e: any) {
+    } catch (e: unknown) {
       const err = body.createDiv({ cls: "sauce-error" });
       err.setText(
-        `Section ${tab.id} failed to render: ${e?.message ?? String(e)}`,
+        `Section ${tab.id} failed to render: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
   }

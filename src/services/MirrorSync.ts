@@ -127,7 +127,7 @@ export class MirrorSync {
     await this.vectors.store(mf.path, vec, "copilot", mf.bodyHash);
     await this.provenance
       ?.record("embed", mf.path, "embedding", text, {
-        parentFp,
+        ...(parentFp !== undefined && { parentFp }),
         meta: { dim: vec.length },
       })
       .catch(() => {});
@@ -146,7 +146,7 @@ export class MirrorSync {
     return {
       path: file.path,
       type,
-      primaryType: fm["primary_type"] ? String(fm["primary_type"]) : undefined,
+      ...(fm["primary_type"] ? { primaryType: String(fm["primary_type"]) } : {}),
       frontmatter: fm,
       body: raw.replace(FRONTMATTER_RE, ""),
       bodyHash: hashString(raw),

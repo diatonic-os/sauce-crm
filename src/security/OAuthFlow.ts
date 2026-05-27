@@ -32,7 +32,7 @@ export type ProviderId = "google" | "microsoft" | "notion" | "apple" | string;
 
 function b64url(buf: Uint8Array): string {
   let s = "";
-  for (let i = 0; i < buf.length; i++) s += String.fromCharCode(buf[i]);
+  for (let i = 0; i < buf.length; i++) s += String.fromCharCode(buf[i]!); // i < buf.length — bounds-checked
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -114,7 +114,7 @@ export class OAuthFlow {
       refreshToken: resp.refresh_token ?? null,
       expiresAt: Date.now() + 1000 * (resp.expires_in ?? 3600),
       scopes: (resp.scope ?? effective.join(" ")).split(/\s+/).filter(Boolean),
-      raw: resp as unknown as Record<string, unknown>,
+      raw: { ...resp } as Record<string, unknown>,
     };
     if (ts.refreshToken)
       await this.vault.put(`oauth:${provider}:refresh`, ts.refreshToken);
@@ -151,7 +151,7 @@ export class OAuthFlow {
       refreshToken: r.refresh_token ?? refresh,
       expiresAt: Date.now() + 1000 * (r.expires_in ?? 3600),
       scopes: (r.scope ?? "").split(/\s+/).filter(Boolean),
-      raw: r as unknown as Record<string, unknown>,
+      raw: { ...r } as Record<string, unknown>,
     };
     if (r.refresh_token)
       await this.vault.put(`oauth:${provider}:refresh`, r.refresh_token);

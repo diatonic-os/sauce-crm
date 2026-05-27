@@ -19,7 +19,7 @@ export function isWikilink(s: unknown): boolean {
 export function parseWikilink(s: string): WikilinkParts | null {
   const m = s.match(WIKILINK_RE);
   if (!m) return null;
-  const body = m[1];
+  const body = m[1]!; // safe: regex requires capture group when match succeeds
   const pipe = body.indexOf('|');
   const link = pipe >= 0 ? body.slice(0, pipe) : body;
   const aliasRaw = pipe >= 0 ? body.slice(pipe + 1).trim() : '';

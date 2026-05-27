@@ -88,8 +88,8 @@ export class SkillRuntime {
           inputs: s.contract.inputs.map((i) => ({
             name: i.name,
             type: i.type,
-            description: i.description,
-            required: i.required,
+            ...(i.description !== undefined && { description: i.description }),
+            ...(i.required !== undefined && { required: i.required }),
           })),
           level: s.contract.level,
         },
@@ -112,10 +112,11 @@ export class SkillRuntime {
     if (!skillCfg.enabled) return { ok: false, reason: `skill ${id} disabled` };
 
     const autonomy: AutonomyLevel = opts.autonomyOverride ?? skillCfg.autonomy;
+    const resolvedProviderHint = opts.providerHint ?? skillCfg.providerOverride;
     const ctx: SkillCtx = {
       autonomy,
       agentId: opts.agentId ?? "$user/_default-A1",
-      providerHint: opts.providerHint ?? skillCfg.providerOverride,
+      ...(resolvedProviderHint !== undefined && { providerHint: resolvedProviderHint }),
       call: <T>(serviceId: string, callArgs: unknown) =>
         this.dispatch<T>(serviceId, callArgs ?? args),
       audit: async (op, entityId, details) => {
@@ -146,8 +147,8 @@ export class SkillRuntime {
     let result: SkillResult;
     try {
       result = await skill.execute(args, ctx);
-    } catch (e: any) {
-      result = { ok: false, reason: `skill threw: ${e?.message ?? String(e)}` };
+    } catch (e: unknown) {
+      result = { ok: false, reason: `skill threw: ${e instanceof Error ? e.message : String(e)}` };
     }
 
     // P15: push every run into the in-memory ring buffer for the Skill Run Log view.
@@ -158,7 +159,7 @@ export class SkillRuntime {
         ts: Date.now(),
         skillId: id,
         ok: result.ok,
-        reason: result.ok ? undefined : result.reason,
+        ...(result.ok ? {} : { reason: result.reason }),
         mutatedCount: result.ok ? result.mutated.length : 0,
       });
     } catch {
@@ -256,10 +257,11 @@ export class SkillRuntime {
     if (!path)
       return { error: "transcribe: missing audio path (pass `audio_path`)" };
     try {
-      const r = await this.transcriber.transcribe(path, {
-        language: args.language ? String(args.language) : undefined,
-        model: args.model ? String(args.model) : undefined,
-      });
+      const transcribeOpts = {
+        ...(args.language ? { language: String(args.language) } : {}),
+        ...(args.model ? { model: String(args.model) } : {}),
+      };
+      const r = await this.transcriber.transcribe(path, transcribeOpts);
       return { text: r.text, language: r.language, durationMs: r.durationMs };
     } catch (e) {
       return {
@@ -308,26 +310,27 @@ export class SkillRuntime {
     }[] = [];
     const seen = new Set<string>();
     for (const t of this.entities.allTouches()) {
-      const attendees = Array.isArray((t.frontmatter as any).attendees)
-        ? (t.frontmatter as any).attendees
+      const fm = t.frontmatter as Record<string, unknown>;
+      const attendees = Array.isArray(fm.attendees)
+        ? fm.attendees
         : [];
       const names: string[] = attendees.map(
-        (a: string) =>
+        (a: unknown) =>
           String(a)
             .replace(/\[\[|\]\]/g, "")
-            .split("|")[0],
+            .split("|")[0] ?? "",
       );
       for (let i = 0; i < names.length; i++) {
         for (let j = i + 1; j < names.length; j++) {
-          const key =
-            names[i] < names[j]
-              ? `${names[i]}|${names[j]}`
-              : `${names[j]}|${names[i]}`;
+          // provably defined: i < names.length, j < names.length
+          const ni = names[i]!;
+          const nj = names[j]!;
+          const key = ni < nj ? `${ni}|${nj}` : `${nj}|${ni}`;
           if (seen.has(key)) continue;
           seen.add(key);
           proposals.push({
-            from: names[i],
-            to: names[j],
+            from: ni,
+            to: nj,
             edge: "knows",
             confidence: 0.6,
             reason: `co-attended ${t.file.basename}`,
@@ -355,14 +358,17 @@ export class SkillRuntime {
     const people = this.entities.allPeople();
     for (let i = 0; i < people.length; i++) {
       for (let j = i + 1; j < people.length; j++) {
-        const a = people[i],
-          b = people[j];
+        // provably defined: i < people.length, j < people.length
+        const a = people[i]!;
+        const b = people[j]!;
         const reasons: string[] = [];
-        const aEmail = String((a.frontmatter as any).email ?? "").toLowerCase();
-        const bEmail = String((b.frontmatter as any).email ?? "").toLowerCase();
+        const afm = a.frontmatter as Record<string, unknown>;
+        const bfm = b.frontmatter as Record<string, unknown>;
+        const aEmail = String(afm.email ?? "").toLowerCase();
+        const bEmail = String(bfm.email ?? "").toLowerCase();
         if (aEmail && aEmail === bEmail) reasons.push("email match");
-        const aLi = String((a.frontmatter as any).linkedin ?? "");
-        const bLi = String((b.frontmatter as any).linkedin ?? "");
+        const aLi = String(afm.linkedin ?? "");
+        const bLi = String(bfm.linkedin ?? "");
         if (aLi && aLi === bLi) reasons.push("linkedin match");
         const aBn = a.file.basename.toLowerCase().replace(/[^a-z]/g, "");
         const bBn = b.file.basename.toLowerCase().replace(/[^a-z]/g, "");

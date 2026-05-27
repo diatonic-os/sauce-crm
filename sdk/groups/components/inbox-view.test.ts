@@ -18,7 +18,7 @@ describe('components/inbox-view', () => {
     const el = renderInbox(document, [{ title: 'X', subtitle: 'Y' }]);
     for (const node of [el, ...Array.from(el.querySelectorAll<HTMLElement>('*'))]) {
       for (let i = 0; i < node.style.length; i++) {
-        expect(node.style.getPropertyValue(node.style[i])).toMatch(/^var\(--/);
+        expect(node.style.getPropertyValue(node.style[i]!)).toMatch(/^var\(--/); // safe: i < node.style.length
       }
     }
   });

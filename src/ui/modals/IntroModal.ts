@@ -11,13 +11,13 @@ export class IntroModal extends Modal {
   private result: HTMLElement | null = null;
 
   constructor(
-    public app: App,
+    public override app: App,
     public plugin: SauceGraphPlugin,
   ) {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "Propose Intro" });
@@ -106,7 +106,7 @@ export class IntroModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

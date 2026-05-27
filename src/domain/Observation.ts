@@ -1,7 +1,7 @@
 import { KnowledgeNote } from "./KnowledgeNote";
 
 export class Observation extends KnowledgeNote {
-  static readonly TYPE = "observation";
+  static override readonly TYPE = "observation";
 
   get signal(): string {
     return this.frontmatter.signal ?? "relationship";

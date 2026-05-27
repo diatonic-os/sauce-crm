@@ -30,12 +30,13 @@ export class ObsidianProviderHost implements ProviderHost {
       url,
       method: init.method,
       headers: init.headers,
-      body: init.body,
+      ...(init.body !== undefined ? { body: init.body } : {}),
       throw: false,
     });
     const headers: Record<string, string> = {};
-    for (const k of Object.keys(r.headers ?? {}))
-      headers[k.toLowerCase()] = String((r.headers as any)[k]);
+    const rawHeaders = r.headers as Record<string, unknown>;
+    for (const k of Object.keys(rawHeaders))
+      headers[k.toLowerCase()] = String(rawHeaders[k]);
     return { status: r.status, headers, body: r.text };
   }
 
@@ -59,7 +60,7 @@ export class ObsidianProviderHost implements ProviderHost {
     const resp = await fetch(url, {
       method: init.method,
       headers: init.headers,
-      body: init.body,
+      ...(init.body !== undefined ? { body: init.body } : {}),
     });
     const headers: Record<string, string> = {};
     resp.headers.forEach((v, k) => {
@@ -135,7 +136,8 @@ export class ObsidianRagHost implements RagAssemblerHost {
     // Fallback: CRM-frontmatter edge walk (pre-F2 behaviour; keeps existing tests green).
     const f = this.app.vault.getAbstractFileByPath(normalizePath(path));
     if (!(f instanceof TFile)) return [];
-    const fm = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
+    const fm: Record<string, unknown> =
+      this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
     const out = new Set<string>();
     for (const edge of [
       "knows",
@@ -146,7 +148,7 @@ export class ObsidianRagHost implements RagAssemblerHost {
       "parent",
       "company",
     ]) {
-      const v = (fm as any)[edge];
+      const v = fm[edge];
       const list = Array.isArray(v) ? v : v ? [v] : [];
       for (const link of list) {
         const t = parseWikilink(String(link)) ?? String(link);
@@ -210,12 +212,13 @@ export class ObsidianRagHost implements RagAssemblerHost {
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffIso = cutoff.toISOString().slice(0, 10);
     for (const t of this.entities.allTouches()) {
-      const date = String((t.frontmatter as any).date ?? "");
+      const fm = t.frontmatter as Record<string, unknown>;
+      const date = String(fm.date ?? "");
       if (date && date >= cutoffIso) {
         out.push({
           id: t.file.path,
           date,
-          contactId: String((t.frontmatter as any).contact ?? ""),
+          contactId: String(fm.contact ?? ""),
         });
       }
     }
@@ -229,14 +232,15 @@ export class ObsidianRagHost implements RagAssemblerHost {
     const basename = path.split("/").pop()?.replace(/\.md$/, "") ?? path;
     const tail: { id: string; date: string; body: string }[] = [];
     for (const a of this.entities.allAddenda()) {
-      const addends = String((a.frontmatter as any).addends ?? "")
+      const fm = a.frontmatter as Record<string, unknown>;
+      const addends = String(fm.addends ?? "")
         .replace(/\[\[|\]\]/g, "")
         .split("|")[0];
       if (addends !== basename) continue;
       const body = ""; // body not loaded in V1 EntityService; left empty for v0
       tail.push({
         id: a.file.path,
-        date: String((a.frontmatter as any).date ?? ""),
+        date: String(fm.date ?? ""),
         body,
       });
     }

@@ -6,7 +6,7 @@ describe('tools/data/IEmbedder (HashEmbedder)', () => {
     const e = new HashEmbedder(8);
     const out = await e.embed(['hello world', 'foo']);
     expect(out.length).toBe(2);
-    expect(out[0].length).toBe(8);
+    expect(out[0]!.length).toBe(8); // safe: length asserted above
   });
 
   it('is deterministic: same text → identical vector', async () => {
@@ -19,9 +19,9 @@ describe('tools/data/IEmbedder (HashEmbedder)', () => {
   it('non-empty text yields unit L2 norm; empty text yields a zero vector', async () => {
     const e = new HashEmbedder(32);
     const [vec, zero] = await e.embed(['hello', '']);
-    const norm = Math.sqrt(vec.reduce((s, x) => s + x * x, 0));
+    const norm = Math.sqrt(vec!.reduce((s, x) => s + x * x, 0)); // safe: embed(['hello','']) returns 2 vectors
     expect(norm).toBeCloseTo(1);
-    expect(zero.every((x) => x === 0)).toBe(true);
+    expect(zero!.every((x) => x === 0)).toBe(true); // safe: same embed call guarantees index 1
   });
 
   it('rejects invalid dimensions', () => {

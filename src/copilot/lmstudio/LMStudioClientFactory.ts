@@ -158,9 +158,9 @@ export class LMStudioClientFactory {
       this.source.get("copilot:lmstudio:client-passkey"),
     ]);
     return {
-      apiToken: apiToken ?? undefined,
-      clientIdentifier: clientIdentifier ?? undefined,
-      clientPasskey: clientPasskey ?? undefined,
+      ...(apiToken != null ? { apiToken } : {}),
+      ...(clientIdentifier != null ? { clientIdentifier } : {}),
+      ...(clientPasskey != null ? { clientPasskey } : {}),
     };
   }
 

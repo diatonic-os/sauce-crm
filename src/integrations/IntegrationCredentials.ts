@@ -155,7 +155,7 @@ export class IntegrationCredentials {
     this.oauth.registerProvider(provider, {
       ...m.oauthDefaults,
       clientId,
-      clientSecret,
+      ...(clientSecret !== undefined ? { clientSecret } : {}),
     });
     await this.vault.put(vaultKey(provider, "client_id"), clientId);
     if (clientSecret)
@@ -175,10 +175,11 @@ export class IntegrationCredentials {
         const cs = await this.vault
           .get(vaultKey(m.id, "client_secret"))
           .catch(() => "");
+        const cs_trimmed = cs || undefined;
         this.oauth.registerProvider(m.id, {
           ...m.oauthDefaults,
           clientId: cid,
-          clientSecret: cs || undefined,
+          ...(cs_trimmed !== undefined ? { clientSecret: cs_trimmed } : {}),
         });
         this.logger?.event("creds.oauth.hydrated", { provider: m.id });
       } catch (e) {

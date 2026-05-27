@@ -73,9 +73,9 @@ export class DownstreamRegistry {
       ok,
       svcVersion: this.svcVersion,
       requested,
-      reason: ok
-        ? undefined
-        : `svcV1 ${this.svcVersion} does not satisfy "${requested}"`,
+      ...(!ok && {
+        reason: `svcV1 ${this.svcVersion} does not satisfy "${requested}"`,
+      }),
     };
   }
 

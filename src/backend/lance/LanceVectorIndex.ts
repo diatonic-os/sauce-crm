@@ -40,7 +40,7 @@ export class LanceVectorIndex {
       .mergeInsert("entity_id")
       .whenMatchedUpdateAll()
       .whenNotMatchedInsertAll()
-      .execute([row as unknown as Record<string, unknown>]);
+      .execute([row] as unknown as Record<string, unknown>[]);
   }
 
   /** mergeInsert already upserts; kept for API parity with the old VectorDB. */
@@ -63,7 +63,7 @@ export class LanceVectorIndex {
     const rows = (await this.table
       .search(vector)
       .limit(limit)
-      .toArray()) as unknown as { entity_id: string; _distance: number }[];
+      .toArray()) as { entity_id: string; _distance: number }[];
     return rows.map((r) => ({ id: r.entity_id, distance: r._distance }));
   }
 

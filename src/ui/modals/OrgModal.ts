@@ -11,7 +11,7 @@ export class OrgModal extends Modal {
   private editingFile: TFile | null;
 
   constructor(
-    public app: App,
+    public override app: App,
     public plugin: SauceGraphPlugin,
     existing: TFile | null = null,
   ) {
@@ -24,7 +24,7 @@ export class OrgModal extends Modal {
     this.fm = { ...cur };
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("sauce-modal");
     contentEl.createEl("h2", {
@@ -158,7 +158,7 @@ export class OrgModal extends Modal {
     return false;
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

@@ -37,7 +37,7 @@ export class LanceDBInstallModal extends Modal {
     );
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     this.modalEl.addClass("sauce-modal");
     this.titleEl.setText("Vector Search: Install LanceDB");
     const c = this.contentEl;
@@ -186,7 +186,7 @@ export class LanceDBInstallModal extends Modal {
         lastAttempt: {
           ok,
           ts: new Date().toISOString(),
-          error: ok ? undefined : "install failed (see modal log)",
+          ...(ok ? {} : { error: "install failed (see modal log)" }),
         },
       });
       if (ok) {
@@ -206,7 +206,7 @@ export class LanceDBInstallModal extends Modal {
     };
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

@@ -28,7 +28,7 @@ const PBKDF2_ITERATIONS = 200_000;
 
 function bytesToBase64(u: Uint8Array): string {
   let bin = "";
-  for (let i = 0; i < u.length; i++) bin += String.fromCharCode(u[i]);
+  for (let i = 0; i < u.length; i++) bin += String.fromCharCode(u[i]!); // i < u.length — bounds-checked
   return btoa(bin);
 }
 

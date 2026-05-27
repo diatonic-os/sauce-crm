@@ -30,7 +30,7 @@ export class LanceSecretStore implements ISecretStore {
       .mergeInsert("service")
       .whenMatchedUpdateAll()
       .whenNotMatchedInsertAll()
-      .execute([r as unknown as Record<string, unknown>]);
+      .execute([r] as unknown as Record<string, unknown>[]);
   }
 
   async get(service: string): Promise<EncryptedSecret | null> {
@@ -38,7 +38,7 @@ export class LanceSecretStore implements ISecretStore {
       .query()
       .where(`service = ${sqlStr(service)}`)
       .limit(1)
-      .toArray()) as unknown as ApiKeyEncRow[];
+      .toArray()) as ApiKeyEncRow[];
     const r = rows[0];
     if (!r) return null;
     return {
@@ -56,7 +56,7 @@ export class LanceSecretStore implements ISecretStore {
     const rows = (await this.table
       .query()
       .select(["service"])
-      .toArray()) as unknown as { service: string }[];
+      .toArray()) as { service: string }[];
     return rows.map((r) => r.service).sort();
   }
 

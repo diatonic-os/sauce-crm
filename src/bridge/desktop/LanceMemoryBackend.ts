@@ -60,7 +60,7 @@ export class LanceMemoryBackend implements MemoryBackend {
   }
 
   async recall(q: string, k?: number): Promise<MemoryHit[]> {
-    return this.semanticSearch({ query: q, k });
+    return this.semanticSearch({ query: q, ...(k !== undefined ? { k } : {}) });
   }
 
   async embed(text: string, fp: string): Promise<EmbedResult | null> {
@@ -93,7 +93,7 @@ export class LanceMemoryBackend implements MemoryBackend {
       path: resolved?.path ?? h.id,
       fp: resolved?.fp ?? h.id,
       score: h.distance,
-      snippet: resolved?.snippet,
+      ...(resolved?.snippet !== undefined ? { snippet: resolved.snippet } : {}),
       degraded: false,
     };
   }

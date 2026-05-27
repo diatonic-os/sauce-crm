@@ -56,7 +56,7 @@ export function emitTasksModule(schema: TasksSchema): string {
   const methods = Object.keys(schema.apiV1).sort();
   const iface = methods
     .map((m) => {
-      const sig = schema.apiV1[m];
+      const sig = schema.apiV1[m]!; // safe: key was enumerated from schema.apiV1 itself
       return `  ${m}(${sig.params.join(", ")}): ${sig.returns};`;
     })
     .join("\n");

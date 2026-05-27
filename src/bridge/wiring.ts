@@ -18,6 +18,8 @@ import {
   type ResultCache,
   type AuthSigner,
   type ReachabilityProbe,
+  type HttpRequestFn,
+  type HttpResponse,
 } from "./contract";
 import { LanceMemoryBackend } from "./desktop";
 import { BridgeMemoryBackend } from "./mobile/bridge";
@@ -47,13 +49,13 @@ export interface RequestUrlLike {
 /** Adapt Obsidian `requestUrl` to the bridge client's HttpRequestFn. Always
  *  passes `throw:false` so transport errors surface as status, and the bridge
  *  client maps them to BridgeError codes. */
-export function makeHttpRequestFn(requestUrl: RequestUrlLike) {
+export function makeHttpRequestFn(requestUrl: RequestUrlLike): HttpRequestFn {
   return async (req: {
     url: string;
     method: string;
-    headers: Record<string, string>;
+    headers?: Record<string, string>;
     body?: string;
-  }): Promise<{ status: number; json: unknown; text: string }> => {
+  }): Promise<HttpResponse> => {
     const r = await requestUrl({ ...req, throw: false });
     let json: unknown = r.json;
     if (json === undefined) {
@@ -100,7 +102,7 @@ export function createDesktopMemory(deps: {
     vectorIndex: deps.vectors,
     provenanceStore: deps.provenanceStore,
     embedFn: deps.embedFn,
-    resolveHit: deps.resolveHit,
+    ...(deps.resolveHit !== undefined ? { resolveHit: deps.resolveHit } : {}),
   });
 }
 

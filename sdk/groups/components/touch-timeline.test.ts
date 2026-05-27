@@ -11,8 +11,8 @@ describe('components/touch-timeline', () => {
     const el = renderTouchTimeline(document, touches);
     const rows = el.querySelectorAll('.sauce-touch-row');
     expect(rows.length).toBe(2);
-    expect(rows[0].querySelector('.sauce-touch-row__channel')?.textContent).toBe('email');
-    expect(rows[1].querySelector('.sauce-touch-row__channel')?.textContent).toBe('call');
+    expect(rows[0]!.querySelector('.sauce-touch-row__channel')?.textContent).toBe('email'); // safe: length asserted above
+    expect(rows[1]!.querySelector('.sauce-touch-row__channel')?.textContent).toBe('call');  // safe: length asserted above
   });
 
   it('omits summary span when absent', () => {
@@ -24,7 +24,7 @@ describe('components/touch-timeline', () => {
     const el = renderTouchTimeline(document, touches);
     for (const node of [el, ...Array.from(el.querySelectorAll<HTMLElement>('*'))]) {
       for (let i = 0; i < node.style.length; i++) {
-        expect(node.style.getPropertyValue(node.style[i])).toMatch(/^var\(--/);
+        expect(node.style.getPropertyValue(node.style[i]!)).toMatch(/^var\(--/); // safe: i < node.style.length
       }
     }
   });

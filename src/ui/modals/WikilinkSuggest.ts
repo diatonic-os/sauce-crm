@@ -31,11 +31,10 @@ export class WikilinkSuggest extends FuzzySuggestModal<TFile> {
     this.onChoose(item, item.basename);
   }
 
-  onNoSuggestion(): void {
+  override onNoSuggestion(): void {
     if (!this.allowFreeText) return;
     // Allow pressing Enter on raw input to create-new
-    const inputEl = (this as any).inputEl as HTMLInputElement | undefined;
-    const raw = inputEl?.value?.trim();
+    const raw = this.inputEl.value.trim();
     if (raw) this.onChoose(null, raw);
   }
 }

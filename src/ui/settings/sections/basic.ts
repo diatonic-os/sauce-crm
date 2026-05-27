@@ -10,12 +10,8 @@ function runCommand(plugin: SauceGraphPlugin, id: string): void {
   // Bare ids are prefixed with the plugin's manifest id (e.g. "sauce-crm:");
   // hardcoding "sauce-graph:" broke after the rename.
   const full = id.includes(":") ? id : `${plugin.manifest.id}:${id}`;
-  const cmds: any = (plugin.app as any).commands;
-  if (cmds && typeof cmds.executeCommandById === "function") {
-    cmds.executeCommandById(full);
-  } else {
-    new Notice(`Command unavailable: ${full}`);
-  }
+  // app.commands is ambient-typed in src/types/obsidian-augment.ts
+  plugin.app.commands?.executeCommandById?.(full);
 }
 
 export function renderBasic(
@@ -23,7 +19,11 @@ export function renderBasic(
   plugin: SauceGraphPlugin,
 ): void {
   plugin.logger?.debug?.("settings.section_render", { section: "basic" });
-  const s: any = plugin.settings as any;
+  // settings only types the public contract; this section reads/writes
+  // additional dynamic keys (hasDismissedFirstRun, hasInitialized, vaultName,
+  // defaultCadence, language, telemetry, debugLogging) some of which live in
+  // the typed interface and some are stored as extra JSON fields.
+  const s = plugin.settings as unknown as Record<string, unknown>;
 
   // ── Sauce Plus hero (coming soon) — models the Copilot Plus hero card ──
   const hero = containerEl.createDiv({ cls: "sauce-hero sauce-hero--plus" });
@@ -81,8 +81,8 @@ export function renderBasic(
         await plugin.saveSettings();
         new Notice("Sauce Graph initialized.");
         banner.remove();
-      } catch (e: any) {
-        new Notice(`Bootstrap failed: ${e?.message ?? e}`);
+      } catch (e: unknown) {
+        new Notice(`Bootstrap failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     };
   }
@@ -185,13 +185,13 @@ export function renderBasic(
     .setName("Vault name")
     .setDesc("Display name used in banners and exports.")
     .addText((t) =>
-      t.setValue(s.vaultName ?? "").onChange(async (v) => {
+      t.setValue(typeof s.vaultName === "string" ? s.vaultName : "").onChange(async (v) => {
         s.vaultName = v;
         await plugin.saveSettings();
       }),
     );
 
-  const cadenceEnum: string[] = (plugin.settings.enums as any)?.cadence ?? [
+  const cadenceEnum: string[] = plugin.settings.enums?.["cadence"] ?? [
     "weekly",
     "monthly",
     "quarterly",
@@ -204,7 +204,7 @@ export function renderBasic(
     )
     .addDropdown((d) => {
       for (const c of cadenceEnum) d.addOption(c, c);
-      d.setValue(s.defaultCadence ?? cadenceEnum[0]).onChange(async (v) => {
+      d.setValue(typeof s.defaultCadence === "string" ? s.defaultCadence : (cadenceEnum[0] ?? "")).onChange(async (v) => {
         s.defaultCadence = v;
         await plugin.saveSettings();
       });
@@ -218,7 +218,7 @@ export function renderBasic(
         .addOption("en", "English")
         .addOption("es", "Español")
         .addOption("fr", "Français")
-        .setValue(s.language ?? "en")
+        .setValue(typeof s.language === "string" ? s.language : "en")
         .onChange(async (v) => {
           s.language = v;
           await plugin.saveSettings();
@@ -259,12 +259,12 @@ export function renderBasic(
           .setButtonText("Reset…")
           .setWarning()
           .onClick(async () => {
-            const ok = (window as any).confirm?.(
+            const ok = window.confirm(
               "Reset all plugin settings to defaults? Vault files are not deleted.",
             );
             if (!ok) return;
             try {
-              await (plugin as any).resetSettings?.();
+              await (plugin as unknown as { resetSettings?(): Promise<void> }).resetSettings?.();
               new Notice("Settings reset.");
             } catch {
               new Notice("Reset not yet wired; manual file edit required.");

@@ -32,7 +32,7 @@ interface NodeHttp {
 function resolveElectronShell(): ElectronShell | null {
   // Obsidian desktop exposes `require` — but only on desktop. Mobile throws.
   try {
-    const req = (window as unknown as { require?: (m: string) => unknown })
+    const req = (window as unknown as { require?: (m: string) => unknown }) // Electron exposes require on window; not in the DOM typings
       .require;
     if (!req) return null;
     const electron = req("electron") as { shell?: ElectronShell };
@@ -44,7 +44,7 @@ function resolveElectronShell(): ElectronShell | null {
 
 function resolveNodeHttp(): NodeHttp | null {
   try {
-    const req = (window as unknown as { require?: (m: string) => unknown })
+    const req = (window as unknown as { require?: (m: string) => unknown }) // Electron exposes require on window; not in the DOM typings
       .require;
     if (!req) return null;
     return req("http") as NodeHttp;
@@ -124,8 +124,8 @@ export class ObsidianOAuthHost implements OAuthHost {
     const r = await requestUrl({
       url,
       method: init?.method ?? "GET",
-      headers: init?.headers,
-      body: init?.body,
+      ...(init?.headers !== undefined && { headers: init.headers }),
+      ...(init?.body !== undefined && { body: init.body }),
       throw: false,
     });
     if (r.status >= 400)

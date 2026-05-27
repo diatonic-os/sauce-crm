@@ -9,7 +9,7 @@ import {
 
 export class VerifyEmailSkill extends Skill {
   readonly id = "verify-email";
-  readonly description = "MX lookup + SMTP probe";
+  override readonly description = "MX lookup + SMTP probe";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "email", type: "string", required: true }],

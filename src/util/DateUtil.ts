@@ -4,11 +4,11 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function isIso(s: any): boolean {
+export function isIso(s: unknown): s is string {
   return typeof s === "string" && ISO_RE.test(s);
 }
 
-export function parseIsoSafe(s: any): Date | null {
+export function parseIsoSafe(s: unknown): Date | null {
   if (!isIso(s)) return null;
   const d = new Date(s + "T00:00:00Z");
   return isNaN(d.getTime()) ? null : d;

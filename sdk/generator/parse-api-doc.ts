@@ -28,13 +28,13 @@ const SIGNATURE_RE = /\*\*Signature:\*\*\s*```typescript\s*\n([\s\S]*?)```/;
 export function parseApiDoc(markdown: string): ApiDescriptor | null {
   const alias = markdown.match(ALIASES_RE);
   if (!alias) return null;
-  const symbol = alias[1].trim();
+  const symbol = alias[1]!.trim(); // safe: regex requires capture group when match succeeds
 
   const kindMatch = markdown.match(HEADING_KIND_RE);
-  const kind = (kindMatch ? kindMatch[1] : 'unknown') as ApiKind;
+  const kind = (kindMatch ? kindMatch[1]! : 'unknown') as ApiKind; // safe: regex requires group 1 on match
 
   const sig = markdown.match(SIGNATURE_RE);
-  const signature = sig ? sig[1].trim() : '';
+  const signature = sig ? sig[1]!.trim() : ''; // safe: regex requires group 1 on match
 
   return { symbol, kind, signature };
 }

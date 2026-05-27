@@ -2,7 +2,7 @@
 // (http://127.0.0.1:11434/api/generate) but speaks the LM Studio
 // OpenAI-compatible /v1/chat/completions shape when configured.
 
-import { requestUrl } from "obsidian";
+import { requestUrl, type RequestUrlParam } from "obsidian";
 import type { RoundtableProposal, Voter } from "../types";
 import {
   coerceVote,
@@ -87,12 +87,13 @@ export class LocalFastVoter implements VoterAgent {
               stream: false,
               temperature: 0,
             };
-      const res = await requestUrl({
+      const req: RequestUrlParam = {
         url: this.endpoint,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      } as unknown as Parameters<typeof requestUrl>[0]);
+      };
+      const res = await requestUrl(req);
 
       const text = extractText(res, this.backend);
       const parsed = parseJsonWithProseTolerance(text) as LocalResponse | null;

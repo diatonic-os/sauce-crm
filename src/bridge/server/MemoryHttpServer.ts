@@ -174,7 +174,7 @@ export class MemoryHttpServer {
     const method = (req.method ?? "GET").toUpperCase();
     // Strip query string; routing keys off pathname only.
     const rawUrl = req.url ?? "/";
-    const path = rawUrl.split("?")[0];
+    const path = rawUrl.split("?")[0]!; // split always yields ≥1 element
 
     // /health is public — no auth, no body needed.
     if (method === "GET" && path === ROUTES.health) {
@@ -308,7 +308,7 @@ export class MemoryHttpServer {
       if (reqBody === undefined) return;
       const hits = await this.deps.backend.semanticSearch({
         query: reqBody.query,
-        k: reqBody.k,
+        ...(reqBody.k !== undefined ? { k: reqBody.k } : {}),
       });
       const body: SearchResponse = { hits };
       this.ok(res, 200, body);

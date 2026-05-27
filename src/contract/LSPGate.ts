@@ -186,8 +186,8 @@ export class LSPGate {
       throw new Error(`cannot unlock FROZEN contract: ${id}`);
     }
     rec.state = LockState.OPEN;
-    rec.lockedBy = undefined;
-    rec.lockedReason = undefined;
+    delete rec.lockedBy;
+    delete rec.lockedReason;
     const drained = rec.waiters.splice(0, rec.waiters.length);
     for (const w of drained) {
       if (w.timer) clearTimeout(w.timer);
@@ -204,8 +204,8 @@ export class LSPGate {
     const rec = this.requireRec(id);
     rec.state = LockState.FROZEN;
     rec.frozenReason = reason;
-    rec.lockedBy = undefined;
-    rec.lockedReason = undefined;
+    delete rec.lockedBy;
+    delete rec.lockedReason;
     const drained = rec.waiters.splice(0, rec.waiters.length);
     for (const w of drained) {
       if (w.timer) clearTimeout(w.timer);
@@ -222,9 +222,9 @@ export class LSPGate {
       contracts: Array.from(this.contracts.entries()).map(([id, rec]) => ({
         id,
         state: rec.state,
-        lockedBy: rec.lockedBy,
-        lockedReason: rec.lockedReason,
-        frozenReason: rec.frozenReason,
+        ...(rec.lockedBy !== undefined && { lockedBy: rec.lockedBy }),
+        ...(rec.lockedReason !== undefined && { lockedReason: rec.lockedReason }),
+        ...(rec.frozenReason !== undefined && { frozenReason: rec.frozenReason }),
         waiters: rec.waiters.length,
       })),
     };

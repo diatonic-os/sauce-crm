@@ -111,9 +111,20 @@ export class AnthropicProvider implements ICopilotProvider {
         let stopReason: string | null = null;
         try {
           for await (const evt of parseSse(resp.iter)) {
-            let payload: any;
+            let payload: {
+              index?: number;
+              message?: { usage?: { input_tokens?: number } };
+              content_block?: { type?: string; id?: unknown; name?: unknown };
+              delta?: {
+                type?: string;
+                text?: string;
+                partial_json?: string;
+                stop_reason?: string;
+              };
+              usage?: { output_tokens?: number };
+            };
             try {
-              payload = JSON.parse(evt.data);
+              payload = JSON.parse(evt.data) as typeof payload;
             } catch {
               continue;
             }
@@ -124,7 +135,7 @@ export class AnthropicProvider implements ICopilotProvider {
               case "content_block_start": {
                 const cb = payload?.content_block;
                 if (cb?.type === "tool_use") {
-                  toolBuf.set(payload.index, {
+                  toolBuf.set(payload.index ?? -1, {
                     id: String(cb.id ?? ""),
                     name: String(cb.name ?? ""),
                     args: "",
@@ -140,7 +151,7 @@ export class AnthropicProvider implements ICopilotProvider {
                   d?.type === "input_json_delta" &&
                   typeof d.partial_json === "string"
                 ) {
-                  const cur = toolBuf.get(payload.index);
+                  const cur = toolBuf.get(payload.index ?? -1);
                   if (cur) cur.args += d.partial_json;
                 }
                 break;

@@ -43,7 +43,8 @@ export function buildMatrix(
     const i = idx.get(e.src),
       j = idx.get(e.dst);
     if (i == null || j == null) continue;
-    m[i][j] = sr.add(m[i][j], e.weight);
+    // i,j < n (from buildIndex over nodes[0..n-1]); m is n×n
+    m[i]![j] = sr.add(m[i]![j]!, e.weight);
   }
   return m;
 }
@@ -64,8 +65,10 @@ export function runPath(
   const i = idx.get(from),
     j = idx.get(to);
   if (i == null || j == null) return null;
-  if (sr.eq(star[i][j], sr.zero)) return null;
+  // i,j < n (from buildIndex over nodes[0..n-1]); star is n×n from closure()
+  if (sr.eq(star[i]![j]!, sr.zero)) return null;
   const pathIdx = bestPath(sr, m, i, j);
   if (!pathIdx) return null;
-  return { nodes: pathIdx.map((k) => nodes[k]), metric: star[i][j] };
+  // pathIdx contains node indices 0..n-1 returned by bestPath; nodes[k] is in-bounds
+  return { nodes: pathIdx.map((k) => nodes[k]!), metric: star[i]![j]! };
 }

@@ -51,7 +51,9 @@ export class TasksService {
     if (text == null) return;
     const lines = text.split("\n");
     if (line < 1 || line > lines.length) return;
-    lines[line - 1] = setLineStatus(lines[line - 1], status);
+    const lineStr = lines[line - 1]; // in-bounds: guarded by line >= 1 && line <= lines.length
+    if (lineStr === undefined) return;
+    lines[line - 1] = setLineStatus(lineStr, status);
     await this.write(path, lines.join("\n"));
   }
 

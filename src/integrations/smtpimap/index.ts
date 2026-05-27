@@ -75,7 +75,7 @@ export class SmtpImapIntegration implements IIntegration {
     const client = new SmtpImapClient({
       account,
       source: this.host.source,
-      proxy: this.host.socksProxy,
+      ...(this.host.socksProxy !== undefined ? { proxy: this.host.socksProxy } : {}),
       rejectUnauthorized: true,
       minTlsVersion: "TLSv1.2",
     });

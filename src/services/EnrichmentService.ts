@@ -100,15 +100,17 @@ export function defaultHeuristicStages(): EnrichmentStages {
   return {
     async tag(input) {
       const out = new Set<string>();
-      for (const m of input.body.matchAll(HASHTAG_RE))
-        out.add(m[1].toLowerCase());
+      for (const m of input.body.matchAll(HASHTAG_RE)) {
+        const cap = m[1];
+        if (cap !== undefined) out.add(cap.toLowerCase());
+      }
       return [...out];
     },
     async graph(input) {
       const out: GraphEdge[] = [];
       const seen = new Set<string>();
       for (const m of input.body.matchAll(WIKILINK_RE)) {
-        const to = m[1].trim();
+        const to = (m[1] ?? "").trim();
         if (to && !seen.has(to)) {
           seen.add(to);
           out.push({ field: "mentions", to });
@@ -189,7 +191,7 @@ export class EnrichmentService {
     });
 
     result.applied = true;
-    result.primaryTypeSet = setPrimary;
+    if (setPrimary !== undefined) result.primaryTypeSet = setPrimary;
     result.rolesAdded = rolesAdded;
     result.tagsAdded = tagsAdded;
     result.edgesAdded = edgesAdded;

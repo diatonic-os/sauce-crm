@@ -26,7 +26,7 @@ export class LocalDeepVoter extends LocalFastVoter {
       voter: cfg.voter ?? DEFAULT_VOTER,
       weight: cfg.weight ?? 2,
       backend,
-      endpoint: cfg.endpoint,
+      ...(cfg.endpoint !== undefined && { endpoint: cfg.endpoint }),
       model:
         cfg.model ?? (backend === "lmstudio" ? "qwen3-coder-30b" : "qwen3:32b"),
       systemPrompt:

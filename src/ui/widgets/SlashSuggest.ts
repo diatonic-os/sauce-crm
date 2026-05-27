@@ -23,7 +23,7 @@ const SLASH_TRIGGER = /^\/(\S*)$/;
 /** The active "/" query, or null when the text isn't a slash trigger. */
 export function parseSlashQuery(text: string): string | null {
   const m = text.match(SLASH_TRIGGER);
-  return m ? m[1] : null;
+  return m ? (m[1] ?? null) : null; // capture group 1 (\S*) always present when regex matches
 }
 
 /** Filter items by case-insensitive substring match on id OR label. */

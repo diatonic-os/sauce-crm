@@ -159,8 +159,8 @@ export class DocumentHarvestService {
       throw new Error(`Unsupported document format: ${input.format}`);
 
     const text = await extractor.extract({
-      bytes: input.bytes,
-      text: input.text,
+      ...(input.bytes !== undefined && { bytes: input.bytes }),
+      ...(input.text !== undefined && { text: input.text }),
     });
     const docFp = (
       await this.provenance?.record(
@@ -179,6 +179,7 @@ export class DocumentHarvestService {
     let skipped = 0;
     for (let ord = 0; ord < pieces.length; ord++) {
       const piece = pieces[ord];
+      if (piece === undefined) continue; // in-bounds: for-loop over pieces.length
       const vec = await this.embedFn(piece);
       if (!vec || vec.length !== this.dim) {
         skipped += 1;
@@ -191,7 +192,7 @@ export class DocumentHarvestService {
         "chunk",
         piece,
         {
-          parentFp: docFp,
+          ...(docFp !== undefined && { parentFp: docFp }),
           meta: { ord },
         },
       );

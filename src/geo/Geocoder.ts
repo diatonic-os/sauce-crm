@@ -70,16 +70,16 @@ export class OSMNominatim implements IGeocoder {
     type N = { display_name: string; address?: Record<string, string> };
     const n = JSON.parse(r.body) as N;
     const a = n.address ?? {};
-    return [
-      {
-        street: a.road,
-        city: a.city ?? a.town ?? a.village,
-        region: a.state,
-        postalCode: a.postcode,
-        country: a.country,
-        formatted: n.display_name,
-      },
-    ];
+    // exactOptionalPropertyTypes: only spread defined fields so optional
+    // Address properties are absent (not undefined) when the geocoder omits them.
+    const addr: Address = { formatted: n.display_name };
+    if (a.road !== undefined) addr.street = a.road;
+    const city = a.city ?? a.town ?? a.village;
+    if (city !== undefined) addr.city = city;
+    if (a.state !== undefined) addr.region = a.state;
+    if (a.postcode !== undefined) addr.postalCode = a.postcode;
+    if (a.country !== undefined) addr.country = a.country;
+    return [addr];
   }
 }
 

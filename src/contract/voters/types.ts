@@ -42,7 +42,8 @@ export function parseJsonWithProseTolerance(text: string): unknown {
   if (!text) return null;
   // Strip ```json fences if present.
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenceMatch ? fenceMatch[1] : text;
+  // fenceMatch[1] is provably defined when fenceMatch is non-null: the regex has one capture group
+  const candidate = fenceMatch ? fenceMatch[1]! : text;
   // Find first { and matching last }.
   const first = candidate.indexOf("{");
   const last = candidate.lastIndexOf("}");

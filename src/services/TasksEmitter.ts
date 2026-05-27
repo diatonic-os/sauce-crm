@@ -76,15 +76,20 @@ export function toCheckbox(t: SauceTask, indent = ""): string {
 export function parseCheckbox(line: string): SauceTask | null {
   const m = line.match(CHECKBOX_RE);
   if (!m) return null;
-  const status = CHAR_TO_STATUS[m[2]] ?? "todo";
-  let rest = m[3];
+  // CHECKBOX_RE has 3 capture groups; all are defined when m is non-null.
+  const charCap = m[2] ?? "";
+  const status = CHAR_TO_STATUS[charCap] ?? "todo";
+  let rest = m[3] ?? "";
 
   const due = rest.match(DUE_RE)?.[1];
   const pr = rest.match(PRIORITY_RE)?.[1];
   const priority = pr ? EMOJI_TO_PRIORITY[pr] : undefined;
   const contact = rest.match(WIKILINK_RE)?.[1]?.trim();
   const tags: string[] = [];
-  for (const t of rest.matchAll(TAG_RE)) tags.push(t[1]);
+  for (const t of rest.matchAll(TAG_RE)) {
+    const tag = t[1];
+    if (tag !== undefined) tags.push(tag);
+  }
 
   // Strip metadata to recover the title.
   rest = rest
@@ -117,7 +122,9 @@ export function parseTasksFromText(
   const out: { task: SauceTask; line: number }[] = [];
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
-    const task = parseCheckbox(lines[i]);
+    const lineStr = lines[i];
+    if (lineStr === undefined) continue; // in-bounds: for-loop over lines.length
+    const task = parseCheckbox(lineStr);
     if (task) out.push({ task, line: i + 1 });
   }
   return out;

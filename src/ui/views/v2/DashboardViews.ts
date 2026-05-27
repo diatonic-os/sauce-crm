@@ -9,10 +9,11 @@ import InboxDashboard from "../../svelte/InboxDashboard.svelte";
 import LedgerDashboard from "../../svelte/LedgerDashboard.svelte";
 import type { TaskRow, InboxRow, LedgerRow } from "../../svelte/DashboardTypes";
 import type SauceGraphPlugin from "../../../main";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_TASKS = "sauce-crm-tasks-board";
-export const VIEW_INBOX = "sauce-crm-inbox";
-export const VIEW_LEDGER = "sauce-crm-ledger";
+export const VIEW_TASKS: ViewTypeId = asViewTypeId("sauce-crm-tasks-board");
+export const VIEW_INBOX: ViewTypeId = asViewTypeId("sauce-crm-inbox");
+export const VIEW_LEDGER: ViewTypeId = asViewTypeId("sauce-crm-ledger");
 
 abstract class SvelteDashboardView extends ItemView {
   protected svelteApp: ReturnType<typeof mount> | undefined;
@@ -22,7 +23,7 @@ abstract class SvelteDashboardView extends ItemView {
   ) {
     super(leaf);
   }
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     if (this.svelteApp) {
       unmount(this.svelteApp);
       this.svelteApp = undefined;
@@ -42,10 +43,10 @@ export class TasksView extends SvelteDashboardView {
   getDisplayText(): string {
     return "Sauce CRM — Tasks";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "sauce-skill";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("sauce-view");
     this.svelteApp = mount(TasksDashboard, {
@@ -75,16 +76,20 @@ export class TasksView extends SvelteDashboardView {
         | Record<string, unknown>
         | undefined;
       if (!fm || fm.type !== "task") continue;
+      const _due = typeof fm.due === "string" ? fm.due : undefined;
+      const _priority = typeof fm.priority === "string" ? fm.priority : undefined;
+      const _contact = typeof fm.contact === "string" ? fm.contact : undefined;
+      const _tags = Array.isArray(fm.tags)
+        ? fm.tags.filter((t): t is string => typeof t === "string")
+        : undefined;
       out.push({
         path: f.path,
         title: typeof fm.title === "string" ? fm.title : f.basename,
         status: typeof fm.status === "string" ? fm.status : "todo",
-        due: typeof fm.due === "string" ? fm.due : undefined,
-        priority: typeof fm.priority === "string" ? fm.priority : undefined,
-        contact: typeof fm.contact === "string" ? fm.contact : undefined,
-        tags: Array.isArray(fm.tags)
-          ? fm.tags.filter((t): t is string => typeof t === "string")
-          : undefined,
+        ...(_due !== undefined ? { due: _due } : {}),
+        ...(_priority !== undefined ? { priority: _priority } : {}),
+        ...(_contact !== undefined ? { contact: _contact } : {}),
+        ...(_tags !== undefined ? { tags: _tags } : {}),
       });
     }
     return out;
@@ -98,10 +103,10 @@ export class InboxView extends SvelteDashboardView {
   getDisplayText(): string {
     return "Sauce CRM — Inbox";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "sauce-ai-inbox";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("sauce-view");
     this.svelteApp = mount(InboxDashboard, {
@@ -162,10 +167,10 @@ export class LedgerView extends SvelteDashboardView {
   getDisplayText(): string {
     return "Sauce CRM — Ledger";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "sauce-audit";
   }
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("sauce-view");
     this.svelteApp = mount(LedgerDashboard, {
@@ -188,6 +193,7 @@ export class LedgerView extends SvelteDashboardView {
         typeof fm.amount === "number" ? fm.amount : Number(fm.amount);
       if (!Number.isFinite(amount)) continue;
       const direction = fm.direction === "in" ? "in" : "out";
+      const _notes = typeof fm.notes === "string" ? fm.notes : undefined;
       out.push({
         path: f.path,
         date: typeof fm.date === "string" ? fm.date : "",
@@ -196,7 +202,7 @@ export class LedgerView extends SvelteDashboardView {
         amount,
         currency: typeof fm.currency === "string" ? fm.currency : "USD",
         direction,
-        notes: typeof fm.notes === "string" ? fm.notes : undefined,
+        ...(_notes !== undefined ? { notes: _notes } : {}),
       });
     }
     return out;

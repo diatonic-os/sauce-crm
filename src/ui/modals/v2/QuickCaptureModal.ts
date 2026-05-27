@@ -17,7 +17,7 @@ export class QuickCaptureModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const c = this.contentEl;
     c.addClass("sauce-modal");
     c.addClass("sauce-quick-capture");
@@ -37,7 +37,7 @@ export class QuickCaptureModal extends Modal {
     this.preview = previewWrap.createEl("pre", { cls: "sauce-quick-preview" });
 
     this.input.addEventListener("input", () => this.refresh());
-    this.input.addEventListener("keydown", (ev) => {
+    this.input.addEventListener("keydown", (ev: KeyboardEvent) => {
       if ((ev.metaKey || ev.ctrlKey) && ev.key === "Enter") {
         ev.preventDefault();
         void this.dispatch();
@@ -65,8 +65,8 @@ export class QuickCaptureModal extends Modal {
     if (!src) return { dispatches: [], unhandled: [] };
     try {
       return this.interpreter.interpret(src);
-    } catch (e: any) {
-      return { dispatches: [], unhandled: [`parse error: ${e?.message ?? e}`] };
+    } catch (e: unknown) {
+      return { dispatches: [], unhandled: [`parse error: ${e instanceof Error ? e.message : String(e)}`] };
     }
   }
 
@@ -104,7 +104,7 @@ export class QuickCaptureModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

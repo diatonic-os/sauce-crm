@@ -7,7 +7,7 @@ export class TagModal extends Modal {
   private to = "";
 
   constructor(
-    public app: App,
+    public override app: App,
     public plugin: SauceGraphPlugin,
     defaultOp: "rename" | "merge" | "delete" = "rename",
   ) {
@@ -15,7 +15,7 @@ export class TagModal extends Modal {
     this.op = defaultOp;
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: `Tag ${this.op}` });
@@ -25,7 +25,7 @@ export class TagModal extends Modal {
         .addOption("merge", "merge")
         .addOption("delete", "delete");
       d.setValue(this.op);
-      d.onChange((v) => (this.op = v as any));
+      d.onChange((v) => (this.op = v as "rename" | "merge" | "delete"));
     });
     new Setting(contentEl)
       .setName("From")
@@ -86,7 +86,7 @@ export class TagModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

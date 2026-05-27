@@ -85,6 +85,8 @@ export class SkillTaskScheduler {
   }
 
   stop(): void {
+    // SkillTaskScheduler is not an Obsidian Component so registerInterval is
+    // unavailable; clearInterval here is the explicit dispose path.
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
   }
@@ -129,7 +131,7 @@ export class SkillTaskScheduler {
     let result: SkillResult;
     try {
       result = await this.runtime.run(task.skill_id, task.skill_args ?? {}, {
-        autonomyOverride: task.autonomy,
+        ...(task.autonomy !== undefined && { autonomyOverride: task.autonomy }),
         agentId: `$scheduler/task-${task.id}`,
         trigger: "scheduled",
         taskId: task.id,

@@ -24,7 +24,10 @@ export class GDriveClient {
       orderBy: params.orderBy ?? "modifiedTime desc",
       fields,
     });
-    return { files: r.files ?? [], nextPageToken: r.nextPageToken };
+    return {
+      files: r.files ?? [],
+      ...(r.nextPageToken !== undefined ? { nextPageToken: r.nextPageToken } : {}),
+    };
   }
 
   async getMeta(fileId: string): Promise<GDriveFileMeta> {

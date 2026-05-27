@@ -21,10 +21,12 @@ import {
 
 // ── Fakes ──────────────────────────────────────────────────────────────────
 
+// Mirrors the canonical HttpRequestFn param shape (headers optional per the
+// transport contract); recorded verbatim from each call for assertions.
 interface RecordedReq {
   url: string;
   method: string;
-  headers: Record<string, string>;
+  headers?: Record<string, string>;
   body?: string;
 }
 
@@ -41,6 +43,13 @@ function makeHttp(
     return r;
   };
   return { fn, calls };
+}
+
+/** The bridge always sends signed headers; narrow the optional contract type
+ *  (headers are optional on HttpRequestFn for probe-style GETs that omit them). */
+function headersOf(req: RecordedReq): Record<string, string> {
+  if (!req.headers) throw new Error("expected request to carry headers");
+  return req.headers;
 }
 
 /** Records the parts it was asked to sign; returns a deterministic signature. */
@@ -80,7 +89,7 @@ function makeCache(): ResultCache & { store: Map<string, unknown> } {
 
 const BASE = "http://100.64.1.5:8787";
 
-function jsonRes(status: number, json: any): HttpResponse {
+function jsonRes(status: number, json: unknown): HttpResponse {
   return { status, json, text: JSON.stringify(json) };
 }
 
@@ -115,16 +124,16 @@ describe("BridgeMemoryBackend", () => {
     await be.semanticSearch({ query: "hello", k: 5 });
 
     expect(calls).toHaveLength(1);
-    const req = calls[0];
+    const req = calls[0]!; // asserted toHaveLength(1) above
     expect(req.url).toBe(BASE + ROUTES.search);
     expect(req.method).toBe("POST");
-    expect(req.headers[SIG_HEADER]).toBeTruthy();
-    expect(req.headers[NONCE_HEADER]).toBe("NONCE-123");
-    expect(req.headers[TS_HEADER]).toMatch(/^\d+$/);
+    expect(headersOf(req)[SIG_HEADER]).toBeTruthy();
+    expect(headersOf(req)[NONCE_HEADER]).toBe("NONCE-123");
+    expect(headersOf(req)[TS_HEADER]).toMatch(/^\d+$/);
     // Body is hashed (non-empty) and the signer saw that hash.
-    expect(signed[0].bodyHash).toBe(`hash<${(req.body ?? "").length}>`);
-    expect(signed[0].path).toBe(ROUTES.search);
-    expect(signed[0].nonce).toBe("NONCE-123");
+    expect(signed[0]!.bodyHash).toBe(`hash<${(req.body ?? "").length}>`);
+    expect(signed[0]!.path).toBe(ROUTES.search);
+    expect(signed[0]!.nonce).toBe("NONCE-123");
   });
 
   it("GET requests (health) send empty body and EMPTY body hash", async () => {
@@ -136,9 +145,9 @@ describe("BridgeMemoryBackend", () => {
 
     await be.ready();
 
-    expect(calls[0].method).toBe("GET");
-    expect(calls[0].body).toBeUndefined();
-    expect(signed[0].bodyHash).toBe("EMPTYHASH");
+    expect(calls[0]!.method).toBe("GET");
+    expect(calls[0]!.body).toBeUndefined();
+    expect(signed[0]!.bodyHash).toBe("EMPTYHASH");
   });
 
   it("embed caches by fp; a second call does NOT hit the network", async () => {
@@ -162,7 +171,9 @@ describe("BridgeMemoryBackend", () => {
 
   it("provenance returns cached records on a second call (cache hit)", async () => {
     let netCalls = 0;
-    const recs = [{ subject: "s", fp: "FP9" } as any];
+    const recs: import("../../../services/Provenance").ProvenanceRecord[] = [
+      { fp: "FP9", op: "test", subject: "s", kind: "note", ts: 0, parentFp: "", meta: null, signature: "" },
+    ];
     const { fn } = makeHttp(() => {
       netCalls++;
       return jsonRes(200, { fp: "FP9", records: recs });
@@ -263,13 +274,13 @@ describe("BridgeMemoryBackend", () => {
       cache,
     });
     await be.recall("q");
-    expect(calls[0].url).toBe(BASE + ROUTES.recall);
+    expect(calls[0]!.url).toBe(BASE + ROUTES.recall);
   });
 
   it("default nonceFn produces distinct hex nonces", async () => {
     const seen = new Set<string>();
     const { fn } = makeHttp((req) => {
-      seen.add(req.headers[NONCE_HEADER]);
+      seen.add(headersOf(req)[NONCE_HEADER]!); // NONCE_HEADER is always present on signed requests
       return jsonRes(200, { hits: [] });
     });
     const { signer } = makeSigner();

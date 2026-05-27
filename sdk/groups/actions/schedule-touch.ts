@@ -14,8 +14,8 @@ const FM_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 export async function scheduleTouch(vault: Vault, file: TFile, nextTick: number): Promise<string> {
   return processNote(vault, file, (content) => {
     const m = content.match(FM_RE);
-    const existing: Frontmatter = m ? ((parseYaml(m[1]) as Frontmatter) ?? {}) : {};
-    const body = m ? m[2] : content;
+    const existing: Frontmatter = m ? ((parseYaml(m[1]!) as Frontmatter) ?? {}) : {}; // safe: regex requires group 1 on match
+    const body = m ? m[2]! : content; // safe: regex requires group 2 on match
     const merged = mergeFrontmatter(existing, { next_touch: nextTick });
     return `---\n${stringifyYaml(merged)}---\n\n${body.replace(/^\n+/, '')}`;
   });

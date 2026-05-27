@@ -35,7 +35,11 @@ export interface MirrorFtsHook {
   remove(entityId: string): Promise<void>;
 }
 
-const rec = (o: object) => o as unknown as Record<string, unknown>;
+/** Cast a typed row array to the `Data` shape LanceDB's add/execute expects.
+ *  The `unknown` hop is required: TypeScript rejects direct interface→Record
+ *  casts because the index-signature is missing in typed interfaces. */
+const asData = <T extends object>(arr: T[]): Record<string, unknown>[] =>
+  arr as unknown as Record<string, unknown>[];
 
 export class LanceEntityMirror {
   constructor(
@@ -96,7 +100,7 @@ export class LanceEntityMirror {
       .where(`id = ${sqlStr(f.path)}`)
       .select(["body_hash"])
       .limit(1)
-      .toArray()) as unknown as { body_hash: string }[];
+      .toArray()) as { body_hash: string }[];
     return rows[0]?.body_hash !== f.bodyHash;
   }
 
@@ -120,7 +124,7 @@ export class LanceEntityMirror {
       .mergeInsert("id")
       .whenMatchedUpdateAll()
       .whenNotMatchedInsertAll()
-      .execute([rec(entity)]);
+      .execute(asData([entity]));
 
     // Re-derive tags + manual edges from frontmatter — simpler than diffing.
     await this.t.tags.delete(`entity_id = ${sqlStr(f.path)}`);
@@ -129,7 +133,7 @@ export class LanceEntityMirror {
         entity_id: f.path,
         tag,
       }));
-      await this.t.tags.add(tagRows.map(rec));
+      await this.t.tags.add(asData(tagRows));
     }
 
     await this.t.edges.delete(
@@ -147,7 +151,7 @@ export class LanceEntityMirror {
         inferred_conf: 0,
         ts: now,
       }));
-      await this.t.edges.add(edgeRows.map(rec));
+      await this.t.edges.add(asData(edgeRows));
     }
 
     if (changed && this.fts) {
@@ -178,7 +182,7 @@ export class LanceEntityMirror {
       .query()
       .where(`id = ${sqlStr(path)}`)
       .limit(1)
-      .toArray()) as unknown as EntityRow[];
+      .toArray()) as EntityRow[];
     return rows[0] ?? null;
   }
 
@@ -187,7 +191,7 @@ export class LanceEntityMirror {
     return (await this.t.entities
       .query()
       .where(`type = ${sqlStr(type)}`)
-      .toArray()) as unknown as EntityRow[];
+      .toArray()) as EntityRow[];
   }
 
   /** Outgoing + incoming edges for an entity. */
@@ -197,6 +201,6 @@ export class LanceEntityMirror {
     return (await this.t.edges
       .query()
       .where(`from_id = ${id} OR to_id = ${id}`)
-      .toArray()) as unknown as EdgeRow[];
+      .toArray()) as EdgeRow[];
   }
 }

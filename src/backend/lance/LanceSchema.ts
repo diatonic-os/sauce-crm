@@ -277,5 +277,9 @@ export function seedDeletePredicate(table: TableName): string {
       return `fp = '${SEED_ID}'`;
     case TABLES.docChunks:
       return `chunk_id = '${SEED_ID}'`;
+    default: {
+      const _exhaustive: never = table;
+      throw new Error(`unhandled: ${String(_exhaustive)}`);
+    }
   }
 }

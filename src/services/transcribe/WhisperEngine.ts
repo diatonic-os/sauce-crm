@@ -100,7 +100,7 @@ export class WhisperEngine implements TranscriptionProvider {
     }
     return {
       text: text.trim(),
-      language: opts.language,
+      ...(opts.language !== undefined && { language: opts.language }),
       durationMs: Date.now() - started,
     };
   }

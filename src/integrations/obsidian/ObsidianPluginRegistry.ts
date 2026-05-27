@@ -42,7 +42,7 @@ export class ObsidianPluginRegistry {
   readonly stateMachine: PluginStateMachine;
 
   constructor(opts: ObsidianPluginRegistryOptions = {}) {
-    this.sink = opts.sink;
+    if (opts.sink !== undefined) this.sink = opts.sink;
     this.stateMachine = opts.stateMachine ?? new PluginStateMachine();
   }
 
@@ -98,6 +98,7 @@ export class ObsidianPluginRegistry {
    * the community-plugin set changes. Registers teardown on dispose().
    */
   attach(app: App): void {
+    // app.plugins is a real runtime API (EventEmitter) not in the public .d.ts.
     const plugins = (app as unknown as { plugins?: PluginsEvents }).plugins;
     if (plugins?.on) {
       const ref = plugins.on("change", () => void this.refresh());

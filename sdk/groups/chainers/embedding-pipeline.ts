@@ -24,7 +24,9 @@ export async function runEmbeddingPipeline(
   if (docs.length === 0) return { embedded: 0 };
   const vectors = await embedder.embed(docs.map((d) => d.text));
   for (let i = 0; i < docs.length; i++) {
-    await store.upsert(docs[i].id, vectors[i], docs[i].metadata);
+    const doc = docs[i]!;     // safe: i < docs.length
+    const vec = vectors[i]!;  // safe: embed returns one vector per input text
+    await store.upsert(doc.id, vec, doc.metadata);
   }
   return { embedded: docs.length };
 }
@@ -37,5 +39,5 @@ export async function queryEmbeddings(
   store: IVectorStore,
 ): Promise<VectorHit[]> {
   const [vector] = await embedder.embed([query]);
-  return store.query(vector, k);
+  return store.query(vector!, k); // safe: embed([query]) always returns exactly one vector
 }

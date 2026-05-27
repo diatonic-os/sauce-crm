@@ -179,7 +179,8 @@ export class CopilotRuntime {
    *  session autonaming is off (caller keeps its own/default name). */
   sessionTitle(firstMessage: string): string | null {
     if (!this.promptConfig.sessionAutoNaming) return null;
-    const firstLine = (firstMessage ?? "").trim().split("\n")[0].trim();
+    // split("\n") always returns at least one element; [0] is provably present
+    const firstLine = ((firstMessage ?? "").trim().split("\n")[0] ?? "").trim();
     if (!firstLine) return null;
     return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
   }
@@ -408,7 +409,7 @@ export class CopilotRuntime {
         : "anthropic";
     return this.getOrBuildProvider(id, {
       apiKey: async () => this.settings.apiKey || undefined,
-      baseUrl: this.settings.baseUrl,
+      ...(this.settings.baseUrl !== undefined ? { baseUrl: this.settings.baseUrl } : {}),
       defaultModel: this.settings.model,
     });
   }

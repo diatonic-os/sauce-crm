@@ -85,14 +85,21 @@ tags: [sub-vault, registry-entry]
   registryEntries(): RegistryEntry[] {
     const pv = this.loadParentVault();
     if (pv) return pv.registry;
-    return this.listSubVaults().map((sv) => ({
-      vault_id: sv.vault_id,
-      path: sv.path,
-      role: sv.role as any,
-      parent_of: null,
-      contract: sv.contract_ref ?? "",
-      spec_version: sv.spec_version,
-      enabled: sv.enabled,
-    }));
+    return this.listSubVaults().map((sv) => {
+      const rawRole = sv.role;
+      const role: RegistryEntry["role"] =
+        rawRole === "primary" || rawRole === "archive"
+          ? rawRole
+          : "secondary"; // default for any unrecognised string written by older installs
+      return {
+        vault_id: sv.vault_id,
+        path: sv.path,
+        role,
+        parent_of: null,
+        contract: sv.contract_ref ?? "",
+        spec_version: sv.spec_version,
+        enabled: sv.enabled,
+      };
+    });
   }
 }

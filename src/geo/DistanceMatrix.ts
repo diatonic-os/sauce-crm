@@ -20,14 +20,14 @@ export function distanceMatrix(
 ): Map<string, Map<string, number>> {
   const m = new Map<string, Map<string, number>>();
   for (let i = 0; i < points.length; i++) {
-    const a = points[i];
+    const a = points[i]!; // i < points.length — bounds-checked by loop condition
     const row = new Map<string, number>();
     for (let j = 0; j < points.length; j++) {
       if (i === j) continue;
-      const b = points[j];
+      const b = points[j]!; // j < points.length — bounds-checked by loop condition
       row.set(b.id, haversineMeters(a.lat, a.lon, b.lat, b.lon));
     }
-    m.set(a.id, row);
+    m.set(a.id, row); // a is provably defined (hoisted above)
   }
   return m;
 }

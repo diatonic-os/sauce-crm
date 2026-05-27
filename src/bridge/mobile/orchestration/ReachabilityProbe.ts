@@ -6,17 +6,12 @@
 // `/v1/health` route and caches the boolean result for a short TTL so the UI
 // can read `lastKnown()` synchronously without re-probing.
 
-import { ReachabilityProbe, ROUTES } from "../../contract";
+import { ReachabilityProbe, ROUTES, type HttpRequestFn } from "../../contract";
 
-/** Minimal HTTP surface the probe needs. Defined locally (not in the contract)
- *  so the probe stays storage/transport-agnostic and unit-testable. Prod binds
- *  this to a thin wrapper over Obsidian `requestUrl()`. */
-export type HttpRequestFn = (req: {
-  url: string;
-  method: string;
-  headers?: Record<string, string>;
-  body?: string;
-}) => Promise<{ status: number; json: any; text: string }>;
+// The HTTP surface the probe needs is canonically defined in ../../contract
+// (AX-002). Re-exported for back-compat with existing `./ReachabilityProbe`
+// import sites.
+export type { HttpRequestFn } from "../../contract";
 
 export interface TailscaleReachabilityProbeDeps {
   /** base origin of the desktop server, e.g. "http://desktop.ts.net:7777". */
@@ -60,7 +55,12 @@ export class TailscaleReachabilityProbe implements ReachabilityProbe {
       });
       const status = res?.status ?? 0;
       const ok2xx = status >= 200 && status < 300;
-      const bodyOk = res?.json != null && res.json.ok === true;
+      // res.json is `unknown` (canonical HttpResponse) — narrow before reading.
+      const body = res?.json;
+      const bodyOk =
+        typeof body === "object" &&
+        body !== null &&
+        (body as { ok?: unknown }).ok === true;
       result = ok2xx && bodyOk;
     } catch {
       result = false;

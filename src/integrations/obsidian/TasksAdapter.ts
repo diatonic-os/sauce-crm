@@ -67,6 +67,7 @@ export interface TasksRuntimeHost {
 
 /** Build a TasksRuntimeHost from a live Obsidian App. */
 export function buildTasksRuntimeHost(app: App): TasksRuntimeHost {
+  // app.plugins is a real runtime API not exposed in Obsidian's public .d.ts.
   const get = () =>
     (
       app as unknown as {

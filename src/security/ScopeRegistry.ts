@@ -23,7 +23,7 @@ export class ScopeRegistry {
 
   set(integration: string, scope: string, allowed: boolean): void {
     if (!this.scopes[integration]) this.scopes[integration] = {};
-    this.scopes[integration][scope] = allowed;
+    this.scopes[integration]![scope] = allowed; // initialized on the line above if absent
   }
 
   check(integration: string, scope: string): boolean {

@@ -22,6 +22,8 @@ import type {
   ImapCredentials,
   SmtpCredentials,
 } from "./smtpimap/types";
+import type { ScopeRegistry } from "../security/ScopeRegistry";
+import type { ProxyClient } from "../security/ProxyClient";
 
 export class ObsidianFetchHost implements FetchHost {
   async fetch(
@@ -36,12 +38,13 @@ export class ObsidianFetchHost implements FetchHost {
       url,
       method: init.method,
       headers: init.headers,
-      body: init.body,
+      ...(init.body !== undefined ? { body: init.body } : {}),
       throw: false,
     });
     const headers: Record<string, string> = {};
-    for (const k of Object.keys(r.headers ?? {}))
-      headers[k.toLowerCase()] = String((r.headers as any)[k]);
+    const rawHeaders = r.headers as Record<string, unknown>;
+    for (const k of Object.keys(rawHeaders))
+      headers[k.toLowerCase()] = String(rawHeaders[k]);
     return { status: r.status, headers, body: r.text };
   }
 }
@@ -74,12 +77,15 @@ export class IntegrationRegistry {
     oauth?: OAuthFlow,
   ) {
     this.oauth = oauth ?? null;
-    const scopes: any = {
+    // P15 will wire real ScopeRegistry/ProxyClient; stubs satisfy the structural
+    // requirement until then. Cast through unknown — the `as never` at each
+    // constructor call is the single escape that acknowledges the stub.
+    const scopes = {
       require: (_i: string, _s: string) => {
         /* P15 wires ScopeRegistry */
       },
-    };
-    const proxy: any = {};
+    } as unknown as ScopeRegistry;
+    const proxy = {} as unknown as ProxyClient;
     this.google = new GoogleWorkspaceIntegration({
       scopes,
       proxy,
@@ -99,7 +105,7 @@ export class IntegrationRegistry {
       scopes,
       proxy,
       fetch: this.fetch,
-      auth: tokens.apple,
+      ...(tokens.apple !== undefined ? { auth: tokens.apple } : {}),
     });
     this.notion = new NotionIntegration({
       scopes,
@@ -111,7 +117,7 @@ export class IntegrationRegistry {
       scopes,
       proxy,
       fetch: this.fetch,
-      auth: tokens.twilio,
+      ...(tokens.twilio !== undefined ? { auth: tokens.twilio } : {}),
     });
     this.resources.set("google_workspace", defaultGoogleResources());
     this.resources.set("microsoft_365", defaultMicrosoftResources());

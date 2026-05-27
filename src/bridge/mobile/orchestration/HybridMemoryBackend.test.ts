@@ -96,7 +96,7 @@ describe("HybridMemoryBackend", () => {
 
     const hits = await h.semanticSearch({ query: "x" });
     expect(hits).toEqual([localHit]);
-    expect(hits[0].degraded).toBe(true); // degraded flag preserved
+    expect(hits[0]!.degraded).toBe(true); // degraded flag preserved
   });
 
   it("falls back on timeout and server-error too", async () => {
@@ -165,7 +165,9 @@ describe("HybridMemoryBackend", () => {
   });
 
   it("provenance routes through bridge when reachable+ready", async () => {
-    const rec = [{ fp: "fp1" } as unknown as ProvenanceRecord];
+    const rec: ProvenanceRecord[] = [
+      { fp: "fp1", op: "test", subject: "", kind: "note", ts: 0, parentFp: "", meta: null, signature: "" },
+    ];
     const bridge = new FakeBackend("bridge", { provenance: async () => rec }, true);
     const local = new FakeBackend("local", { provenance: async () => [] }, true);
     const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(true) });

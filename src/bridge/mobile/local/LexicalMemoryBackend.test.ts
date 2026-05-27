@@ -78,7 +78,7 @@ describe("LexicalMemoryBackend", () => {
     host.results = [{ path: "a.md", score: 0.9, snippet: "…alpha…" }];
     const hits = await backend.semanticSearch({ query: "alpha" });
     expect(hits).toHaveLength(1);
-    const hit = hits[0];
+    const hit = hits[0]!; // test sets up exactly 1 result
     expect(hit.path).toBe("a.md");
     expect(hit.score).toBe(0.9);
     expect(hit.snippet).toBe("…alpha…");
@@ -90,16 +90,16 @@ describe("LexicalMemoryBackend", () => {
   it("recall delegates to the same lexical mapping", async () => {
     host.results = [{ path: "b.md", score: 0.5 }];
     const hits = await backend.recall("beta");
-    expect(hits[0].path).toBe("b.md");
-    expect(hits[0].degraded).toBe(true);
-    expect(hits[0].fp).toBe(index.fpFor("b.md"));
+    expect(hits[0]!.path).toBe("b.md");
+    expect(hits[0]!.degraded).toBe(true);
+    expect(hits[0]!.fp).toBe(index.fpFor("b.md"));
   });
 
   it("falls back to fp='' when the path is not in the index", async () => {
     host.results = [{ path: "unknown.md", score: 0.1 }];
     const hits = await backend.semanticSearch({ query: "x" });
-    expect(hits[0].fp).toBe("");
-    expect(hits[0].degraded).toBe(true);
+    expect(hits[0]!.fp).toBe("");
+    expect(hits[0]!.degraded).toBe(true);
   });
 
   it("passes k to the host as the search limit, defaulting to 25", async () => {

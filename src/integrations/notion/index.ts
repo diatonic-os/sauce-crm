@@ -82,7 +82,7 @@ export class NotionIntegration implements IIntegration {
         do {
           const r = await c.queryDatabase(dbId, {
             pageSize: 100,
-            startCursor: cursor,
+            ...(cursor !== undefined ? { startCursor: cursor } : {}),
           });
           pulled += r.pages.length;
           cursor = r.nextCursor ?? undefined;
@@ -97,7 +97,7 @@ export class NotionIntegration implements IIntegration {
   /** Compute a conflict shape between a local entity FM and a Notion page's properties. */
   conflictFields(
     local: Record<string, unknown>,
-    page: { properties: Record<string, any> },
+    page: { properties: Record<string, unknown> },
     fields: string[],
   ): { name: string; local: unknown; remote: unknown }[] {
     const out: { name: string; local: unknown; remote: unknown }[] = [];
@@ -111,29 +111,36 @@ export class NotionIntegration implements IIntegration {
   }
 }
 
-function extractNotionProp(p: any): unknown {
-  if (!p) return null;
-  switch (p.type) {
+/** Narrow helper: coerce an unknown Notion property value to a plain scalar. */
+function extractNotionProp(p: unknown): unknown {
+  if (!p || typeof p !== "object") return null;
+  const prop = p as Record<string, unknown>;
+  switch (prop.type) {
     case "title":
-      return (p.title ?? []).map((x: any) => x.plain_text).join("");
+      return (prop.title as Array<{ plain_text?: string }> ?? [])
+        .map((x) => x.plain_text ?? "")
+        .join("");
     case "rich_text":
-      return (p.rich_text ?? []).map((x: any) => x.plain_text).join("");
+      return (prop.rich_text as Array<{ plain_text?: string }> ?? [])
+        .map((x) => x.plain_text ?? "")
+        .join("");
     case "email":
-      return p.email ?? null;
+      return prop.email ?? null;
     case "phone_number":
-      return p.phone_number ?? null;
+      return prop.phone_number ?? null;
     case "url":
-      return p.url ?? null;
+      return prop.url ?? null;
     case "select":
-      return p.select?.name ?? null;
+      return (prop.select as Record<string, unknown> | null | undefined)?.name ?? null;
     case "multi_select":
-      return (p.multi_select ?? []).map((x: any) => x.name);
+      return (prop.multi_select as Array<{ name?: unknown }> ?? [])
+        .map((x) => x.name);
     case "number":
-      return p.number ?? null;
+      return prop.number ?? null;
     case "date":
-      return p.date?.start ?? null;
+      return (prop.date as Record<string, unknown> | null | undefined)?.start ?? null;
     case "checkbox":
-      return Boolean(p.checkbox);
+      return Boolean(prop.checkbox);
     default:
       return JSON.stringify(p);
   }

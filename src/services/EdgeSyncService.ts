@@ -46,12 +46,12 @@ export class EdgeSyncService {
 
     for (const [edge, rule] of Object.entries(this.rules)) {
       if (!rule.symmetric) continue;
-      const targets = arr(fm[edge]);
+      const targets = arr<string>(fm[edge]);
       for (const link of targets) {
         const target = this.resolveLink(link, file);
         if (!target) continue;
         await this.app.fileManager.processFrontMatter(target, (tfm) => {
-          const cur = arr(tfm[edge]);
+          const cur = arr<string>(tfm[edge]);
           if (!cur.includes(selfLink)) tfm[edge] = uniq([...cur, selfLink]);
         });
       }
@@ -66,17 +66,17 @@ export class EdgeSyncService {
 
     for (const [edge, rule] of Object.entries(this.rules)) {
       if (!rule.symmetric) continue;
-      const declared = new Set(arr(fm[edge]).map((l) => parseWikilink(l) ?? l));
+      const declared = new Set(arr<string>(fm[edge]).map((l) => parseWikilink(l) ?? l));
       for (const peer of this.app.vault.getMarkdownFiles()) {
         if (peer.path === file.path) continue;
         const peerFm = this.app.metadataCache.getFileCache(peer)?.frontmatter;
         if (!peerFm) continue;
-        const peerEdges = arr(peerFm[edge]);
+        const peerEdges = arr<string>(peerFm[edge]);
         if (!peerEdges.some((l) => (parseWikilink(l) ?? l) === file.basename))
           continue;
         if (declared.has(peer.basename)) continue; // still mutual
         await this.app.fileManager.processFrontMatter(peer, (pfm) => {
-          pfm[edge] = arr(pfm[edge]).filter(
+          pfm[edge] = arr<string>(pfm[edge]).filter(
             (l) => (parseWikilink(l) ?? l) !== file.basename,
           );
         });
@@ -113,6 +113,6 @@ export class EdgeSyncService {
   }
 }
 
-function arr<T = any>(v: any): T[] {
-  return v == null ? [] : Array.isArray(v) ? v : [v];
+function arr<T = unknown>(v: unknown): T[] {
+  return (v == null ? [] : Array.isArray(v) ? v : [v]) as T[];
 }

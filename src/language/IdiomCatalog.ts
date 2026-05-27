@@ -33,7 +33,7 @@ export class IdiomCatalog {
     {
       pattern: /^follow up with (.+?) in (\d+) days$/i,
       rewrite: (m) =>
-        `- [ ] follow-up ${m[1]} 📅 ${ADD_DAYS(parseInt(m[2], 10))}`,
+        `- [ ] follow-up ${m[1]} 📅 ${ADD_DAYS(parseInt(m[2]!, 10))}`, // m[2] always defined: pattern has two required capture groups
     },
   ];
 

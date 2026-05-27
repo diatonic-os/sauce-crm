@@ -50,7 +50,8 @@ export class CsvImportAdapter implements IImportAdapter {
   async detect(content: string | ArrayBuffer): Promise<boolean> {
     const s =
       typeof content === "string" ? content : new TextDecoder().decode(content);
-    return s.includes(",") && s.split("\n")[0].split(",").length > 1;
+    const firstLine = s.split("\n")[0]!; // split always produces ≥1 element
+    return s.includes(",") && firstLine.split(",").length > 1;
   }
   async parse(
     content: string | ArrayBuffer,
@@ -60,19 +61,20 @@ export class CsvImportAdapter implements IImportAdapter {
       typeof content === "string" ? content : new TextDecoder().decode(content);
     const rows = parseCsv(s);
     if (rows.length === 0) return [];
-    const header = rows[0];
+    const header = rows[0]!; // rows.length > 0 confirmed above
     const out: ImportedEntity[] = [];
     for (let i = 1; i < rows.length; i++) {
       const fm: Record<string, unknown> = {};
       let type: "person" | "org" | "touch" = "person";
       for (let j = 0; j < header.length; j++) {
-        const src = header[j];
+        const src = header[j]!; // j < header.length — bounds-checked
         const tgt = mapping[src] ?? src;
+        const cellValue = rows[i]?.[j]; // row may be shorter than header — genuinely optional
         if (tgt === "__type__") {
-          type = (rows[i][j] as "person" | "org" | "touch") ?? "person";
+          type = (cellValue as "person" | "org" | "touch") ?? "person";
           continue;
         }
-        fm[tgt] = rows[i][j];
+        fm[tgt] = cellValue;
       }
       out.push({ type, frontmatter: fm, sourceRow: i + 1 });
     }

@@ -8,13 +8,13 @@ export class RegisterSubVaultModal extends Modal {
   private role = "secondary";
 
   constructor(
-    public app: App,
+    public override app: App,
     public plugin: SauceGraphPlugin,
   ) {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "Register SubVault" });
@@ -60,7 +60,7 @@ export class RegisterSubVaultModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

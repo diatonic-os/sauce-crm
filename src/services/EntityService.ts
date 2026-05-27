@@ -91,7 +91,8 @@ export class EntityService {
         for (const [k, v] of Object.entries(
           normalizeObsidianFrontmatter(result),
         ))
-          (fm as any)[k] = v;
+          // fm is typed `any` by Obsidian's processFrontMatter API — no cast needed
+          fm[k] = v;
       } else {
         const normalized = normalizeObsidianFrontmatter(fm);
         for (const k of Object.keys(fm)) delete fm[k];

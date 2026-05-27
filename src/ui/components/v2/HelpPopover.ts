@@ -19,7 +19,7 @@ class HelpModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl, titleEl } = this;
     titleEl.setText(this.input.title);
     contentEl.empty();
@@ -40,7 +40,7 @@ class HelpModal extends Modal {
     }
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

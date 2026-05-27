@@ -30,15 +30,18 @@ export class ContractParser {
     // Quoted string
     const q = trimmed.match(/^"((?:[^"\\]|\\.)*)"$/);
     if (q) {
-      return { type: "literal", value: q[1] };
+      const qStr = q[1]!; // provably defined: regex has one capture group, match succeeded
+      return { type: "literal", value: qStr };
     }
     // Function call: name(arg1, arg2)
     const call = trimmed.match(/^([A-Za-z_]\w*)\((.*)\)$/);
     if (call) {
-      const args = call[2].trim()
-        ? call[2].split(",").map((a) => this.parse(a))
+      const callee = call[1]!; // provably defined: regex capture group 1, match succeeded
+      const argStr = call[2]!; // provably defined: regex capture group 2, match succeeded
+      const args = argStr.trim()
+        ? argStr.split(",").map((a) => this.parse(a))
         : [];
-      return { type: "call", callee: call[1], args };
+      return { type: "call", callee, args };
     }
     // Bare identifier
     if (/^[A-Za-z_][\w.]*$/.test(trimmed)) {

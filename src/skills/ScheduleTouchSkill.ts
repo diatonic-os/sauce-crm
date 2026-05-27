@@ -9,7 +9,7 @@ import {
 
 export class ScheduleTouchSkill extends Skill {
   readonly id = "schedule-touch";
-  readonly description = "Propose calendar event for next-due contact";
+  override readonly description = "Propose calendar event for next-due contact";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "contact_id", type: "string", required: true }],

@@ -9,7 +9,7 @@ import {
 
 export class ImportContactsSkill extends Skill {
   readonly id = "import-contacts";
-  readonly description = "Import vCard/CSV/Google Contacts";
+  override readonly description = "Import vCard/CSV/Google Contacts";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [

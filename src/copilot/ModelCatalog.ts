@@ -170,6 +170,10 @@ export class ModelCatalog {
         case "anthropic":
           models = ctx.kind === "embedding" ? [] : STATIC.anthropic;
           break;
+        default: {
+          const _exhaustive: never = ctx.provider;
+          throw new Error(`unhandled: ${String(_exhaustive)}`);
+        }
       }
       // Local/NIM providers return a flat list; narrow to embedding models when
       // requested. Keep the full list if the heuristic finds none (better than
@@ -203,9 +207,9 @@ export class ModelCatalog {
     const endpoint = ctx.endpoint || "http://localhost:11434";
     const url = `${endpoint.replace(/\/+$/, "")}/api/tags`;
     const r = await (ctx.fetch ?? this.fetchImpl)(url, {
-      headers: ctx.apiKey
-        ? { authorization: `Bearer ${ctx.apiKey}` }
-        : undefined,
+      ...(ctx.apiKey
+        ? { headers: { authorization: `Bearer ${ctx.apiKey}` } }
+        : {}),
     });
     if (!r.ok) throw new Error(`ollama ${r.status}`);
     const body = (await r.json()) as {
@@ -218,35 +222,38 @@ export class ModelCatalog {
     return (body.models ?? []).map((m) => ({
       id: m.name ?? "unknown",
       label: m.name ?? "unknown",
-      sizeBytes: m.size,
-      family: m.details?.family,
+      ...(m.size !== undefined ? { sizeBytes: m.size } : {}),
+      ...(m.details?.family !== undefined ? { family: m.details.family } : {}),
     }));
   }
 
   private async fetchLmStudio(ctx: CatalogContext): Promise<CatalogModel[]> {
     const url = modelsUrl(ctx.endpoint || "http://localhost:1234");
     const r = await (ctx.fetch ?? this.fetchImpl)(url, {
-      headers: ctx.apiKey
-        ? { authorization: `Bearer ${ctx.apiKey}` }
-        : undefined,
+      ...(ctx.apiKey
+        ? { headers: { authorization: `Bearer ${ctx.apiKey}` } }
+        : {}),
     });
     if (!r.ok) throw new Error(`lmstudio ${r.status}`);
     const body = (await r.json()) as {
       data?: Array<{ id?: string; object?: string }>;
     };
-    return (body.data ?? []).map((m) => ({
-      id: m.id ?? "unknown",
-      label: m.id ?? "unknown",
-      family: m.id?.split("/")[0],
-    }));
+    return (body.data ?? []).map((m) => {
+      const family = m.id?.split("/")[0];
+      return {
+        id: m.id ?? "unknown",
+        label: m.id ?? "unknown",
+        ...(family !== undefined ? { family } : {}),
+      };
+    });
   }
 
   private async fetchNim(ctx: CatalogContext): Promise<CatalogModel[]> {
     const url = modelsUrl(ctx.endpoint || "https://integrate.api.nvidia.com");
     const r = await (ctx.fetch ?? this.fetchImpl)(url, {
-      headers: ctx.apiKey
-        ? { authorization: `Bearer ${ctx.apiKey}` }
-        : undefined,
+      ...(ctx.apiKey
+        ? { headers: { authorization: `Bearer ${ctx.apiKey}` } }
+        : {}),
     });
     if (!r.ok) throw new Error(`nim ${r.status}`);
     const body = (await r.json()) as {
@@ -255,7 +262,7 @@ export class ModelCatalog {
     return (body.data ?? []).map((m) => ({
       id: m.id ?? "unknown",
       label: m.id ?? "unknown",
-      family: m.owned_by,
+      ...(m.owned_by !== undefined ? { family: m.owned_by } : {}),
     }));
   }
 
@@ -286,7 +293,8 @@ export class ModelCatalog {
     return filtered.map((id) => ({
       id,
       label: id,
-      family: id.split(/[-.]/)[0],
+      // split always returns ≥1 element; [0] is provably the prefix before the first separator
+      family: id.split(/[-.]/)[0] ?? id,
     }));
   }
 

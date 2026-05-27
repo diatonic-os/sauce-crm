@@ -34,7 +34,7 @@ export class CalDAVClient {
         "Content-Type": "application/xml; charset=utf-8",
         ...extra,
       },
-      body,
+      ...(body !== undefined ? { body } : {}),
     });
     return { status: r.status, body: r.body };
   }
@@ -145,5 +145,13 @@ function parseVevent(
       attendees.push(mailto);
     }
   }
-  return { href, uid, summary, start, end, attendees, etag };
+  return {
+    href,
+    uid,
+    ...(summary !== undefined ? { summary } : {}),
+    ...(start !== undefined ? { start } : {}),
+    ...(end !== undefined ? { end } : {}),
+    attendees,
+    ...(etag !== undefined ? { etag } : {}),
+  };
 }

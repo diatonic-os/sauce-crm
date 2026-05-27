@@ -101,7 +101,8 @@ export function computeCapability(
   pluginDir?: string,
 ): LanceDBCapability {
   const detect = detectLanceDB(pluginDir);
-  switch (detect.state) {
+  const detectState = detect.state;
+  switch (detectState) {
     case "available":
       return { status: detect, enabled: true, awaitingDecision: false };
     case "mobile-unsupported":
@@ -116,6 +117,10 @@ export function computeCapability(
     case "installing":
     case "install-failed":
       return { status: detect, enabled: false, awaitingDecision: false };
+    default: {
+      const _exhaustive: never = detectState;
+      throw new Error(`unhandled: ${String(_exhaustive)}`);
+    }
   }
 }
 
@@ -228,7 +233,7 @@ export class LanceDBInstaller {
       kind: "done",
       ok,
       durationMs,
-      error: ok ? undefined : lastError || "unknown install failure",
+      ...(!ok && { error: lastError || "unknown install failure" }),
     });
     return ok;
   }

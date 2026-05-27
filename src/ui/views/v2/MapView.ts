@@ -3,8 +3,9 @@
 
 import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
+import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_MAP = "sauce-map";
+export const VIEW_MAP: ViewTypeId = asViewTypeId("sauce-map");
 
 interface Plot {
   x: number;
@@ -31,11 +32,11 @@ export class MapView extends ItemView {
   getDisplayText(): string {
     return "Sauce: Map";
   }
-  getIcon(): string {
+  override getIcon(): string {
     return "map";
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
@@ -67,13 +68,13 @@ export class MapView extends ItemView {
     this.draw(points);
   }
 
-  async onClose(): Promise<void> {}
+  override async onClose(): Promise<void> {}
 
   private collect(): Plot[] {
     const out: Plot[] = [];
     for (const p of this.plugin.entityService.allPeople()) {
-      const lat = Number((p.frontmatter as any).lat),
-        lon = Number((p.frontmatter as any).lon);
+      const lat = Number(p.frontmatter.lat),
+        lon = Number(p.frontmatter.lon);
       if (Number.isFinite(lat) && Number.isFinite(lon))
         out.push({
           x: 0,
@@ -85,8 +86,8 @@ export class MapView extends ItemView {
         });
     }
     for (const o of this.plugin.entityService.allOrgs()) {
-      const lat = Number((o.frontmatter as any).lat),
-        lon = Number((o.frontmatter as any).lon);
+      const lat = Number(o.frontmatter.lat),
+        lon = Number(o.frontmatter.lon);
       if (Number.isFinite(lat) && Number.isFinite(lon))
         out.push({
           x: 0,

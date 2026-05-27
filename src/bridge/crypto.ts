@@ -12,8 +12,10 @@ function subtle(): SubtleCrypto {
 function toHex(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
   let out = "";
-  for (let i = 0; i < bytes.length; i++)
-    out += bytes[i].toString(16).padStart(2, "0");
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i]!; // for-loop: i is always < bytes.length
+    out += b.toString(16).padStart(2, "0");
+  }
   return out;
 }
 
@@ -28,7 +30,7 @@ export async function sha256Hex(data: string): Promise<string> {
 export async function hmacHex(key: Uint8Array, msg: string): Promise<string> {
   const k = await subtle().importKey(
     "raw",
-    key as unknown as BufferSource,
+    key, // Uint8Array implements ArrayBufferView ⊆ BufferSource — no cast needed
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],

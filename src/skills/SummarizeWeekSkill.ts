@@ -9,7 +9,7 @@ import {
 
 export class SummarizeWeekSkill extends Skill {
   readonly id = "summarize-week";
-  readonly description = "Weekly briefing of overdue + recent";
+  override readonly description = "Weekly briefing of overdue + recent";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "week_iso", type: "string", required: false }],

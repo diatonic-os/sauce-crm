@@ -25,7 +25,7 @@ export class ConflictModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const c = this.contentEl;
     c.addClass("sauce-modal");
     c.createEl("h2", { text: `Conflict — ${this.title}` });
@@ -53,7 +53,7 @@ export class ConflictModal extends Modal {
       sel.value = "local";
       this.decisions[f.name] = "local";
       sel.onchange = () => {
-        this.decisions[f.name] = sel.value as any;
+        this.decisions[f.name] = sel.value as "local" | "remote" | "both" | "skip";
       };
     }
 
@@ -79,7 +79,7 @@ export class ConflictModal extends Modal {
       else if (choice === "both") {
         if (Array.isArray(f.local) && Array.isArray(f.remote)) {
           resolved[f.name] = [
-            ...new Set([...(f.local as any[]), ...(f.remote as any[])]),
+            ...new Set([...(f.local as unknown[]), ...(f.remote as unknown[])]),
           ];
         } else {
           resolved[f.name] = { local: f.local, remote: f.remote };
@@ -91,7 +91,7 @@ export class ConflictModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

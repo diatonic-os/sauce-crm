@@ -32,8 +32,8 @@ export class OllamaProvider implements ICopilotProvider {
         : cfgOrBaseUrl;
     this.cfg = {
       endpoint: cfg.endpoint ?? "http://localhost:11434",
-      apiKey: cfg.apiKey,
-      defaultModel: cfg.defaultModel,
+      ...(cfg.apiKey !== undefined ? { apiKey: cfg.apiKey } : {}),
+      ...(cfg.defaultModel !== undefined ? { defaultModel: cfg.defaultModel } : {}),
     };
   }
 
@@ -88,7 +88,7 @@ export class OllamaProvider implements ICopilotProvider {
       return {
         ok: r.status < 400,
         latencyMs: Date.now() - start,
-        error: r.status >= 400 ? `HTTP ${r.status}` : undefined,
+        ...(r.status >= 400 ? { error: `HTTP ${r.status}` } : {}),
       };
     } catch (e) {
       return {

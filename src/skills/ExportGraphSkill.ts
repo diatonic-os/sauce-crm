@@ -9,7 +9,7 @@ import {
 
 export class ExportGraphSkill extends Skill {
   readonly id = "export-graph";
-  readonly description = "Export vault to vCard/JSON/Notion";
+  override readonly description = "Export vault to vCard/JSON/Notion";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [

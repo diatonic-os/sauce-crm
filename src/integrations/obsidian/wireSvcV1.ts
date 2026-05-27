@@ -189,6 +189,8 @@ function canonHost(app: App): CanonHost {
 }
 
 function searchHost(app: App): SearchHost {
+  // metadataCache.resolvedLinks / unresolvedLinks / getBacklinksForFile are
+  // real runtime APIs not exposed in the public MetadataCache .d.ts.
   const mc = app.metadataCache as unknown as {
     resolvedLinks?: Record<string, Record<string, number>>;
     unresolvedLinks?: Record<string, Record<string, number>>;
@@ -258,9 +260,8 @@ function searchHost(app: App): SearchHost {
     },
     random: () => {
       const paths = allPaths();
-      return paths.length
-        ? paths[Math.floor(Math.random() * paths.length)]
-        : null;
+      if (!paths.length) return null;
+      return paths[Math.floor(Math.random() * paths.length)] ?? null; // index is within [0, length)
     },
   };
 }
@@ -314,6 +315,7 @@ function contentHost(app: App): ContentHost {
 }
 
 function metaHost(app: App): MetaHost {
+  // app.internalPlugins is a real runtime API not in Obsidian's public .d.ts.
   const internal = (id: string) =>
     (
       app as unknown as {
@@ -354,19 +356,11 @@ function metaHost(app: App): MetaHost {
     daily: async () => {
       // daily-notes core plugin has no stable public create API; surface the
       // command instead so the user's configured template/folder is honored.
-      (
-        app as unknown as {
-          commands?: { executeCommandById?: (id: string) => void };
-        }
-      ).commands?.executeCommandById?.("daily-notes");
+      app.commands?.executeCommandById?.("daily-notes");
       return "";
     },
     executeCommand: async (commandId) => {
-      (
-        app as unknown as {
-          commands?: { executeCommandById?: (id: string) => boolean };
-        }
-      ).commands?.executeCommandById?.(commandId);
+      app.commands?.executeCommandById?.(commandId);
     },
     loadWorkspace: async (name) => {
       const ws = internal("workspaces") as
@@ -444,7 +438,6 @@ export function wireSvcV1(
   const tasks = new TasksAdapter(config, buildTasksRuntimeHost(app));
   const registry = new ObsidianPluginRegistry({
     sink: { emit: (ev, p) => events.emit(ev, p) },
-    stateMachine: undefined,
   });
   registry.register(tasks);
   registry.register(new DataviewAdapter(config, buildDataviewRuntimeHost(app)));

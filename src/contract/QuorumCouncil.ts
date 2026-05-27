@@ -75,8 +75,10 @@ export class QuorumCouncil {
     let nayWeight = 0;
     let abstainWeight = 0;
     for (let i = 0; i < decisions.length; i++) {
-      const w = this.cfg.voters[i].weight;
-      const d = decisions[i];
+      // provably defined: decisions and voters have equal length (Promise.all over voters.map)
+      const voter = this.cfg.voters[i]!;
+      const d = decisions[i]!;
+      const w = voter.weight;
       if (d.vote === "aye") ayeWeight += w;
       else if (d.vote === "nay") nayWeight += w;
       else abstainWeight += w;

@@ -40,14 +40,14 @@ export class LanceProvenanceStore implements IProvenanceStore {
   constructor(private readonly table: LanceTable) {}
 
   async append(r: ProvenanceRecord): Promise<void> {
-    await this.table.add([toRow(r) as unknown as Record<string, unknown>]);
+    await this.table.add([toRow(r)] as unknown as Record<string, unknown>[]);
   }
 
   async bySubject(subject: string): Promise<ProvenanceRecord[]> {
     const rows = (await this.table
       .query()
       .where(`subject = ${sqlStr(subject)}`)
-      .toArray()) as unknown as ProvenanceRow[];
+      .toArray()) as ProvenanceRow[];
     return rows.map(fromRow).sort((a, b) => a.ts - b.ts);
   }
 
@@ -55,14 +55,14 @@ export class LanceProvenanceStore implements IProvenanceStore {
     const rows = (await this.table
       .query()
       .where(`fp = ${sqlStr(fp)}`)
-      .toArray()) as unknown as ProvenanceRow[];
+      .toArray()) as ProvenanceRow[];
     return rows.map(fromRow).sort((a, b) => a.ts - b.ts);
   }
 
   async all(): Promise<ProvenanceRecord[]> {
     const rows = (await this.table
       .query()
-      .toArray()) as unknown as ProvenanceRow[];
+      .toArray()) as ProvenanceRow[];
     return rows.map(fromRow).sort((a, b) => a.ts - b.ts);
   }
 }

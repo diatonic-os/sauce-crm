@@ -76,13 +76,13 @@ export async function ensureGraphTables(
   const nodes = await ensureTable(
     db,
     GRAPH_NODES,
-    NODE_SEED as unknown as Record<string, unknown>,
+    NODE_SEED as unknown as Record<string, unknown>, // GraphNodeRow → Record; unknown hop required
     "id",
   );
   const edges = await ensureTable(
     db,
     GRAPH_EDGES,
-    EDGE_SEED as unknown as Record<string, unknown>,
+    EDGE_SEED as unknown as Record<string, unknown>, // GraphEdgeRow → Record; unknown hop required
     "src",
   );
   return { nodes, edges };
@@ -132,7 +132,7 @@ export class LanceGraphStore implements GraphStore {
       hash: input.hash ?? "",
     };
     await this.nodes.delete(`id = ${sqlStr(id)}`); // upsert = delete + add
-    await this.nodes.add([row as unknown as Record<string, unknown>]);
+    await this.nodes.add([row] as unknown as Record<string, unknown>[]);
     return id;
   }
 
@@ -151,7 +151,7 @@ export class LanceGraphStore implements GraphStore {
       weight: 1,
       props_json: JSON.stringify(props ?? {}),
     };
-    await this.edges.add([row as unknown as Record<string, unknown>]);
+    await this.edges.add([row] as unknown as Record<string, unknown>[]);
   }
 
   async upsertEdge(
@@ -170,7 +170,7 @@ export class LanceGraphStore implements GraphStore {
       .where(
         `src = ${sqlStr(src)} AND dst = ${sqlStr(dst)} AND kind = ${sqlStr(kind)}`,
       )
-      .toArray()) as unknown as GraphEdgeRow[];
+      .toArray()) as GraphEdgeRow[];
     return rows.length > 0;
   }
 
@@ -178,7 +178,7 @@ export class LanceGraphStore implements GraphStore {
     const rows = (await this.nodes
       .query()
       .where(`id = ${sqlStr(id)}`)
-      .toArray()) as unknown as GraphNodeRow[];
+      .toArray()) as GraphNodeRow[];
     return rows[0] ?? null;
   }
 
@@ -186,14 +186,14 @@ export class LanceGraphStore implements GraphStore {
     return (await this.edges
       .query()
       .where(`src = ${sqlStr(id)}`)
-      .toArray()) as unknown as GraphEdgeRow[];
+      .toArray()) as GraphEdgeRow[];
   }
 
   async allNodes(): Promise<GraphNodeRow[]> {
-    return (await this.nodes.query().toArray()) as unknown as GraphNodeRow[];
+    return (await this.nodes.query().toArray()) as GraphNodeRow[];
   }
 
   async allEdges(): Promise<GraphEdgeRow[]> {
-    return (await this.edges.query().toArray()) as unknown as GraphEdgeRow[];
+    return (await this.edges.query().toArray()) as GraphEdgeRow[];
   }
 }

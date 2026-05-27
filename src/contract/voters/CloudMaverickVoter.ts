@@ -3,7 +3,7 @@
 // token retrieved from a KeyVault-like store at vote() time. The voter
 // never caches the secret; KeyVault is the single source of truth.
 
-import { requestUrl } from "obsidian";
+import { requestUrl, type RequestUrlParam } from "obsidian";
 import type { RoundtableProposal, Voter } from "../types";
 import {
   coerceVote,
@@ -113,7 +113,7 @@ export class CloudMaverickVoter implements VoterAgent {
     };
 
     try {
-      const res = await requestUrl({
+      const req: RequestUrlParam = {
         url: this.endpoint,
         method: "POST",
         headers: {
@@ -121,7 +121,8 @@ export class CloudMaverickVoter implements VoterAgent {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(body),
-      } as unknown as Parameters<typeof requestUrl>[0]);
+      };
+      const res = await requestUrl(req);
 
       const r = res as ObsidianResp;
       if (r.status >= 400) {

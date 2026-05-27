@@ -39,7 +39,7 @@ const LINK_FIELDS = [
 function normalizeLink(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const m = raw.match(/^\[\[([^\]|]+)(?:\|[^\]]*)?\]\]$/);
-  const target = (m ? m[1] : raw).trim();
+  const target = (m ? (m[1] ?? raw) : raw).trim();
   return target.length ? target : null;
 }
 

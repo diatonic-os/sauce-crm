@@ -32,7 +32,7 @@ class OperatorVoteModal extends Modal {
   ) {
     super(app);
   }
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty?.();
     const title = document.createElement("h2");
@@ -58,6 +58,9 @@ class OperatorVoteModal extends Modal {
     note.placeholder = "Rationale (optional)";
     note.rows = 3;
     note.style.width = "100%";
+    // Modal does not extend Component so registerDomEvent is unavailable;
+    // these listeners are on freshly created elements that are discarded with
+    // contentEl when the modal closes — no leak.
     note.addEventListener("input", () => {
       this.rationale = note.value;
     });
@@ -78,7 +81,7 @@ class OperatorVoteModal extends Modal {
     }
     contentEl.appendChild(row);
   }
-  onClose(): void {
+  override onClose(): void {
     const vote = this.chosen ?? "abstain";
     const rationale = this.rationale.trim().length
       ? this.rationale.trim()
@@ -108,7 +111,7 @@ export class OperatorVoter implements VoterAgent {
     this.app = cfg.app;
     this.voter = cfg.voter ?? DEFAULT_VOTER;
     this.weight = cfg.weight ?? 3;
-    this.inactivityMs = cfg.inactivityMs;
+    if (cfg.inactivityMs !== undefined) this.inactivityMs = cfg.inactivityMs;
   }
 
   async vote(

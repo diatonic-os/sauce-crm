@@ -24,7 +24,7 @@ export function lex(input: string): Token[] {
   const push = (kind: TokenKind, value: string) =>
     tokens.push({ kind, value, pos: i - value.length });
   while (i < input.length) {
-    const c = input[i];
+    const c = input[i]!; // in-bounds: guarded by i < input.length
     if (c === "@") {
       push("AT", "@");
       i++;
@@ -87,8 +87,10 @@ export function lex(input: string): Token[] {
     }
     if (/[0-9]/.test(c)) {
       let n = "";
-      while (i < input.length && /[0-9.-]/.test(input[i])) {
-        n += input[i];
+      while (i < input.length) {
+        const ch = input[i]!; // in-bounds: guarded by i < input.length
+        if (!/[0-9.-]/.test(ch)) break;
+        n += ch;
         i++;
       }
       push("NUMBER", n);
@@ -96,8 +98,10 @@ export function lex(input: string): Token[] {
     }
     if (/[A-Za-z_]/.test(c)) {
       let s = "";
-      while (i < input.length && /[A-Za-z0-9_.-]/.test(input[i])) {
-        s += input[i];
+      while (i < input.length) {
+        const ch = input[i]!; // in-bounds: guarded by i < input.length
+        if (!/[A-Za-z0-9_.-]/.test(ch)) break;
+        s += ch;
         i++;
       }
       push("IDENT", s);
@@ -105,8 +109,10 @@ export function lex(input: string): Token[] {
     }
     // fallback — treat as text
     let s = "";
-    while (i < input.length && !/[\n@|:,"'[]/.test(input[i])) {
-      s += input[i];
+    while (i < input.length) {
+      const ch = input[i]!; // in-bounds: guarded by i < input.length
+      if (/[\n@|:,"'[]/.test(ch)) break;
+      s += ch;
       i++;
     }
     if (s.trim()) push("TEXT", s);

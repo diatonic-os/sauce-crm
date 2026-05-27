@@ -3,6 +3,7 @@
 // This class exists so older v1 code paths in main.ts continue to compile;
 // invoke LSPGate directly from new code.
 
+import { LSPViolationKind } from "./types";
 import type { ContractId, LSPViolation, SubtypeReport } from "./types";
 
 export interface ContractValidatorConfig {
@@ -62,7 +63,7 @@ export class ContractValidator {
         passed: false,
         violations: [
           {
-            kind: "LSP_SUBTYPE_VIOLATION" as unknown as never,
+            kind: LSPViolationKind.LSP_SUBTYPE_VIOLATION,
             contract: idOrInput,
             invariant: "contract-must-be-registered",
             details: `unknown contract: ${idOrInput}`,

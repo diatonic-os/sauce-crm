@@ -23,7 +23,7 @@ export class IntegrationCredentialsModal extends Modal {
     super(plugin.app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const m = PROVIDER_MANIFESTS[this.providerId];
     this.titleEl.setText(`Connect — ${m.label}`);
     const root = this.contentEl;
@@ -232,8 +232,9 @@ export class IntegrationCredentialsModal extends Modal {
       status.pending("Saving…");
       try {
         for (const f of m.keyFields!) {
-          if (values[f.id])
-            await creds.putKey(this.providerId, f.id, values[f.id]);
+          const fieldVal = values[f.id];
+          if (fieldVal)
+            await creds.putKey(this.providerId, f.id, fieldVal);
         }
         status.success(`${m.label} credentials saved to vault`);
       } catch (e: unknown) {
@@ -255,7 +256,7 @@ export class IntegrationCredentialsModal extends Modal {
       };
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

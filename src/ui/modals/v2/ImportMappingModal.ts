@@ -30,14 +30,14 @@ export class ImportMappingModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const c = this.contentEl;
     c.addClass("sauce-modal");
     c.createEl("h2", { text: "Import" });
 
     new Setting(c).setName("Format").addDropdown((d) => {
       for (const k of Object.keys(ADAPTERS)) d.addOption(k, k.toUpperCase());
-      d.setValue(this.adapterId).onChange((v) => (this.adapterId = v as any));
+      d.setValue(this.adapterId).onChange((v) => (this.adapterId = v as keyof typeof ADAPTERS));
     });
 
     new Setting(c)
@@ -62,7 +62,7 @@ export class ImportMappingModal extends Modal {
       for (const [id, ctor] of Object.entries(ADAPTERS)) {
         const a = ctor();
         if (await a.detect(this.rawText)) {
-          this.adapterId = id as any;
+          this.adapterId = id as keyof typeof ADAPTERS;
           new Notice(`Detected ${id.toUpperCase()}`);
           break;
         }
@@ -98,7 +98,9 @@ export class ImportMappingModal extends Modal {
       cls: "sauce-button sauce-button-secondary",
     }).onclick = async () => {
       try {
-        const adapter = ADAPTERS[this.adapterId]();
+        const adapterCtor = ADAPTERS[this.adapterId];
+        if (!adapterCtor) { previewBody.setText("unknown adapter"); return; }
+        const adapter = adapterCtor();
         this.preview = await adapter.parse(this.rawText, this.mapping);
         previewBody.setText(
           `${this.preview.length} entities\n` +
@@ -110,8 +112,8 @@ export class ImportMappingModal extends Modal {
               )
               .join("\n"),
         );
-      } catch (e: any) {
-        previewBody.setText(`parse error: ${e?.message ?? e}`);
+      } catch (e: unknown) {
+        previewBody.setText(`parse error: ${e instanceof Error ? e.message : String(e)}`);
       }
     };
     btns.createEl("button", { text: "Import", cls: "sauce-button" }).onclick =
@@ -124,11 +126,13 @@ export class ImportMappingModal extends Modal {
 
   private async commit(): Promise<void> {
     if (this.preview.length === 0) {
+      const adapterCtor = ADAPTERS[this.adapterId];
+      if (!adapterCtor) { new Notice("unknown adapter"); return; }
       try {
-        const adapter = ADAPTERS[this.adapterId]();
+        const adapter = adapterCtor();
         this.preview = await adapter.parse(this.rawText, this.mapping);
-      } catch (e: any) {
-        new Notice(`parse error: ${e?.message ?? e}`);
+      } catch (e: unknown) {
+        new Notice(`parse error: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
     }
@@ -178,7 +182,7 @@ export class ImportMappingModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

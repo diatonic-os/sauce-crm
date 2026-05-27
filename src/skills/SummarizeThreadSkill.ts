@@ -9,7 +9,7 @@ import {
 
 export class SummarizeThreadSkill extends Skill {
   readonly id = "summarize-thread";
-  readonly description = "Bulletize an email or call transcript";
+  override readonly description = "Bulletize an email or call transcript";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "source_path", type: "string", required: true }],

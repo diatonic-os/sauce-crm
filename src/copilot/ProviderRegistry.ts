@@ -283,7 +283,7 @@ export function buildProvider(
     case "ollama":
       return new OllamaProvider(host, {
         endpoint: baseUrl || "http://localhost:11434",
-        defaultModel: opts.defaultModel,
+        ...(opts.defaultModel !== undefined ? { defaultModel: opts.defaultModel } : {}),
       });
     case "lmstudio-sdk":
       return new LMStudioSdkProvider(
@@ -292,21 +292,25 @@ export function buildProvider(
         opts.sdkLoader,
       );
     case "openai-compat":
-    default:
+    default: {
+      const authHeader =
+        spec.authHeader === "x-api-key"
+          ? "bearer"
+          : (spec.authHeader as "bearer" | "none" | undefined);
       return new OpenAICompatibleProvider(host, {
         name: id,
         baseUrl,
-        apiKey: opts.apiKey,
-        authHeader:
-          spec.authHeader === "x-api-key"
-            ? "bearer"
-            : (spec.authHeader as "bearer" | "none" | undefined),
-        defaultModel: opts.defaultModel,
+        ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),
+        ...(authHeader !== undefined ? { authHeader } : {}),
+        ...(opts.defaultModel !== undefined ? { defaultModel: opts.defaultModel } : {}),
         supportsToolUse: opts.toolUse ?? spec.capabilities.toolUse,
         supportsEmbeddings: spec.capabilities.embeddings,
-        staticModels: spec.staticModels,
-        maxContext: spec.staticModels?.[0]?.contextTokens,
+        ...(spec.staticModels !== undefined ? { staticModels: spec.staticModels } : {}),
+        ...(spec.staticModels?.[0]?.contextTokens !== undefined
+          ? { maxContext: spec.staticModels[0].contextTokens }
+          : {}),
         vision: spec.staticModels?.some((m) => m.vision) ?? false,
       });
+    }
   }
 }

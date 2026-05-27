@@ -21,6 +21,8 @@ import {
   type ContentHasher,
   type EmbedResult,
   type HealthResponse,
+  type HttpRequestFn,
+  type HttpResponse,
   type MemoryBackend,
   type MemoryHit,
   type MemoryQuery,
@@ -30,22 +32,9 @@ import {
   type SignedRequestParts,
 } from "../../contract";
 
-/** Minimal injected HTTP response. Production adapter maps Obsidian's
- *  `requestUrl` response onto this shape. */
-export interface HttpResponse {
-  status: number;
-  json: any;
-  text: string;
-}
-
-/** Injected transport. Never the global fetch — keeps the bundle mobile-safe
- *  and the backend unit-testable. */
-export type HttpRequestFn = (req: {
-  url: string;
-  method: string;
-  headers: Record<string, string>;
-  body?: string;
-}) => Promise<HttpResponse>;
+// Transport types are canonically defined in ../../contract (AX-002). Re-exported
+// here for back-compat with existing `./BridgeMemoryBackend` import sites.
+export type { HttpRequestFn, HttpResponse } from "../../contract";
 
 export interface BridgeMemoryBackendDeps {
   /** http://<tailscale-name-or-ip>:<port> — no trailing slash expected. */
@@ -68,13 +57,20 @@ const HEALTH_TTL_MS = 5_000;
 /** Random hex nonce via Web Crypto, with a guarded fallback when crypto or
  *  getRandomValues is unavailable (older mobile webviews). */
 function defaultNonce(): string {
+  // Guard: older mobile webviews may not expose globalThis.crypto — access via
+  // unknown cast so we get undefined instead of a type error at runtime.
   const c: Crypto | undefined =
-    typeof globalThis !== "undefined" ? (globalThis as any).crypto : undefined;
+    typeof globalThis !== "undefined"
+      ? (globalThis as unknown as { crypto?: Crypto }).crypto
+      : undefined;
   if (c && typeof c.getRandomValues === "function") {
     const buf = new Uint8Array(16);
     c.getRandomValues(buf);
     let out = "";
-    for (let i = 0; i < buf.length; i++) out += buf[i].toString(16).padStart(2, "0");
+    for (let i = 0; i < buf.length; i++) {
+      const b = buf[i]!; // for-loop: i is always < buf.length
+      out += b.toString(16).padStart(2, "0");
+    }
     return out;
   }
   // Fallback: time + Math.random. Not crypto-grade, but nonces only need to be
@@ -137,7 +133,7 @@ export class BridgeMemoryBackend implements MemoryBackend {
         url: this.baseUrl + path,
         method,
         headers,
-        body: bodyObj === undefined ? undefined : body,
+        ...(bodyObj !== undefined ? { body } : {}),
       });
     } catch (err) {
       // Transport-level throw → desktop unreachable.

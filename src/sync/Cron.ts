@@ -125,13 +125,14 @@ export function parseCron(expr: string): ParsedCron {
       `expected 5 fields, got ${fields.length} in "${expr}"`,
     );
 
-  const [minF, hourF, domF, monF, dowF] = fields;
+  // fields.length === 5 is validated above; all five destructured vars are defined.
+  const [minF, hourF, domF, monF, dowF] = fields as [string, string, string, string, string];
 
-  const minutes = parseField(minF, FIELD_SPECS[0]);
-  const hours = parseField(hourF, FIELD_SPECS[1]);
-  const doms = parseField(domF, FIELD_SPECS[2]);
-  const months = parseField(monF, FIELD_SPECS[3]);
-  const dowsRaw = parseField(dowF, FIELD_SPECS[4]);
+  const minutes = parseField(minF, FIELD_SPECS[0]!); // FIELD_SPECS has 5 elements
+  const hours = parseField(hourF, FIELD_SPECS[1]!);
+  const doms = parseField(domF, FIELD_SPECS[2]!);
+  const months = parseField(monF, FIELD_SPECS[3]!);
+  const dowsRaw = parseField(dowF, FIELD_SPECS[4]!);
 
   // Normalise dow 7 → 0 (Sunday)
   const dows = new Set<number>();

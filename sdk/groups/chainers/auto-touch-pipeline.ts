@@ -18,8 +18,8 @@ const FM_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 export async function applyTouch(vault: Vault, file: TFile, event: TouchEvent): Promise<string> {
   return processNote(vault, file, (content) => {
     const m = content.match(FM_RE);
-    const existing: Frontmatter = m ? ((parseYaml(m[1]) as Frontmatter) ?? {}) : {};
-    const body = m ? m[2] : content;
+    const existing: Frontmatter = m ? ((parseYaml(m[1]!) as Frontmatter) ?? {}) : {}; // safe: regex requires group 1 on match
+    const body = m ? m[2]! : content; // safe: regex requires group 2 on match
     const lastTouch = Number(existing.last_touch) || 0;
     if (event.tick <= lastTouch) return content; // already applied — idempotent
     const merged = mergeFrontmatter(existing, {

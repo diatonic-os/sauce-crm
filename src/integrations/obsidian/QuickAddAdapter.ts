@@ -55,6 +55,7 @@ export interface QuickAddRuntimeHost {
 }
 
 export function buildQuickAddRuntimeHost(app: App): QuickAddRuntimeHost {
+  // app.plugins is a real runtime API not exposed in Obsidian's public .d.ts.
   const get = () =>
     (
       app as unknown as {

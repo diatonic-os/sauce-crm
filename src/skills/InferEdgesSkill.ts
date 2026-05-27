@@ -9,7 +9,7 @@ import {
 
 export class InferEdgesSkill extends Skill {
   readonly id = "infer-edges";
-  readonly description = "Co-attendance + co-recipients -> knows suggestions";
+  override readonly description = "Co-attendance + co-recipients -> knows suggestions";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "window_days", type: "number", required: false }],

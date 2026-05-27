@@ -110,7 +110,7 @@ export class PluginStateMachine {
   private readonly onPersist?: (snapshot: PluginStatesSnapshot) => void;
 
   constructor(opts: PluginStateMachineOptions = {}) {
-    this.onPersist = opts.onPersist;
+    if (opts.onPersist !== undefined) this.onPersist = opts.onPersist;
   }
 
   /** Current button state for a plugin (DEFAULT_STATE when unseen). */

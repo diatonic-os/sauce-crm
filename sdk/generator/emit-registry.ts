@@ -15,7 +15,7 @@ export interface MemberDescriptor {
 export function parseMemberDoc(markdown: string): MemberDescriptor | null {
   const fm = markdown.match(/^---\n([\s\S]*?)\n---/);
   if (!fm) return null;
-  const block = fm[1];
+  const block = fm[1]!; // safe: regex requires the capture group when match succeeds
   const group = block.match(/^group:\s*(\S+)/m)?.[1];
   const id = block.match(/^id:\s*(\S+)/m)?.[1];
   if (!group || !id) return null; // _index.md has group but no id → skip

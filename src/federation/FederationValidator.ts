@@ -41,10 +41,10 @@ export class FederationValidator {
 
     // 3. invariant preservation — sub.constrains ⊇ parent.constrains (covariant)
     const parentInvs = new Set(
-      (parent.frontmatter.constrains ?? []).map((c: any) => keyOf(c)),
+      (parent.frontmatter.constrains ?? []).map((c: unknown) => keyOf(c)),
     );
     const subInvs = new Set(
-      (sub.frontmatter.constrains ?? []).map((c: any) => keyOf(c)),
+      (sub.frontmatter.constrains ?? []).map((c: unknown) => keyOf(c)),
     );
     for (const inv of parentInvs) {
       if (!subInvs.has(inv)) {
@@ -102,7 +102,7 @@ export class FederationValidator {
   }
 }
 
-function keyOf(c: any): string {
+function keyOf(c: unknown): string {
   if (typeof c === "string") return parseInvariantString(c).name;
   if (c && typeof c === "object") return Object.keys(c)[0] ?? "";
   return "";

@@ -35,7 +35,19 @@ export function renderCopilot(
 ): void {
   plugin.logger?.debug?.("settings.section_render", { section: "copilot" });
   // Copilot v2 shipped in P9; render real settings.
-  const cfg: any = plugin.settings.copilot as any;
+  // CopilotSettings is typed but not all runtime-mutable fields are promoted;
+  // the `cfg` bag is written back via plugin.saveSettings() so persistence is safe.
+  const cfg = plugin.settings.copilot as unknown as Record<string, unknown>;
+  /** Narrow a bag entry to string, or return `fallback`. */
+  const cfgStr = (key: string, fallback = ""): string => {
+    const v = cfg[key];
+    return typeof v === "string" ? v : fallback;
+  };
+  /** Narrow a bag entry to string | undefined. */
+  const cfgStrOpt = (key: string): string | undefined => {
+    const v = cfg[key];
+    return typeof v === "string" ? v : undefined;
+  };
   if (!cfg) {
     const empty = containerEl.createDiv({ cls: "sg-empty-state" });
     empty.createEl("h4", { text: "SauceBot — coming soon" });
@@ -60,15 +72,17 @@ export function renderCopilot(
   let renderCred: () => void = () => {};
 
   const pickerHost = containerEl.createDiv({ cls: "sg-section-row" });
+  const epOpt = cfgStrOpt("baseUrl");
+  const keyOpt = cfgStrOpt("apiKey");
   new ProviderPicker({
     container: pickerHost,
     plugin,
-    initialProvider: (cfg.provider ?? "anthropic") as ProviderId,
-    initialModel: cfg.model ?? "",
-    endpoint: cfg.baseUrl,
-    apiKey: cfg.apiKey,
+    initialProvider: cfgStr("provider", "anthropic") as ProviderId,
+    initialModel: cfgStr("model"),
+    ...(epOpt !== undefined ? { endpoint: epOpt } : {}),
+    ...(keyOpt !== undefined ? { apiKey: keyOpt } : {}),
     onChange: async ({ provider, model }) => {
-      const providerChanged = provider !== cfg.provider;
+      const providerChanged = provider !== cfgStr("provider");
       cfg.provider = provider;
       cfg.model = model;
       await plugin.saveSettings();
@@ -132,7 +146,7 @@ export function renderCopilot(
   };
   renderCred = () => {
     credHost.empty();
-    const isLocal = cfg.provider === "ollama" || cfg.provider === "lmstudio";
+    const isLocal = cfgStr("provider") === "ollama" || cfgStr("provider") === "lmstudio";
     if (!isLocal) {
       new Setting(credHost)
         .setName("API key")
@@ -141,7 +155,7 @@ export function renderCopilot(
         )
         .addText((t) => {
           t.inputEl.type = "password";
-          t.setValue(cfg.apiKey ?? "").onChange(async (v) => {
+          t.setValue(cfgStr("apiKey")).onChange(async (v) => {
             cfg.apiKey = v;
             await plugin.saveSettings();
             pushCopilotUpdate(plugin);
@@ -153,19 +167,19 @@ export function renderCopilot(
     new Setting(credHost)
       .setName("Endpoint")
       .setDesc(
-        cfg.provider === "lmstudio"
+        cfgStr("provider") === "lmstudio"
           ? "OpenAI-compatible base, e.g. http://127.0.0.1:1234 (autodetected)"
           : "e.g. http://localhost:11434",
       )
       .addText((t) => {
         epInput = t.inputEl;
-        t.setValue(cfg.baseUrl ?? "").onChange(async (v) => {
+        t.setValue(cfgStr("baseUrl")).onChange(async (v) => {
           cfg.baseUrl = v || undefined;
           await plugin.saveSettings();
           pushCopilotUpdate(plugin);
         });
       });
-    if (cfg.provider === "lmstudio") {
+    if (cfgStr("provider") === "lmstudio") {
       const status = new InlineStatus(credHost);
       const row = credHost.createDiv({ cls: "sauce-button-row" });
       row.createEl("button", {
@@ -179,7 +193,7 @@ export function renderCopilot(
       scanBtn.disabled = !Platform.isDesktopApp;
       scanBtn.onclick = () => void runLmScan(status, epInput, scanBtn);
       // Autodetect the moment LM Studio is selected with no endpoint set.
-      if (!cfg.baseUrl) void runLmDetect(status, epInput);
+      if (!cfgStr("baseUrl")) void runLmDetect(status, epInput);
     }
   };
   renderCred();
@@ -193,10 +207,12 @@ export function renderCopilot(
     .addButton((b) =>
       b.setButtonText("Test connection").onClick(async () => {
         connStatus.pending("Testing…");
+        const _ep = cfgStrOpt("baseUrl");
+        const _key = cfgStrOpt("apiKey");
         const r = await testProviderConnection({
-          provider: (cfg.provider ?? "anthropic") as ProviderId,
-          endpoint: cfg.baseUrl,
-          apiKey: cfg.apiKey,
+          provider: cfgStr("provider", "anthropic") as ProviderId,
+          ...(_ep !== undefined ? { endpoint: _ep } : {}),
+          ...(_key !== undefined ? { apiKey: _key } : {}),
           logger: plugin.logger ?? null,
         });
         if (r.ok) connStatus.success(r.detail);
@@ -274,7 +290,7 @@ export function renderCopilot(
       .setName("System prompt")
       .setDesc("Persistent instructions sent before every conversation.")
       .addTextArea((t) =>
-        t.setValue(cfg.systemPrompt ?? "").onChange(async (v) => {
+        t.setValue(cfgStr("systemPrompt")).onChange(async (v) => {
           cfg.systemPrompt = v;
           await plugin.saveSettings();
           pushCopilotUpdate(plugin);
@@ -291,7 +307,7 @@ export function renderCopilot(
       .addText((t) =>
         t
           .setPlaceholder("copilot/sauce-commands")
-          .setValue(cfg.promptsFolder ?? "")
+          .setValue(cfgStr("promptsFolder"))
           .onChange(async (v) => {
             cfg.promptsFolder = v || undefined;
             await plugin.saveSettings();
@@ -305,7 +321,7 @@ export function renderCopilot(
       .setName("Base URL")
       .setDesc("Override endpoint for Ollama / LM Studio / proxy.")
       .addText((t) =>
-        t.setValue(cfg.baseUrl ?? "").onChange(async (v) => {
+        t.setValue(cfgStr("baseUrl")).onChange(async (v) => {
           cfg.baseUrl = v || undefined;
           await plugin.saveSettings();
           pushCopilotUpdate(plugin);
@@ -323,7 +339,7 @@ export function renderCopilot(
           .addOption("suggest", "Suggest — recommend, don't act")
           .addOption("assist", "Assist — act with confirmation")
           .addOption("auto", "Auto — act freely")
-          .setValue(cfg.autonomy ?? "suggest")
+          .setValue(cfgStr("autonomy", "suggest"))
           .onChange(async (v) => {
             cfg.autonomy = v;
             await plugin.saveSettings();

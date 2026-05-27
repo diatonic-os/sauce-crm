@@ -22,9 +22,9 @@ export interface FetchResponse {
 export async function fetchUrl(req: FetchRequest): Promise<FetchResponse> {
   const param: RequestUrlParam = {
     url: req.url,
-    method: req.method,
-    headers: req.headers,
-    body: req.body,
+    ...(req.method !== undefined ? { method: req.method } : {}),
+    ...(req.headers !== undefined ? { headers: req.headers } : {}),
+    ...(req.body !== undefined ? { body: req.body } : {}),
     throw: false,
   };
   const r = await requestUrl(param);

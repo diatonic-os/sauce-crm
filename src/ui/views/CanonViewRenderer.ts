@@ -74,7 +74,7 @@ export function renderCanonEntity(
       h.textContent = name;
       const p = document.createElement("p");
       p.className = "sauce-canon-marker-body";
-      p.textContent = entity.markers[name];
+      p.textContent = entity.markers[name] ?? null; // name from Object.keys — always present; null for textContent API
       section.appendChild(h);
       section.appendChild(p);
       card.appendChild(section);

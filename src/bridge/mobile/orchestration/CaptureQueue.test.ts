@@ -63,7 +63,7 @@ describe("CaptureQueue", () => {
 
     const pending = await q.pending();
     expect(pending).toHaveLength(1);
-    expect(pending[0].id).toBe("id-1");
+    expect(pending[0]!.id).toBe("id-1");
   });
 
   it("writes to the vault BEFORE recording in the store", async () => {
@@ -97,7 +97,7 @@ describe("CaptureQueue", () => {
     const q = new CaptureQueue({ vault, store, now: () => 2000 });
 
     const kept = await q.reconcile();
-    expect(kept[0].synced).toBe(true);
+    expect(kept[0]!.synced).toBe(true);
     expect(await q.pending()).toHaveLength(0);
   });
 

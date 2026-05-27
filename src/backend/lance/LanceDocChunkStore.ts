@@ -22,7 +22,7 @@ export class LanceDocChunkStore {
 
   async addChunks(rows: DocChunkRow[]): Promise<void> {
     if (!rows.length) return;
-    await this.table.add(rows as unknown as Record<string, unknown>[]);
+    await this.table.add(rows as unknown as Record<string, unknown>[]); // DocChunkRow[] → Data boundary; interface needs unknown hop
   }
 
   /** Remove all chunks for a document (used before re-harvesting). */
@@ -35,7 +35,7 @@ export class LanceDocChunkStore {
     const rows = (await this.table
       .search(vector)
       .limit(limit)
-      .toArray()) as unknown as (DocChunkRow & { _distance: number })[];
+      .toArray()) as (DocChunkRow & { _distance: number })[];
     return rows.map((r) => ({
       chunkId: r.chunk_id,
       docId: r.doc_id,
@@ -53,7 +53,7 @@ export class LanceDocChunkStore {
     const rows = (await this.table
       .query()
       .select(["doc_id", "doc_name"])
-      .toArray()) as unknown as { doc_id: string; doc_name: string }[];
+      .toArray()) as { doc_id: string; doc_name: string }[];
     const byDoc = new Map<string, { docName: string; chunks: number }>();
     for (const r of rows) {
       const cur = byDoc.get(r.doc_id) ?? { docName: r.doc_name, chunks: 0 };

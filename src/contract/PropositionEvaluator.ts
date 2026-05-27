@@ -40,6 +40,10 @@ export class PropositionEvaluator {
           expr.callee,
           expr.args.map((a) => this.evaluate(a, ctx)),
         );
+      default: {
+        const _exhaustive: never = expr;
+        throw new Error(`unhandled: ${String((_exhaustive as { type: string }).type)}`);
+      }
     }
   }
 

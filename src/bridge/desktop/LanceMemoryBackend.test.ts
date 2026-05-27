@@ -87,19 +87,19 @@ describe("LanceMemoryBackend", () => {
       const vectorIndex = fakeVectorIndex({ hits: [{ id: "orphan", distance: 0.3 }] });
       const backend = makeBackend({ vectorIndex, resolveHit: () => null });
       const hits = await backend.semanticSearch({ query: "q" });
-      expect(hits[0].path).toBe("orphan");
-      expect(hits[0].fp).toBe("orphan");
-      expect(hits[0].degraded).toBe(false);
+      expect(hits[0]!.path).toBe("orphan");
+      expect(hits[0]!.fp).toBe("orphan");
+      expect(hits[0]!.degraded).toBe(false);
     });
 
     it("passes k through to the vector index as the limit (default 10)", async () => {
       const withK = fakeVectorIndex({});
       await makeBackend({ vectorIndex: withK }).semanticSearch({ query: "q", k: 3 });
-      expect(withK.queryCalls[0].limit).toBe(3);
+      expect(withK.queryCalls[0]!.limit).toBe(3);
 
       const noK = fakeVectorIndex({});
       await makeBackend({ vectorIndex: noK }).semanticSearch({ query: "q" });
-      expect(noK.queryCalls[0].limit).toBe(10);
+      expect(noK.queryCalls[0]!.limit).toBe(10);
     });
   });
 
@@ -108,8 +108,8 @@ describe("LanceMemoryBackend", () => {
       const vectorIndex = fakeVectorIndex({ hits: [{ id: "x", distance: 0.2 }] });
       const backend = makeBackend({ vectorIndex });
       const hits = await backend.recall("cue text", 5);
-      expect(vectorIndex.queryCalls[0].limit).toBe(5);
-      expect(hits[0].path).toBe("x");
+      expect(vectorIndex.queryCalls[0]!.limit).toBe(5);
+      expect(hits[0]!.path).toBe("x");
     });
   });
 

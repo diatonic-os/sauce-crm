@@ -20,7 +20,10 @@ export class MSCalendarClient {
       $top: params.top ?? 100,
       $orderby: "start/dateTime",
     });
-    return { events: r.value ?? [], nextLink: r["@odata.nextLink"] };
+    return {
+      events: r.value ?? [],
+      ...(r["@odata.nextLink"] !== undefined ? { nextLink: r["@odata.nextLink"] } : {}),
+    };
   }
 
   async getEvent(id: string): Promise<GraphEvent> {

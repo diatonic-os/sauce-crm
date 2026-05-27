@@ -25,7 +25,7 @@ class SlashCommandModal extends Modal {
   ) {
     super(app);
   }
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.createEl("h3", {
       text: this.cmd.name ? "Edit command" : "New command",
@@ -59,7 +59,7 @@ class SlashCommandModal extends Modal {
         }),
     );
   }
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

@@ -35,7 +35,7 @@ class ApprovalModal extends Modal {
 
   private decided = false;
 
-  onOpen(): void {
+  override onOpen(): void {
     this.modalEl.addClass("sauce-modal");
     this.titleEl.setText("Sauce CRM — Action Approval");
     const c = this.contentEl;
@@ -83,7 +83,7 @@ class ApprovalModal extends Modal {
     this.close();
   }
 
-  onClose(): void {
+  override onClose(): void {
     if (!this.decided) {
       // X-out counts as deny-once — refuse the action, ask again later.
       this.resolve("deny-once");

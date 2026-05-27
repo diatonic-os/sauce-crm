@@ -9,7 +9,7 @@ import {
 
 export class ResearchPersonSkill extends Skill {
   readonly id = "research-person";
-  readonly description =
+  override readonly description =
     "Research a person via web + vault and propose enrichment";
   readonly contract: SkillContract = {
     level: "simple",

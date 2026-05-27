@@ -9,7 +9,7 @@ import {
 
 export class ReviewChangesSkill extends Skill {
   readonly id = "review-changes";
-  readonly description = "Diff vault vs snapshot, propose addenda";
+  override readonly description = "Diff vault vs snapshot, propose addenda";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [{ name: "since_iso", type: "string", required: false }],

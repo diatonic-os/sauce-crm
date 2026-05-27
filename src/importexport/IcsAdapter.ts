@@ -28,17 +28,20 @@ export class IcsImportAdapter implements IImportAdapter {
       const attendees: string[] = [];
       for (const line of ev.split(/\r?\n/)) {
         if (/^END:VEVENT/.test(line)) break;
-        const [k, ...rest] = line.split(":");
+        const colonParts = line.split(":");
+        const k = colonParts[0]; // split always produces ≥1 element
+        const rest = colonParts.slice(1);
         if (!k || rest.length === 0) continue;
         const v = rest.join(":");
-        const tag = k.split(";")[0].toUpperCase();
+        const tag = k.split(";")[0]!.toUpperCase(); // split always produces ≥1 element
         if (tag === "SUMMARY") fm.summary = v;
         else if (tag === "DTSTART") fm.date = v;
         else if (tag === "UID") fm.id = v;
         else if (tag === "DESCRIPTION") fm.body = v;
         else if (tag === "ATTENDEE") {
           const m = /mailto:([^\s>]+)/i.exec(v);
-          if (m) attendees.push(m[1]);
+          const mAddr = m?.[1];
+          if (m && mAddr) attendees.push(mAddr);
         }
       }
       if (attendees.length) fm.attendees = attendees;

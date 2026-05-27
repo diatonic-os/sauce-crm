@@ -3,6 +3,7 @@ import {
   combineSignals,
   verdict,
   DEFAULT_THRESHOLDS,
+  getThreshold,
   type Verdict,
 } from "./ConfidenceModel";
 
@@ -38,7 +39,7 @@ export class AttributeInferrer {
           attribute: "company",
           value: line.trim(),
           confidence: conf,
-          verdict: verdict(conf, DEFAULT_THRESHOLDS.company),
+          verdict: verdict(conf, getThreshold(DEFAULT_THRESHOLDS, "company")),
           sources: [sourceId],
         };
       }

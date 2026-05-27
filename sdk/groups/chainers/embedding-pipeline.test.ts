@@ -29,7 +29,8 @@ describe('chainers/embedding-pipeline', () => {
     const embedder = new HashEmbedder(64);
     await runEmbeddingPipeline(docs, embedder, store);
     const hits = await queryEmbeddings('solar renewable energy', 1, embedder, store);
-    expect(hits[0].id).toBe('frank');
+    const top = hits[0]!; // safe: queryEmbeddings with k=1 returns 1 hit given seeded store
+    expect(top.id).toBe('frank');
   });
 
   it('empty docs is a no-op', async () => {

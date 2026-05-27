@@ -113,7 +113,7 @@ export class TwilioClient {
       pageSize?: number;
     } = {},
   ): Promise<TwilioCall[]> {
-    const r = await this.get<{ calls?: any[] }>("/Calls", {
+    const r = await this.get<{ calls?: unknown[] }>("/Calls", {
       From: params.from,
       To: params.to,
       Status: params.status,
@@ -125,7 +125,7 @@ export class TwilioClient {
   async listMessages(
     params: { from?: string; to?: string; pageSize?: number } = {},
   ): Promise<TwilioMessage[]> {
-    const r = await this.get<{ messages?: any[] }>("/Messages", {
+    const r = await this.get<{ messages?: unknown[] }>("/Messages", {
       From: params.from,
       To: params.to,
       PageSize: params.pageSize ?? 50,
@@ -134,7 +134,7 @@ export class TwilioClient {
   }
 
   async listRecordings(callSid?: string): Promise<TwilioRecording[]> {
-    const r = await this.get<{ recordings?: any[] }>("/Recordings", {
+    const r = await this.get<{ recordings?: unknown[] }>("/Recordings", {
       CallSid: callSid,
       PageSize: 50,
     });
@@ -142,7 +142,7 @@ export class TwilioClient {
   }
 
   async listTranscriptions(): Promise<TwilioTranscription[]> {
-    const r = await this.get<{ transcriptions?: any[] }>("/Transcriptions", {
+    const r = await this.get<{ transcriptions?: unknown[] }>("/Transcriptions", {
       PageSize: 50,
     });
     return (r.transcriptions ?? []).map(decodeTranscription);
@@ -158,49 +158,72 @@ export class TwilioClient {
   }
 }
 
-function decodeCall(c: any): TwilioCall {
+function asStr(v: unknown): string {
+  return typeof v === "string" ? v : String(v ?? "");
+}
+/** Returns a 1-entry object spread or empty object, so exactOptionalPropertyTypes is satisfied. */
+function opt<K extends string>(
+  key: K,
+  v: unknown,
+): { [P in K]?: string } {
+  if (v == null) return {};
+  return { [key]: String(v) } as { [P in K]?: string };
+}
+function optNum<K extends string>(
+  key: K,
+  v: unknown,
+): { [P in K]?: number } {
+  if (typeof v !== "number") return {};
+  return { [key]: v } as { [P in K]?: number };
+}
+
+function decodeCall(c: unknown): TwilioCall {
+  const r = c as Record<string, unknown>;
   return {
-    sid: c.sid,
-    from: c.from,
-    to: c.to,
-    status: c.status,
-    direction: c.direction,
-    duration: c.duration,
-    startTime: c.start_time,
-    endTime: c.end_time,
+    sid: asStr(r.sid),
+    from: asStr(r.from),
+    to: asStr(r.to),
+    status: asStr(r.status),
+    direction: asStr(r.direction),
+    ...opt("duration", r.duration),
+    ...opt("startTime", r.start_time),
+    ...opt("endTime", r.end_time),
   };
 }
-function decodeMessage(m: any): TwilioMessage {
+function decodeMessage(c: unknown): TwilioMessage {
+  const m = c as Record<string, unknown>;
   return {
-    sid: m.sid,
-    from: m.from,
-    to: m.to,
-    body: m.body,
-    status: m.status,
-    direction: m.direction,
-    dateCreated: m.date_created,
-    dateSent: m.date_sent,
+    sid: asStr(m.sid),
+    from: asStr(m.from),
+    to: asStr(m.to),
+    body: asStr(m.body),
+    status: asStr(m.status),
+    direction: asStr(m.direction),
+    ...opt("dateCreated", m.date_created),
+    ...opt("dateSent", m.date_sent),
   };
 }
-function decodeRecording(r: any): TwilioRecording {
+function decodeRecording(c: unknown): TwilioRecording {
+  const r = c as Record<string, unknown>;
   return {
-    sid: r.sid,
-    callSid: r.call_sid,
-    duration: r.duration,
-    channels: r.channels,
-    status: r.status,
-    uri: r.uri,
-    mediaUrl: r.media_url,
-    dateCreated: r.date_created,
+    sid: asStr(r.sid),
+    ...opt("callSid", r.call_sid),
+    ...opt("duration", r.duration),
+    ...optNum("channels", r.channels),
+    ...opt("status", r.status),
+    ...opt("uri", r.uri),
+    ...opt("mediaUrl", r.media_url),
+    ...opt("dateCreated", r.date_created),
   };
 }
-function decodeTranscription(t: any): TwilioTranscription {
+function decodeTranscription(c: unknown): TwilioTranscription {
+  const t = c as Record<string, unknown>;
   return {
-    sid: t.sid,
-    recordingSid: t.recording_sid,
-    transcriptionText: t.transcription_text,
-    status: t.status,
-    price: t.price,
-    dateCreated: t.date_created,
+    sid: asStr(t.sid),
+    ...opt("recordingSid", t.recording_sid),
+    ...opt("transcriptionText", t.transcription_text),
+    ...opt("status", t.status),
+    ...opt("price", t.price),
+    ...opt("dateCreated", t.date_created),
   };
 }
