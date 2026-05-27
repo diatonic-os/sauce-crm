@@ -163,6 +163,14 @@ import {
   VIEW_INBOX,
   VIEW_LEDGER,
 } from "./ui/views/v2/DashboardViews";
+import {
+  MeetingsView,
+  LanesView,
+  WeeklyView,
+  VIEW_MEETINGS,
+  VIEW_LANES,
+  VIEW_WEEKLY,
+} from "./ui/views/v2/FolderIndexViews";
 import { OnboardingWizardModal } from "./ui/modals/v2/OnboardingWizardModal";
 import { EncryptedBackupService } from "./sync/EncryptedBackupService";
 import { todayIso, maxDate } from "./util/DateUtil";
@@ -1371,6 +1379,9 @@ export default class SauceGraphPlugin extends Plugin {
     this.registerView(VIEW_HIERARCHY, (l) => new HierarchyTreeView(l, this));
     this.registerView(VIEW_OVERDUE, (l) => new OverdueQueueView(l, this));
     this.registerView(VIEW_PARENT, (l) => new ParentDashboardView(l, this));
+    this.registerView(VIEW_MEETINGS, (l) => new MeetingsView(l, this));
+    this.registerView(VIEW_LANES, (l) => new LanesView(l, this));
+    this.registerView(VIEW_WEEKLY, (l) => new WeeklyView(l, this));
   }
 
   registerCommands(): void {
@@ -1460,6 +1471,21 @@ export default class SauceGraphPlugin extends Plugin {
       id: "open-dashboard",
       name: "Open Dashboard",
       callback: () => this.openView(VIEW_DASHBOARD),
+    });
+    this.addCommand({
+      id: "open-meetings",
+      name: "Open Meetings",
+      callback: () => this.openView(VIEW_MEETINGS),
+    });
+    this.addCommand({
+      id: "open-lanes",
+      name: "Open Lanes",
+      callback: () => this.openView(VIEW_LANES),
+    });
+    this.addCommand({
+      id: "open-weekly",
+      name: "Open Weekly Briefings",
+      callback: () => this.openView(VIEW_WEEKLY),
     });
     this.addCommand({
       id: "open-pipeline",
