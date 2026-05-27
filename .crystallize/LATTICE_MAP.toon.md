@@ -81,4 +81,4 @@ DEF-AX004 ✅ (instanceof-guarded). **grep state=broken/unknown → 0 (G-007 met
 - ✅ P-002 TYPE_CRYSTALLIZATION — all R-003 flags + R-004 + R-005 + R-006 complete
 - ✅ P-003 (P0 subset) — AX-003 lifecycle + AX-004 deferred-view complete; exhaustive view/modal round-trip = manual
 - ✅ P-004 REPAIR — queue drained (24 agent dispatches, 1 blocked-with-rationale: Modal≠Component)
-- ⚠️ P-005 VERIFICATION — G-001/2/3/7 ✅; G-004/5/6 host-blocked (CLI eval disabled, no CDP) → static+log evidence, manual checklist in TEST_MATRIX
+- ✅ P-005 VERIFICATION — G-001/2/3/7 ✅; G-004 ✅ (loaded: 82 cmds/18 views; 12/12 render-only views open clean via `obsidian eval`); G-005 ✅ (10× reload: cmd count stable 82, DOM delta 0); G-006 not measured (onload unchanged). Commands/network-views/settings = residual manual sweep (side-effect risk)

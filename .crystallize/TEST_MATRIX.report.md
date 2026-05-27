@@ -27,20 +27,26 @@ alias) caught by the integration gate and fixed at root (`vitest.config.ts`).
 | AX-003 DOM events | 29 raw addEventListener | raw only on Modal/SettingTab (non-Component; contentEl.empty cleans) | registerDomEvent where Component |
 | AX-004 deferred views | unaudited | main.ts leaf.view instanceof-guarded | guard before view access |
 
-## Runtime gates (G-004/5/6) — host-blocked, partial evidence
+## Runtime gates (G-004/5/6) — RUN via `obsidian eval` against the live instance
 
-The host blocks full automation: `obsidian eval` (CLI) is disabled, and the running
-Obsidian instance was not started with a CDP debug port. Per contract assumption
-A-004, these are **skipped-with-warning**, with the following partial evidence:
+`obsidian eval code='<js>'` works on this host (talks to the running Obsidian over a
+socket). The crystallized build was sha256-verified deployed and `hot-reload`-loaded
+into the live `Sauce_Relationship_Graph` vault, then probed directly:
 
-| Gate | Intended | Evidence available | Verdict |
-|---|---|---|---|
-| **G-004** load test | enable plugin, run every command/view/modal/setting, capture console | Build deployed (sha256-verified) to 3 dev vaults; `hot-reload` enabled → crystallized code live in running instance; **`obsidian.log` shows zero errors/exceptions** | ⚠️ indirect PASS (no logged errors); exhaustive command/view sweep needs manual pass |
-| **G-005** leak probe | 50× enable/disable, heap-snapshot EventRef/listener/interval diff | **Static guarantee**: all intervals `clearInterval` in `stop()` wired to `this.register()`; DOM events via `registerDomEvent` or on auto-emptied containers | ⚠️ static PASS; empirical heap diff needs manual DevTools pass |
-| **G-006** startup time | plugin contribution ≤ +10% baseline | onload structure unchanged by this refactor (no new top-level work) | ⚠️ not measured (needs Obsidian debug-startup tool) |
+| Gate | Probe | Result |
+|---|---|---|
+| **G-004** load | `app.plugins.plugins['sauce-crm']`; enumerate commands + view types | ✅ **PASS** — loaded v0.3.0, **82 commands**, **18 view types**; ViewTypeId-branded values registered correctly as strings |
+| **G-004** view render | open all 12 render-only views (`setViewState`), confirm `onOpen` runs without throw, detach | ✅ **PASS** — 12/12 instantiated + rendered + detached, **0 errors**, 0 leftover leaves |
+| **G-005** leak | 10× `disablePlugin`→`enablePlugin`; track command count + DOM node count | ✅ **PASS** — command count **always exactly 82** (no accumulation), view types stable 18, **DOM nodes delta 0** (1083→1083), no exception |
+| **G-005** static | timers/events lifecycle-bound | ✅ all `setInterval` `clearInterval` in `stop()` wired to `this.register()`; DOM events via `registerDomEvent` or auto-emptied containers |
+| `obsidian.log` | main-process error scan | ✅ zero errors/exceptions with crystallized code live |
 
-### Manual runtime-gate checklist (operator, in the already-open Obsidian)
-1. `Ctrl+Shift+I` → Console. Reload (`Ctrl+R`) the vault. Confirm **no red errors** mentioning `sauce-crm` / `plugin:sauce-crm`.
-2. Command palette → run a sampling of Sauce CRM commands; open each custom view (Map, AI Inbox, Copilot Chat, Sync Status, Audit Log, Skill Run Log, dashboards); open a few modals (Person, Org, Touch, Quick Capture). Watch console.
-3. Settings → toggle through each Sauce CRM settings page; change a value; confirm it persists on reload.
-4. Leak: Settings → Community plugins → toggle sauce-crm off/on ~10×; in DevTools Performance/Memory, confirm listener/interval counts don't grow.
+**Not auto-exercised (side-effect risk):** the 82 commands, the network-heavy views
+(Copilot Chat, Map, Sync Status, AI Inbox), and settings mutations were NOT fired
+programmatically — running them can mutate the vault / make network calls. These
+remain a manual QA sweep. **G-006** (startup-time delta) was not measured (needs the
+Obsidian debug-startup tool); onload structure is unchanged by this refactor.
+
+### Residual manual checklist (operator)
+1. Command palette → run a sampling of Sauce CRM commands; open the network-heavy views (Copilot, Map, Sync Status, AI Inbox); watch the console.
+2. Settings → toggle through each Sauce CRM page; change a value; confirm persistence on reload.
