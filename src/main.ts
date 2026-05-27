@@ -127,7 +127,14 @@ import {
   currentPathEnv,
   lanceRuntimeDir,
   firstExistingModuleBase,
+  secretsFile,
 } from "./services/platformPaths";
+import {
+  type CredentialSource,
+  ChainedCredentialSource,
+  KeyVaultCredentialSource,
+} from "./saucebot/CredentialSource";
+import { makeSafeStorageCredentialSource } from "./saucebot/SafeStorageCredentialSource";
 import {
   computeCapability,
   DEFAULT_LANCEDB_DECISION,
@@ -547,6 +554,18 @@ export default class SauceGraphPlugin extends Plugin {
       this.settings.copilot ?? COPILOT_DEFAULTS,
       this.v2?.lance?.vectors ?? null,
     );
+    // Secure credential sourcing (was never wired → providers read plaintext
+    // settings.apiKey). OS keychain (safeStorage) primary, encrypted KeyVault
+    // fallback; first available source that has the key wins.
+    {
+      const sources: CredentialSource[] = [
+        makeSafeStorageCredentialSource(secretsFile(currentPathEnv())),
+      ];
+      if (this.v2?.keyVault) {
+        sources.push(new KeyVaultCredentialSource(this.v2.keyVault));
+      }
+      this.copilot.setCredentialSource(new ChainedCredentialSource(sources));
+    }
     this.syncEmbeddingConfig();
     // Mirror vault entities into LanceDB + embed them for semantic RAG. Only
     // active when LanceDB is installed; embeddings are best-effort (skip when

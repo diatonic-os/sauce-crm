@@ -91,6 +91,13 @@ export function legacyLanceDir(absPluginDir: string): string {
   return joinPosix(absPluginDir, "data/lancedb");
 }
 
+/** Central, out-of-vault file holding safeStorage-encrypted secret blobs. The
+ *  decryption key lives in the OS keychain (safeStorage), so this file is
+ *  OS-bound ciphertext — safe outside the vault and never synced. */
+export function secretsFile(p: PathEnv): string {
+  return joinPosix(appDataRoot(p), "secrets.json");
+}
+
 /** Small, dependency-free 32-bit hash (cyrb53-lite) rendered as 8 hex chars.
  *  Not cryptographic — only needs to be stable + well-distributed for ids. */
 function hash8(s: string): string {
