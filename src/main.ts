@@ -90,6 +90,7 @@ import {
 import { SauceGraphSettingTab } from "./ui/settings/SauceGraphSettingTab";
 import { ActionButton } from "./ui/widgets/ActionButton";
 import { initV2, teardownV2, V2Runtime } from "./v2-init";
+import { compactConnection } from "./backend/lance/maintenance";
 // MOB-BRIDGE-001 — mobile memory bridge (see MOBILE-BRIDGE-SPEC.md).
 import type { MemoryBackend } from "./bridge/contract";
 import {
@@ -1869,7 +1870,33 @@ export default class SauceGraphPlugin extends Plugin {
         }
         new Notice("Rebuilding LanceDB index…");
         const n = await this.mirrorSync.fullResync();
+        // A full resync rewrites every entity → a new version per table. Compact
+        // afterwards (background) to prune the superseded versions, so repeated
+        // rebuilds can't balloon the store (the bloat that froze vault load).
+        const db = this.v2?.lance?.db;
+        if (db) {
+          void compactConnection(db).then(
+            (r) => console.log("LanceDB compacted after resync", r),
+            (e: unknown) => console.warn("LanceDB post-resync compaction failed", String(e)),
+          );
+        }
         new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
+      },
+    });
+    this.addCommand({
+      id: "compact-lance-index",
+      name: "Compact LanceDB Index (prune old versions, reclaim space)",
+      callback: async () => {
+        const db = this.v2?.lance?.db;
+        if (!db) {
+          new Notice("LanceDB not installed — nothing to compact.");
+          return;
+        }
+        new Notice("Compacting LanceDB index…");
+        const r = await compactConnection(db);
+        new Notice(
+          `LanceDB compacted: ${r.optimized}/${r.tables} tables (${r.failed} failed).`,
+        );
       },
     });
     this.addCommand({

@@ -3,6 +3,13 @@
 
 import { App, Plugin, normalizePath, requestUrl } from "obsidian";
 import { initLanceBackend, type LanceBackend } from "./backend/lance";
+import {
+  withTimeout,
+  dirSizeBounded,
+  compactConnection,
+  LANCE_BLOAT_WARN_BYTES,
+  LANCE_INIT_BUDGET_MS,
+} from "./backend/lance/maintenance";
 import { detectLanceDB } from "./services/LanceDBInstaller";
 import {
   KeyVault,
@@ -187,17 +194,38 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   const detect = detectLanceDB(absPluginDir);
   if (detect.state === "available") {
     try {
-      lance = await initLanceBackend({
-        dataDir: lanceDir,
-        ...(embeddingDim !== undefined ? { embeddingDim } : {}),
-        ...(absPluginDir !== undefined ? { requireBase: absPluginDir } : {}),
-      });
+      // Bound init: a pathological store (e.g. thousands of un-compacted
+      // versions) must NOT freeze vault load. On timeout we fall through to the
+      // degraded no-backend path; the operator can rebuild/compact the index.
+      lance = await withTimeout(
+        initLanceBackend({
+          dataDir: lanceDir,
+          ...(embeddingDim !== undefined ? { embeddingDim } : {}),
+          ...(absPluginDir !== undefined ? { requireBase: absPluginDir } : {}),
+        }),
+        LANCE_INIT_BUDGET_MS,
+        "backend init",
+      );
       backendKind = "lancedb";
       console.log("Sauce V2 backend: LanceDB", {
         dir: lanceDir,
         version: detect.version,
         dim: lance.embeddingDim,
       });
+      // Opportunistic compaction: if the store is abnormally large (version
+      // bloat from repeated rebuilds), compact + prune old versions in the
+      // BACKGROUND so size stays bounded without delaying load.
+      const sizeProbe = dirSizeBounded(lanceDir, LANCE_BLOAT_WARN_BYTES + 1);
+      if (sizeProbe > LANCE_BLOAT_WARN_BYTES) {
+        const db = lance.db;
+        console.warn(
+          `Sauce V2 LanceDB is large (>= ${Math.round(sizeProbe / 1048576)} MB) — compacting in background`,
+        );
+        void compactConnection(db).then(
+          (r) => console.log("Sauce V2 LanceDB compaction done", r),
+          (e: unknown) => console.warn("Sauce V2 LanceDB compaction failed", String(e)),
+        );
+      }
     } catch (e) {
       console.warn("Sauce V2 LanceDB init failed; backend unavailable", {
         error: String(e),

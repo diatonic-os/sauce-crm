@@ -36,6 +36,14 @@ export { LanceFtsIndex, type FtsHit } from "./LanceFtsIndex";
 export { LanceCheckpoints, type CheckpointInfo } from "./LanceCheckpoints";
 export { LanceProvenanceStore } from "./LanceProvenanceStore";
 export { LanceDocChunkStore, type ChunkHit } from "./LanceDocChunkStore";
+export {
+  compactConnection,
+  dirSizeBounded,
+  withTimeout,
+  type CompactResult,
+  LANCE_BLOAT_WARN_BYTES,
+  LANCE_INIT_BUDGET_MS,
+} from "./maintenance";
 
 export interface InitLanceOpts {
   /** ABSOLUTE filesystem path for the Lance store. Native connect() resolves
