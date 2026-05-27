@@ -264,7 +264,20 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
       }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
-    const j = JSON.parse(resp.body) as R;
+    let j: R;
+    try {
+      j = JSON.parse(resp.body) as R;
+    } catch {
+      yield { type: "done", reason: "error", error: `non-JSON response (HTTP ${resp.status}): ${resp.body.slice(0, 200)}` };
+      return;
+    }
+    // Guard the ARRAY, not just the element: a malformed/error body (e.g. wrong
+    // endpoint missing /v1) parses without `choices`, and `j.choices[0]` would
+    // throw "reading '0'". Surface it as a graceful error instead of crashing.
+    if (!Array.isArray(j.choices)) {
+      yield { type: "done", reason: "error", error: `unexpected response (no choices): ${resp.body.slice(0, 200)}` };
+      return;
+    }
     const choice = j.choices[0];
     if (choice === undefined) {
       yield { type: "done", reason: "stop" };
@@ -306,8 +319,13 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
       body: JSON.stringify({ model, input: text }),
     });
     if (resp.status >= 400) throw new Error(resp.body);
-    const j = JSON.parse(resp.body) as { data: Array<{ embedding: number[] }> };
-    const first = j.data[0];
+    let j: { data?: Array<{ embedding: number[] }> };
+    try {
+      j = JSON.parse(resp.body) as { data?: Array<{ embedding: number[] }> };
+    } catch {
+      throw new Error(`${this.name} embeddings: non-JSON response: ${resp.body.slice(0, 200)}`);
+    }
+    const first = j.data?.[0];
     if (first === undefined)
       throw new Error(`${this.name} embeddings response contains no data`);
     return new Float32Array(first.embedding);
