@@ -167,6 +167,16 @@ export class LanceDBInstaller {
   ): Promise<boolean> {
     const t0 = Date.now();
     const cwd = this.host.pluginDir();
+    // The install prefix is now the central out-of-vault runtime dir, which may
+    // not exist yet on a fresh machine — `npm --prefix <cwd>` needs it present.
+    try {
+      const req = (globalThis as unknown as { require?: NodeRequire }).require;
+      if (typeof req === "function") {
+        (req("fs") as typeof import("fs")).mkdirSync(cwd, { recursive: true });
+      }
+    } catch {
+      /* best-effort; spawn will surface a real failure */
+    }
     const log = async (line: string): Promise<void> => {
       if (logSink) await logSink(line);
     };

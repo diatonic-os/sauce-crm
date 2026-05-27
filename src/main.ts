@@ -124,6 +124,11 @@ import {
 } from "./ui/views/v2/SauceBotChatView";
 import { IconRegistry } from "./ui/icons/IconRegistry";
 import {
+  currentPathEnv,
+  lanceRuntimeDir,
+  firstExistingModuleBase,
+} from "./services/platformPaths";
+import {
   computeCapability,
   DEFAULT_LANCEDB_DECISION,
   type LanceDBInstallDecision,
@@ -499,7 +504,7 @@ export default class SauceGraphPlugin extends Plugin {
     // workspace.onLayoutReady (so the UI isn't blocked while we boot).
     this.lancedbCapability = computeCapability(
       this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
-      this.absPluginDir(),
+      this.lanceModuleBase(),
     );
     this.app.workspace.onLayoutReady(() => {
       this.maybePromptLanceDBInstall();
@@ -2032,14 +2037,11 @@ export default class SauceGraphPlugin extends Plugin {
    *  Settings → Data → "Install LanceDB" button as well as the first-run
    *  prompt. Re-detects capability after the operator decides. */
   openLanceDBInstall(): void {
-    const base = this.app.vault.adapter.getBasePath?.() ?? "";
-    const configDir = this.app.vault.configDir; // not hardcoded ".obsidian" — may be customized
-    const fullDir = base
-      ? `${base}/${configDir}/plugins/${this.manifest.id}`
-      : `${configDir}/plugins/${this.manifest.id}`;
+    // New installs target the central, out-of-vault runtime dir (shared across
+    // vaults) — never the in-vault plugin folder.
     new LanceDBInstallModal({
       app: this.app,
-      pluginDir: fullDir,
+      pluginDir: this.lanceRuntimeBase(),
       initialDecision:
         this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
       // Wire the approval gate so the install respects sticky
@@ -2049,7 +2051,7 @@ export default class SauceGraphPlugin extends Plugin {
         this.settings.lancedb = { installDecision: next };
         await this.saveSettings();
         // Re-detect after a successful install attempt.
-        this.lancedbCapability = computeCapability(next, this.absPluginDir());
+        this.lancedbCapability = computeCapability(next, this.lanceModuleBase());
       },
     }).open();
   }
@@ -2246,6 +2248,18 @@ export default class SauceGraphPlugin extends Plugin {
     return base
       ? `${base}/${this.app.vault.configDir}/plugins/${this.manifest.id}`
       : undefined;
+  }
+
+  /** Central, OUT-OF-VAULT runtime dir where the LanceDB native module installs
+   *  (shared across all vaults). New installs target this — see platformPaths. */
+  lanceRuntimeBase(): string {
+    return lanceRuntimeDir(currentPathEnv());
+  }
+
+  /** Module-resolution base for detection/use: the central runtime when the
+   *  module lives there, else a legacy in-plugin install (backward compat). */
+  lanceModuleBase(): string | undefined {
+    return firstExistingModuleBase([this.lanceRuntimeBase(), this.absPluginDir()]);
   }
 
   /** MOB-BRIDGE-001 — construct the platform-appropriate memory backend.

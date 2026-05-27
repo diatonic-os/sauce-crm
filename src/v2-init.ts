@@ -14,6 +14,14 @@ import {
 } from "./backend/lance/maintenance";
 import { detectLanceDB } from "./services/LanceDBInstaller";
 import {
+  currentPathEnv,
+  lanceDataDir,
+  lanceRuntimeDir,
+  legacyLanceDir,
+  migrateLegacyStore,
+  firstExistingModuleBase,
+} from "./services/platformPaths";
+import {
   KeyVault,
   AuditLog,
   ScopeRegistry,
@@ -181,9 +189,40 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   const absPluginDir = vaultBase
     ? `${vaultBase}/${app.vault.configDir}/plugins/${pluginId}`
     : undefined;
-  const lanceDir = absPluginDir
-    ? `${absPluginDir}/data/lancedb`
-    : `${pluginDir}/data/lancedb`;
+
+  // Centralized, OUT-OF-VAULT home (app.data.user) for the derived store and the
+  // native module — keeps LanceDB's thousands of fragment files out of the
+  // watched/synced vault. Data is per-vault; the module runtime is shared.
+  const pe = currentPathEnv();
+  const centralDataDir = vaultBase ? lanceDataDir(pe, vaultBase) : undefined;
+  // Module base: prefer the central runtime; fall back to a legacy in-plugin
+  // install so existing users keep working without reinstalling.
+  const moduleBase = firstExistingModuleBase([lanceRuntimeDir(pe), absPluginDir]);
+
+  // One-time migration: move a v1 in-vault store to the central location BEFORE
+  // we open it. Safe + idempotent (never clobbers a populated target).
+  if (absPluginDir && centralDataDir) {
+    try {
+      const mig = await migrateLegacyStore(
+        legacyLanceDir(absPluginDir),
+        centralDataDir,
+      );
+      if (mig.migrated) {
+        console.log("Sauce V2: migrated LanceDB out of the vault", {
+          reason: mig.reason,
+          to: centralDataDir,
+        });
+      } else if (mig.reason === "failed") {
+        console.warn("Sauce V2: LanceDB migration failed; using fresh store", {
+          error: mig.error,
+        });
+      }
+    } catch (e) {
+      console.warn("Sauce V2: LanceDB migration error", { error: String(e) });
+    }
+  }
+
+  const lanceDir = centralDataDir ?? `${pluginDir}/data/lancedb`;
   const pluginSettings = (plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }).settings; // Plugin subclass field; base Plugin type lacks it
   const embeddingDim = pluginSettings?.lancedb?.embeddingDim;
 
@@ -193,7 +232,7 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   // and feature use is gated until the operator approves the install.
   let lance: LanceBackend | null = null;
   let backendKind: "lancedb" | "uninitialized" = "uninitialized";
-  const detect = detectLanceDB(absPluginDir);
+  const detect = detectLanceDB(moduleBase);
   if (detect.state === "available") {
     try {
       // Bound init: a pathological store (e.g. thousands of un-compacted
@@ -203,7 +242,7 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
         initLanceBackend({
           dataDir: lanceDir,
           ...(embeddingDim !== undefined ? { embeddingDim } : {}),
-          ...(absPluginDir !== undefined ? { requireBase: absPluginDir } : {}),
+          ...(moduleBase !== undefined ? { requireBase: moduleBase } : {}),
         }),
         LANCE_INIT_BUDGET_MS,
         "backend init",
