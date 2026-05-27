@@ -26,7 +26,7 @@ export class OrgModal extends Modal {
 
   override onOpen(): void {
     const { contentEl } = this;
-    contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     contentEl.createEl("h2", {
       text: this.editingFile ? `Edit Org — ${this.name}` : "New Org",
     });

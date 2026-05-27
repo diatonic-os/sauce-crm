@@ -101,7 +101,7 @@ export class CaptureRecordModal extends Modal {
   override onOpen(): void {
     const def = CAPTURE_DEFS[this.kind];
     const { contentEl } = this;
-    contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     contentEl.addClass("sauce-capture-modal");
     contentEl.createEl("h2", { text: `New ${def.title}` });
 

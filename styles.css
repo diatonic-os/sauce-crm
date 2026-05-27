@@ -592,7 +592,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sg-section-gap);
-  padding: var(--sg-card-pad);
+  padding: var(--sg-gap-21);
   max-height: inherit;
   overflow-y: auto;
 }
@@ -818,11 +818,14 @@
   font-size: 1.05em; font-weight: 600; margin: var(--sg-gap-13) 0 var(--sg-gap-5) 0;
   padding-block-end: var(--sg-gap-3); border-bottom: 1px solid var(--background-modifier-border);
 }
-/* Field rows → cards (label/desc left, control right) */
+/* Field rows — FLAT & BORDERLESS (label/desc left, control right). No card
+   chrome or separator lines; rows breathe via padding-block + the modal-content
+   gap. Modals put .sauce-modal on modalEl, so this matches and .modal-content
+   gets its 21px edge padding (fields never sit flush to the modal edge). */
 .sauce-modal .setting-item {
-  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m); border-top: none; padding: var(--sg-gap-13) var(--sg-gap-21);
-  margin-block-end: var(--sg-gap-8); display: flex; align-items: center; gap: var(--sg-gap-13); flex-wrap: wrap;
+  background: none; border: none; border-radius: 0;
+  padding: var(--sg-gap-8) 0;
+  margin: 0; display: flex; align-items: center; gap: var(--sg-gap-13); flex-wrap: wrap;
 }
 .sauce-modal .setting-item-info { flex: 1 1 200px; margin: 0; }
 .sauce-modal .setting-item-name { font-weight: 600; }
@@ -1439,3 +1442,64 @@ select.sauce-input {
    foot to the shared alias so footer buttons share one rhythm across cards. */
 .sauce-card-foot { gap: var(--sg-inline-gap); padding-top: var(--sg-field-gap); }
 /* <<< Agent E end */
+
+/* ============================================================================
+   GLOBAL SPACING ENFORCEMENT
+   Single guarantee: inside every Sauce surface, no element sits flush against
+   another or the container edge. Built ENTIRELY on the :root token scale and
+   scoped to `.sauce-*` ancestors so Obsidian's own chrome is never restyled.
+   Layers: (1) container edge padding, (2) sibling rhythm, (3) modal field rows,
+   (4) tables, (5) control breathing room.
+   ============================================================================ */
+
+/* (1)+(2) Defensive floor: any Sauce container pads its edges and spaces its
+   direct children, even surfaces that predate the token system. `gap` on the
+   flex/grid containers already does most of this; this is the safety net for
+   plain-block containers. */
+.sauce-view,
+.sauce-modal .modal-content,
+.sauce-section,
+.sg-tab-content {
+  box-sizing: border-box;
+}
+.sauce-view > :where(p, h1, h2, h3, h4, ul, ol, table, div):not(:last-child) {
+  margin-block-end: var(--sg-stack-gap);
+}
+
+/* (3) Modal field rows are defined canonically above (the `.sauce-modal
+   .setting-item` block) — flat & borderless. Not re-declared here to avoid a
+   competing same-specificity rule. The class is on modalEl so these match. */
+
+/* (4) Tables — cells must never be flush. Covers the folder-index views
+   (.sauce-index-table) and any plain <table> a view/modal/settings tab renders. */
+.sauce-index-table { width: 100%; border-collapse: collapse; }
+.sauce-index-table :is(th, td) {
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.sauce-index-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--background-modifier-border);
+}
+.sauce-index-table tbody tr:hover { background: var(--background-modifier-hover); }
+.sauce-empty { color: var(--text-muted); padding-block: var(--sg-stack-gap); }
+:is(.sauce-view, .sauce-modal .modal-content, .sg-tab-content)
+  table:not(.sauce-index-table) :is(th, td) {
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+}
+
+/* (5) Control breathing room — guarantee text inside text inputs/selects/
+   textareas isn't flush to the control's own border, and a minimum tap target.
+   Scoped to Sauce surfaces; toggles/sliders/buttons are intentionally excluded
+   (Obsidian renders those as custom widgets we must not repad). */
+:is(.sauce-view, .sauce-modal, .sauce-section)
+  :where(input[type="text"], input[type="search"], input[type="password"],
+         input[type="url"], input[type="number"], input[type="email"], select, textarea) {
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+  min-height: var(--sg-tap-min);
+  box-sizing: border-box;
+}

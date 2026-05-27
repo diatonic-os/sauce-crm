@@ -21,7 +21,7 @@ export class AddendumModal extends Modal {
 
   override onOpen(): void {
     const { contentEl } = this;
-    contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "New Addendum" });
 
     new Setting(contentEl).setName("Addends (target)").addButton((b) =>

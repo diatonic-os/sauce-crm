@@ -29,7 +29,7 @@ export class RelationModal extends Modal {
 
   override onOpen(): void {
     const { contentEl } = this;
-    contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "New Relation" });
 
     new Setting(contentEl).setName("Source").addButton((b) =>

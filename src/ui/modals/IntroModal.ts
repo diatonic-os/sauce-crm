@@ -19,7 +19,7 @@ export class IntroModal extends Modal {
 
   override onOpen(): void {
     const { contentEl } = this;
-    contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "Propose Intro" });
 
     const aRow = new Setting(contentEl).setName("Person A").addButton((b) =>

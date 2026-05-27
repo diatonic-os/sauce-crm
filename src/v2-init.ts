@@ -6,8 +6,10 @@ import { initLanceBackend, type LanceBackend } from "./backend/lance";
 import {
   withTimeout,
   dirSizeBounded,
+  dirFileCountBounded,
   compactConnection,
   LANCE_BLOAT_WARN_BYTES,
+  LANCE_BLOAT_WARN_FILES,
   LANCE_INIT_BUDGET_MS,
 } from "./backend/lance/maintenance";
 import { detectLanceDB } from "./services/LanceDBInstaller";
@@ -212,14 +214,18 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
         version: detect.version,
         dim: lance.embeddingDim,
       });
-      // Opportunistic compaction: if the store is abnormally large (version
-      // bloat from repeated rebuilds), compact + prune old versions in the
-      // BACKGROUND so size stays bounded without delaying load.
+      // Opportunistic compaction: LanceDB writes a fragment + version manifest
+      // per transaction, so repeated resyncs explode the FILE COUNT (tens of
+      // thousands) even when total bytes stay modest — and a vault watcher
+      // choking on that file count is what surfaces as Obsidian's "watcher"
+      // error. Trigger background compaction on EITHER signal (count or size)
+      // so the store collapses back to a handful of files without delaying load.
+      const fileProbe = dirFileCountBounded(lanceDir, LANCE_BLOAT_WARN_FILES + 1);
       const sizeProbe = dirSizeBounded(lanceDir, LANCE_BLOAT_WARN_BYTES + 1);
-      if (sizeProbe > LANCE_BLOAT_WARN_BYTES) {
+      if (fileProbe > LANCE_BLOAT_WARN_FILES || sizeProbe > LANCE_BLOAT_WARN_BYTES) {
         const db = lance.db;
         console.warn(
-          `Sauce V2 LanceDB is large (>= ${Math.round(sizeProbe / 1048576)} MB) — compacting in background`,
+          `Sauce V2 LanceDB is bloated (${fileProbe}+ files / ${Math.round(sizeProbe / 1048576)}+ MB) — compacting in background`,
         );
         void compactConnection(db).then(
           (r) => console.log("Sauce V2 LanceDB compaction done", r),

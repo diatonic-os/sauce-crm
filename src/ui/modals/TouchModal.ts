@@ -28,7 +28,7 @@ export class TouchModal extends Modal {
 
   override onOpen(): void {
     const { contentEl } = this;
-    contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "Log Touch" });
 
     new Setting(contentEl).setName("Contact").addButton((b) =>

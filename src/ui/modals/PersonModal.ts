@@ -26,7 +26,7 @@ export class PersonModal extends Modal {
 
   override onOpen(): void {
     const { contentEl } = this;
-    contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     contentEl.createEl("h2", {
       text: this.editingFile ? `Edit Person — ${this.name}` : "New Person",
     });

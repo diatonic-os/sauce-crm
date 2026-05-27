@@ -215,8 +215,15 @@ export interface SauceGraphSettings {
   /** LanceDB install decision — persisted across reloads so we never
    *  re-prompt after the user picks "Install" or "Skip". */
   lancedb?: { installDecision: LanceDBInstallDecision };
-  /** Re-mirror all entities into LanceDB on plugin load (default true). */
+  /** Re-mirror all entities into LanceDB on plugin load (default true).
+   *  NOTE: this now means "index ONCE if not yet indexed", not "every load" —
+   *  a full resync on every startup churned LanceDB into tens of thousands of
+   *  fragments (CPU/memory/watcher blowup). After the one-time index, realtime
+   *  vault events keep the mirror current; use "Rebuild LanceDB Index" to force. */
   lancedbIndexOnLoad?: boolean;
+  /** Set true once the initial full index has run, so we don't resync on every
+   *  load. Cleared by a manual rebuild if a fresh full index is wanted. */
+  lancedbInitialIndexDone?: boolean;
   /** Persistent approval decisions (approve-always / deny-always per
    *  action class). Read by every risky flow before executing. */
   approvals?: ApprovalRecord;
@@ -2054,9 +2061,22 @@ export default class SauceGraphPlugin extends Plugin {
   private indexAllOnLoad(): void {
     if (!this.mirrorSync) return; // LanceDB unavailable
     if (this.settings.lancedbIndexOnLoad === false) return; // operator opted out
+    // Index ONCE, not on every load. A full resync per startup re-wrote every
+    // entity as a new LanceDB fragment, exploding the store into tens of
+    // thousands of files (the CPU/memory/watcher blowup). After the first index
+    // realtime vault events keep the mirror current; a manual rebuild forces it.
+    if (this.settings.lancedbInitialIndexDone === true) return;
     void this.mirrorSync
       .fullResync({ embed: false })
-      .then((n) => this.logger?.info?.("lancedb.index_on_load", { indexed: n }))
+      .then(async (n) => {
+        this.logger?.info?.("lancedb.index_on_load", { indexed: n });
+        // Collapse the fragments the bulk index just created, then remember
+        // we've indexed so we never churn on subsequent loads.
+        const db = this.v2?.lance?.db;
+        if (db) await compactConnection(db).catch(() => undefined);
+        this.settings.lancedbInitialIndexDone = true;
+        await this.saveData(this.settings).catch(() => undefined);
+      })
       .catch((e) =>
         this.logger?.warn?.("lancedb.index_on_load_failed", {
           error: String(e),

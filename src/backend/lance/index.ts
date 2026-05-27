@@ -39,9 +39,11 @@ export { LanceDocChunkStore, type ChunkHit } from "./LanceDocChunkStore";
 export {
   compactConnection,
   dirSizeBounded,
+  dirFileCountBounded,
   withTimeout,
   type CompactResult,
   LANCE_BLOAT_WARN_BYTES,
+  LANCE_BLOAT_WARN_FILES,
   LANCE_INIT_BUDGET_MS,
 } from "./maintenance";
 

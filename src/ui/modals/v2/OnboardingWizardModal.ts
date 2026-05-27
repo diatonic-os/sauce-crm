@@ -98,7 +98,7 @@ export class OnboardingWizardModal extends Modal {
   }
 
   override onOpen(): void {
-    this.contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     this.contentEl.addClass("sauce-onboarding-wizard");
     this.renderStep(this.step);
   }

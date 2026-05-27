@@ -17,7 +17,7 @@ export class PromoteProspectModal extends Modal {
 
   override onOpen(): void {
     const { contentEl } = this;
-    contentEl.addClass("sauce-modal");
+    this.modalEl.addClass("sauce-modal");
     contentEl.createEl("h2", { text: "Promote Prospect" });
     if (!this.file) {
       contentEl.createEl("p", { text: "open a person file first" });

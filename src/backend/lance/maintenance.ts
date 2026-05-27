@@ -80,6 +80,46 @@ export function dirSizeBounded(dir: string, capBytes: number): number {
   return total;
 }
 
+/** Count files under `dir`, stopping once `cap` is reached. LanceDB writes a
+ *  new fragment + version manifest per transaction; without compaction the file
+ *  count (not just bytes) explodes — and a vault watcher choking on tens of
+ *  thousands of files is what manifests as Obsidian's "watcher" error. This is
+ *  the cheap signal that triggers compaction. Renderer-safe (lazy fs require). */
+export function dirFileCountBounded(dir: string, cap: number): number {
+  const req =
+    (globalThis as unknown as { require?: NodeRequire }).require ??
+    (typeof require !== "undefined" ? require : undefined);
+  if (typeof req !== "function") return 0;
+  let fs: typeof import("fs");
+  let path: typeof import("path");
+  try {
+    fs = req("fs") as typeof import("fs");
+    path = req("path") as typeof import("path");
+  } catch {
+    return 0;
+  }
+  let count = 0;
+  const stack: string[] = [dir];
+  for (let cur = stack.pop(); cur !== undefined; cur = stack.pop()) {
+    let entries: import("fs").Dirent[];
+    try {
+      entries = fs.readdirSync(cur, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (e.isDirectory()) stack.push(path.join(cur, e.name));
+      else count++;
+      if (count >= cap) return count; // short-circuit: known-bloated
+    }
+  }
+  return count;
+}
+
+/** Fragment-count above which a lancedb dir is considered bloated and triggers
+ *  compaction at load. A healthy compacted store is well under this. */
+export const LANCE_BLOAT_WARN_FILES = 2000;
+
 export interface CompactResult {
   optimized: number;
   failed: number;
