@@ -3,14 +3,14 @@
 // execute() contract is correct (happy path + error cases).
 
 import { describe, expect, it } from "vitest";
-import { makeReadNoteTool } from "../../src/copilot/tools/ReadNoteTool";
-import { makeSearchVaultTool } from "../../src/copilot/tools/SearchVaultTool";
-import { makeProposeEditTool, makeApplyEditTool } from "../../src/copilot/tools/EditNoteTool";
-import { makeCreateNoteTool } from "../../src/copilot/tools/CreateNoteTool";
-import { makeWebResearchTool } from "../../src/copilot/tools/WebResearchTool";
-import { DiffEditor } from "../../src/copilot/tools/DiffEditor";
-import { createUnifiedDiff, formatUnifiedDiff } from "../../src/copilot/tools/diff";
-import type { SkillLike } from "../../src/copilot/ToolUseAdapter";
+import { makeReadNoteTool } from "../../src/saucebot/tools/ReadNoteTool";
+import { makeSearchVaultTool } from "../../src/saucebot/tools/SearchVaultTool";
+import { makeProposeEditTool, makeApplyEditTool } from "../../src/saucebot/tools/EditNoteTool";
+import { makeCreateNoteTool } from "../../src/saucebot/tools/CreateNoteTool";
+import { makeWebResearchTool } from "../../src/saucebot/tools/WebResearchTool";
+import { DiffEditor } from "../../src/saucebot/tools/DiffEditor";
+import { createUnifiedDiff, formatUnifiedDiff } from "../../src/saucebot/tools/diff";
+import type { SkillLike } from "../../src/saucebot/ToolUseAdapter";
 import type { FilesService } from "../../src/services/core/FilesService";
 
 // ---------------------------------------------------------------------------
@@ -341,9 +341,9 @@ describe("WebResearchTool schema + execute", () => {
 // ToolUseAdapter.register — all tools wire cleanly
 // ---------------------------------------------------------------------------
 
-import { ToolUseAdapter } from "../../src/copilot/ToolUseAdapter";
-import { VaultContextProvider } from "../../src/copilot/VaultContextProvider";
-import { registerVaultTools } from "../../src/copilot/tools";
+import { ToolUseAdapter } from "../../src/saucebot/ToolUseAdapter";
+import { VaultContextProvider } from "../../src/saucebot/VaultContextProvider";
+import { registerVaultTools } from "../../src/saucebot/tools";
 
 describe("registerVaultTools — all 7 tools land on the adapter", () => {
   it("registers read_note, search_vault, propose_edit, apply_edit, create_note, web_research, get_links", () => {

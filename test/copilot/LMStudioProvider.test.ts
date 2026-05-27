@@ -1,13 +1,13 @@
 // LMStudioProvider — round-trip happy path + the regression case.
 //
-// The bug the operator hit: setting CopilotSettings.provider="lmstudio"
-// fell through CopilotRuntime's switch to AnthropicProvider, which then
+// The bug the operator hit: setting SauceBotSettings.provider="lmstudio"
+// fell through SauceBotRuntime's switch to AnthropicProvider, which then
 // tried `for (const c of json.content)` against an OpenAI-shaped LM
 // Studio response. The fix landed a `case "lmstudio"` branch; this suite
 // pins the contract so it can't regress silently.
 
 import { describe, expect, it } from "vitest";
-import { LMStudioProvider } from "../../src/copilot/LMStudioProvider";
+import { LMStudioProvider } from "../../src/saucebot/LMStudioProvider";
 import { ProviderHostMock } from "../_stubs/ProviderHostMock";
 
 function collect<T>(it: AsyncIterable<T>): Promise<T[]> {
@@ -95,9 +95,9 @@ describe("LMStudioProvider — happy path", () => {
 
 describe("LMStudioProvider — REGRESSION: LM Studio response must NOT be parsed as Anthropic", () => {
   // This test pins the bug-class. If a future refactor accidentally has
-  // CopilotRuntime route lmstudio through AnthropicProvider (or any
+  // SauceBotRuntime route lmstudio through AnthropicProvider (or any
   // provider that does `for (const c of json.content)` on the root),
-  // the test that follows in CopilotRuntime.test.ts catches it. Here we
+  // the test that follows in SauceBotRuntime.test.ts catches it. Here we
   // assert the LM Studio shape itself: `content` is on
   // choices[0].message, NOT on the root.
   it("LM Studio response shape has no root.content (content is at choices[0].message.content)", () => {

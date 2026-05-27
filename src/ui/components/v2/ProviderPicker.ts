@@ -1,7 +1,7 @@
 // Provider + model dropdown pair, populated from ModelCatalog. Replaces the
 // free-text "Model" input that used to live in every copilot-touching GUI
 // surface (settings sections/copilot, LocalLLMPage, OnboardingWizard,
-// CopilotChatView). Emits telemetry on every change so we can see which
+// SauceBotChatView). Emits telemetry on every change so we can see which
 // provider+model pairs users actually pick.
 
 import type SauceGraphPlugin from "../../../main";
@@ -11,7 +11,7 @@ import {
   type CatalogContext,
   type CatalogModel,
   type ProviderId,
-} from "../../../copilot/ModelCatalog";
+} from "../../../saucebot/ModelCatalog";
 
 export interface ProviderPickerOptions {
   /** Container DOM to render into (caller owns the parent). */

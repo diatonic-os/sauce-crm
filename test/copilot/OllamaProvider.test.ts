@@ -1,7 +1,7 @@
 // OllamaProvider — NDJSON streaming + batch fallback contract.
 
 import { describe, expect, it } from "vitest";
-import { OllamaProvider } from "../../src/copilot/OllamaProvider";
+import { OllamaProvider } from "../../src/saucebot/OllamaProvider";
 import { ProviderHostMock } from "../_stubs/ProviderHostMock";
 
 async function collect<T>(it: AsyncIterable<T>): Promise<T[]> {

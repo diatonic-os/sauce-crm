@@ -354,5 +354,5 @@ function splitCsv(value: string): string[] {
 
 function bodyFor(heading: string, body: string): string {
   const safe = body.trim();
-  return `\n## ${heading}\n\n${safe || "_Captured from Sauce CRM modal._"}\n\n## Copilot Feed\n\n- [ ] Review and enrich this record.\n\n## Links\n\n- Contact:\n- Org:\n`;
+  return `\n## ${heading}\n\n${safe || "_Captured from Sauce CRM modal._"}\n\n## SauceBot Feed\n\n- [ ] Review and enrich this record.\n\n## Links\n\n- Contact:\n- Org:\n`;
 }

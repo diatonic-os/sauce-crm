@@ -8,11 +8,11 @@ import {
   PROVIDER_IDS,
   buildProvider,
   type ProviderId,
-} from "../../src/copilot/ProviderRegistry";
-import { OpenAICompatibleProvider } from "../../src/copilot/OpenAICompatibleProvider";
-import { AnthropicProvider } from "../../src/copilot/AnthropicProvider";
-import { OllamaProvider } from "../../src/copilot/OllamaProvider";
-import { LMStudioSdkProvider } from "../../src/copilot/LMStudioSdkProvider";
+} from "../../src/saucebot/ProviderRegistry";
+import { OpenAICompatibleProvider } from "../../src/saucebot/OpenAICompatibleProvider";
+import { AnthropicProvider } from "../../src/saucebot/AnthropicProvider";
+import { OllamaProvider } from "../../src/saucebot/OllamaProvider";
+import { LMStudioSdkProvider } from "../../src/saucebot/LMStudioSdkProvider";
 import { ProviderHostMock } from "../_stubs/ProviderHostMock";
 
 async function collect<T>(it: AsyncIterable<T>): Promise<T[]> {

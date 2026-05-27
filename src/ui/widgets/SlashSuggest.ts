@@ -4,7 +4,7 @@
 // popover: typing a leading "/" opens a scrollable, keyboard-navigable list of
 // skills + slash-command macros sourced from the runtime. Picking one runs the
 // chosen skill as a forced tool call (skills) or substitutes the macro
-// (commands) — wired in CopilotChatView.
+// (commands) — wired in SauceBotChatView.
 //
 // The filter + navigation logic is exported as pure functions so it can be
 // unit-tested without a DOM. ReDoS-safe (the trigger regex is linear).

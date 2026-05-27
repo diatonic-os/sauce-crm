@@ -1,8 +1,8 @@
 // VaultContextProvider — link/backlink index tests (F2 / CON-SAUCEBOT S2).
 
 import { describe, expect, it } from "vitest";
-import { VaultContextProvider } from "../../src/copilot/VaultContextProvider";
-import type { MetadataCacheHost } from "../../src/copilot/VaultContextProvider";
+import { VaultContextProvider } from "../../src/saucebot/VaultContextProvider";
+import type { MetadataCacheHost } from "../../src/saucebot/VaultContextProvider";
 
 function makeCache(links: Record<string, Record<string, number>>): MetadataCacheHost {
   return { resolvedLinks: links };

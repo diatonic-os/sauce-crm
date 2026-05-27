@@ -1,16 +1,16 @@
-// CopilotRuntime multi-turn tool-use loop.
+// SauceBotRuntime multi-turn tool-use loop.
 // Pins: (1) the runtime feeds tool results back as new messages, (2) the
 // max-turn cap fires when a provider keeps emitting tool_use forever.
 
 import { describe, expect, it, vi } from "vitest";
-import { CopilotRuntime, type CopilotSettings } from "../../src/copilot/CopilotRuntime";
-import type { ChatMessage, CompletionEvent, CompletionRequest, ICopilotProvider, ModelDescriptor, ProviderCapabilities } from "../../src/copilot/ICopilotProvider";
+import { SauceBotRuntime, type SauceBotSettings } from "../../src/saucebot/SauceBotRuntime";
+import type { ChatMessage, CompletionEvent, CompletionRequest, ISauceBotProvider, ModelDescriptor, ProviderCapabilities } from "../../src/saucebot/ISauceBotProvider";
 
 interface Round {
   events: CompletionEvent[];
 }
 
-class ScriptedProvider implements ICopilotProvider {
+class ScriptedProvider implements ISauceBotProvider {
   readonly name = "scripted";
   readonly models: ModelDescriptor[] = [];
   public seen: ChatMessage[][] = [];
@@ -26,8 +26,8 @@ class ScriptedProvider implements ICopilotProvider {
   }
 }
 
-function makeRuntime(provider: ICopilotProvider) {
-  const settings: CopilotSettings = {
+function makeRuntime(provider: ISauceBotProvider) {
+  const settings: SauceBotSettings = {
     provider: "anthropic", model: "m", apiKey: "k",
     temperature: 0, maxTokens: 100, systemPrompt: "sys",
   };
@@ -37,7 +37,7 @@ function makeRuntime(provider: ICopilotProvider) {
   const entities = {} as any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const search = {} as any;
-  const rt = new CopilotRuntime(app, entities, search, settings);
+  const rt = new SauceBotRuntime(app, entities, search, settings);
   // Stub RAG to avoid touching the real host adapters.
   rt.rag = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,7 +59,7 @@ function makeRuntime(provider: ICopilotProvider) {
   return rt;
 }
 
-describe("CopilotRuntime.ask — multi-turn tool loop", () => {
+describe("SauceBotRuntime.ask — multi-turn tool loop", () => {
   it("feeds tool result back as a new message and completes on end_turn", async () => {
     const provider = new ScriptedProvider([
       { events: [

@@ -8,7 +8,7 @@
 // Dependency injection: the constructor takes the minimal interfaces it needs
 // (it news up nothing) so it stays unit-testable with plain fakes and never
 // pulls a real LanceDB connection into tests. Production wiring injects the real
-// LanceVectorIndex, the real LanceProvenanceStore, and CopilotRuntime.embed.
+// LanceVectorIndex, the real LanceProvenanceStore, and SauceBotRuntime.embed.
 
 import type {
   BackendMode,

@@ -1,20 +1,20 @@
 // CON-SAUCEBOT S1 — Provider Registry (the keystone).
 //
 // One `ProviderSpec` entry per provider is the single source of truth for
-// "what providers exist". The runtime (CopilotRuntime.provider/embedProvider),
+// "what providers exist". The runtime (SauceBotRuntime.provider/embedProvider),
 // the model catalog, the chat header lists, the settings provider picker, and
 // the vault-bound credential keys all derive from this registry — so adding a
 // provider is one entry here, not edits across ~7 files.
 //
 // `buildProvider()` is the harness factory: it maps a spec's `harness` to a
-// concrete ICopilotProvider, sharing the OpenAI-compatible harness across
+// concrete ISauceBotProvider, sharing the OpenAI-compatible harness across
 // openai / lmstudio / nim / openrouter / groq / gemini.
 
 import type {
-  ICopilotProvider,
+  ISauceBotProvider,
   ModelDescriptor,
   ProviderHost,
-} from "./ICopilotProvider";
+} from "./ISauceBotProvider";
 import type { CredentialSource } from "./CredentialSource";
 import { OpenAICompatibleProvider } from "./OpenAICompatibleProvider";
 import { AnthropicProvider } from "./AnthropicProvider";
@@ -260,7 +260,7 @@ export interface BuildProviderOpts {
 }
 
 /**
- * Harness factory — maps a provider id to a concrete ICopilotProvider via its
+ * Harness factory — maps a provider id to a concrete ISauceBotProvider via its
  * registry spec. Synchronous (the apiKey getter is resolved lazily at request
  * time inside each provider).
  */
@@ -268,7 +268,7 @@ export function buildProvider(
   id: ProviderId,
   host: ProviderHost,
   opts: BuildProviderOpts = {},
-): ICopilotProvider {
+): ISauceBotProvider {
   const spec = getProviderSpec(id);
   const baseUrl = opts.baseUrl || spec.baseUrl || "";
   switch (spec.harness) {

@@ -3,7 +3,7 @@
 // MetadataCache + requestUrl + my V1 EntityService/SearchService.
 
 import { App, normalizePath, TFile, requestUrl } from "obsidian";
-import type { ProviderHost } from "./ICopilotProvider";
+import type { ProviderHost } from "./ISauceBotProvider";
 import type { RagAssemblerHost } from "./RagAssembler";
 import type { ConversationHost } from "./ConversationStore";
 import { EntityService } from "../services/EntityService";

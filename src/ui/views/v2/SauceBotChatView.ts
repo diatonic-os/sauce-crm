@@ -1,4 +1,4 @@
-// Working chat surface for the Sauce Copilot. Wraps the V2 CopilotRuntime
+// Working chat surface for the Sauce Copilot. Wraps the V2 SauceBotRuntime
 // (provider + RAG + tool-use) in a real Obsidian ItemView.
 //
 // Layout (imitates the reference composer, adapted to Sauce):
@@ -20,12 +20,12 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
-import type { ChatMessage } from "../../../copilot/ICopilotProvider";
-import type { CopilotSession } from "../../../copilot/ConversationStore";
+import type { ChatMessage } from "../../../saucebot/ISauceBotProvider";
+import type { SauceBotSession } from "../../../saucebot/ConversationStore";
 import {
   sharedModelCatalog,
   type CatalogModel,
-} from "../../../copilot/ModelCatalog";
+} from "../../../saucebot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 import { SlashSuggest, type SlashItem } from "../../widgets/SlashSuggest";
 import type { DocFormat } from "../../../services/DocumentHarvest";
@@ -67,7 +67,7 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export class CopilotChatView extends ItemView {
+export class SauceBotChatView extends ItemView {
   private history: ChatMessage[] = [];
   private inputEl!: HTMLTextAreaElement;
   private transcriptEl!: HTMLDivElement;
@@ -480,7 +480,7 @@ export class CopilotChatView extends ItemView {
   private async persistCurrentSession(): Promise<void> {
     if (!this.history.length || !this.plugin.copilot) return;
     const s = this.plugin.copilot.getSettings();
-    const session: CopilotSession = {
+    const session: SauceBotSession = {
       id: this.sessionId,
       createdTs: this.sessionCreatedTs,
       updatedTs: Date.now(),

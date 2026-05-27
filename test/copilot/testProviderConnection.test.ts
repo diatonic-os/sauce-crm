@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { testProviderConnection } from "../../src/copilot/testProviderConnection";
-import type { ModelCatalog, CatalogModel } from "../../src/copilot/ModelCatalog";
+import { testProviderConnection } from "../../src/saucebot/testProviderConnection";
+import type { ModelCatalog, CatalogModel } from "../../src/saucebot/ModelCatalog";
 
 function fakeCatalog(impl: () => Promise<CatalogModel[]>): ModelCatalog {
   return { list: impl } as unknown as ModelCatalog;

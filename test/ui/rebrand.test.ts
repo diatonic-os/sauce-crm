@@ -5,15 +5,15 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  CopilotChatView,
+  SauceBotChatView,
   VIEW_COPILOT_CHAT,
-} from "../../src/ui/views/v2/CopilotChatView";
+} from "../../src/ui/views/v2/SauceBotChatView";
 import { V2_COMMANDS } from "../../src/ui/commands/V2Commands";
 
 describe("rebrand → SauceBot (user-facing strings)", () => {
   it("the chat view title reads 'Sauce: SauceBot'", () => {
     const title = (
-      CopilotChatView.prototype as unknown as { getDisplayText(): string }
+      SauceBotChatView.prototype as unknown as { getDisplayText(): string }
     ).getDisplayText.call({});
     expect(title).toBe("Sauce: SauceBot");
   });
@@ -42,7 +42,7 @@ describe("chat markdown rendering (S7)", () => {
       plugin: { app: { workspace: { getActiveFile: () => null } } },
     };
     await (
-      CopilotChatView.prototype as unknown as {
+      SauceBotChatView.prototype as unknown as {
         renderMarkdownInto(el: HTMLElement, md: string): Promise<void>;
       }
     ).renderMarkdownInto.call(fakeThis, el, "# Heading\n\nbody text");

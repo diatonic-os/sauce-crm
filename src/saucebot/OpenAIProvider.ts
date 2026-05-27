@@ -2,7 +2,7 @@
 // Thin config over the shared OpenAICompatibleProvider harness (CON-SAUCEBOT
 // S1): the streaming/batch/tool-call/embeddings logic lives in the base; this
 // class just pins OpenAI's defaults (always-bearer auth, curated model list).
-import type { ModelDescriptor, ProviderHost } from "./ICopilotProvider";
+import type { ModelDescriptor, ProviderHost } from "./ISauceBotProvider";
 import { OpenAICompatibleProvider } from "./OpenAICompatibleProvider";
 
 const MODELS: ModelDescriptor[] = [

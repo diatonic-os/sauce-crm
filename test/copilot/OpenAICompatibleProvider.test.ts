@@ -5,7 +5,7 @@
 // knobs that distinguish one config from another.
 
 import { describe, expect, it } from "vitest";
-import { OpenAICompatibleProvider } from "../../src/copilot/OpenAICompatibleProvider";
+import { OpenAICompatibleProvider } from "../../src/saucebot/OpenAICompatibleProvider";
 import { ProviderHostMock } from "../_stubs/ProviderHostMock";
 
 async function collect<T>(it: AsyncIterable<T>): Promise<T[]> {

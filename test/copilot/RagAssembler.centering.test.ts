@@ -3,7 +3,7 @@
 // configured centerTop.
 
 import { describe, expect, it } from "vitest";
-import { RagAssembler, type RagAssemblerHost } from "../../src/copilot/RagAssembler";
+import { RagAssembler, type RagAssemblerHost } from "../../src/saucebot/RagAssembler";
 
 function makeHost(over: Partial<RagAssemblerHost> = {}): RagAssemblerHost {
   const base: RagAssemblerHost = {

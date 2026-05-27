@@ -2,11 +2,11 @@
 import type {
   CompletionEvent,
   CompletionRequest,
-  ICopilotProvider,
+  ISauceBotProvider,
   ModelDescriptor,
   ProviderCapabilities,
   ProviderHost,
-} from "./ICopilotProvider";
+} from "./ISauceBotProvider";
 import { parseSse } from "./StreamParsers";
 
 const MODELS: ModelDescriptor[] = [
@@ -30,7 +30,7 @@ const MODELS: ModelDescriptor[] = [
   },
 ];
 
-export class AnthropicProvider implements ICopilotProvider {
+export class AnthropicProvider implements ISauceBotProvider {
   readonly name = "anthropic";
   readonly models = MODELS;
   constructor(

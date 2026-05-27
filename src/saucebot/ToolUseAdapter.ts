@@ -1,5 +1,5 @@
 // SPEC §19.4 — Maps skills to Anthropic tool-use / OpenAI function-calling schemas.
-import type { ToolDef } from "./ICopilotProvider";
+import type { ToolDef } from "./ISauceBotProvider";
 import type { ApprovalGate } from "../contract/ApprovalGate";
 
 export interface SkillLike {
@@ -70,7 +70,7 @@ export class ToolUseAdapter {
 
   /**
    * Dispatch by name without throwing; returns `{ error: 'unknown tool' }` if
-   * no skill is registered for `name`. Used by CopilotRuntime's multi-turn
+   * no skill is registered for `name`. Used by SauceBotRuntime's multi-turn
    * tool-use loop where unknown tools should be reported back to the model
    * rather than aborting the conversation.
    *

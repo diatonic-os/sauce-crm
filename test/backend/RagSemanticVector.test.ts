@@ -4,7 +4,7 @@ import type { App } from "obsidian";
 import { tmpLance, type TmpLance } from "./_lance-tmp";
 import { TABLES } from "../../src/backend/lance/LanceSchema";
 import { LanceVectorIndex } from "../../src/backend/lance/LanceVectorIndex";
-import { ObsidianRagHost } from "../../src/copilot/CopilotHostAdapters";
+import { ObsidianRagHost } from "../../src/saucebot/SauceBotHostAdapters";
 import type { SearchService } from "../../src/services/SearchService";
 import type { EntityService } from "../../src/services/EntityService";
 

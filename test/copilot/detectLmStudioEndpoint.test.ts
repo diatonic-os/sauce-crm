@@ -5,8 +5,8 @@ import {
   subnetHostsFromIPs,
   scanLanForLmStudio,
   LM_STUDIO_PORT,
-} from "../../src/copilot/detectLmStudioEndpoint";
-import type { ProviderTestResult } from "../../src/copilot/testProviderConnection";
+} from "../../src/saucebot/detectLmStudioEndpoint";
+import type { ProviderTestResult } from "../../src/saucebot/testProviderConnection";
 
 const ok: ProviderTestResult = {
   ok: true,

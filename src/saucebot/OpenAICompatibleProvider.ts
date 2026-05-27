@@ -17,11 +17,11 @@
 import type {
   CompletionEvent,
   CompletionRequest,
-  ICopilotProvider,
+  ISauceBotProvider,
   ModelDescriptor,
   ProviderCapabilities,
   ProviderHost,
-} from "./ICopilotProvider";
+} from "./ISauceBotProvider";
 import { parseSse } from "./StreamParsers";
 
 export interface OpenAICompatSpec {
@@ -44,7 +44,7 @@ export interface OpenAICompatSpec {
   vision?: boolean;
 }
 
-export class OpenAICompatibleProvider implements ICopilotProvider {
+export class OpenAICompatibleProvider implements ISauceBotProvider {
   readonly name: string;
   models: ModelDescriptor[];
 

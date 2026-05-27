@@ -1,7 +1,7 @@
 // Mock ProviderHost — a programmable fetch double that lets tests stage
 // canned responses for any URL. Captures requests for assertions.
 
-import type { ProviderHost } from "../../src/copilot/ICopilotProvider";
+import type { ProviderHost } from "../../src/saucebot/ISauceBotProvider";
 
 export interface RecordedRequest {
   url: string;

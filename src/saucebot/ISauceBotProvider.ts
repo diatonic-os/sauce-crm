@@ -51,7 +51,7 @@ export type CompletionEvent =
       error?: string;
     };
 
-export interface ICopilotProvider {
+export interface ISauceBotProvider {
   readonly name: string;
   readonly models: ModelDescriptor[];
   capabilities(): ProviderCapabilities;

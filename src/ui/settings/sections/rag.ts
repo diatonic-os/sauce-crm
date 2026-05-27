@@ -7,7 +7,7 @@ import { Notice, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { addToggleRow } from "../../components/v2/ToggleRow";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
-import type { ProviderId } from "../../../copilot/ModelCatalog";
+import type { ProviderId } from "../../../saucebot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 import { DEFAULT_EMBEDDING_DIM } from "../../../backend/lance";
 

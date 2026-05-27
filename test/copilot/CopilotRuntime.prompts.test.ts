@@ -1,6 +1,6 @@
-// T6 — prompt composition + session management on CopilotRuntime.
+// T6 — prompt composition + session management on SauceBotRuntime.
 import { describe, expect, it } from "vitest";
-import { CopilotRuntime, type CopilotSettings } from "../../src/copilot/CopilotRuntime";
+import { SauceBotRuntime, type SauceBotSettings } from "../../src/saucebot/SauceBotRuntime";
 
 function stubs() {
   const app = { vault: {}, metadataCache: {} } as never;
@@ -9,16 +9,16 @@ function stubs() {
   return { app, entities, search };
 }
 
-function rt(): CopilotRuntime {
-  const settings: CopilotSettings = {
+function rt(): SauceBotRuntime {
+  const settings: SauceBotSettings = {
     provider: "lmstudio", model: "m", apiKey: "", temperature: 0.3, maxTokens: 100,
     systemPrompt: "BASE PROMPT",
   };
   const { app, entities, search } = stubs();
-  return new CopilotRuntime(app, entities, search, settings);
+  return new SauceBotRuntime(app, entities, search, settings);
 }
 
-describe("CopilotRuntime — prompt composition (T6)", () => {
+describe("SauceBotRuntime — prompt composition (T6)", () => {
   it("uses the base prompt alone by default", () => {
     expect(rt().composeSystemPrompt()).toBe("BASE PROMPT");
   });
@@ -45,7 +45,7 @@ describe("CopilotRuntime — prompt composition (T6)", () => {
   });
 });
 
-describe("CopilotRuntime — session autonaming (T6)", () => {
+describe("SauceBotRuntime — session autonaming (T6)", () => {
   it("derives a title from the first message line when enabled", () => {
     const r = rt();
     r.setPromptConfig({ globalSystemPrompt: "", sessionAutoNaming: true });

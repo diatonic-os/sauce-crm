@@ -11,7 +11,7 @@
 
 import * as tls from "node:tls";
 import * as net from "node:net";
-import type { CredentialSource } from "../../copilot/CredentialSource";
+import type { CredentialSource } from "../../saucebot/CredentialSource";
 
 export type ImapAuthMode = "plain" | "xoauth2";
 

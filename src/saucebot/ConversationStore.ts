@@ -1,7 +1,7 @@
 // SPEC §19.5 — Sessions saved under _addenda/_copilot/YYYY-MM-DD-<slug>.md.
-import type { ChatMessage } from "./ICopilotProvider";
+import type { ChatMessage } from "./ISauceBotProvider";
 
-export interface CopilotSession {
+export interface SauceBotSession {
   id: string;
   createdTs: number;
   updatedTs: number;
@@ -42,11 +42,11 @@ export class ConversationStore {
     private readonly root = "_addenda/_copilot",
   ) {}
 
-  pathFor(s: CopilotSession, titleHint = ""): string {
+  pathFor(s: SauceBotSession, titleHint = ""): string {
     return `${this.root}/${isoDate(s.createdTs)}-${slug(titleHint || s.id)}.md`;
   }
 
-  async save(s: CopilotSession, titleHint = ""): Promise<string> {
+  async save(s: SauceBotSession, titleHint = ""): Promise<string> {
     const path = this.pathFor(s, titleHint);
     const body = s.messages
       .map(

@@ -4,12 +4,12 @@ import { Platform, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import { InlineStatus } from "../../components/v2/InlineStatus";
-import { testProviderConnection } from "../../../copilot/testProviderConnection";
+import { testProviderConnection } from "../../../saucebot/testProviderConnection";
 import {
   detectLmStudioEndpoint,
   scanLanForLmStudio,
-} from "../../../copilot/detectLmStudioEndpoint";
-import type { ProviderId } from "../../../copilot/ModelCatalog";
+} from "../../../saucebot/detectLmStudioEndpoint";
+import type { ProviderId } from "../../../saucebot/ModelCatalog";
 import { renderRagEmbeddings } from "./rag";
 import { renderEnrichment } from "./enrichment";
 import { renderDocuments } from "./documents";
@@ -35,7 +35,7 @@ export function renderCopilot(
 ): void {
   plugin.logger?.debug?.("settings.section_render", { section: "copilot" });
   // Copilot v2 shipped in P9; render real settings.
-  // CopilotSettings is typed but not all runtime-mutable fields are promoted;
+  // SauceBotSettings is typed but not all runtime-mutable fields are promoted;
   // the `cfg` bag is written back via plugin.saveSettings() so persistence is safe.
   const cfg = plugin.settings.copilot as unknown as Record<string, unknown>;
   /** Narrow a bag entry to string, or return `fallback`. */

@@ -1,4 +1,4 @@
-export * from "./ICopilotProvider";
+export * from "./ISauceBotProvider";
 export { AnthropicProvider } from "./AnthropicProvider";
 export { OpenAIProvider } from "./OpenAIProvider";
 export { OllamaProvider, type OllamaConfig } from "./OllamaProvider";

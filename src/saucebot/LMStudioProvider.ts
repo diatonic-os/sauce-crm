@@ -8,8 +8,8 @@
 // Studio's mutable config (endpoint/apiKey/defaultModel/dynamic toolUse) plus
 // the REST-only extras (`refreshModels`, `ping`) and routes the harness's
 // overridable hooks at its live `cfg`.
-import type { ModelDescriptor, ProviderHost } from "./ICopilotProvider";
-import type { CompletionRequest } from "./ICopilotProvider";
+import type { ModelDescriptor, ProviderHost } from "./ISauceBotProvider";
+import type { CompletionRequest } from "./ISauceBotProvider";
 import { OpenAICompatibleProvider } from "./OpenAICompatibleProvider";
 
 export interface LMStudioConfig {

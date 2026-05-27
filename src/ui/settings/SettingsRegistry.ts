@@ -7,7 +7,7 @@ import { EdgesPage } from "./EdgesPage";
 import { CompatibilityPage } from "./CompatibilityPage";
 import { SemiringsPage } from "./SemiringsPage";
 import { SearchPage } from "./SearchPage";
-import { CopilotPage } from "./CopilotPage";
+import { SauceBotPage } from "./SauceBotPage";
 import { LocalLLMPage } from "./LocalLLMPage";
 import { SkillsPage } from "./SkillsPage";
 import { IntegrationsRoot } from "./IntegrationsRoot";
@@ -42,7 +42,7 @@ export function buildSettingsTree(host: SettingsHost): PageNode[] {
     { page: new CompatibilityPage(host) },
     { page: new SemiringsPage(host) },
     { page: new SearchPage(host) },
-    { page: new CopilotPage(host) },
+    { page: new SauceBotPage(host) },
     { page: new LocalLLMPage(host) },
     { page: new SkillsPage(host) },
     {

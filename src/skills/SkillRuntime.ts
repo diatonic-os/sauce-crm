@@ -12,8 +12,8 @@ import {
   SkillResult,
   AutonomyLevel,
 } from "./index";
-import { CopilotRuntime } from "../copilot/CopilotRuntime";
-import { ToolUseAdapter } from "../copilot/ToolUseAdapter";
+import { SauceBotRuntime } from "../saucebot/SauceBotRuntime";
+import { ToolUseAdapter } from "../saucebot/ToolUseAdapter";
 import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
 import { QueryService } from "../services/QueryService";
@@ -39,7 +39,7 @@ export class SkillRuntime {
     private entities: EntityService,
     private search: SearchService,
     private query: QueryService,
-    private copilot: () => CopilotRuntime | null,
+    private copilot: () => SauceBotRuntime | null,
   ) {
     this.registry = new SkillRegistry();
   }
@@ -182,7 +182,7 @@ export class SkillRuntime {
 
   /**
    * Per-skill dispatch table. Each skill's `ctx.call(serviceId, args)` lands here.
-   * Skills that need LLM grounding route through CopilotRuntime.ask().
+   * Skills that need LLM grounding route through SauceBotRuntime.ask().
    * Skills that are structural use direct vault/query APIs.
    */
   private async dispatch<T>(serviceId: string, args: unknown): Promise<T> {

@@ -10,7 +10,7 @@ export {
   VIEW_SKILL_RUN_LOG,
   skillRunRing,
 } from "./SkillRunLogView";
-export { CopilotChatView, VIEW_COPILOT_CHAT } from "./CopilotChatView";
+export { SauceBotChatView, VIEW_COPILOT_CHAT } from "./SauceBotChatView";
 
 export const V2_VIEW_TYPES = [
   "sauce-map",

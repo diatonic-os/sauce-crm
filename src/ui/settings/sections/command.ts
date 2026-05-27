@@ -6,7 +6,7 @@ import type SauceGraphPlugin from "../../../main";
 import {
   defaultSlashCommands,
   type SlashCommand,
-} from "../../../copilot/SlashCommands";
+} from "../../../saucebot/SlashCommands";
 
 function slug(name: string): string {
   return (

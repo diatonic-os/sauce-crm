@@ -1,5 +1,5 @@
 import { SettingsPage, type SettingsHost, el } from "./SettingsPage";
-export class CopilotPage extends SettingsPage {
+export class SauceBotPage extends SettingsPage {
   readonly id = "copilot";
   readonly title = "SauceBot";
   readonly group = "ai";

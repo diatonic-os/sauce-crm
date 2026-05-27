@@ -3,7 +3,7 @@
 // lexical fuzzy fallback; when it yields nothing, lexical wins.
 
 import { describe, expect, it } from "vitest";
-import { ObsidianRagHost } from "../../src/copilot/CopilotHostAdapters";
+import { ObsidianRagHost } from "../../src/saucebot/SauceBotHostAdapters";
 
 function makeHost() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -3,11 +3,11 @@
 import type {
   CompletionEvent,
   CompletionRequest,
-  ICopilotProvider,
+  ISauceBotProvider,
   ModelDescriptor,
   ProviderCapabilities,
   ProviderHost,
-} from "./ICopilotProvider";
+} from "./ISauceBotProvider";
 import { parseNdjson } from "./StreamParsers";
 
 export interface OllamaConfig {
@@ -16,7 +16,7 @@ export interface OllamaConfig {
   defaultModel?: string; // pre-selected when no req.model
 }
 
-export class OllamaProvider implements ICopilotProvider {
+export class OllamaProvider implements ISauceBotProvider {
   readonly name = "ollama";
   models: ModelDescriptor[] = [];
   private cfg: OllamaConfig;

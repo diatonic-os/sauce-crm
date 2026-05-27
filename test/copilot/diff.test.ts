@@ -11,7 +11,7 @@ import {
   applyDiffString,
   DiffParseError,
   DiffApplyError,
-} from "../../src/copilot/tools/diff";
+} from "../../src/saucebot/tools/diff";
 
 // ---------------------------------------------------------------------------
 // diffLines

@@ -86,8 +86,8 @@ export interface VaultToolDeps {
  * ## How to call from main.ts
  *
  * ```ts
- * import { registerVaultTools } from "./copilot/tools";
- * import { VaultContextProvider } from "./copilot/VaultContextProvider";
+ * import { registerVaultTools } from "./saucebot/tools";
+ * import { VaultContextProvider } from "./saucebot/VaultContextProvider";
  *
  * // In SauceGraphPlugin.onload():
  * const linkProvider = new VaultContextProvider(this.app.metadataCache);
@@ -115,7 +115,7 @@ export interface VaultToolDeps {
  *   editHost: {
  *     read: async (path) => { /* same as readHost.read *\/ },
  *     generateEdit: async (path, original, instructions) => {
- *       // call CopilotRuntime for a one-shot rewrite
+ *       // call SauceBotRuntime for a one-shot rewrite
  *       return await this.copilot.rewrite(original, instructions);
  *     },
  *     diff: (original, updated, label) => {

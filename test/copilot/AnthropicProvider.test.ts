@@ -2,7 +2,7 @@
 // uses root.content as an array of {type, text, ...} parts.
 
 import { describe, expect, it } from "vitest";
-import { AnthropicProvider } from "../../src/copilot/AnthropicProvider";
+import { AnthropicProvider } from "../../src/saucebot/AnthropicProvider";
 import { ProviderHostMock } from "../_stubs/ProviderHostMock";
 
 function collect<T>(it: AsyncIterable<T>): Promise<T[]> {

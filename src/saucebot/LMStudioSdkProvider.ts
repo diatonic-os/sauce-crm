@@ -1,12 +1,12 @@
-// SPEC §19.1 — LM Studio via official SDK, exposed as ICopilotProvider.
+// SPEC §19.1 — LM Studio via official SDK, exposed as ISauceBotProvider.
 // Delegates to the rich service surface under `./lmstudio/`.
 import type {
   CompletionEvent,
   CompletionRequest,
-  ICopilotProvider,
+  ISauceBotProvider,
   ModelDescriptor,
   ProviderCapabilities,
-} from "./ICopilotProvider";
+} from "./ISauceBotProvider";
 import type { CredentialSource } from "./CredentialSource";
 import {
   buildLMStudioIntegration,
@@ -14,7 +14,7 @@ import {
   type LMStudioClientConfig,
 } from "./lmstudio";
 
-export class LMStudioSdkProvider implements ICopilotProvider {
+export class LMStudioSdkProvider implements ISauceBotProvider {
   readonly name = "lmstudio-sdk";
   models: ModelDescriptor[] = [];
   private integration: LMStudioIntegration | null = null;

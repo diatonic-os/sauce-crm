@@ -19,21 +19,21 @@ import type SauceGraphPlugin from "../../../main";
 import { TemplateService } from "../../../services/TemplateService";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
 import { InlineStatus } from "../../components/v2/InlineStatus";
-import { testProviderConnection } from "../../../copilot/testProviderConnection";
+import { testProviderConnection } from "../../../saucebot/testProviderConnection";
 import {
   detectLmStudioEndpoint,
   scanLanForLmStudio,
-} from "../../../copilot/detectLmStudioEndpoint";
-import type { ProviderId } from "../../../copilot/ModelCatalog";
+} from "../../../saucebot/detectLmStudioEndpoint";
+import type { ProviderId } from "../../../saucebot/ModelCatalog";
 import type { LocalProviderId } from "../../../settings/FeatureSettings";
 
 // The wizard configures the four providers the Copilot runtime supports as an
-// active chat provider (CopilotSettings.provider). NIM is catalog-listable but
+// active chat provider (SauceBotSettings.provider). NIM is catalog-listable but
 // not a valid active copilot provider, so it's intentionally excluded here.
-type CopilotProvider = "anthropic" | "openai" | "ollama" | "lmstudio";
+type SauceBotProvider = "anthropic" | "openai" | "ollama" | "lmstudio";
 
 interface WizProvider {
-  id: CopilotProvider;
+  id: SauceBotProvider;
   label: string;
   local: boolean;
 }
@@ -59,9 +59,9 @@ export class OnboardingWizardModal extends Modal {
 
   // Step 3 — providers: transient key drafts (endpoints/models persist to
   // settings directly). Tracks which providers the user saved a key for.
-  private keyDraft = new Map<CopilotProvider, string>();
-  private keySaved = new Set<CopilotProvider>();
-  private activeProvider: CopilotProvider = "anthropic";
+  private keyDraft = new Map<SauceBotProvider, string>();
+  private keySaved = new Set<SauceBotProvider>();
+  private activeProvider: SauceBotProvider = "anthropic";
   private activeModel = "";
   private providersConfigured = false;
   private lmDetectRan = false;
@@ -83,7 +83,7 @@ export class OnboardingWizardModal extends Modal {
     super(app);
     const cur = this.plugin.settings.copilot;
     if (cur) {
-      const p = cur.provider as CopilotProvider;
+      const p = cur.provider as SauceBotProvider;
       if (WIZ_PROVIDERS.some((w) => w.id === p)) this.activeProvider = p;
       this.activeModel = cur.model ?? "";
     }
@@ -124,14 +124,14 @@ export class OnboardingWizardModal extends Modal {
     const kv = this.plugin.keyVault;
     return !!kv && !kv.isLocked();
   }
-  private vaultServiceFor(p: CopilotProvider): string {
+  private vaultServiceFor(p: SauceBotProvider): string {
     return `copilot:${p}:api-key`;
   }
 
   /** Persist a provider key: vault (if unlocked) + mirror the active provider's
    *  key into settings so the runtime can use it today. */
   private async storeProviderKey(
-    p: CopilotProvider,
+    p: SauceBotProvider,
     key: string,
   ): Promise<void> {
     if (this.vaultUnlocked()) {
@@ -148,7 +148,7 @@ export class OnboardingWizardModal extends Modal {
     return this.plugin.settings.features.localLLM[p];
   }
 
-  private endpointFor(p: CopilotProvider): string | undefined {
+  private endpointFor(p: SauceBotProvider): string | undefined {
     return p === "ollama" || p === "lmstudio"
       ? this.localCfg(p).endpoint
       : undefined;
@@ -352,7 +352,7 @@ export class OnboardingWizardModal extends Modal {
       for (const p of WIZ_PROVIDERS) d.addOption(p.id, p.label);
       d.setValue(this.activeProvider);
       d.onChange((v) => {
-        this.activeProvider = v as CopilotProvider;
+        this.activeProvider = v as SauceBotProvider;
         this.syncActive();
         this.renderStep(this.step);
       });

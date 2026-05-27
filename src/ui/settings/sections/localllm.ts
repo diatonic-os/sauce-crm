@@ -7,7 +7,7 @@
 import { Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
-import type { ProviderId } from "../../../copilot/ModelCatalog";
+import type { ProviderId } from "../../../saucebot/ModelCatalog";
 import type { LocalProviderId } from "../../../settings/FeatureSettings";
 
 const LOCAL: { id: LocalProviderId; label: string }[] = [

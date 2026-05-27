@@ -1,7 +1,7 @@
 // OpenAIProvider — SSE streaming + batch fallback contract.
 
 import { describe, expect, it } from "vitest";
-import { OpenAIProvider } from "../../src/copilot/OpenAIProvider";
+import { OpenAIProvider } from "../../src/saucebot/OpenAIProvider";
 import { ProviderHostMock } from "../_stubs/ProviderHostMock";
 
 async function collect<T>(it: AsyncIterable<T>): Promise<T[]> {

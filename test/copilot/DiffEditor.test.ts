@@ -2,9 +2,9 @@
 // Covers: apply unified diff via a fake process; canon-guard path; idempotency.
 
 import { describe, expect, it, vi } from "vitest";
-import { DiffEditor } from "../../src/copilot/tools/DiffEditor";
-import { createUnifiedDiff, formatUnifiedDiff } from "../../src/copilot/tools/diff";
-import type { VaultProcessHost } from "../../src/copilot/tools/DiffEditor";
+import { DiffEditor } from "../../src/saucebot/tools/DiffEditor";
+import { createUnifiedDiff, formatUnifiedDiff } from "../../src/saucebot/tools/diff";
+import type { VaultProcessHost } from "../../src/saucebot/tools/DiffEditor";
 import type { FilesService } from "../../src/services/core/FilesService";
 
 // ---------------------------------------------------------------------------

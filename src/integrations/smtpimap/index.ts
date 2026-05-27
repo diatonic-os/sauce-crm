@@ -6,7 +6,7 @@ import type {
 import type { OAuthFlow } from "../../security/OAuthFlow";
 import type { ScopeRegistry } from "../../security/ScopeRegistry";
 import type { ProxyClient } from "../../security/ProxyClient";
-import type { CredentialSource } from "../../copilot/CredentialSource";
+import type { CredentialSource } from "../../saucebot/CredentialSource";
 import {
   SmtpImapClient,
   type SmtpImapAccount,

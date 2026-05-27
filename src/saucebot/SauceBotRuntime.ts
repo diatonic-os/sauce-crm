@@ -1,5 +1,5 @@
 // Orchestrator: provider selection + RAG assembly + streaming completion.
-// Keeps the chat surface (CopilotView) thin.
+// Keeps the chat surface (SauceBotView) thin.
 
 import { RagAssembler, ConversationStore, ToolUseAdapter } from "./index";
 import {
@@ -10,23 +10,23 @@ import {
 } from "./ProviderRegistry";
 import type {
   ChatMessage,
-  ICopilotProvider,
+  ISauceBotProvider,
   CompletionEvent,
-} from "./ICopilotProvider";
+} from "./ISauceBotProvider";
 import type { CredentialSource } from "./CredentialSource";
-import type { CopilotSession } from "./ConversationStore";
+import type { SauceBotSession } from "./ConversationStore";
 import {
   ObsidianProviderHost,
   ObsidianRagHost,
   ObsidianConversationHost,
-} from "./CopilotHostAdapters";
+} from "./SauceBotHostAdapters";
 import { App } from "obsidian";
 import { EntityService } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
 import type { LanceVectorIndex } from "../backend/lance";
 import { SlashCommand, defaultSlashCommands } from "./SlashCommands";
 
-export interface CopilotSettings {
+export interface SauceBotSettings {
   /** Provider id — derived from the ProviderRegistry (S1). Older saved
    *  settings only ever held anthropic/openai/ollama/lmstudio; the registry
    *  superset (nim/openrouter/groq/gemini/lmstudio-sdk) is now valid too. */
@@ -63,7 +63,7 @@ export interface EmbeddingRuntimeConfig {
   apiKey?: string;
 }
 
-export const COPILOT_DEFAULTS: CopilotSettings = {
+export const COPILOT_DEFAULTS: SauceBotSettings = {
   provider: "anthropic",
   model: "claude-opus-4-7",
   apiKey: "",
@@ -79,7 +79,7 @@ export const COPILOT_DEFAULTS: CopilotSettings = {
   promptsFolder: "copilot/sauce-commands",
 };
 
-export class CopilotRuntime {
+export class SauceBotRuntime {
   rag: RagAssembler;
   conversations: ConversationStore;
   toolUse: ToolUseAdapter;
@@ -89,7 +89,7 @@ export class CopilotRuntime {
     private app: App,
     entities: EntityService,
     search: SearchService,
-    private settings: CopilotSettings,
+    private settings: SauceBotSettings,
     /** LanceDB vector index for semantic RAG. When present (and an embed model
      *  is reachable), RagAssembler uses real embeddings; otherwise it falls
      *  back to fuzzy/tag-cosine search. */
@@ -188,7 +188,7 @@ export class CopilotRuntime {
   /** Persist a session, applying autonaming (the first user message names it
    *  when the toggle is on). Returns the saved path. */
   async persistSession(
-    session: CopilotSession,
+    session: SauceBotSession,
     firstMessage = "",
   ): Promise<string> {
     return this.conversations.save(
@@ -251,10 +251,10 @@ export class CopilotRuntime {
    * Best-effort: never throws.
    */
   private async inlineEntityContent(centered: string[]): Promise<string> {
-    const top = centered.slice(0, CopilotRuntime.ENTITY_INLINE_TOP_N);
+    const top = centered.slice(0, SauceBotRuntime.ENTITY_INLINE_TOP_N);
     if (top.length === 0) return "";
     const parts: string[] = [];
-    let budget = CopilotRuntime.ENTITY_INLINE_CEILING;
+    let budget = SauceBotRuntime.ENTITY_INLINE_CEILING;
     for (const path of top) {
       if (budget <= 0) break;
       try {
@@ -262,9 +262,9 @@ export class CopilotRuntime {
         const f = this.app.vault.getAbstractFileByPath(normalizePath(path));
         if (!(f instanceof TFile)) continue;
         const raw = await this.app.vault.cachedRead(f);
-        const body = CopilotRuntime.stripFrontmatter(raw).trim();
+        const body = SauceBotRuntime.stripFrontmatter(raw).trim();
         if (!body) continue;
-        const snippet = body.slice(0, CopilotRuntime.ENTITY_INLINE_PER_NOTE);
+        const snippet = body.slice(0, SauceBotRuntime.ENTITY_INLINE_PER_NOTE);
         const used = Math.min(snippet.length, budget);
         parts.push(`### ${path}\n${snippet.slice(0, used)}`);
         budget -= used;
@@ -309,7 +309,7 @@ export class CopilotRuntime {
   }
 
   /** Build the embedding provider from its config (independent of chat). */
-  private embedProvider(c: EmbeddingRuntimeConfig): ICopilotProvider {
+  private embedProvider(c: EmbeddingRuntimeConfig): ISauceBotProvider {
     return this.getOrBuildProvider(c.provider, {
       apiKey: async () => c.apiKey || undefined,
       baseUrl: c.endpoint,
@@ -322,7 +322,7 @@ export class CopilotRuntime {
   // and dynamic refreshModels()/JIT state. Memoize by (id, endpoint); the
   // apiKey getter closes over live settings so credential changes are still
   // picked up, and updateSettings/setEmbeddingConfig invalidate the cache.
-  private providerCache = new Map<string, ICopilotProvider>();
+  private providerCache = new Map<string, ISauceBotProvider>();
   /** Optional credential source for the lmstudio-sdk harness (JIT load). */
   private credentialSource: CredentialSource | null = null;
 
@@ -334,7 +334,7 @@ export class CopilotRuntime {
   private getOrBuildProvider(
     id: ProviderId,
     opts: BuildProviderOpts,
-  ): ICopilotProvider {
+  ): ISauceBotProvider {
     const key = `${id}::${opts.baseUrl ?? ""}`;
     let p = this.providerCache.get(key);
     if (!p) {
@@ -347,12 +347,12 @@ export class CopilotRuntime {
     return p;
   }
 
-  updateSettings(s: Partial<CopilotSettings>): void {
+  updateSettings(s: Partial<SauceBotSettings>): void {
     this.settings = { ...this.settings, ...s };
     this.providerCache.clear(); // endpoint/provider may have changed
   }
 
-  getSettings(): CopilotSettings {
+  getSettings(): SauceBotSettings {
     return this.settings;
   }
 
@@ -399,7 +399,7 @@ export class CopilotRuntime {
     return out ?? original;
   }
 
-  provider(): ICopilotProvider {
+  provider(): ISauceBotProvider {
     // Guard against a corrupt/legacy provider value: an unknown id falls back
     // to the historical default (anthropic) rather than throwing inside the
     // chat path. Known ids derive from the registry (S1).

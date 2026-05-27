@@ -15,8 +15,8 @@ import {
   registerVaultTools,
   createUnifiedDiff,
   formatUnifiedDiff,
-} from "./copilot/tools";
-import { VaultContextProvider } from "./copilot/VaultContextProvider";
+} from "./saucebot/tools";
+import { VaultContextProvider } from "./saucebot/VaultContextProvider";
 import {
   SkillTaskScheduler,
   type SkillTask,
@@ -113,14 +113,14 @@ import {
   makeVaultFilePersist,
 } from "./bridge/obsidian/ObsidianAdapters";
 import {
-  CopilotRuntime,
-  CopilotSettings,
+  SauceBotRuntime,
+  SauceBotSettings,
   COPILOT_DEFAULTS,
-} from "./copilot/CopilotRuntime";
+} from "./saucebot/SauceBotRuntime";
 import {
-  CopilotChatView,
+  SauceBotChatView,
   VIEW_COPILOT_CHAT,
-} from "./ui/views/v2/CopilotChatView";
+} from "./ui/views/v2/SauceBotChatView";
 import { IconRegistry } from "./ui/icons/IconRegistry";
 import {
   computeCapability,
@@ -199,7 +199,7 @@ export interface SauceGraphSettings {
     validation_gate: "strict" | "warn" | "off";
   };
   enums: Record<string, string[]>;
-  copilot: CopilotSettings;
+  copilot: SauceBotSettings;
   /** Feature program toggles: RAG/embeddings, enrichment, prompts, documents.
    *  See src/settings/FeatureSettings.ts. */
   features: SauceFeatureSettings;
@@ -380,7 +380,7 @@ export default class SauceGraphPlugin extends Plugin {
   get v2Proxy() {
     return this.v2?.proxy ?? null;
   }
-  copilot: CopilotRuntime | null = null;
+  copilot: SauceBotRuntime | null = null;
   mirrorSync: MirrorSync | null = null;
   enrichment: EnrichmentService | null = null;
   documentHarvest: DocumentHarvestService | null = null;
@@ -519,7 +519,7 @@ export default class SauceGraphPlugin extends Plugin {
       },
     });
 
-    this.copilot = new CopilotRuntime(
+    this.copilot = new SauceBotRuntime(
       this.app,
       this.entityService,
       this.search,
@@ -930,7 +930,7 @@ export default class SauceGraphPlugin extends Plugin {
       phase: "P14",
       ready: true,
     });
-    this.registerView(VIEW_COPILOT_CHAT, (l) => new CopilotChatView(l, this));
+    this.registerView(VIEW_COPILOT_CHAT, (l) => new SauceBotChatView(l, this));
     this.registerView(
       VIEW_SYNC_STATUS_REAL,
       (l) => new SyncStatusViewReal(l, this),
