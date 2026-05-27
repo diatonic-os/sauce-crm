@@ -27,6 +27,17 @@ export class VaultBootstrapper {
       this.paths.templates,
       this.paths.playbooks,
       this.paths.user,
+      // Content folders for a mature vault (non-finance).
+      this.paths.meetings,
+      this.paths.lanes,
+      this.paths.meta,
+      this.paths.weekly,
+      this.paths.staging,
+      this.paths.scripts,
+      // SauceBot agent workspace.
+      this.paths.saucebot,
+      this.paths.saucebotAgents,
+      this.paths.saucebotPrompts,
     ]) {
       const folder = this.app.vault.getAbstractFileByPath(normalizePath(p));
       if (folder) existing.push(p);
@@ -47,6 +58,19 @@ export class VaultBootstrapper {
     await this.ensureFile("_LEDGER.md", LEDGER_SEED);
     await this.ensureFile("_POLICY.md", POLICY_SEED);
     await this.ensureFile("_PLUGIN-CONFIG.md", PLUGIN_CONFIG_SEED);
+    await this.ensureFile("_MEETINGS.md", MEETINGS_SEED);
+    await this.ensureFile("_LANES.md", LANES_SEED);
+    await this.ensureFile("_WEEKLY.md", WEEKLY_SEED);
+    // SauceBot agent workspace seeds.
+    await this.ensureFile(`${this.paths.saucebot}/_README.md`, SAUCEBOT_README_SEED);
+    await this.ensureFile(
+      `${this.paths.saucebotAgents}/_default-agent.md`,
+      SAUCEBOT_DEFAULT_AGENT_SEED,
+    );
+    await this.ensureFile(
+      `${this.paths.saucebotPrompts}/Summarize note.md`,
+      SAUCEBOT_PROMPT_SEED,
+    );
 
     return { created, existing };
   }
@@ -95,6 +119,98 @@ Use the command palette (default hotkeys below) to author everything.
 The plugin also owns modal-first capture for notes, ideas, observations,
 tasks, events, ledger entries, and pipeline deals. Use the Sauce CRM ribbon
 or command palette instead of hand-authoring frontmatter.
+`;
+
+const MEETINGS_SEED = `---
+type: dashboard
+view: operational
+tags: [moc, meetings, live]
+---
+
+# _MEETINGS
+
+Chronological meeting log. Capture meetings via the Sauce CRM ribbon / command
+palette; each becomes a note in \`meetings/\`.
+
+\`\`\`sauce-dql
+TABLE date, attendees, org FROM "meetings" SORT date DESC LIMIT 50
+\`\`\`
+`;
+
+const LANES_SEED = `---
+type: dashboard
+view: operational
+tags: [moc, lanes, live]
+---
+
+# _LANES
+
+Work lanes / streams of activity. Each lane is a note in \`lanes/\` grouping
+related people, orgs, touches, and tasks.
+
+\`\`\`sauce-dql
+TABLE status, owner FROM "lanes" SORT status ASC
+\`\`\`
+`;
+
+const WEEKLY_SEED = `---
+type: dashboard
+view: operational
+tags: [moc, weekly, live]
+---
+
+# _WEEKLY
+
+Weekly briefings. Generate with the **SauceBot: Weekly Briefing** command;
+each briefing is written to \`_weekly/\`.
+
+\`\`\`sauce-dql
+TABLE date FROM "_weekly" SORT date DESC LIMIT 12
+\`\`\`
+`;
+
+const SAUCEBOT_README_SEED = `---
+type: orientation
+contract: nosubtype
+generated_by: sauce-graph/VaultBootstrapper
+tags: [readme, saucebot]
+---
+
+# SauceBot Agent Workspace
+
+This folder holds the SauceBot agent system:
+
+- \`agents/\` — agent definition notes (role, model, autonomy). User-scoped
+  agents also live under \`$user/\`.
+- \`prompts/\` — your custom prompt library. SauceBot surfaces these in chat;
+  they coexist with any third-party \`copilot/\` prompt folder.
+- Chat sessions are persisted under \`_addenda/_copilot/\` by ConversationStore.
+
+Open SauceBot with the **Open SauceBot** command or the ribbon icon.
+`;
+
+const SAUCEBOT_DEFAULT_AGENT_SEED = `---
+type: saucebot-agent
+agent_id: $user/_default-A1
+role: assistant
+model: default
+autonomy: suggest
+tags: [saucebot, agent]
+---
+
+# Default SauceBot Agent
+
+The default conversational agent. Edit \`model\` / \`autonomy\` here or in the
+Sauce CRM settings. \`autonomy\` is one of: \`suggest\`, \`act-with-confirm\`,
+\`autonomous\`.
+`;
+
+const SAUCEBOT_PROMPT_SEED = `---
+type: saucebot-prompt
+tags: [saucebot, prompt]
+---
+
+Summarize the current note in 3 bullet points, preserving any [[wikilinks]].
 `;
 
 const MOC_SEED = `---

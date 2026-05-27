@@ -22,6 +22,19 @@ export interface VaultPaths {
   playbooks: string;
   user: string;
   vaults: string;
+  // Content folders present in mature vaults (non-finance).
+  meetings: string;
+  lanes: string;
+  meta: string;
+  weekly: string;
+  staging: string;
+  scripts: string;
+  // SauceBot agent workspace (coexists with any third-party `copilot/` folder).
+  // `saucebot` is the workspace root; chat sessions stay under `_addenda/_copilot`
+  // (stable path) via ConversationStore.
+  saucebot: string;
+  saucebotAgents: string;
+  saucebotPrompts: string;
 }
 
 export const DEFAULT_PATHS: VaultPaths = {
@@ -40,6 +53,15 @@ export const DEFAULT_PATHS: VaultPaths = {
   playbooks: "_playbooks",
   user: "$user",
   vaults: "vaults",
+  meetings: "meetings",
+  lanes: "lanes",
+  meta: "_meta",
+  weekly: "_weekly",
+  staging: "_staging",
+  scripts: "_scripts",
+  saucebot: "_saucebot",
+  saucebotAgents: "_saucebot/agents",
+  saucebotPrompts: "_saucebot/prompts",
 };
 
 export class EntityService {
