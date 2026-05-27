@@ -38,3 +38,7 @@
 {"_t":"gate.final","G001_tsc":"PASS","G002_build":"PASS","G003_tests":"873/873","bundle_bytes":580947,"growth_from_baseline_pct":1.0}
 {"_t":"regression.caught","gate":"G-003 integration","detail":"R-006 agent used @/ tsconfig-path alias; tsc+esbuild resolve it natively but vitest did not -> test/ui/rebrand.test.ts import failure","fix":"added regex @/ alias to vitest.config.ts (root cause, not symptom)","result":"873/873 restored"}
 {"_t":"phase.exit","phase":"P-002 + P-003(partial)","R003":"complete","R004":"complete","R005":"complete","R006":"foundation+viewtype adoption","AX003":"complete","AX004":"complete","ts":"2026-05-26"}
+{"_t":"commit","branch":"crystallize/type-lattice","sha":"12a4008","files":228,"desc":"atomic crystallization diff (D-003)"}
+{"_t":"runtime.gate","G004":"host-blocked (CLI eval disabled, no CDP); deploy sha256-verified, hot-reload live, obsidian.log 0 errors -> indirect PASS","G005":"static guarantee: all timers clearInterval in stop() wired to this.register(); DOM events auto-cleaned","G006":"not measured (onload unchanged)","provision":"A-004 skip-with-warning + manual checklist in TEST_MATRIX"}
+{"_t":"deliverables.final","D001":"LATTICE_MAP.toon.md","D002":"(type surface = brands.ts + obsidian-augment.ts + 0 tsc)","D003":"commit 12a4008","D004":"TEST_MATRIX.report.md","D005":"DECISIONS.md DEC-001..007","D006":"run.log.toon.jsonl"}
+{"_t":"run.end","status":"P-001..P-004 complete; P-005 static+partial (host-blocked runtime gates)","gates_green":["G-001","G-002","G-003","G-007"],"ts":"2026-05-26"}

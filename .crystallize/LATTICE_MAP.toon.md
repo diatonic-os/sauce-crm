@@ -69,7 +69,16 @@ Run: `run-20260526-obsidian-lattice-01` · Plugin: `sauce-crm` v0.3.0 · Date: 2
 ## RUNTIME GATES (P-005)
 - dev vaults present ×3 → G-004/G-005/G-006 feasible (require launching Obsidian; not CLI-automatable without Playwright/manual)
 
+## DEFECT CELLS — final state (all repaired)
+All defect cells listed above are **repaired** as of commit 12a4008:
+DEF-W0-001 ✅ · DEF-W1-001 ✅ · DEF-W2 ✅ (121, omit-at-construction) ·
+DEF-W3 ✅ (379, guards/locals) · DEF-R004 ✅ (as-any 73→1) · DEF-R005 ✅ (6 sentinels) ·
+DEF-R006 ✅ (brands + 21 ViewTypeId) · DEF-AX003 ✅ (timers lifecycle-bound) ·
+DEF-AX004 ✅ (instanceof-guarded). **grep state=broken/unknown → 0 (G-007 met).**
+
 ## PROGRESS
-- ✅ P-001 DISCOVERY — complete (this file)
-- 🔄 P-002 TYPE_CRYSTALLIZATION — W0 ✅ locked, W1 ✅ locked, W2/W3 + R-004/5/6 open
-- ⬜ P-003 INTERCONNECTION · P-004 REPAIR · P-005 VERIFICATION
+- ✅ P-001 DISCOVERY — complete
+- ✅ P-002 TYPE_CRYSTALLIZATION — all R-003 flags + R-004 + R-005 + R-006 complete
+- ✅ P-003 (P0 subset) — AX-003 lifecycle + AX-004 deferred-view complete; exhaustive view/modal round-trip = manual
+- ✅ P-004 REPAIR — queue drained (24 agent dispatches, 1 blocked-with-rationale: Modal≠Component)
+- ⚠️ P-005 VERIFICATION — G-001/2/3/7 ✅; G-004/5/6 host-blocked (CLI eval disabled, no CDP) → static+log evidence, manual checklist in TEST_MATRIX
