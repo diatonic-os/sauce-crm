@@ -47,3 +47,4 @@ coverage/
 .worktrees/
 .claude/worktrees/
 .claude/
+.eval-keys.env
