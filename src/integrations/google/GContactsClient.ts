@@ -25,8 +25,12 @@ export class GContactsClient {
     });
     return {
       connections: r.connections ?? [],
-      ...(r.nextPageToken !== undefined ? { nextPageToken: r.nextPageToken } : {}),
-      ...(r.nextSyncToken !== undefined ? { nextSyncToken: r.nextSyncToken } : {}),
+      ...(r.nextPageToken !== undefined
+        ? { nextPageToken: r.nextPageToken }
+        : {}),
+      ...(r.nextSyncToken !== undefined
+        ? { nextSyncToken: r.nextSyncToken }
+        : {}),
     };
   }
 

@@ -20,7 +20,9 @@ class FakeBackend implements MemoryBackend {
     private readyVal = true,
   ) {}
   semanticSearch(q: MemoryQuery): Promise<MemoryHit[]> {
-    return this.impl.semanticSearch ? this.impl.semanticSearch(q) : Promise.resolve([]);
+    return this.impl.semanticSearch
+      ? this.impl.semanticSearch(q)
+      : Promise.resolve([]);
   }
   recall(q: string, k?: number): Promise<MemoryHit[]> {
     return this.impl.recall ? this.impl.recall(q, k) : Promise.resolve([]);
@@ -29,7 +31,9 @@ class FakeBackend implements MemoryBackend {
     return this.impl.embed ? this.impl.embed(text, fp) : Promise.resolve(null);
   }
   provenance(fp: string): Promise<ProvenanceRecord[]> {
-    return this.impl.provenance ? this.impl.provenance(fp) : Promise.resolve([]);
+    return this.impl.provenance
+      ? this.impl.provenance(fp)
+      : Promise.resolve([]);
   }
   ready(): Promise<boolean> {
     return Promise.resolve(this.readyVal);
@@ -47,7 +51,12 @@ class FakeProbe implements ReachabilityProbe {
 }
 
 const bridgeHit: MemoryHit = { path: "b.md", score: 0.9, fp: "fp-b" };
-const localHit: MemoryHit = { path: "l.md", score: 0.5, fp: "fp-l", degraded: true };
+const localHit: MemoryHit = {
+  path: "l.md",
+  score: 0.5,
+  fp: "fp-l",
+  degraded: true,
+};
 
 // ── tests ────────────────────────────────────────────────────────────────
 
@@ -64,7 +73,10 @@ describe("HybridMemoryBackend", () => {
   it("uses bridge when reachable AND bridge.ready()", async () => {
     const bridge = new FakeBackend(
       "bridge",
-      { semanticSearch: async () => [bridgeHit], recall: async () => [bridgeHit] },
+      {
+        semanticSearch: async () => [bridgeHit],
+        recall: async () => [bridgeHit],
+      },
       true,
     );
     const local = new FakeBackend(
@@ -74,7 +86,11 @@ describe("HybridMemoryBackend", () => {
     );
     const localSpy = vi.spyOn(local, "semanticSearch");
 
-    const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(true) });
+    const h = new HybridMemoryBackend({
+      bridge,
+      local,
+      probe: new FakeProbe(true),
+    });
 
     expect(await h.semanticSearch({ query: "x" })).toEqual([bridgeHit]);
     expect(localSpy).not.toHaveBeenCalled();
@@ -90,9 +106,17 @@ describe("HybridMemoryBackend", () => {
       },
       true,
     );
-    const local = new FakeBackend("local", { semanticSearch: async () => [localHit] }, true);
+    const local = new FakeBackend(
+      "local",
+      { semanticSearch: async () => [localHit] },
+      true,
+    );
 
-    const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(true) });
+    const h = new HybridMemoryBackend({
+      bridge,
+      local,
+      probe: new FakeProbe(true),
+    });
 
     const hits = await h.semanticSearch({ query: "x" });
     expect(hits).toEqual([localHit]);
@@ -110,8 +134,16 @@ describe("HybridMemoryBackend", () => {
         },
         true,
       );
-      const local = new FakeBackend("local", { recall: async () => [localHit] }, true);
-      const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(true) });
+      const local = new FakeBackend(
+        "local",
+        { recall: async () => [localHit] },
+        true,
+      );
+      const h = new HybridMemoryBackend({
+        bridge,
+        local,
+        probe: new FakeProbe(true),
+      });
       expect(await h.recall("q")).toEqual([localHit]);
     }
   });
@@ -126,32 +158,64 @@ describe("HybridMemoryBackend", () => {
       },
       true,
     );
-    const local = new FakeBackend("local", { semanticSearch: async () => [localHit] }, true);
+    const local = new FakeBackend(
+      "local",
+      { semanticSearch: async () => [localHit] },
+      true,
+    );
     const localSpy = vi.spyOn(local, "semanticSearch");
 
-    const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(true) });
+    const h = new HybridMemoryBackend({
+      bridge,
+      local,
+      probe: new FakeProbe(true),
+    });
 
     await expect(h.semanticSearch({ query: "x" })).rejects.toThrow(BridgeError);
     expect(localSpy).not.toHaveBeenCalled();
   });
 
   it("goes straight to local when not reachable (bridge untouched)", async () => {
-    const bridge = new FakeBackend("bridge", { semanticSearch: async () => [bridgeHit] }, true);
-    const local = new FakeBackend("local", { semanticSearch: async () => [localHit] }, true);
+    const bridge = new FakeBackend(
+      "bridge",
+      { semanticSearch: async () => [bridgeHit] },
+      true,
+    );
+    const local = new FakeBackend(
+      "local",
+      { semanticSearch: async () => [localHit] },
+      true,
+    );
     const bridgeSpy = vi.spyOn(bridge, "semanticSearch");
 
-    const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(false) });
+    const h = new HybridMemoryBackend({
+      bridge,
+      local,
+      probe: new FakeProbe(false),
+    });
 
     expect(await h.semanticSearch({ query: "x" })).toEqual([localHit]);
     expect(bridgeSpy).not.toHaveBeenCalled();
   });
 
   it("uses local when reachable but bridge NOT ready", async () => {
-    const bridge = new FakeBackend("bridge", { recall: async () => [bridgeHit] }, false);
-    const local = new FakeBackend("local", { recall: async () => [localHit] }, true);
+    const bridge = new FakeBackend(
+      "bridge",
+      { recall: async () => [bridgeHit] },
+      false,
+    );
+    const local = new FakeBackend(
+      "local",
+      { recall: async () => [localHit] },
+      true,
+    );
     const bridgeSpy = vi.spyOn(bridge, "recall");
 
-    const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(true) });
+    const h = new HybridMemoryBackend({
+      bridge,
+      local,
+      probe: new FakeProbe(true),
+    });
 
     expect(await h.recall("q")).toEqual([localHit]);
     expect(bridgeSpy).not.toHaveBeenCalled();
@@ -160,17 +224,42 @@ describe("HybridMemoryBackend", () => {
   it("embed via local returns null when offline (passed through)", async () => {
     const bridge = new FakeBackend("bridge", {}, true);
     const local = new FakeBackend("local", { embed: async () => null }, true);
-    const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(false) });
+    const h = new HybridMemoryBackend({
+      bridge,
+      local,
+      probe: new FakeProbe(false),
+    });
     expect(await h.embed("text", "fp1")).toBeNull();
   });
 
   it("provenance routes through bridge when reachable+ready", async () => {
     const rec: ProvenanceRecord[] = [
-      { fp: "fp1", op: "test", subject: "", kind: "note", ts: 0, parentFp: "", meta: null, signature: "" },
+      {
+        fp: "fp1",
+        op: "test",
+        subject: "",
+        kind: "note",
+        ts: 0,
+        parentFp: "",
+        meta: null,
+        signature: "",
+      },
     ];
-    const bridge = new FakeBackend("bridge", { provenance: async () => rec }, true);
-    const local = new FakeBackend("local", { provenance: async () => [] }, true);
-    const h = new HybridMemoryBackend({ bridge, local, probe: new FakeProbe(true) });
+    const bridge = new FakeBackend(
+      "bridge",
+      { provenance: async () => rec },
+      true,
+    );
+    const local = new FakeBackend(
+      "local",
+      { provenance: async () => [] },
+      true,
+    );
+    const h = new HybridMemoryBackend({
+      bridge,
+      local,
+      probe: new FakeProbe(true),
+    });
     expect(await h.provenance("fp1")).toBe(rec);
   });
 

@@ -7,12 +7,12 @@
 // sub-vaults) is intentionally NOT part of onboarding; it's an opt-in function
 // available later via the "Register SubVault" command.
 //
-// Key handling (honest about the current runtime): API keys are stored
-// encrypted in the KeyVault under `copilot:<provider>:api-key`. Because the
-// Copilot runtime still reads `settings.copilot.apiKey` (P15 "swap to KeyVault
-// lookup" is not yet wired), the *active* provider's key is additionally
-// mirrored into plugin settings so chat works immediately. Non-active keys live
-// encrypted in the vault, ready for activation or the P15 runtime swap.
+// Key handling (SEC-01/SEC-02): API keys are stored encrypted only — in the
+// KeyVault under `copilot:<provider>:api-key` and, for the active provider,
+// in the credential chain (OS keychain first) via plugin.storeCopilotKey().
+// The runtime resolves keys on demand through CredentialSource; data.json
+// never persists a secret (saveSettings strips them). The in-memory settings
+// copy is session-only so chat works immediately after entry.
 
 import { App, Modal, Notice, Platform, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
@@ -55,6 +55,12 @@ export class OnboardingWizardModal extends Modal {
 
   // Step 2 — KeyVault.
   private vaultPassword = "";
+  private vaultPasswordConfirm = "";
+  // Whether the KeyVault is being provisioned (empty store) vs unlocked (existing
+  // sentinel). Resolved async on step render; drives the confirm-password field
+  // (SEC-06: a confirm field is required on first provision so a typo can't
+  // silently become the permanent master password).
+  private vaultProvisioning = true;
   private vaultSkipped = false;
 
   // Step 3 — providers: transient key drafts (endpoints/models persist to
@@ -128,8 +134,9 @@ export class OnboardingWizardModal extends Modal {
     return `copilot:${p}:api-key`;
   }
 
-  /** Persist a provider key: vault (if unlocked) + mirror the active provider's
-   *  key into settings so the runtime can use it today. */
+  /** Persist a provider key into the encrypted stores only (SEC-02): the
+   *  KeyVault (if unlocked) and — for the active provider — the credential
+   *  chain (OS keychain first). Nothing is mirrored to plaintext data.json. */
   private async storeProviderKey(
     p: SauceBotProvider,
     key: string,
@@ -138,8 +145,9 @@ export class OnboardingWizardModal extends Modal {
       await this.plugin.keyVault!.put(this.vaultServiceFor(p), key);
     }
     if (p === this.activeProvider) {
-      this.plugin.settings.copilot.apiKey = key;
-      await this.plugin.saveSettings();
+      // SEC-02: durable copy goes to the encrypted chain (OS keychain /
+      // KeyVault); session copy stays in memory; data.json never sees it.
+      await this.plugin.storeCopilotKey(key);
     }
     this.keySaved.add(p);
   }
@@ -159,9 +167,13 @@ export class OnboardingWizardModal extends Modal {
   private syncActive(): void {
     const cfg = this.plugin.settings.copilot;
     cfg.provider = this.activeProvider;
-    if (this.activeProvider === "ollama" || this.activeProvider === "lmstudio") {
+    if (
+      this.activeProvider === "ollama" ||
+      this.activeProvider === "lmstudio"
+    ) {
       const lc = this.localCfg(this.activeProvider);
-      if (lc.endpoint) cfg.baseUrl = lc.endpoint; else delete cfg.baseUrl;
+      if (lc.endpoint) cfg.baseUrl = lc.endpoint;
+      else delete cfg.baseUrl;
       if (lc.model) cfg.model = lc.model;
     } else {
       delete cfg.baseUrl;
@@ -273,7 +285,7 @@ export class OnboardingWizardModal extends Modal {
   private renderSecureKeys(c: HTMLElement): void {
     c.createEl("h2", { text: "Secure your API keys" });
     c.createEl("p", {
-      text: "Sauce Graph can store API keys in an encrypted local KeyVault (Argon2id + AES-256-GCM). Set a master password to unlock it — required only if you want multiple providers' keys stored encrypted. You can skip and keep your active provider's key in plugin settings instead.",
+      text: "Sauce Graph can store API keys in an encrypted local KeyVault (PBKDF2-SHA256 (600k iterations) + AES-256-GCM). Set a master password to unlock it — required only if you want multiple providers' keys stored encrypted. You can skip and keep your active provider's key in plugin settings instead.",
     });
 
     const status = new InlineStatus(c);
@@ -295,31 +307,83 @@ export class OnboardingWizardModal extends Modal {
     if (this.vaultUnlocked()) {
       status.success("Vault unlocked — provider keys will be encrypted.");
     } else {
+      // Resolve whether we're provisioning a NEW vault (empty store) or
+      // unlocking an EXISTING one. The store query is async; re-render once it
+      // settles so the confirm-password field (provision only) appears.
+      void this.plugin
+        .keyVault!.hasVault()
+        .then((exists) => {
+          const provisioning = !exists;
+          if (provisioning !== this.vaultProvisioning) {
+            this.vaultProvisioning = provisioning;
+            if (this.step === 2) this.renderStep(this.step);
+          }
+        })
+        .catch(() => {
+          /* default to provisioning (safer: requires confirm) */
+        });
+
       new Setting(c)
         .setName("Master password")
         .setDesc(
-          "First time sets the password; later unlocks with the same one.",
+          this.vaultProvisioning
+            ? "Sets the master password for a new encrypted vault. Choose carefully — it cannot be recovered."
+            : "Unlocks your existing encrypted vault.",
         )
         .addText((t) => {
           t.inputEl.type = "password";
-          t.setPlaceholder("master password").onChange((v) => {
-            this.vaultPassword = v;
-          });
+          t.setPlaceholder("master password")
+            .setValue(this.vaultPassword)
+            .onChange((v) => {
+              this.vaultPassword = v;
+            });
         });
+
+      // SEC-06: confirm field only when provisioning a new vault — prevents a
+      // typo from silently becoming the permanent master password.
+      if (this.vaultProvisioning) {
+        new Setting(c)
+          .setName("Confirm master password")
+          .setDesc("Re-enter the same password to confirm.")
+          .addText((t) => {
+            t.inputEl.type = "password";
+            t.setPlaceholder("confirm master password")
+              .setValue(this.vaultPasswordConfirm)
+              .onChange((v) => {
+                this.vaultPasswordConfirm = v;
+              });
+          });
+      }
+
       new Setting(c).addButton((b) =>
         b
-          .setButtonText("Unlock / Create vault")
+          .setButtonText(
+            this.vaultProvisioning ? "Create vault" : "Unlock vault",
+          )
           .setCta()
           .onClick(async () => {
             if (!this.vaultPassword) {
               status.error("Enter a master password first.");
               return;
             }
-            status.pending("Unlocking…");
+            if (
+              this.vaultProvisioning &&
+              this.vaultPassword !== this.vaultPasswordConfirm
+            ) {
+              status.error("Passwords do not match.");
+              return;
+            }
+            status.pending(
+              this.vaultProvisioning ? "Creating vault…" : "Unlocking…",
+            );
             try {
               await this.plugin.keyVault!.unlock(this.vaultPassword);
               this.vaultSkipped = false;
-              status.success("Vault unlocked — provider keys will be encrypted.");
+              this.vaultPassword = "";
+              this.vaultPasswordConfirm = "";
+              status.success(
+                "Vault unlocked — provider keys will be encrypted.",
+              );
               this.renderStep(this.step);
             } catch (e: unknown) {
               status.error(`Unlock failed: ${this.msg(e)}`);
@@ -358,7 +422,9 @@ export class OnboardingWizardModal extends Modal {
       });
     });
 
-    const pickerHost = activeSection.createDiv({ cls: "sauce-onboarding-picker" });
+    const pickerHost = activeSection.createDiv({
+      cls: "sauce-onboarding-picker",
+    });
     const _ep362 = this.endpointFor(this.activeProvider);
     new ProviderPicker({
       container: pickerHost,
@@ -457,7 +523,8 @@ export class OnboardingWizardModal extends Modal {
         cls: "sauce-button sauce-button-secondary",
       });
       scanBtn.disabled = !Platform.isDesktopApp;
-      scanBtn.onclick = () => void this.runLmScan(status, endpointInput, scanBtn);
+      scanBtn.onclick = () =>
+        void this.runLmScan(status, endpointInput, scanBtn);
       // Run quick (localhost + host-IP) detect once when the step first opens
       // so the endpoint is pre-filled; the LAN sweep stays manual.
       if (!this.lmDetectRan) {
@@ -498,7 +565,9 @@ export class OnboardingWizardModal extends Modal {
     endpointInput: HTMLInputElement | null,
   ): Promise<void> {
     status.pending("Detecting LM Studio…");
-    const r = await detectLmStudioEndpoint({ logger: this.plugin.logger ?? null });
+    const r = await detectLmStudioEndpoint({
+      logger: this.plugin.logger ?? null,
+    });
     if (r.endpoint) {
       this.localCfg("lmstudio").endpoint = r.endpoint;
       if (this.activeProvider === "lmstudio") this.syncActive();
@@ -756,7 +825,10 @@ export class OnboardingWizardModal extends Modal {
     text: string,
   ): void {
     const li = ul.createEl("li");
-    li.createEl("span", { cls: `sg-pill sg-pill-${kind}`, text: kind === "success" ? "✓" : kind === "warning" ? "!" : "·" });
+    li.createEl("span", {
+      cls: `sg-pill sg-pill-${kind}`,
+      text: kind === "success" ? "✓" : kind === "warning" ? "!" : "·",
+    });
     li.createEl("span", { text: " " + text });
   }
 

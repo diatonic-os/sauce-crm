@@ -60,10 +60,10 @@ export class LanceVectorIndex {
   /** k nearest entities to `vector`, ascending by distance. */
   async query(vector: number[], limit: number): Promise<VectorHit[]> {
     if (await this.isEmpty()) return [];
-    const rows = (await this.table
-      .search(vector)
-      .limit(limit)
-      .toArray()) as { entity_id: string; _distance: number }[];
+    const rows = (await this.table.search(vector).limit(limit).toArray()) as {
+      entity_id: string;
+      _distance: number;
+    }[];
     return rows.map((r) => ({ id: r.entity_id, distance: r._distance }));
   }
 

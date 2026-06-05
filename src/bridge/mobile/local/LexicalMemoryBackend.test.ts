@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { LexicalMemoryBackend, type LexicalHost } from "./LexicalMemoryBackend";
-import { LocalHashIndex, type IndexEntry, type IndexPersist, type VaultReader } from "./LocalHashIndex";
+import {
+  LocalHashIndex,
+  type IndexEntry,
+  type IndexPersist,
+  type VaultReader,
+} from "./LocalHashIndex";
 import type { ContentHasher } from "../../contract";
 
 // ───────────────────────── in-memory fakes ─────────────────────────
@@ -8,7 +13,8 @@ import type { ContentHasher } from "../../contract";
 class FakeHasher implements ContentHasher {
   async sha256Hex(data: string): Promise<string> {
     let h = 5381;
-    for (let i = 0; i < data.length; i++) h = ((h << 5) + h + data.charCodeAt(i)) >>> 0;
+    for (let i = 0; i < data.length; i++)
+      h = ((h << 5) + h + data.charCodeAt(i)) >>> 0;
     return "fp_" + h.toString(16);
   }
 }
@@ -26,7 +32,10 @@ class FakePersist implements IndexPersist {
 class FakeVault implements VaultReader {
   files = new Map<string, { mtime: number; content: string }>();
   async list() {
-    return [...this.files.entries()].map(([path, f]) => ({ path, mtime: f.mtime }));
+    return [...this.files.entries()].map(([path, f]) => ({
+      path,
+      mtime: f.mtime,
+    }));
   }
   async read(path: string) {
     return this.files.get(path)!.content;
@@ -54,7 +63,11 @@ async function setup() {
   const vault = new FakeVault();
   vault.set("a.md", 1, "alpha");
   vault.set("b.md", 1, "beta");
-  const index = new LocalHashIndex({ hasher: new FakeHasher(), persist: new FakePersist(), vault });
+  const index = new LocalHashIndex({
+    hasher: new FakeHasher(),
+    persist: new FakePersist(),
+    vault,
+  });
   await index.rebuild();
   const host = new FakeLexicalHost();
   const backend = new LexicalMemoryBackend({ host, index });

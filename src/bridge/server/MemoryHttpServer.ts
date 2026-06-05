@@ -170,7 +170,10 @@ export class MemoryHttpServer {
 
   // ───────────────────────── request pipeline ─────────────────────────
 
-  private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  private async handle(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
     const method = (req.method ?? "GET").toUpperCase();
     // Strip query string; routing keys off pathname only.
     const rawUrl = req.url ?? "/";

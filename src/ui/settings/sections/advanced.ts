@@ -1,5 +1,6 @@
 import { Setting, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
+import { MasterPasswordModal } from "../../modals/v2/MasterPasswordModal";
 
 function markAdvanced(set: Setting): Setting {
   set.settingEl.addClass("sg-advanced");
@@ -30,9 +31,12 @@ export function renderAdvanced(
     )
     .addButton((b) =>
       b.setButtonText("Manage…").onClick(() => {
-        new Notice(
-          "Master password manager not yet wired (placeholder modal).",
-        );
+        const kv = plugin.keyVault;
+        if (!kv) {
+          new Notice("KeyVault unavailable (LanceDB backend not initialized).");
+          return;
+        }
+        new MasterPasswordModal(plugin.app, kv).open();
       }),
     );
 
@@ -71,14 +75,23 @@ export function renderAdvanced(
       .addButton((b) =>
         b.setButtonText("Verify").onClick(async () => {
           try {
-            const auditLog = plugin.auditLog as unknown as { verifyChain?(): Promise<unknown> } | null;
+            const auditLog = plugin.auditLog as unknown as {
+              verifyChain?(): Promise<unknown>;
+            } | null;
             const res = await auditLog?.verifyChain?.();
             if (res === undefined) new Notice("Audit log not available.");
-            else if (res === true || (res !== null && typeof res === "object" && (res as { ok?: unknown }).ok === true))
+            else if (
+              res === true ||
+              (res !== null &&
+                typeof res === "object" &&
+                (res as { ok?: unknown }).ok === true)
+            )
               new Notice("Audit chain OK.");
             else new Notice(`Audit chain failed: ${JSON.stringify(res)}`);
           } catch (e: unknown) {
-            new Notice(`Verify failed: ${e instanceof Error ? e.message : String(e)}`);
+            new Notice(
+              `Verify failed: ${e instanceof Error ? e.message : String(e)}`,
+            );
           }
         }),
       ),

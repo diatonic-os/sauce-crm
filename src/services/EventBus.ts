@@ -51,8 +51,16 @@ export class EventBus {
 
   emit<T>(event: string, payload: T): void {
     // Snapshot to tolerate handlers that unsubscribe during dispatch.
-    for (const h of [...(this.handlers.get(event) ?? [])])
-      (h as EventHandler<T>)(payload);
+    for (const h of [...(this.handlers.get(event) ?? [])]) {
+      // PLC-05: isolate each subscriber so one throwing handler can't abort
+      // dispatch to the rest. Errors are logged (allowed on console).
+      try {
+        (h as EventHandler<T>)(payload);
+      } catch (e) {
+        // eslint-disable-next-line no-restricted-syntax -- error isolation must never throw or depend on plugin state; EventBus is pure and has no logger handle
+        console.error("EventBus: subscriber threw for event", event, e);
+      }
+    }
   }
 
   /** A sub-emitter whose emissions are tagged with a correlationId. */

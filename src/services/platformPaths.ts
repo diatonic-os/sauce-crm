@@ -16,7 +16,11 @@
 // All resolvers are PURE — they take {platform, env, home} so they unit-test
 // across every OS without the host. `currentPathEnv()` reads the live process.
 
-export type Platform = "win32" | "darwin" | "linux" | (string & {});
+export type Platform =
+  | "win32"
+  | "darwin"
+  | "linux"
+  | (string & NonNullable<unknown>);
 
 export interface PathEnv {
   platform: Platform;
@@ -56,7 +60,8 @@ export function appDataRoot(p: PathEnv): string {
     return joinPosix(p.home, "Library/Application Support", APP_DIR);
   }
   // Linux and other POSIX: respect XDG_DATA_HOME, else ~/.local/share.
-  const xdg = nonEmpty(p.env.XDG_DATA_HOME) ?? joinPosix(p.home, ".local/share");
+  const xdg =
+    nonEmpty(p.env.XDG_DATA_HOME) ?? joinPosix(p.home, ".local/share");
   return joinPosix(xdg, APP_DIR);
 }
 
@@ -75,8 +80,7 @@ export function lanceRuntimeDir(p: PathEnv): string {
  *  Form: `<sanitized-basename>-<hash8>` — readable + collision-resistant. */
 export function vaultId(vaultBasePath: string): string {
   const norm = vaultBasePath.replace(/\\/g, "/").replace(/\/+$/, "");
-  const base =
-    norm.split("/").filter(Boolean).pop() ?? "vault";
+  const base = norm.split("/").filter(Boolean).pop() ?? "vault";
   const safe = base.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 40) || "vault";
   return `${safe}-${hash8(norm)}`;
 }
@@ -114,6 +118,7 @@ export interface MigrationResult {
   reason:
     | "moved"
     | "copied"
+    | "copied-legacy-cleanup-failed"
     | "no-legacy"
     | "target-exists"
     | "failed"
@@ -135,7 +140,8 @@ export async function migrateLegacyStore(
   const req =
     (globalThis as unknown as { require?: NodeRequire }).require ??
     (typeof require !== "undefined" ? require : undefined);
-  if (typeof req !== "function") return { migrated: false, reason: "unavailable" };
+  if (typeof req !== "function")
+    return { migrated: false, reason: "unavailable" };
   let fs: typeof import("fs");
   let path: typeof import("path");
   try {
@@ -144,7 +150,8 @@ export async function migrateLegacyStore(
   } catch {
     return { migrated: false, reason: "unavailable" };
   }
-  if (!fs.existsSync(legacyDir)) return { migrated: false, reason: "no-legacy" };
+  if (!fs.existsSync(legacyDir))
+    return { migrated: false, reason: "no-legacy" };
   if (fs.existsSync(targetDir)) {
     try {
       if (fs.readdirSync(targetDir).length > 0) {
@@ -166,10 +173,23 @@ export async function migrateLegacyStore(
     // EXDEV (vault on a different filesystem than the data dir) → copy + remove.
     try {
       await fs.promises.cp(legacyDir, targetDir, { recursive: true });
+    } catch (e2) {
+      // Copy itself failed — nothing reliable landed in the target.
+      return { migrated: false, reason: "failed", error: String(e2) };
+    }
+    // Copy succeeded; the data IS at the target. If the legacy cleanup fails the
+    // migration is still successful — surface a distinct reason so the caller can
+    // tell the operator the (now-stale) legacy store needs manual removal, rather
+    // than the misleading "using fresh store" path (LANCE-007).
+    try {
       await fs.promises.rm(legacyDir, { recursive: true, force: true });
       return { migrated: true, reason: "copied" };
-    } catch (e2) {
-      return { migrated: false, reason: "failed", error: String(e2) };
+    } catch (e3) {
+      return {
+        migrated: true,
+        reason: "copied-legacy-cleanup-failed",
+        error: String(e3),
+      };
     }
   }
 }

@@ -2,11 +2,7 @@ import { describe, it, expect } from "vitest";
 import { writeFileSync, mkdtempSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import {
-  withTimeout,
-  dirSizeBounded,
-  compactConnection,
-} from "./maintenance";
+import { withTimeout, dirSizeBounded, compactConnection } from "./maintenance";
 import type { LanceConnection } from "./LanceConnection";
 
 describe("withTimeout", () => {
@@ -16,7 +12,9 @@ describe("withTimeout", () => {
 
   it("rejects with a timeout error when the promise hangs", async () => {
     const never = new Promise<number>(() => {});
-    await expect(withTimeout(never, 20, "hang")).rejects.toThrow(/lance hang: timed out after 20ms/);
+    await expect(withTimeout(never, 20, "hang")).rejects.toThrow(
+      /lance hang: timed out after 20ms/,
+    );
   });
 
   it("propagates the original rejection (not the timeout)", async () => {
@@ -37,7 +35,8 @@ describe("dirSizeBounded", () => {
 
   it("short-circuits once the cap is reached (returns >= cap)", () => {
     const dir = mkdtempSync(join(tmpdir(), "lance-cap-"));
-    for (let i = 0; i < 5; i++) writeFileSync(join(dir, `f${i}.bin`), Buffer.alloc(1000));
+    for (let i = 0; i < 5; i++)
+      writeFileSync(join(dir, `f${i}.bin`), Buffer.alloc(1000));
     const total = dirSizeBounded(dir, 2500);
     expect(total).toBeGreaterThanOrEqual(2500); // stopped early, didn't sum all 5000
   });

@@ -223,8 +223,12 @@ export class LSPGate {
         id,
         state: rec.state,
         ...(rec.lockedBy !== undefined && { lockedBy: rec.lockedBy }),
-        ...(rec.lockedReason !== undefined && { lockedReason: rec.lockedReason }),
-        ...(rec.frozenReason !== undefined && { frozenReason: rec.frozenReason }),
+        ...(rec.lockedReason !== undefined && {
+          lockedReason: rec.lockedReason,
+        }),
+        ...(rec.frozenReason !== undefined && {
+          frozenReason: rec.frozenReason,
+        }),
         waiters: rec.waiters.length,
       })),
     };

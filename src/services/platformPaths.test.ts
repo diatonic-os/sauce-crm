@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync } from "fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  readdirSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -42,14 +48,12 @@ describe("appDataRoot", () => {
     );
   });
   it("windows: prefers LOCALAPPDATA (not roaming)", () => {
-    expect(appDataRoot(win({ LOCALAPPDATA: "C:/Users/alice/AppData/Local" }))).toBe(
-      "C:/Users/alice/AppData/Local/sauce-crm",
-    );
+    expect(
+      appDataRoot(win({ LOCALAPPDATA: "C:/Users/alice/AppData/Local" })),
+    ).toBe("C:/Users/alice/AppData/Local/sauce-crm");
   });
   it("windows: derives from USERPROFILE when LOCALAPPDATA absent", () => {
-    expect(appDataRoot(win())).toBe(
-      "C:/Users/alice/AppData/Local/sauce-crm",
-    );
+    expect(appDataRoot(win())).toBe("C:/Users/alice/AppData/Local/sauce-crm");
   });
   it("windows: normalizes backslashes to forward slashes", () => {
     expect(
@@ -85,7 +89,9 @@ describe("vaultId", () => {
   });
   it("sanitizes unsafe characters in the readable prefix", () => {
     const id = vaultId("/a/My Vault! (work)");
-    expect(id).toMatch(/^My-Vault----work--[0-9a-f]{8}$|^[A-Za-z0-9._-]+-[0-9a-f]{8}$/);
+    expect(id).toMatch(
+      /^My-Vault----work--[0-9a-f]{8}$|^[A-Za-z0-9._-]+-[0-9a-f]{8}$/,
+    );
     expect(id).not.toMatch(/[^A-Za-z0-9._-]/);
   });
 });
@@ -93,7 +99,10 @@ describe("vaultId", () => {
 describe("migrateLegacyStore", () => {
   it("no-op when there is no legacy store", async () => {
     const root = mkdtempSync(join(tmpdir(), "mig-"));
-    const r = await migrateLegacyStore(join(root, "nope"), join(root, "target"));
+    const r = await migrateLegacyStore(
+      join(root, "nope"),
+      join(root, "target"),
+    );
     expect(r).toEqual({ migrated: false, reason: "no-legacy" });
   });
 
@@ -122,6 +131,71 @@ describe("migrateLegacyStore", () => {
     expect(r).toEqual({ migrated: false, reason: "target-exists" });
     expect(readdirSync(target)).toEqual(["current.bin"]); // untouched
     expect(existsSync(legacy)).toBe(true); // legacy left in place
+  });
+
+  // LANCE-007: when EXDEV forces the cp+rm fallback and the cp succeeds but the
+  // legacy rm fails, the data IS at the target — report a distinct outcome
+  // (migrated: true, reason: copied-legacy-cleanup-failed) instead of "failed".
+  it("returns copied-legacy-cleanup-failed when copy succeeds but legacy rm fails", async () => {
+    const realFs = (await import("fs")) as typeof import("fs");
+    const root = mkdtempSync(join(tmpdir(), "mig-"));
+    const legacy = join(root, "legacy/lancedb");
+    mkdirSync(legacy, { recursive: true });
+    writeFileSync(join(legacy, "frag.bin"), "data");
+    const target = join(root, "central/lancedb");
+
+    const origRename = realFs.promises.rename;
+    const origRm = realFs.promises.rm;
+    // Force the EXDEV branch, then force the cleanup rm to fail.
+    realFs.promises.rename = (async () => {
+      const e = new Error("EXDEV: cross-device link not permitted");
+      (e as NodeJS.ErrnoException).code = "EXDEV";
+      throw e;
+    }) as typeof realFs.promises.rename;
+    realFs.promises.rm = (async () => {
+      throw new Error("EBUSY: legacy store locked");
+    }) as typeof realFs.promises.rm;
+    try {
+      const r = await migrateLegacyStore(legacy, target);
+      expect(r.migrated).toBe(true);
+      expect(r.reason).toBe("copied-legacy-cleanup-failed");
+      expect(r.error).toContain("EBUSY");
+      // data landed at the target; legacy remains (cleanup is the operator's job)
+      expect(existsSync(join(target, "frag.bin"))).toBe(true);
+      expect(existsSync(join(legacy, "frag.bin"))).toBe(true);
+    } finally {
+      realFs.promises.rename = origRename;
+      realFs.promises.rm = origRm;
+    }
+  });
+
+  // LANCE-007: when the cp itself fails, nothing reliable landed → reason: failed.
+  it("returns failed when the copy itself fails", async () => {
+    const realFs = (await import("fs")) as typeof import("fs");
+    const root = mkdtempSync(join(tmpdir(), "mig-"));
+    const legacy = join(root, "legacy/lancedb");
+    mkdirSync(legacy, { recursive: true });
+    writeFileSync(join(legacy, "frag.bin"), "data");
+    const target = join(root, "central/lancedb");
+
+    const origRename = realFs.promises.rename;
+    const origCp = realFs.promises.cp;
+    realFs.promises.rename = (async () => {
+      const e = new Error("EXDEV");
+      (e as NodeJS.ErrnoException).code = "EXDEV";
+      throw e;
+    }) as typeof realFs.promises.rename;
+    realFs.promises.cp = (async () => {
+      throw new Error("ENOSPC: no space left on device");
+    }) as typeof realFs.promises.cp;
+    try {
+      const r = await migrateLegacyStore(legacy, target);
+      expect(r.migrated).toBe(false);
+      expect(r.reason).toBe("failed");
+    } finally {
+      realFs.promises.rename = origRename;
+      realFs.promises.cp = origCp;
+    }
   });
 });
 

@@ -66,7 +66,9 @@ export class EdgeSyncService {
 
     for (const [edge, rule] of Object.entries(this.rules)) {
       if (!rule.symmetric) continue;
-      const declared = new Set(arr<string>(fm[edge]).map((l) => parseWikilink(l) ?? l));
+      const declared = new Set(
+        arr<string>(fm[edge]).map((l) => parseWikilink(l) ?? l),
+      );
       for (const peer of this.app.vault.getMarkdownFiles()) {
         if (peer.path === file.path) continue;
         const peerFm = this.app.metadataCache.getFileCache(peer)?.frontmatter;

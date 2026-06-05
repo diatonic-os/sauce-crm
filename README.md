@@ -69,7 +69,7 @@ cd plugin/
 npm install
 npm run dev          # esbuild watch mode
 npm run typecheck    # tsc --noEmit
-npm test             # vitest (24 tests as of 0.1.0)
+npm test             # vitest (919 tests across 155 files as of 0.3.0)
 npm run build        # production bundle → main.js
 ```
 
@@ -83,19 +83,29 @@ Reload Obsidian (Cmd/Ctrl+R) after each `npm run dev` rebuild.
 
 ## Privacy & data handling
 
-- **Everything is local.** Your vault never leaves your machine. The plugin makes outbound calls only to providers you explicitly connect (Google APIs, Microsoft Graph, Notion API, Twilio, your Copilot's LLM) and to GitHub for update checks (Obsidian-driven).
+- **Everything is local.** Your vault never leaves your machine. The plugin makes outbound calls only to providers you explicitly connect (Google APIs, Microsoft Graph, Notion API, Twilio, your Copilot's LLM, optional web-search and geocoding providers) and to GitHub for update checks (Obsidian-driven). See [Network use](#disclosures) for the full endpoint list.
 - **No telemetry leaves the device.** `TRACE-LOG.jsonl` is local-only. No phone-home.
-- **Credentials are encrypted.** OAuth refresh tokens and API keys live in an AES-256-GCM KeyVault behind a master password. The plain `data.json` only stores non-secret config.
+- **Credentials are protected.** OAuth refresh tokens and API keys live in the OS keychain (Electron `safeStorage`) or, as a fallback, in an AES-256-GCM KeyVault behind a master password. The plain `data.json` only stores non-secret config.
 - **Bring-your-own OAuth.** The plugin does not contain a shared Sauce-CRM OAuth client. You register your own apps in each provider's developer console (see [`docs/oauth-byo/`](docs/oauth-byo/README.md)).
 
 ## Disclosures
 
 Per the [Obsidian Developer Policies](https://docs.obsidian.md/Developer+policies#Disclosures):
 
-- **Network use.** The plugin makes outbound network requests **only to services you explicitly configure**, and **only** through Obsidian's `requestUrl` API (no raw `fetch`/`axios`). Endpoints are: LLM/Copilot providers you enable (Anthropic, OpenAI, Ollama, LM Studio, NVIDIA NIM), integration providers you connect (Google Workspace, Microsoft 365, Notion, Twilio), optional geocoding (OpenStreetMap Nominatim / Mapbox), and optional web search. No network calls are made until you turn a feature on and supply credentials.
+- **Network use.** The plugin makes outbound network requests **only to services you explicitly configure**. Every integration is **opt-in and default-off**; no network call is made until you turn a feature on and supply credentials. Transport is Obsidian's `requestUrl` API for ordinary request/response calls, plus the Electron renderer's **native `fetch()`** in two narrow cases where `requestUrl` cannot stream incrementally: Copilot **token streaming** (`src/saucebot/SauceBotHostAdapters.ts`, SSE/NDJSON) and **live model-catalog** enumeration (`src/saucebot/ModelCatalog.ts`). The full set of endpoints the plugin can reach, each only when you enable and configure it:
+  - **Copilot / LLM providers:** Anthropic (`api.anthropic.com`), OpenAI (`api.openai.com`), NVIDIA NIM (`integrate.api.nvidia.com`), OpenRouter (`openrouter.ai`), Groq (`api.groq.com`), Google Gemini (`generativelanguage.googleapis.com`), Ollama (local endpoint you set), LM Studio (local endpoint you set).
+  - **Integration providers:** Google Workspace (`*.googleapis.com`, `accounts.google.com`, `oauth2.googleapis.com`), Microsoft 365 (`graph.microsoft.com`, `login.microsoftonline.com`), Notion (`api.notion.com`), Twilio (`api.twilio.com`), and any SMTP/IMAP server you configure for the mail integration.
+  - **Optional web search:** Brave Search (`api.search.brave.com`), Tavily (`api.tavily.com`), DuckDuckGo HTML (`html.duckduckgo.com`).
+  - **Optional geocoding:** OpenStreetMap Nominatim (`nominatim.openstreetmap.org`), Mapbox (`api.mapbox.com`).
+  - **Update checks:** GitHub releases (Obsidian-driven, for BRAT / manual update flows).
+
+  All of the above are off by default. No telemetry, analytics, or phone-home traffic leaves the machine (see Telemetry below).
 - **Account requirements.** No "Sauce CRM" account exists — there is no sign-up and no shared backend. Integrations use **your own** OAuth apps and API keys (bring-your-own; see [`docs/oauth-byo/`](docs/oauth-byo/README.md)).
-- **Credentials & external file access.** API keys and OAuth refresh tokens are encrypted (AES-256-GCM) in a local KeyVault behind a master password. The plugin reads/writes **only your vault files** plus, on **desktop only**, a local LanceDB store under your vault's config directory (offered via an opt-in install prompt).
-- **Telemetry.** **No client-side/remote telemetry.** The only "telemetry" is a structured event log written **locally** to `.sauce/memory/TRACE-LOG.jsonl` in your vault. Nothing is sent to the author or any third party.
+- **Credentials & external file access.** API keys and OAuth refresh tokens are stored either in the OS keychain (Electron `safeStorage`) or, as a fallback, in the encrypted (AES-256-GCM) local KeyVault behind a master password — never in `data.json` (see Secrets below). The plugin reads/writes **only your vault files** plus, on **desktop only**, a local LanceDB store kept in a **central per-user data directory outside the vault** (so its many index files don't churn your vault sync/watchers) and the keychain-bound secrets file alongside it. LanceDB is a native module and is **not** installed automatically: the plugin detects whether it is present and, if not, shows a copyable `npm install @lancedb/lancedb --prefix <dir>` command you run yourself in a terminal, then re-checks for the install. Lexical search works without it.
+- **Local executables (opt-in).** The optional voicenote-transcription skill runs a **whisper CLI you have already installed yourself** (it is never downloaded or installed by the plugin); if the binary is absent the skill reports it and does nothing. The plugin never downloads or executes code from the network.
+- **Local network listener (opt-in, default-off).** The optional mobile-memory bridge starts a **local HTTP listener** (HMAC-authenticated, pairing-token gated, intended for your own Tailscale/LAN devices) so the mobile app can query the desktop LanceDB memory. It binds only when you enable the bridge in Settings and stops on plugin unload.
+- **Telemetry.** **No client-side/remote telemetry.** The only "telemetry" is a structured event log (`TelemetrySink`) written **locally** to `.sauce/memory/TRACE-LOG.jsonl` via Obsidian's vault adapter, with an in-memory ring-buffer fallback when the adapter is unavailable. It is never transmitted off the device; nothing is sent to the author or any third party.
+- **Secrets.** API keys and OAuth refresh tokens live in the OS keychain (Electron `safeStorage`) or, where that is unavailable, in the encrypted KeyVault. They are **never** written to `data.json` — `data.json` holds only non-secret configuration.
 - **Payments / ads.** None.
 - **Source.** Open source (MIT). Desktop-only (`isDesktopOnly: true`) because the LanceDB vector backend is a native module; mobile support is on the roadmap.
 

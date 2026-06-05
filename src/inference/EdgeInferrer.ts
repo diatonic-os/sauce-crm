@@ -91,7 +91,10 @@ export class EdgeInferrer {
           toId: to,
           edgeType: "worked_with",
           confidence: wwConf,
-          verdict: verdict(wwConf, getThreshold(this.thresholds, "worked_with")),
+          verdict: verdict(
+            wwConf,
+            getThreshold(this.thresholds, "worked_with"),
+          ),
           sources: [...r.sources],
         });
       }

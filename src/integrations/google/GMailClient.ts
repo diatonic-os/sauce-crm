@@ -26,8 +26,12 @@ export class GMailClient {
     });
     return {
       messages: r.messages ?? [],
-      ...(r.nextPageToken !== undefined ? { nextPageToken: r.nextPageToken } : {}),
-      ...(r.resultSizeEstimate !== undefined ? { resultSizeEstimate: r.resultSizeEstimate } : {}),
+      ...(r.nextPageToken !== undefined
+        ? { nextPageToken: r.nextPageToken }
+        : {}),
+      ...(r.resultSizeEstimate !== undefined
+        ? { resultSizeEstimate: r.resultSizeEstimate }
+        : {}),
     };
   }
 
@@ -42,9 +46,7 @@ export class GMailClient {
     );
   }
 
-  async getMessageFull(
-    id: string,
-  ): Promise<{
+  async getMessageFull(id: string): Promise<{
     id: string;
     threadId: string;
     snippet?: string;

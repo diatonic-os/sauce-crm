@@ -53,10 +53,9 @@ export class LanceSecretStore implements ISecretStore {
   }
 
   async list(): Promise<string[]> {
-    const rows = (await this.table
-      .query()
-      .select(["service"])
-      .toArray()) as { service: string }[];
+    const rows = (await this.table.query().select(["service"]).toArray()) as {
+      service: string;
+    }[];
     return rows.map((r) => r.service).sort();
   }
 

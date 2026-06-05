@@ -37,14 +37,22 @@ class FakeVerifier implements AuthVerifier {
   verdict: AuthResult = { ok: true };
   lastParts: SignedRequestParts | null = null;
   lastSig: string | null = null;
-  async verify(parts: SignedRequestParts, signature: string): Promise<AuthResult> {
+  async verify(
+    parts: SignedRequestParts,
+    signature: string,
+  ): Promise<AuthResult> {
     this.lastParts = parts;
     this.lastSig = signature;
     return this.verdict;
   }
 }
 
-const HIT: MemoryHit = { path: "people/Jane.md", score: 0.91, fp: "abc123", snippet: "hi" };
+const HIT: MemoryHit = {
+  path: "people/Jane.md",
+  score: 0.91,
+  fp: "abc123",
+  snippet: "hi",
+};
 
 const PROV: ProvenanceRecord = {
   fp: "abc123",
@@ -163,7 +171,11 @@ describe("MemoryHttpServer", () => {
     const res = await fetch(`${base}${ROUTES.health}`);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ ok: true, version: BRIDGE_PROTOCOL_VERSION, lance: "ready" });
+    expect(body).toEqual({
+      ok: true,
+      version: BRIDGE_PROTOCOL_VERSION,
+      lance: "ready",
+    });
     // verifier never consulted for health
     expect(verifier.lastParts).toBeNull();
   });
@@ -344,11 +356,16 @@ describe("MemoryHttpServer", () => {
     expect(res.status).toBe(500);
     const text = await res.text();
     expect(text).not.toContain("SECRET");
-    expect(JSON.parse(text)).toEqual({ error: "server-error", reason: "internal error" });
+    expect(JSON.parse(text)).toEqual({
+      error: "server-error",
+      reason: "internal error",
+    });
   });
 
   it("unknown route → 404", async () => {
-    const res = await fetch(`${base}/v1/does/not/exist`, { headers: authHeaders() });
+    const res = await fetch(`${base}/v1/does/not/exist`, {
+      headers: authHeaders(),
+    });
     expect(res.status).toBe(404);
   });
 });

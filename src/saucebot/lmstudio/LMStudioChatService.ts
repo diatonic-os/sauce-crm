@@ -46,18 +46,24 @@ export class LMStudioChatService {
     const model = await this.client.llm.model(req.modelId);
     const chat = this.toSdkChat(req.messages);
     const opts: LMStudioRespondOpts = {
-      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.temperature !== undefined
+        ? { temperature: req.temperature }
+        : {}),
       ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
       ...(req.topK !== undefined ? { topK: req.topK } : {}),
       ...(req.topP !== undefined ? { topP: req.topP } : {}),
       ...(req.signal !== undefined ? { signal: req.signal } : {}),
-      ...(req.draftModelId !== undefined ? { draftModel: req.draftModelId } : {}),
+      ...(req.draftModelId !== undefined
+        ? { draftModel: req.draftModelId }
+        : {}),
       structured: req.structuredSchema,
     };
     const res = await model.respond(chat, opts);
     return {
       content: res.content ?? "",
-      ...(res.reasoningContent !== undefined ? { reasoning: res.reasoningContent } : {}),
+      ...(res.reasoningContent !== undefined
+        ? { reasoning: res.reasoningContent }
+        : {}),
       stats: res.stats ?? {},
     };
   }
@@ -77,10 +83,14 @@ export class LMStudioChatService {
     };
 
     const opts: LMStudioRespondOpts = {
-      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.temperature !== undefined
+        ? { temperature: req.temperature }
+        : {}),
       ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
       ...(req.signal !== undefined ? { signal: req.signal } : {}),
-      ...(req.draftModelId !== undefined ? { draftModel: req.draftModelId } : {}),
+      ...(req.draftModelId !== undefined
+        ? { draftModel: req.draftModelId }
+        : {}),
       structured: req.structuredSchema,
       onPredictionFragment: collect,
       onFirstToken: () => {
@@ -130,7 +140,11 @@ export class LMStudioChatService {
         return;
       }
       const finalStats = (result as { stats?: LMStudioStats } | null)?.stats;
-      yield { type: "done", reason: "end", ...(finalStats !== undefined ? { stats: finalStats } : {}) };
+      yield {
+        type: "done",
+        reason: "end",
+        ...(finalStats !== undefined ? { stats: finalStats } : {}),
+      };
     } catch (e) {
       yield {
         type: "done",

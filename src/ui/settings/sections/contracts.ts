@@ -55,7 +55,9 @@ export function renderContracts(
         "Compatibility field weights (technical: w_i per field, comma-separated key=value pairs).",
       )
       .addText((t) => {
-        const cfg = plugin.settings.compat_config as unknown as { weights?: Record<string, unknown> };
+        const cfg = plugin.settings.compat_config as unknown as {
+          weights?: Record<string, unknown>;
+        };
         const weights: Record<string, unknown> = cfg.weights ?? {};
         const initial = Object.entries(weights)
           .map(([k, v]) => `${k}=${v}`)
@@ -87,7 +89,9 @@ export function renderContracts(
         d.addOption("core", "Core")
           .addOption("simple", "Simple")
           .addOption("full", "Full")
-          .setValue(typeof cfg.grammarLevel === "string" ? cfg.grammarLevel : "simple")
+          .setValue(
+            typeof cfg.grammarLevel === "string" ? cfg.grammarLevel : "simple",
+          )
           .onChange(async (v) => {
             cfg.grammarLevel = v;
             await plugin.saveSettings();

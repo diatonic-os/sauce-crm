@@ -408,8 +408,17 @@ export class SauceBotRuntime {
         ? this.settings.provider
         : "anthropic";
     return this.getOrBuildProvider(id, {
-      apiKey: async () => this.settings.apiKey || undefined,
-      ...(this.settings.baseUrl !== undefined ? { baseUrl: this.settings.baseUrl } : {}),
+      // SEC-02: the durable key lives in the credential chain (OS keychain /
+      // KeyVault); the in-memory settings copy is a session-only fallback.
+      apiKey: async () =>
+        (await this.credentialSource
+          ?.get(`copilot:${id}:api-key`)
+          .catch(() => null)) ||
+        this.settings.apiKey ||
+        undefined,
+      ...(this.settings.baseUrl !== undefined
+        ? { baseUrl: this.settings.baseUrl }
+        : {}),
       defaultModel: this.settings.model,
     });
   }

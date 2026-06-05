@@ -233,8 +233,7 @@ export class IntegrationCredentialsModal extends Modal {
       try {
         for (const f of m.keyFields!) {
           const fieldVal = values[f.id];
-          if (fieldVal)
-            await creds.putKey(this.providerId, f.id, fieldVal);
+          if (fieldVal) await creds.putKey(this.providerId, f.id, fieldVal);
         }
         status.success(`${m.label} credentials saved to vault`);
       } catch (e: unknown) {

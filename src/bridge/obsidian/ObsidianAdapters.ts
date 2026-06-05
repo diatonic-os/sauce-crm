@@ -13,7 +13,9 @@ import type { LexicalHost } from "../mobile/local";
 export function makeVaultReader(app: App): VaultReader {
   return {
     async list() {
-      return app.vault.getMarkdownFiles().map((f) => ({ path: f.path, mtime: f.stat.mtime }));
+      return app.vault
+        .getMarkdownFiles()
+        .map((f) => ({ path: f.path, mtime: f.stat.mtime }));
     },
     async read(path) {
       const f = app.vault.getAbstractFileByPath(path);
@@ -21,7 +23,8 @@ export function makeVaultReader(app: App): VaultReader {
     },
     meta(path) {
       const f = app.vault.getAbstractFileByPath(path);
-      if (!(f instanceof TFile)) return { title: path, type: "", tags: [], links: [] };
+      if (!(f instanceof TFile))
+        return { title: path, type: "", tags: [], links: [] };
       const cache = app.metadataCache.getFileCache(f);
       const fm = cache?.frontmatter ?? {};
       const tags = (cache ? getAllTags(cache) : null) ?? [];
@@ -57,7 +60,10 @@ export function makeVaultFilePersist(app: App, filePath: string): IndexPersist {
     async load() {
       try {
         if (!(await app.vault.adapter.exists(p))) return null;
-        return JSON.parse(await app.vault.adapter.read(p)) as Record<string, IndexEntry>;
+        return JSON.parse(await app.vault.adapter.read(p)) as Record<
+          string,
+          IndexEntry
+        >;
       } catch {
         return null;
       }

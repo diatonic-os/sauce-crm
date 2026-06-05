@@ -283,7 +283,9 @@ export function buildProvider(
     case "ollama":
       return new OllamaProvider(host, {
         endpoint: baseUrl || "http://localhost:11434",
-        ...(opts.defaultModel !== undefined ? { defaultModel: opts.defaultModel } : {}),
+        ...(opts.defaultModel !== undefined
+          ? { defaultModel: opts.defaultModel }
+          : {}),
       });
     case "lmstudio-sdk":
       return new LMStudioSdkProvider(
@@ -302,10 +304,14 @@ export function buildProvider(
         baseUrl,
         ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),
         ...(authHeader !== undefined ? { authHeader } : {}),
-        ...(opts.defaultModel !== undefined ? { defaultModel: opts.defaultModel } : {}),
+        ...(opts.defaultModel !== undefined
+          ? { defaultModel: opts.defaultModel }
+          : {}),
         supportsToolUse: opts.toolUse ?? spec.capabilities.toolUse,
         supportsEmbeddings: spec.capabilities.embeddings,
-        ...(spec.staticModels !== undefined ? { staticModels: spec.staticModels } : {}),
+        ...(spec.staticModels !== undefined
+          ? { staticModels: spec.staticModels }
+          : {}),
         ...(spec.staticModels?.[0]?.contextTokens !== undefined
           ? { maxContext: spec.staticModels[0].contextTokens }
           : {}),

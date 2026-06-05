@@ -78,7 +78,9 @@ export function renderSkills(
     .addDropdown((d) => {
       for (const lvl of LEVELS) d.addOption(lvl, cap(lvl));
       d.addOption("custom", "Custom (per skill)");
-      d.setValue(typeof s.skillsAutonomy === "string" ? s.skillsAutonomy : "manual").onChange(async (v) => {
+      d.setValue(
+        typeof s.skillsAutonomy === "string" ? s.skillsAutonomy : "manual",
+      ).onChange(async (v) => {
         s.skillsAutonomy = v;
         if (v !== "custom")
           for (const sk of skills) setSkill(sk.id, { autonomy: v });
@@ -136,7 +138,9 @@ export function renderSkills(
     // Never blank: fall back to "manual" (|| also catches an empty string).
     sel.value = custom
       ? (typeof cur.autonomy === "string" && cur.autonomy) || "manual"
-      : (typeof s.skillsAutonomy === "string" ? s.skillsAutonomy : "manual");
+      : typeof s.skillsAutonomy === "string"
+        ? s.skillsAutonomy
+        : "manual";
     sel.disabled = !custom; // follows the global setting unless Custom
     sel.title = custom
       ? ""

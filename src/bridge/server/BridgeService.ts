@@ -20,7 +20,11 @@ export interface BridgeServerConfig {
 
 export type BridgeStatus =
   | { running: true; bindHost: string; port: number }
-  | { running: false; reason: "disabled" | "no-tailscale" | "not-paired" | "error"; detail?: string };
+  | {
+      running: false;
+      reason: "disabled" | "no-tailscale" | "not-paired" | "error";
+      detail?: string;
+    };
 
 export interface BridgeCrypto {
   hmacHex(key: Uint8Array, msg: string): Promise<string>;
@@ -49,14 +53,21 @@ export class BridgeService {
    *  config allows. Returns the resulting status (never throws). */
   async start(cfg: BridgeServerConfig): Promise<BridgeStatus> {
     await this.stop();
-    if (!cfg.enabled) return (this.last = { running: false, reason: "disabled" });
-    if (!cfg.pairingToken) return (this.last = { running: false, reason: "not-paired" });
+    if (!cfg.enabled)
+      return (this.last = { running: false, reason: "disabled" });
+    if (!cfg.pairingToken)
+      return (this.last = { running: false, reason: "not-paired" });
 
-    const bindHost = cfg.bindHost || (await (this.deps.discover ?? discoverTailscaleAddress)());
-    if (!bindHost) return (this.last = { running: false, reason: "no-tailscale" });
+    const bindHost =
+      cfg.bindHost ||
+      (await (this.deps.discover ?? discoverTailscaleAddress)());
+    if (!bindHost)
+      return (this.last = { running: false, reason: "no-tailscale" });
 
     try {
-      const key = await tokenToKey(cfg.pairingToken, { sha256Hex: this.deps.crypto.sha256Hex });
+      const key = await tokenToKey(cfg.pairingToken, {
+        sha256Hex: this.deps.crypto.sha256Hex,
+      });
       const verifier = new HmacAuthVerifier(
         { hmacHex: this.deps.crypto.hmacHex },
         async () => key,
@@ -72,7 +83,11 @@ export class BridgeService {
       this.server = server;
       return (this.last = { running: true, bindHost, port: cfg.port });
     } catch (e) {
-      return (this.last = { running: false, reason: "error", detail: String(e) });
+      return (this.last = {
+        running: false,
+        reason: "error",
+        detail: String(e),
+      });
     }
   }
 

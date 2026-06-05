@@ -115,14 +115,16 @@ export function openAddTaskModal(
   );
   new Setting(c).setName("Due (YYYY-MM-DD)").addText((t) =>
     t.setPlaceholder("optional").onChange((v) => {
-      if (v) draft.due = v; else delete draft.due;
+      if (v) draft.due = v;
+      else delete draft.due;
     }),
   );
   new Setting(c).setName("Priority").addDropdown((d) => {
     d.addOption("", "(none)");
     for (const p of ["low", "medium", "high", "urgent"]) d.addOption(p, p);
     d.onChange((v) => {
-      if (v) draft.priority = v as TaskPriority; else delete draft.priority;
+      if (v) draft.priority = v as TaskPriority;
+      else delete draft.priority;
     });
   });
   new Setting(c)
@@ -130,7 +132,8 @@ export function openAddTaskModal(
     .setDesc("Linked as [[contact]].")
     .addText((t) =>
       t.setPlaceholder("optional").onChange((v) => {
-        if (v) draft.contact = v; else delete draft.contact;
+        if (v) draft.contact = v;
+        else delete draft.contact;
       }),
     );
 

@@ -148,8 +148,16 @@ export async function compactConnection(
   let failed = 0;
   for (const name of names) {
     try {
-      const t = await withTimeout(db.openTable(name), perTableTimeoutMs, `open ${name}`);
-      await withTimeout(t.optimize({ cleanupOlderThan }), perTableTimeoutMs, `optimize ${name}`);
+      const t = await withTimeout(
+        db.openTable(name),
+        perTableTimeoutMs,
+        `open ${name}`,
+      );
+      await withTimeout(
+        t.optimize({ cleanupOlderThan }),
+        perTableTimeoutMs,
+        `optimize ${name}`,
+      );
       optimized++;
     } catch {
       failed++;

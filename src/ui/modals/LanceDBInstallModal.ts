@@ -1,45 +1,33 @@
-// Modal surfaced when LanceDB is unavailable AND the operator has not
-// yet decided. Two-button flow with mandatory consent checkbox on the
-// install path. Skip-for-now persists the decision so we don't re-prompt
-// on every reload.
+// Informational modal surfaced when LanceDB is unavailable AND the
+// operator has not yet decided. The plugin NEVER installs code at
+// runtime (Obsidian Developer Policies prohibit downloading/executing
+// code outside the reviewed release — see LanceDBInstaller.ts header).
+// This modal only explains the optional manual install and re-detects.
 
 import { Modal, type App, Notice } from "obsidian";
 import {
-  LanceDBInstaller,
-  ObsidianInstallerHost,
-  type InstallProgress,
+  detectLanceDB,
   type LanceDBInstallDecision,
 } from "../../services/LanceDBInstaller";
-import type { ApprovalGate } from "../../contract/ApprovalGate";
 
 export interface LanceDBInstallModalOpts {
   app: App;
+  /** Central out-of-vault runtime dir a manual install targets. */
   pluginDir: string;
   initialDecision: LanceDBInstallDecision;
   /** Called when the user decides; the host persists this to plugin
    *  settings so subsequent reloads honor the choice. */
   onDecision: (next: LanceDBInstallDecision) => Promise<void>;
-  /** Optional — when supplied, the install path routes through the
-   *  approval gate so a previous "deny-always" for `install-package`
-   *  short-circuits the install before npm runs. Tests omit. */
-  approvalGate?: ApprovalGate;
 }
 
 export class LanceDBInstallModal extends Modal {
-  private consentChecked = false;
-  private installing = false;
-  private installer: LanceDBInstaller;
-
   constructor(private readonly opts: LanceDBInstallModalOpts) {
     super(opts.app);
-    this.installer = new LanceDBInstaller(
-      new ObsidianInstallerHost(opts.pluginDir),
-    );
   }
 
   override onOpen(): void {
     this.modalEl.addClass("sauce-modal");
-    this.titleEl.setText("Vector Search: Install LanceDB");
+    this.titleEl.setText("Vector search: optional LanceDB setup");
     const c = this.contentEl;
     c.empty();
     c.addClass("sauce-modal-content");
@@ -48,33 +36,42 @@ export class LanceDBInstallModal extends Modal {
     intro.createEl("p", {
       text:
         "Sauce CRM can use LanceDB for semantic vector search across your " +
-        "graph — much faster and more accurate than text-only search. " +
-        "LanceDB is a native module that lives entirely on your machine; " +
-        "no cloud calls, no telemetry.",
+        "graph — faster and more accurate than text-only search. LanceDB " +
+        "is a native module that lives entirely on your machine; no cloud " +
+        "calls, no telemetry.",
     });
     intro.createEl("p", {
       cls: "sauce-field-help",
       text:
-        "If you skip, SauceBot will keep working using graph + fuzzy " +
-        "search only. You can install later from Settings → Sauce CRM → " +
-        "Data → LanceDB.",
+        "Without it, SauceBot keeps working using graph + fuzzy search. " +
+        "The plugin never downloads or installs code itself — if you want " +
+        "vector search, run this one-time command in a terminal, then " +
+        "click Re-check:",
     });
 
-    // Consent row — must be ticked before "Install now" enables.
-    const consent = c.createDiv({ cls: "sauce-field sauce-section" });
-    const cb = consent.createEl("label", { cls: "sauce-clickable" });
-    const cbInput = cb.createEl("input", { type: "checkbox" });
-    cb.appendText(
-      " I understand this will run `npm install @lancedb/lancedb` inside the " +
-        "plugin directory and download a native binary appropriate for my OS.",
-    );
-
-    // Output pane — fills during install.
-    const log = c.createEl("pre", {
+    // Copyable manual-install command. Plain text the user runs
+    // themselves, outside Obsidian — never executed by the plugin.
+    const cmd = `npm install @lancedb/lancedb --prefix "${this.opts.pluginDir}"`;
+    const cmdBox = c.createEl("pre", {
       cls: "sauce-section",
-      attr: { style: "max-height: 220px; overflow: auto; font-size: 0.8em;" },
+      text: cmd,
+      attr: { style: "user-select: all; overflow: auto; font-size: 0.85em;" },
     });
-    log.setText("(install output will appear here)");
+    const copyRow = c.createDiv({ cls: "sauce-field" });
+    const copyBtn = copyRow.createEl("button", {
+      cls: "sauce-button-secondary",
+      text: "Copy command",
+    });
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(cmd);
+        new Notice("Install command copied.");
+      } catch {
+        // Clipboard can be unavailable — the <pre> is select-all anyway.
+        cmdBox.setText(cmd);
+        new Notice("Copy failed — select the command text manually.");
+      }
+    };
 
     // Footer buttons.
     const footer = c.createDiv({ cls: "sauce-modal-footer" });
@@ -82,127 +79,49 @@ export class LanceDBInstallModal extends Modal {
       cls: "sauce-button-secondary",
       text: "Skip for now",
     });
-    const installBtn = footer.createEl("button", {
+    const recheckBtn = footer.createEl("button", {
       cls: "sauce-button",
-      text: "Install LanceDB",
-      attr: { disabled: "true" },
+      text: "I've installed it — re-check",
     });
 
-    cbInput.onchange = () => {
-      this.consentChecked = cbInput.checked;
-      if (this.consentChecked) installBtn.removeAttribute("disabled");
-      else installBtn.setAttribute("disabled", "true");
-    };
-
     skipBtn.onclick = async () => {
-      if (this.installing) return;
       await this.opts.onDecision({
         state: "skipped",
         decidedAt: new Date().toISOString(),
       });
       new Notice(
-        "Sauce CRM: using graph-RAG only. You can install LanceDB later from Settings.",
+        "Sauce CRM: using graph-RAG only. You can set up LanceDB later from Settings.",
       );
       this.close();
     };
 
-    installBtn.onclick = async () => {
-      if (this.installing || !this.consentChecked) return;
-      // Route through the approval gate so a prior "deny-always" on
-      // install-package or spawn-process short-circuits before we run
-      // any subprocess. Skipping the gate when none was supplied keeps
-      // the modal usable in test contexts.
-      if (this.opts.approvalGate) {
-        const r = await this.opts.approvalGate.ask({
-          actionClass: "install-package",
-          summary:
-            "Install @lancedb/lancedb (native module) into the plugin directory",
-          details: `npm install @lancedb/lancedb --prefix ${this.opts.pluginDir}\n\nDownloads a native binary (~30MB) appropriate for your OS/arch.`,
-          risk: "medium",
-        });
-        if (!r.approved) {
-          new Notice(`LanceDB install ${r.verdict}; staying on graph-RAG.`);
-          await this.opts.onDecision({
-            state: "skipped",
-            decidedAt: new Date().toISOString(),
-            lastAttempt: {
-              ok: false,
-              error: `approval gate: ${r.verdict}`,
-              ts: new Date().toISOString(),
-            },
-          });
-          this.close();
-          return;
-        }
-      }
-      this.installing = true;
-      installBtn.setAttribute("disabled", "true");
-      skipBtn.setAttribute("disabled", "true");
-      log.setText("");
-      const append = (line: string) => {
-        log.appendText(line + "\n");
-        log.scrollTop = log.scrollHeight;
-      };
-      const onProgress = (p: InstallProgress): void => {
-        if (p.kind === "start") append("▶ " + p.message);
-        else if (p.kind === "line") append(`[${p.stream}] ${p.line}`);
-        else if (p.kind === "done") {
-          if (p.ok)
-            append(
-              `✓ install complete in ${(p.durationMs / 1000).toFixed(1)}s`,
-            );
-          else append(`✗ install failed: ${p.error ?? "unknown error"}`);
-        }
-      };
-      // Persist a copy of the install log to .sauce/logs/ so the operator
-      // can diagnose failures after the modal closes. We append line-by-
-      // line so the log is durable even if the modal crashes mid-install.
-      const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      const logPath = `.sauce/logs/lancedb-install-${ts}.log`;
-      const vault = this.opts.app.vault;
-      const adapter = vault.adapter;
-      try {
-        await adapter.mkdir(".sauce/logs");
-      } catch {
-        /* exists */
-      }
-      const logSink = async (line: string): Promise<void> => {
-        try {
-          const existing = (await adapter.exists(logPath))
-            ? await adapter.read(logPath)
-            : "";
-          await adapter.write(logPath, existing + line + "\n");
-        } catch {
-          // Persistence is best-effort — failure to log must not abort
-          // the install.
-        }
-      };
-      append(`▶ persisting log to ${logPath}`);
-      const ok = await this.installer.install(onProgress, logSink);
-      append(`(install log saved at ${logPath})`);
+    recheckBtn.onclick = async () => {
+      const status = detectLanceDB(this.opts.pluginDir);
+      const ok = status.state === "available";
       await this.opts.onDecision({
-        state: ok ? "approved" : "skipped",
+        state: ok ? "approved" : "pending",
         decidedAt: new Date().toISOString(),
         lastAttempt: {
           ok,
           ts: new Date().toISOString(),
-          ...(ok ? {} : { error: "install failed (see modal log)" }),
+          ...(ok
+            ? {}
+            : {
+                error:
+                  status.state === "unavailable" ? status.reason : status.state,
+              }),
         },
       });
       if (ok) {
         new Notice(
-          "LanceDB installed. Reload Obsidian to activate vector search.",
+          `LanceDB ${status.state === "available" ? `v${status.version} ` : ""}detected. Reload Obsidian to activate vector search.`,
         );
+        this.close();
       } else {
         new Notice(
-          "LanceDB install failed — falling back to graph-RAG. See modal log.",
+          "LanceDB not found yet — run the command above, then re-check.",
         );
       }
-      this.installing = false;
-      installBtn.removeAttribute("disabled");
-      skipBtn.removeAttribute("disabled");
-      installBtn.setText("Close");
-      installBtn.onclick = () => this.close();
     };
   }
 

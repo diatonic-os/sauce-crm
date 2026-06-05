@@ -77,7 +77,8 @@ export class TasksView extends SvelteDashboardView {
         | undefined;
       if (!fm || fm.type !== "task") continue;
       const _due = typeof fm.due === "string" ? fm.due : undefined;
-      const _priority = typeof fm.priority === "string" ? fm.priority : undefined;
+      const _priority =
+        typeof fm.priority === "string" ? fm.priority : undefined;
       const _contact = typeof fm.contact === "string" ? fm.contact : undefined;
       const _tags = Array.isArray(fm.tags)
         ? fm.tags.filter((t): t is string => typeof t === "string")

@@ -7,7 +7,10 @@
 /** Minimal slice of LMStudioModelManager this needs. */
 export interface ModelManagerLike {
   listLoaded(): Promise<Array<{ id: string }>>;
-  load(modelKey: string, opts?: { ttlSeconds?: number }): Promise<{ id: string }>;
+  load(
+    modelKey: string,
+    opts?: { ttlSeconds?: number },
+  ): Promise<{ id: string }>;
   unload(modelId: string): Promise<void>;
 }
 

@@ -9,7 +9,8 @@ import {
 
 export class DraftTouchSkill extends Skill {
   readonly id = "draft-touch";
-  override readonly description = "Compose a Touch from a calendar event or thread";
+  override readonly description =
+    "Compose a Touch from a calendar event or thread";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [

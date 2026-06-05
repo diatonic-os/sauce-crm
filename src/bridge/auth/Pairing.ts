@@ -38,7 +38,9 @@ const TOKEN_BYTES = 32; // → 64 hex chars
  *  never statically imported into the mobile bundle. */
 function defaultRandomBytes(n: number): Uint8Array {
   const wc: Crypto | undefined =
-    typeof globalThis !== "undefined" ? (globalThis as { crypto?: Crypto }).crypto : undefined;
+    typeof globalThis !== "undefined"
+      ? (globalThis as { crypto?: Crypto }).crypto
+      : undefined;
   if (wc && typeof wc.getRandomValues === "function") {
     return wc.getRandomValues(new Uint8Array(n));
   }
@@ -68,7 +70,9 @@ function hexToBytes(hex: string): Uint8Array {
 
 /** Mint a fresh pairing token: 32 random bytes rendered as 64 lowercase hex
  *  chars. Unique per call (given a real RNG). */
-export function generatePairingToken(rng: RandomBytes = defaultRandomBytes): string {
+export function generatePairingToken(
+  rng: RandomBytes = defaultRandomBytes,
+): string {
   return bytesToHex(rng(TOKEN_BYTES));
 }
 
@@ -78,7 +82,10 @@ export function generatePairingToken(rng: RandomBytes = defaultRandomBytes): str
  * itself never crosses the wire. We domain-separate the hash input so a token
  * can't be confused with raw note content elsewhere in the system.
  */
-export async function tokenToKey(token: string, hasher: PairingHasher): Promise<Uint8Array> {
+export async function tokenToKey(
+  token: string,
+  hasher: PairingHasher,
+): Promise<Uint8Array> {
   const digestHex = await hasher.sha256Hex(`sauce-bridge-pairing:v1:${token}`);
   return hexToBytes(digestHex);
 }

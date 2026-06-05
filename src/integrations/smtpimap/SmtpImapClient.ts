@@ -172,9 +172,8 @@ export class SmtpImapClient {
       const existsMatch = /\* (\d+) EXISTS/.exec(selResp);
       // capture group 1 (\d+) is always present when the regex matches
       const existsStr = existsMatch?.[1];
-      const messageCount = existsStr !== undefined
-        ? parseInt(existsStr, 10)
-        : undefined;
+      const messageCount =
+        existsStr !== undefined ? parseInt(existsStr, 10) : undefined;
 
       await this.sendCommand(socket, "A4 LOGOUT");
       cleanup();

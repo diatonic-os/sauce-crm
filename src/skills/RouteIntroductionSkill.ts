@@ -9,7 +9,8 @@ import {
 
 export class RouteIntroductionSkill extends Skill {
   readonly id = "route-introduction";
-  override readonly description = "Compatible-set intro path between two persons";
+  override readonly description =
+    "Compatible-set intro path between two persons";
   readonly contract: SkillContract = {
     level: "simple",
     inputs: [

@@ -569,7 +569,10 @@ export class GraphAtlasService {
       const seed = hash(node.id);
       const angle = ((seed % 3600) / 3600) * Math.PI * 2;
       // Clamp layer index to layerRadius bounds so the access is provably in-bounds.
-      const layerIdx = Math.min(Math.max(node.layer, 0), layerRadius.length - 1);
+      const layerIdx = Math.min(
+        Math.max(node.layer, 0),
+        layerRadius.length - 1,
+      );
       const radius = layerRadius[layerIdx] ?? 0; // in-bounds: clamped above
       node.x = centerX + Math.cos(angle) * (radius + (node.geo ? 22 : 0));
       node.y = centerY + Math.sin(angle) * (radius + (node.geo ? 22 : 0));
@@ -662,7 +665,10 @@ export class GraphAtlasService {
       }
 
       for (const node of nodes) {
-        const anchorLayerIdx = Math.min(Math.max(node.layer, 0), layerRadius.length - 1);
+        const anchorLayerIdx = Math.min(
+          Math.max(node.layer, 0),
+          layerRadius.length - 1,
+        );
         const anchorRadius = layerRadius[anchorLayerIdx] ?? 0; // in-bounds: clamped above
         const angle =
           ((hash(`${node.kind}:${node.id}`) % 3600) / 3600) * Math.PI * 2;

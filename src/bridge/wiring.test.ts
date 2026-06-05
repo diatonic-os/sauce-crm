@@ -65,7 +65,9 @@ describe("platform factories", () => {
       probe: { isReachable: async () => false, lastKnown: () => null },
       lexicalHost: { search: () => [] },
       // LocalHashIndex has private fields; minimal stub satisfies runtime needs.
-      localIndex: { fpFor: (_path: string): string | undefined => "" } as unknown as LocalHashIndex,
+      localIndex: {
+        fpFor: (_path: string): string | undefined => "",
+      } as unknown as LocalHashIndex,
     });
     expect(b.mode).toBe("hybrid");
   });

@@ -48,7 +48,12 @@ describe("CaptureQueue", () => {
   it("enqueue writes the markdown to the vault AND records a pending capture", async () => {
     const vault = makeVault();
     const store = makeStore();
-    const q = new CaptureQueue({ vault, store, now: () => 1000, genId: () => "id-1" });
+    const q = new CaptureQueue({
+      vault,
+      store,
+      now: () => 1000,
+      genId: () => "id-1",
+    });
 
     const rec = await q.enqueue("inbox/note.md", "# hi");
 
@@ -92,7 +97,13 @@ describe("CaptureQueue", () => {
   it("reconcile marks a capture synced when the file still exists", async () => {
     const vault = makeVault(new Set(["inbox/note.md"]));
     const store = makeStore([
-      { id: "id-1", path: "inbox/note.md", markdown: "x", ts: 1000, synced: false },
+      {
+        id: "id-1",
+        path: "inbox/note.md",
+        markdown: "x",
+        ts: 1000,
+        synced: false,
+      },
     ]);
     const q = new CaptureQueue({ vault, store, now: () => 2000 });
 
@@ -118,9 +129,21 @@ describe("CaptureQueue", () => {
     const vault = makeVault(new Set(["old.md", "fresh.md"]));
     const store = makeStore([
       // already synced + old → pruned
-      { id: "old", path: "old.md", markdown: "x", ts: now - retentionMs - 1, synced: true },
+      {
+        id: "old",
+        path: "old.md",
+        markdown: "x",
+        ts: now - retentionMs - 1,
+        synced: true,
+      },
       // synced but fresh → kept
-      { id: "fresh", path: "fresh.md", markdown: "x", ts: now - 1000, synced: true },
+      {
+        id: "fresh",
+        path: "fresh.md",
+        markdown: "x",
+        ts: now - 1000,
+        synced: true,
+      },
     ]);
     const q = new CaptureQueue({ vault, store, now: () => now, retentionMs });
 
@@ -133,7 +156,13 @@ describe("CaptureQueue", () => {
     const retentionMs = 1000;
     const vault = makeVault(); // file missing → stays unsynced
     const store = makeStore([
-      { id: "old-unsynced", path: "gone.md", markdown: "x", ts: 0, synced: false },
+      {
+        id: "old-unsynced",
+        path: "gone.md",
+        markdown: "x",
+        ts: 0,
+        synced: false,
+      },
     ]);
     const q = new CaptureQueue({ vault, store, now: () => now, retentionMs });
 

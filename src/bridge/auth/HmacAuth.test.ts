@@ -35,7 +35,9 @@ const KEY = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
 const keyProvider = async () => KEY;
 const nullableKeyProvider = async () => KEY as Uint8Array | null;
 
-function makeParts(overrides: Partial<SignedRequestParts> = {}): SignedRequestParts {
+function makeParts(
+  overrides: Partial<SignedRequestParts> = {},
+): SignedRequestParts {
   return {
     method: "POST",
     path: "/v1/memory/search",
@@ -69,7 +71,10 @@ describe("HmacAuthSigner + HmacAuthVerifier", () => {
     const parts = makeParts();
     const sig = await signer.sign(parts);
     const tampered = { ...parts, bodyHash: "deadbeef" };
-    expect(await verifier.verify(tampered, sig)).toEqual({ ok: false, reason: "bad-signature" });
+    expect(await verifier.verify(tampered, sig)).toEqual({
+      ok: false,
+      reason: "bad-signature",
+    });
   });
 
   it("tampered path → bad-signature", async () => {
@@ -78,7 +83,10 @@ describe("HmacAuthSigner + HmacAuthVerifier", () => {
     const parts = makeParts();
     const sig = await signer.sign(parts);
     const tampered = { ...parts, path: "/v1/memory/recall" };
-    expect(await verifier.verify(tampered, sig)).toEqual({ ok: false, reason: "bad-signature" });
+    expect(await verifier.verify(tampered, sig)).toEqual({
+      ok: false,
+      reason: "bad-signature",
+    });
   });
 
   it("tampered nonce → bad-signature", async () => {
@@ -89,23 +97,36 @@ describe("HmacAuthSigner + HmacAuthVerifier", () => {
     // Different nonce ⇒ different canonical string ⇒ signature mismatch (and it
     // is also a fresh, unseen nonce, so the failure is signature, not replay).
     const tampered = { ...parts, nonce: "nonce-other" };
-    expect(await verifier.verify(tampered, sig)).toEqual({ ok: false, reason: "bad-signature" });
+    expect(await verifier.verify(tampered, sig)).toEqual({
+      ok: false,
+      reason: "bad-signature",
+    });
   });
 
   it("ts outside window → stale-timestamp", async () => {
     const signer = new HmacAuthSigner(fakeCrypto, keyProvider);
-    const verifier = new HmacAuthVerifier(fakeCrypto, nullableKeyProvider, { windowMs: 1000 });
+    const verifier = new HmacAuthVerifier(fakeCrypto, nullableKeyProvider, {
+      windowMs: 1000,
+    });
     const parts = makeParts({ ts: Date.now() - 5000 });
     const sig = await signer.sign(parts);
-    expect(await verifier.verify(parts, sig)).toEqual({ ok: false, reason: "stale-timestamp" });
+    expect(await verifier.verify(parts, sig)).toEqual({
+      ok: false,
+      reason: "stale-timestamp",
+    });
   });
 
   it("ts in the future beyond window → stale-timestamp", async () => {
     const signer = new HmacAuthSigner(fakeCrypto, keyProvider);
-    const verifier = new HmacAuthVerifier(fakeCrypto, nullableKeyProvider, { windowMs: 1000 });
+    const verifier = new HmacAuthVerifier(fakeCrypto, nullableKeyProvider, {
+      windowMs: 1000,
+    });
     const parts = makeParts({ ts: Date.now() + 5000 });
     const sig = await signer.sign(parts);
-    expect(await verifier.verify(parts, sig)).toEqual({ ok: false, reason: "stale-timestamp" });
+    expect(await verifier.verify(parts, sig)).toEqual({
+      ok: false,
+      reason: "stale-timestamp",
+    });
   });
 
   it("same nonce twice → replayed-nonce", async () => {
@@ -114,25 +135,38 @@ describe("HmacAuthSigner + HmacAuthVerifier", () => {
     const parts = makeParts({ nonce: "replay-me" });
     const sig = await signer.sign(parts);
     expect(await verifier.verify(parts, sig)).toEqual({ ok: true });
-    expect(await verifier.verify(parts, sig)).toEqual({ ok: false, reason: "replayed-nonce" });
+    expect(await verifier.verify(parts, sig)).toEqual({
+      ok: false,
+      reason: "replayed-nonce",
+    });
   });
 
   it("no key available → not-paired", async () => {
     const verifier = new HmacAuthVerifier(fakeCrypto, async () => null);
     const parts = makeParts();
     // Signature value is irrelevant; not-paired is decided first.
-    expect(await verifier.verify(parts, "whatever")).toEqual({ ok: false, reason: "not-paired" });
+    expect(await verifier.verify(parts, "whatever")).toEqual({
+      ok: false,
+      reason: "not-paired",
+    });
   });
 
   it("not-paired wins even with a valid-looking but stale ts", async () => {
-    const verifier = new HmacAuthVerifier(fakeCrypto, async () => null, { windowMs: 1 });
+    const verifier = new HmacAuthVerifier(fakeCrypto, async () => null, {
+      windowMs: 1,
+    });
     const parts = makeParts({ ts: 0 });
-    expect(await verifier.verify(parts, "x")).toEqual({ ok: false, reason: "not-paired" });
+    expect(await verifier.verify(parts, "x")).toEqual({
+      ok: false,
+      reason: "not-paired",
+    });
   });
 
   it("LRU evicts oldest nonce so a very old nonce can be reused", async () => {
     const signer = new HmacAuthSigner(fakeCrypto, keyProvider);
-    const verifier = new HmacAuthVerifier(fakeCrypto, nullableKeyProvider, { nonceCacheSize: 2 });
+    const verifier = new HmacAuthVerifier(fakeCrypto, nullableKeyProvider, {
+      nonceCacheSize: 2,
+    });
     const mk = (n: string) => makeParts({ nonce: n });
 
     const s1 = await signer.sign(mk("n1"));
@@ -143,7 +177,10 @@ describe("HmacAuthSigner + HmacAuthVerifier", () => {
     const s3 = await signer.sign(mk("n3"));
     expect(await verifier.verify(mk("n3"), s3)).toEqual({ ok: true });
     // n2 is still resident → replay-rejected.
-    expect(await verifier.verify(mk("n2"), s2)).toEqual({ ok: false, reason: "replayed-nonce" });
+    expect(await verifier.verify(mk("n2"), s2)).toEqual({
+      ok: false,
+      reason: "replayed-nonce",
+    });
     // n1 was evicted → accepted again; recording it evicts the new oldest (n2).
     expect(await verifier.verify(mk("n1"), s1)).toEqual({ ok: true });
     // n2 was just evicted by the n1 record → no longer replay-rejected.

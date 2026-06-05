@@ -55,7 +55,9 @@ export class SafeStorageCredentialSource implements CredentialSource {
 
   async put(service: string, value: string): Promise<void> {
     if (!this.available()) {
-      throw new Error("safeStorage unavailable — cannot store secret in OS keychain");
+      throw new Error(
+        "safeStorage unavailable — cannot store secret in OS keychain",
+      );
     }
     const map = this.io.read();
     if (value === "") delete map[service];
@@ -103,7 +105,10 @@ export function makeSafeStorageCredentialSource(
     read(): Record<string, string> {
       if (!fs) return {};
       try {
-        return JSON.parse(fs.readFileSync(secretsPath, "utf-8")) as Record<string, string>;
+        return JSON.parse(fs.readFileSync(secretsPath, "utf-8")) as Record<
+          string,
+          string
+        >;
       } catch {
         return {};
       }
@@ -113,7 +118,9 @@ export function makeSafeStorageCredentialSource(
       try {
         fs.mkdirSync(path.dirname(secretsPath), { recursive: true });
         // 0600 — owner-only; the contents are ciphertext but defense in depth.
-        fs.writeFileSync(secretsPath, JSON.stringify(map, null, 2), { mode: 0o600 });
+        fs.writeFileSync(secretsPath, JSON.stringify(map, null, 2), {
+          mode: 0o600,
+        });
       } catch {
         /* best-effort; surfaced via available()/get returning null */
       }

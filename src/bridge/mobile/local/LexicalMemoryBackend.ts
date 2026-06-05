@@ -9,14 +9,23 @@
 // existing SearchService over Obsidian metadata) is injected via a minimal interface;
 // SearchService itself is NOT imported. Imports ONLY from the keystone contract.
 
-import type { MemoryBackend, MemoryHit, MemoryQuery, EmbedResult, BackendMode } from "../../contract";
+import type {
+  MemoryBackend,
+  MemoryHit,
+  MemoryQuery,
+  EmbedResult,
+  BackendMode,
+} from "../../contract";
 import type { ProvenanceRecord } from "../../../services/Provenance";
 import type { LocalHashIndex } from "./LocalHashIndex";
 
 /** Minimal lexical search surface. Production binds this to SearchService /
  *  Obsidian metadata search; do NOT import SearchService — inject this shape. */
 export interface LexicalHost {
-  search(query: string, limit: number): { path: string; score: number; snippet?: string }[];
+  search(
+    query: string,
+    limit: number,
+  ): { path: string; score: number; snippet?: string }[];
 }
 
 export interface LexicalMemoryBackendDeps {

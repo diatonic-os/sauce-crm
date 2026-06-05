@@ -33,7 +33,9 @@ export class OllamaProvider implements ISauceBotProvider {
     this.cfg = {
       endpoint: cfg.endpoint ?? "http://localhost:11434",
       ...(cfg.apiKey !== undefined ? { apiKey: cfg.apiKey } : {}),
-      ...(cfg.defaultModel !== undefined ? { defaultModel: cfg.defaultModel } : {}),
+      ...(cfg.defaultModel !== undefined
+        ? { defaultModel: cfg.defaultModel }
+        : {}),
     };
   }
 

@@ -96,7 +96,9 @@ export class LMStudioSdkProvider implements ISauceBotProvider {
         content:
           typeof m.content === "string" ? m.content : JSON.stringify(m.content),
       })),
-      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.temperature !== undefined
+        ? { temperature: req.temperature }
+        : {}),
       ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
     })) {
       if (ev.type === "text" && ev.delta)

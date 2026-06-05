@@ -66,7 +66,12 @@ export class QuickCaptureModal extends Modal {
     try {
       return this.interpreter.interpret(src);
     } catch (e: unknown) {
-      return { dispatches: [], unhandled: [`parse error: ${e instanceof Error ? e.message : String(e)}`] };
+      return {
+        dispatches: [],
+        unhandled: [
+          `parse error: ${e instanceof Error ? e.message : String(e)}`,
+        ],
+      };
     }
   }
 

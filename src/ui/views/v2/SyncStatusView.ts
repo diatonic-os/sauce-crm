@@ -38,7 +38,9 @@ export class SyncStatusView extends ItemView {
       });
     }
     this.render();
-    this.refreshTimer = this.registerInterval(window.setInterval(() => this.render(), 4000));
+    this.refreshTimer = this.registerInterval(
+      window.setInterval(() => this.render(), 4000),
+    );
   }
 
   override async onClose(): Promise<void> {

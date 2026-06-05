@@ -401,8 +401,7 @@ export class SauceBotChatView extends ItemView {
       () => {
         const fi = document.createElement("input");
         fi.type = "file";
-        fi.accept =
-          ".m4a,.mp3,.wav,.mp4,.ogg,.webm,.flac,.md,.txt,.pdf,.docx";
+        fi.accept = ".m4a,.mp3,.wav,.mp4,.ogg,.webm,.flac,.md,.txt,.pdf,.docx";
         fi.onchange = () => {
           const f = fi.files?.[0];
           if (f) void this.handleUpload(f);
@@ -430,7 +429,12 @@ export class SauceBotChatView extends ItemView {
     this.slashSuggest = new SlashSuggest(this.inputEl, {
       getItems: () => {
         const skills: SlashItem[] = (this.plugin.skills?.enabled() ?? []).map(
-          (s) => ({ id: s.id, label: s.id, detail: s.description, kind: "skill" }),
+          (s) => ({
+            id: s.id,
+            label: s.id,
+            detail: s.description,
+            kind: "skill",
+          }),
         );
         const cmds: SlashItem[] = (
           this.plugin.settings.copilot?.slashCommands ?? []
@@ -681,10 +685,12 @@ export class SauceBotChatView extends ItemView {
       let finalText = "",
         interim = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const res = ev.results[i]! as ArrayLike<{ transcript: string }> & { // i < results.length — bounds-checked
+        const res = ev.results[i]! as ArrayLike<{ transcript: string }> & {
+          // i < results.length — bounds-checked
           isFinal?: boolean;
         };
-        if (res.isFinal) finalText += res[0]!.transcript; // SpeechRecognition result always has ≥1 alternative
+        if (res.isFinal)
+          finalText += res[0]!.transcript; // SpeechRecognition result always has ≥1 alternative
         else interim += res[0]!.transcript;
       }
       if (finalText) baseValue += finalText;

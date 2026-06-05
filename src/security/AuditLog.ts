@@ -4,6 +4,13 @@
 // the LanceDB single-backend). The HMAC chaining is storage-agnostic: each row
 // signs `prevSignature + payload(row)`, so verify re-walks rows in ts order and
 // recomputes the chain.
+//
+// SEC-08 — The HMAC key supplied via the `masterKey` closure is NO LONGER the
+// raw AES master key. KeyVault.deriveAuditHmacKey() returns an HKDF-SHA256
+// subkey (info="audit-hmac") derived deterministically from the master key, so
+// the same password yields the same audit key every session and chains stay
+// verifiable across unlocks. This file is agnostic to how the key is derived;
+// it just signs and re-walks with whatever `masterKey()` returns.
 
 export interface AuditRow {
   ts: number;

@@ -18,7 +18,10 @@ import type {
   MemoryQuery,
 } from "../contract";
 import type { VectorHit } from "../../backend/lance/LanceVectorIndex";
-import type { IProvenanceStore, ProvenanceRecord } from "../../services/Provenance";
+import type {
+  IProvenanceStore,
+  ProvenanceRecord,
+} from "../../services/Provenance";
 
 /** Minimal vector-index surface the adapter needs (subset of LanceVectorIndex). */
 export interface VectorIndexLike {

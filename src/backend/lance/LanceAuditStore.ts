@@ -41,13 +41,14 @@ export class LanceAuditStore implements IAuditStore {
   constructor(private readonly table: LanceTable) {}
 
   async append(row: StoredAuditRow): Promise<void> {
-    await this.table.add([toStored(row)] as unknown as Record<string, unknown>[]);
+    await this.table.add([toStored(row)] as unknown as Record<
+      string,
+      unknown
+    >[]);
   }
 
   async allAsc(): Promise<StoredAuditRow[]> {
-    const rows = (await this.table
-      .query()
-      .toArray()) as AuditRowStored[];
+    const rows = (await this.table.query().toArray()) as AuditRowStored[];
     return rows.map(fromStored).sort((a, b) => a.ts - b.ts);
   }
 

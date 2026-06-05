@@ -42,7 +42,9 @@ export class PropositionEvaluator {
         );
       default: {
         const _exhaustive: never = expr;
-        throw new Error(`unhandled: ${String((_exhaustive as { type: string }).type)}`);
+        throw new Error(
+          `unhandled: ${String((_exhaustive as { type: string }).type)}`,
+        );
       }
     }
   }

@@ -364,6 +364,7 @@ function makeConsoleLogger(source: string): import("./telemetry/types").Logger {
   const tag = `[${source}]`;
   const fmt = (msg: string, data?: Record<string, unknown>) =>
     data ? `${tag} ${msg} ${JSON.stringify(data)}` : `${tag} ${msg}`;
+  /* eslint-disable no-restricted-syntax -- console IS the sink here: this is the console-backed Logger implementation, not an ad-hoc console call */
   return {
     trace: (m, d) => console.debug(fmt(m, d)),
     debug: (m, d) => console.debug(fmt(m, d)),
@@ -373,6 +374,72 @@ function makeConsoleLogger(source: string): import("./telemetry/types").Logger {
     event: (name, d) => console.info(fmt(`event:${name}`, d)),
     child: (suffix) => makeConsoleLogger(`${source}.${suffix}`),
   };
+  /* eslint-enable no-restricted-syntax */
+}
+
+/** PLC-01: minimal promise-based text-input modal replacing window.prompt().
+ *  Resolves to the entered string, or null if cancelled / dismissed. */
+class InputModal extends Modal {
+  private resolved = false;
+  constructor(
+    app: import("obsidian").App,
+    private readonly opts: {
+      title: string;
+      placeholder?: string;
+      password?: boolean;
+      cta?: string;
+    },
+    private readonly resolve: (value: string | null) => void,
+  ) {
+    super(app);
+  }
+
+  override onOpen(): void {
+    const { contentEl, titleEl } = this;
+    titleEl.setText(this.opts.title);
+    contentEl.empty();
+    const input = contentEl.createEl("input", { cls: "sg-input-modal-field" });
+    input.type = this.opts.password ? "password" : "text";
+    if (this.opts.placeholder) input.placeholder = this.opts.placeholder;
+    input.setAttribute("aria-label", this.opts.title);
+
+    const finish = (value: string | null) => {
+      if (this.resolved) return;
+      this.resolved = true;
+      this.resolve(value);
+      this.close();
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        finish(input.value);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        finish(null);
+      }
+    });
+
+    const actions = contentEl.createDiv({ cls: "sg-confirm-actions" });
+    const cancel = actions.createEl("button", { text: "Cancel" });
+    cancel.onclick = () => finish(null);
+    const ok = actions.createEl("button", {
+      text: this.opts.cta ?? "OK",
+      cls: "mod-cta",
+    });
+    ok.onclick = () => finish(input.value);
+
+    window.setTimeout(() => input.focus(), 0);
+  }
+
+  override onClose(): void {
+    // Dismissed via the close button / backdrop counts as cancel.
+    if (!this.resolved) {
+      this.resolved = true;
+      this.resolve(null);
+    }
+    this.contentEl.empty();
+  }
 }
 
 export default class SauceGraphPlugin extends Plugin {
@@ -410,6 +477,9 @@ export default class SauceGraphPlugin extends Plugin {
   }
   copilot: SauceBotRuntime | null = null;
   mirrorSync: MirrorSync | null = null;
+  /** Encrypted credential chain (OS keychain → KeyVault). Durable home of
+   *  the copilot API key — data.json never stores secrets (SEC-01). */
+  credentialChain: ChainedCredentialSource | null = null;
   enrichment: EnrichmentService | null = null;
   documentHarvest: DocumentHarvestService | null = null;
   pluginConfig: PluginConfigService | null = null;
@@ -437,6 +507,9 @@ export default class SauceGraphPlugin extends Plugin {
   // the RAG falls back to graph + fuzzy.
   lancedbCapability!: LanceDBCapability;
   private viewRefreshTimer: number | null = null;
+  // PLC-04: set true first thing in onunload; realtime vault-event handlers
+  // bail when it is set so no async work is scheduled against a torn-down plugin.
+  private unloaded = false;
 
   // Approval gate — single chokepoint every risky autonomous action
   // routes through. Wired into the LanceDB install button, the swarm
@@ -458,10 +531,10 @@ export default class SauceGraphPlugin extends Plugin {
     }
     if (!this._credentialsCache) {
       // Lazy import to avoid top-of-file circular dependency risk.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const {
-        IntegrationCredentials,
-      } = require("./integrations/IntegrationCredentials");
+      const req = (globalThis as unknown as { require: NodeRequire }).require;
+      const { IntegrationCredentials } = req(
+        "./integrations/IntegrationCredentials",
+      );
       this._credentialsCache = new IntegrationCredentials(kv, this.logger);
     }
     return this._credentialsCache;
@@ -521,7 +594,7 @@ export default class SauceGraphPlugin extends Plugin {
     try {
       this.v2 = await initV2(this.app, this);
     } catch (e) {
-      console.warn("Sauce V2 init failed", { error: String(e) });
+      this.logger.warn("Sauce V2 init failed", { error: String(e) });
     }
 
     this.entityService = new EntityService(this.app, this.settings.paths);
@@ -554,9 +627,11 @@ export default class SauceGraphPlugin extends Plugin {
       this.settings.copilot ?? COPILOT_DEFAULTS,
       this.v2?.lance?.vectors ?? null,
     );
-    // Secure credential sourcing (was never wired → providers read plaintext
-    // settings.apiKey). OS keychain (safeStorage) primary, encrypted KeyVault
-    // fallback; first available source that has the key wins.
+    // Secure credential sourcing. OS keychain (safeStorage) primary, encrypted
+    // KeyVault fallback; first available source that has the key wins. The
+    // cloud API key is NEVER persisted to data.json (SEC-01): saveSettings()
+    // strips it, the in-memory copy lives only for this session, and the
+    // durable copy lives in this chain.
     {
       const sources: CredentialSource[] = [
         makeSafeStorageCredentialSource(secretsFile(currentPathEnv())),
@@ -564,7 +639,35 @@ export default class SauceGraphPlugin extends Plugin {
       if (this.v2?.keyVault) {
         sources.push(new KeyVaultCredentialSource(this.v2.keyVault));
       }
-      this.copilot.setCredentialSource(new ChainedCredentialSource(sources));
+      this.credentialChain = new ChainedCredentialSource(sources);
+      this.copilot.setCredentialSource(this.credentialChain);
+      // One-time migration (SEC-01): a pre-0.3.0 data.json may carry a
+      // plaintext key. Move it into the encrypted chain, then scrub disk —
+      // saveSettings() persists a redacted clone from here on.
+      void (async () => {
+        const legacyKey = this.settings.copilot.apiKey;
+        if (legacyKey) {
+          try {
+            await this.credentialChain!.put(
+              this.copilotKeyService(),
+              legacyKey,
+            );
+          } catch {
+            // No writable source (locked vault + no keychain): keep the key
+            // in memory for this session; it still never re-persists.
+          }
+          await this.saveSettings(); // re-write data.json without the key
+        } else {
+          // Hydrate the session copy (embedding config reads it directly).
+          const stored = await this.credentialChain!.get(
+            this.copilotKeyService(),
+          ).catch(() => null);
+          if (stored) {
+            this.settings.copilot.apiKey = stored;
+            this.syncEmbeddingConfig();
+          }
+        }
+      })();
     }
     this.syncEmbeddingConfig();
     // Mirror vault entities into LanceDB + embed them for semantic RAG. Only
@@ -697,8 +800,9 @@ export default class SauceGraphPlugin extends Plugin {
         callback: () => {
           void vaultIndexer
             .rebuild()
-            .then((n) =>
-              new Notice(`SauceBot: indexed ${n} notes into the vault graph`),
+            .then(
+              (n) =>
+                new Notice(`SauceBot: indexed ${n} notes into the vault graph`),
             );
         },
       });
@@ -790,7 +894,9 @@ export default class SauceGraphPlugin extends Plugin {
               ...(fm.last_run ? { last_run: String(fm.last_run) } : {}),
               ...(fm.next_run ? { next_run: String(fm.next_run) } : {}),
               ...(fm.autonomy !== undefined
-                ? { autonomy: fm.autonomy as NonNullable<SkillTask["autonomy"]> }
+                ? {
+                    autonomy: fm.autonomy as NonNullable<SkillTask["autonomy"]>,
+                  }
                 : {}),
             });
           }
@@ -878,9 +984,12 @@ export default class SauceGraphPlugin extends Plugin {
     // (re)start the memory server per settings (default-OFF). Never throws into
     // boot: a bridge failure must not break plugin load.
     try {
+      // SEC-07: hydrate/migrate the pairing token into memory BEFORE the bridge
+      // starts, so refreshBridge() reads a populated token.
+      await this.migrateBridgePairingToken();
       await this.refreshBridge();
     } catch (e) {
-      console.warn("Sauce mobile-bridge init failed (non-fatal)", {
+      this.logger.warn("Sauce mobile-bridge init failed (non-fatal)", {
         error: String(e),
       });
     }
@@ -904,7 +1013,10 @@ export default class SauceGraphPlugin extends Plugin {
       ready: !!this.v2?.lance,
       ...(this.v2?.lance
         ? {}
-        : { reason: "LanceDB not installed — approve install to enable persistence" }),
+        : {
+            reason:
+              "LanceDB not installed — approve install to enable persistence",
+          }),
     });
     this.v2Registry.register({
       id: "security",
@@ -982,10 +1094,7 @@ export default class SauceGraphPlugin extends Plugin {
     // pushes to (the Real stub had a second, never-populated ring).
     this.registerView(VIEW_AI_INBOX, (l) => new AIInboxView(l, this));
     this.registerView(VIEW_AUDIT_LOG, (l) => new AuditLogView(l, this));
-    this.registerView(
-      VIEW_SKILL_RUN_LOG,
-      (l) => new SkillRunLogView(l, this),
-    );
+    this.registerView(VIEW_SKILL_RUN_LOG, (l) => new SkillRunLogView(l, this));
     this.registerView(VIEW_CALENDAR, (l) => new CalendarView(l, this));
     this.registerView(VIEW_TASKS, (l) => new TasksView(l, this));
     this.registerView(VIEW_INBOX, (l) => new InboxView(l, this));
@@ -1174,7 +1283,9 @@ export default class SauceGraphPlugin extends Plugin {
           .setIcon("plus-circle")
           .onClick(() => {
             try {
-              const QCMod = require("./ui/modals/QuickCaptureModal");
+              const QCMod = (
+                globalThis as unknown as { require: NodeRequire }
+              ).require("./ui/modals/QuickCaptureModal");
               new QCMod.QuickCaptureModal(this.app, this).open();
             } catch (e) {
               new Notice("Quick Capture unavailable");
@@ -1240,7 +1351,9 @@ export default class SauceGraphPlugin extends Plugin {
           .setIcon("sauce-addendum")
           .onClick(() => {
             try {
-              const AMod = require("./ui/modals/AddendumModal");
+              const AMod = (
+                globalThis as unknown as { require: NodeRequire }
+              ).require("./ui/modals/AddendumModal");
               new AMod.AddendumModal(this.app, this, this.activeFile()).open();
             } catch {
               new Notice("Addendum modal unavailable");
@@ -1253,7 +1366,9 @@ export default class SauceGraphPlugin extends Plugin {
           .setIcon("link")
           .onClick(() => {
             try {
-              const RMod = require("./ui/modals/RelationModal");
+              const RMod = (
+                globalThis as unknown as { require: NodeRequire }
+              ).require("./ui/modals/RelationModal");
               new RMod.RelationModal(this.app, this, this.activeFile()).open();
             } catch {
               new Notice("Relation modal unavailable");
@@ -1267,7 +1382,9 @@ export default class SauceGraphPlugin extends Plugin {
           .setIcon("upload")
           .onClick(() => {
             try {
-              const IMod = require("./ui/modals/ImportMappingModal");
+              const IMod = (
+                globalThis as unknown as { require: NodeRequire }
+              ).require("./ui/modals/ImportMappingModal");
               new IMod.ImportMappingModal(this.app, this).open();
             } catch {
               new Notice("Import unavailable");
@@ -1278,79 +1395,72 @@ export default class SauceGraphPlugin extends Plugin {
         i
           .setTitle("Export Graph JSON")
           .setIcon("download")
-          .onClick(() => {
-            const cmd = this.app.commands?.executeCommandById?.(
-              "sauce-crm:export-graph-json",
-            );
-            if (!cmd) new Notice("Export command unavailable");
-          }),
+          // PLC-02: call the handler directly rather than round-tripping
+          // through the private commands API.
+          .onClick(() => void this.exportGraphJson()),
       );
-      m.addItem((i) =>
-        i
-          .setTitle("Run Backup Now")
-          .setIcon("hard-drive")
-          .onClick(() => {
-            this.app.commands?.executeCommandById?.(
-              "sauce-crm:run-backup",
-            );
-          }),
+      m.addItem(
+        (i) =>
+          i
+            .setTitle("Run Backup Now")
+            .setIcon("hard-drive")
+            .onClick(() => void this.runBackupNow()), // PLC-02
       );
-      m.addItem((i) =>
-        i
-          .setTitle("Prune Old Backups")
-          .setIcon("trash-2")
-          .onClick(() => {
-            this.app.commands?.executeCommandById?.(
-              "sauce-crm:prune-backups",
-            );
-          }),
+      m.addItem(
+        (i) =>
+          i
+            .setTitle("Prune Old Backups")
+            .setIcon("trash-2")
+            .onClick(() => void this.pruneBackups()), // PLC-02
       );
       m.addSeparator();
       m.addItem((i) =>
         i
           .setTitle("Initialize Vault")
           .setIcon("folder-plus")
-          .onClick(() => {
-            this.app.commands?.executeCommandById?.(
-              "sauce-crm:initialize-vault",
-            );
-          }),
+          // PLC-02: call the bootstrap service directly (mirrors the command).
+          .onClick(
+            () =>
+              void this.bootstrap
+                .ensure()
+                .then(
+                  (r) => new Notice(`Bootstrap: ${r.created.length} created`),
+                ),
+          ),
       );
       m.addItem((i) =>
         i
           .setTitle("Initialize Parent Vault")
           .setIcon("folder-tree")
-          .onClick(() => {
-            this.app.commands?.executeCommandById?.(
-              "sauce-crm:initialize-parent-vault",
-            );
-          }),
+          // PLC-02: call the parent-bootstrap service directly (mirrors the command).
+          .onClick(
+            () =>
+              void this.parentBootstrap
+                .ensure()
+                .then(() => new Notice("Parent vault initialized")),
+          ),
       );
       m.addItem((i) =>
         i
           .setTitle("Onboarding…")
           .setIcon("compass")
-          .onClick(() => {
-            this.app.commands?.executeCommandById?.(
-              "sauce-crm:onboarding",
-            );
-          }),
+          // PLC-02: open the wizard modal directly (mirrors the command).
+          .onClick(() => new OnboardingWizardModal(this.app, this).open()),
       );
       m.addSeparator();
-      m.addItem((i) =>
-        i
-          .setTitle("Sauce CRM Settings")
-          .setIcon("settings")
-          .onClick(() => {
-            this.app.setting?.open?.();
-            this.app.setting?.openTabById?.("sauce-crm");
-          }),
+      m.addItem(
+        (i) =>
+          i
+            .setTitle("Sauce CRM Settings")
+            .setIcon("settings")
+            .onClick(() => this.openPluginSettings()), // PLC-02
       );
       m.showAtMouseEvent(event);
     });
 
     this.registerEvent(
       this.app.metadataCache.on("changed", (f) => {
+        if (this.unloaded) return; // PLC-04
         if (f instanceof TFile) this.edgeSync.scheduleReconcile(f);
         // Keep the LanceDB mirror + embeddings in step (frontmatter is parsed by
         // the time "changed" fires, so entity type/tags/edges are available).
@@ -1366,6 +1476,7 @@ export default class SauceGraphPlugin extends Plugin {
     );
     this.registerEvent(
       this.app.vault.on("delete", (f) => {
+        if (this.unloaded) return; // PLC-04
         if (f instanceof TFile)
           void this.mirrorSync?.deleteFile(f.path).catch(() => {});
         this.scheduleOpenViewRefresh();
@@ -1373,6 +1484,7 @@ export default class SauceGraphPlugin extends Plugin {
     );
     this.registerEvent(
       this.app.vault.on("rename", (f, oldPath) => {
+        if (this.unloaded) return; // PLC-04
         if (f instanceof TFile)
           void this.mirrorSync?.renameFile(oldPath, f.path).catch(() => {});
         this.scheduleOpenViewRefresh();
@@ -1399,7 +1511,7 @@ export default class SauceGraphPlugin extends Plugin {
       (_src, el) => void renderTasksBlock(el, this),
     );
 
-    console.log("Sauce Graph loaded");
+    this.logger?.info?.("Sauce Graph loaded"); // MKT-005: gate info behind logger
   }
 
   registerViews(): void {
@@ -1587,22 +1699,12 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCommand({
       id: "run-backup",
       name: "Run Backup Now",
-      callback: async () => {
-        const svc = new BackupService(this.app, this.entityService, this.query);
-        const r = await svc.run();
-        new Notice(
-          `Backup → ${r.path} (${r.entities} entities, ${r.edges} edges, ${(r.bytes / 1024).toFixed(1)} KB)`,
-        );
-      },
+      callback: () => void this.runBackupNow(),
     });
     this.addCommand({
       id: "prune-backups",
       name: "Prune Old Backups",
-      callback: async () => {
-        const svc = new BackupService(this.app, this.entityService, this.query);
-        const n = await svc.prune(14);
-        new Notice(`Pruned ${n} old backup(s)`);
-      },
+      callback: () => void this.pruneBackups(),
     });
     this.addCommand({
       id: "open-audit-log",
@@ -1643,7 +1745,12 @@ export default class SauceGraphPlugin extends Plugin {
       id: "encrypted-backup",
       name: "Encrypted Backup (passphrase)",
       callback: async () => {
-        const pass = prompt("Passphrase for encrypted backup:");
+        // PLC-01: Obsidian modal instead of the forbidden blocking prompt().
+        const pass = await this.promptText({
+          title: "Passphrase for encrypted backup",
+          password: true,
+          cta: "Back up",
+        });
         if (!pass) {
           new Notice("cancelled");
           return;
@@ -1907,8 +2014,12 @@ export default class SauceGraphPlugin extends Plugin {
         const db = this.v2?.lance?.db;
         if (db) {
           void compactConnection(db).then(
-            (r) => console.log("LanceDB compacted after resync", r),
-            (e: unknown) => console.warn("LanceDB post-resync compaction failed", String(e)),
+            // MKT-005: route info-level output through the logger, not console.log.
+            (r) => this.logger?.info?.("lancedb.compacted_after_resync", { r }),
+            (e: unknown) =>
+              this.logger?.warn?.("LanceDB post-resync compaction failed", {
+                error: String(e),
+              }),
           );
         }
         new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
@@ -2063,14 +2174,14 @@ export default class SauceGraphPlugin extends Plugin {
       pluginDir: this.lanceRuntimeBase(),
       initialDecision:
         this.settings.lancedb?.installDecision ?? DEFAULT_LANCEDB_DECISION,
-      // Wire the approval gate so the install respects sticky
-      // approve-always / deny-always decisions for install-package.
-      approvalGate: this.approvalGate,
       onDecision: async (next: LanceDBInstallDecision) => {
         this.settings.lancedb = { installDecision: next };
         await this.saveSettings();
         // Re-detect after a successful install attempt.
-        this.lancedbCapability = computeCapability(next, this.lanceModuleBase());
+        this.lancedbCapability = computeCapability(
+          next,
+          this.lanceModuleBase(),
+        );
       },
     }).open();
   }
@@ -2129,7 +2240,7 @@ export default class SauceGraphPlugin extends Plugin {
       if (!fm) continue;
       const r = this.contractValidator.validate(fm);
       if (!r.passed && this.settings.strictness !== "log") {
-        console.warn("Sauce contract violations", {
+        this.logger.warn("Sauce contract violations", {
           path: f.path,
           violations: r.violations,
         });
@@ -2169,8 +2280,46 @@ export default class SauceGraphPlugin extends Plugin {
       new Notice(
         `${fails.length}/${results.length} SubVaults failed federation`,
       );
-      console.warn("Federation violations", fails);
+      this.logger.warn("Federation violations", { fails });
     }
+  }
+
+  /** PLC-01: promise-based replacement for window.prompt() — opens an Obsidian
+   *  modal and resolves with the entered text (or null on cancel). */
+  private promptText(opts: {
+    title: string;
+    placeholder?: string;
+    password?: boolean;
+    cta?: string;
+  }): Promise<string | null> {
+    return new Promise((resolve) => {
+      new InputModal(this.app, opts, resolve).open();
+    });
+  }
+
+  /** PLC-02: open this plugin's settings tab. Obsidian exposes no public API for
+   *  this, so the private `app.setting.open/openTabById` calls are isolated here
+   *  (optional-chained) as the single sanctioned use site. */
+  private openPluginSettings(): void {
+    this.app.setting?.open?.();
+    this.app.setting?.openTabById?.(this.manifest.id);
+  }
+
+  /** PLC-02: shared backup handler — invoked by the command and the ribbon menu
+   *  so neither has to round-trip through the private commands API. */
+  private async runBackupNow(): Promise<void> {
+    const svc = new BackupService(this.app, this.entityService, this.query);
+    const r = await svc.run();
+    new Notice(
+      `Backup → ${r.path} (${r.entities} entities, ${r.edges} edges, ${(r.bytes / 1024).toFixed(1)} KB)`,
+    );
+  }
+
+  /** PLC-02: shared prune handler (command + ribbon menu). */
+  private async pruneBackups(): Promise<void> {
+    const svc = new BackupService(this.app, this.entityService, this.query);
+    const n = await svc.prune(14);
+    new Notice(`Pruned ${n} old backup(s)`);
   }
 
   private async exportGraphJson(): Promise<void> {
@@ -2255,15 +2404,94 @@ export default class SauceGraphPlugin extends Plugin {
     };
   }
   async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    // SEC-01: never persist secrets to data.json. The cloud API key lives in
+    // the credential chain (OS keychain / KeyVault); the in-memory settings
+    // copy is session-only. Persist a redacted clone.
+    // SEC-07: the bridge pairing token is a shared secret — strip it too; the
+    // durable copy lives in the credential chain under bridge:pairing-token.
+    const redacted: SauceGraphSettings = {
+      ...this.settings,
+      copilot: { ...this.settings.copilot, apiKey: "" },
+      ...(this.settings.bridge
+        ? { bridge: { ...this.settings.bridge, pairingToken: "" } }
+        : {}),
+    };
+    await this.saveData(redacted);
+    // SEC-07: keep the durable bridge-token copy in the chain in sync with the
+    // in-memory token (the settings UI sets the token then calls saveSettings;
+    // it does not touch the chain). Direct put — must NOT recurse into save.
+    const tok = this.settings.bridge?.pairingToken;
+    if (tok && this.credentialChain) {
+      await this.credentialChain
+        .put(this.bridgePairingService(), tok)
+        .catch(() => {
+          /* no writable source: token survives in memory for this session */
+        });
+    }
     this.syncEmbeddingConfig();
+  }
+
+  /** Credential-chain service id for the active copilot provider's API key.
+   *  Matches the onboarding wizard's vaultServiceFor() convention. */
+  copilotKeyService(): string {
+    return `copilot:${this.settings.copilot.provider}:api-key`;
+  }
+
+  /** SEC-07: credential-chain service id for the mobile-bridge pairing token.
+   *  The token is a shared secret — like the copilot key it must never land in
+   *  data.json plaintext; saveSettings() redacts it, the durable copy lives in
+   *  the encrypted chain. */
+  bridgePairingService(): string {
+    return "bridge:pairing-token";
+  }
+
+  /** SEC-07: one-time migration + hydration of the bridge pairing token,
+   *  mirroring the copilot-key flow. Awaited BEFORE refreshBridge() so the
+   *  bridge starts with the token already in memory. */
+  private async migrateBridgePairingToken(): Promise<void> {
+    if (!this.credentialChain || !this.settings.bridge) return;
+    const svc = this.bridgePairingService();
+    const legacy = this.settings.bridge.pairingToken;
+    if (legacy) {
+      // Pre-SEC-07 data.json carried the token in plaintext: move it into the
+      // chain, then scrub disk via saveSettings()'s redaction.
+      try {
+        await this.credentialChain.put(svc, legacy);
+      } catch {
+        // No writable source: keep in memory (still never re-persisted plain).
+        return;
+      }
+      await this.saveSettings();
+    } else {
+      const stored = await this.credentialChain.get(svc).catch(() => null);
+      if (stored) this.settings.bridge.pairingToken = stored;
+    }
+  }
+
+  /** Durably store the copilot API key in the encrypted credential chain
+   *  (OS keychain → KeyVault). Keeps the session copy in memory for the
+   *  embedding config; data.json never sees it. */
+  async storeCopilotKey(key: string): Promise<void> {
+    this.settings.copilot.apiKey = key; // session-only (stripped on save)
+    try {
+      await this.credentialChain?.put(this.copilotKeyService(), key);
+    } catch {
+      new Notice(
+        "Sauce CRM: no encrypted store available (vault locked, no OS keychain). " +
+          "Key kept for this session only.",
+      );
+    }
+    await this.saveSettings();
   }
 
   /** Absolute on-disk plugin dir (desktop only; undefined on mobile). Native
    *  LanceDB resolves paths against cwd and is require-installed into the
    *  plugin's own node_modules, so absolute resolution needs this. */
   absPluginDir(): string | undefined {
-    const base = this.app.vault.adapter.getBasePath?.() ?? this.app.vault.adapter.basePath ?? "";
+    const base =
+      this.app.vault.adapter.getBasePath?.() ??
+      this.app.vault.adapter.basePath ??
+      "";
     return base
       ? `${base}/${this.app.vault.configDir}/plugins/${this.manifest.id}`
       : undefined;
@@ -2278,7 +2506,10 @@ export default class SauceGraphPlugin extends Plugin {
   /** Module-resolution base for detection/use: the central runtime when the
    *  module lives there, else a legacy in-plugin install (backward compat). */
   lanceModuleBase(): string | undefined {
-    return firstExistingModuleBase([this.lanceRuntimeBase(), this.absPluginDir()]);
+    return firstExistingModuleBase([
+      this.lanceRuntimeBase(),
+      this.absPluginDir(),
+    ]);
   }
 
   /** MOB-BRIDGE-001 — construct the platform-appropriate memory backend.
@@ -2514,7 +2745,12 @@ export default class SauceGraphPlugin extends Plugin {
       new Notice("KeyVault not initialised");
       return;
     }
-    const pw = window.prompt("Enter master password to unlock vault:");
+    // PLC-01: Obsidian modal instead of the forbidden blocking window.prompt().
+    const pw = await this.promptText({
+      title: "Enter master password to unlock vault",
+      password: true,
+      cta: "Unlock",
+    });
     if (!pw) return;
     try {
       await kv.unlock(pw);
@@ -2540,12 +2776,16 @@ export default class SauceGraphPlugin extends Plugin {
     }
   }
 
-  override onunload(): void {
+  override async onunload(): Promise<void> {
+    // PLC-04: stop realtime handlers before any teardown begins.
+    this.unloaded = true;
+    this.mirrorSync?.close();
     if (this.viewRefreshTimer !== null)
       window.clearTimeout(this.viewRefreshTimer);
-    void this.bridgeService?.stop();
     this.wiredSvc?.dispose();
-    void teardownV2(this.v2);
-    console.log("Sauce Graph unloaded");
+    // PLC-03: await async teardown instead of dropping the promises on the floor.
+    await this.bridgeService?.stop();
+    await teardownV2(this.v2);
+    this.logger?.info?.("Sauce Graph unloaded");
   }
 }

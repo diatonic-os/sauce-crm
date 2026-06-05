@@ -116,7 +116,9 @@ export class SkillRuntime {
     const ctx: SkillCtx = {
       autonomy,
       agentId: opts.agentId ?? "$user/_default-A1",
-      ...(resolvedProviderHint !== undefined && { providerHint: resolvedProviderHint }),
+      ...(resolvedProviderHint !== undefined && {
+        providerHint: resolvedProviderHint,
+      }),
       call: <T>(serviceId: string, callArgs: unknown) =>
         this.dispatch<T>(serviceId, callArgs ?? args),
       audit: async (op, entityId, details) => {
@@ -132,8 +134,10 @@ export class SkillRuntime {
             /* fall through to console */
           }
         }
+        // MKT-005: default console shows only errors — drop this audit
+        // fallback to debug level so it never spams the normal console.
         // eslint-disable-next-line no-restricted-syntax -- fallback when no audit sink is wired
-        console.log("Sauce skill audit", { op, entityId, ...enriched });
+        console.debug("Sauce skill audit", { op, entityId, ...enriched });
       },
       scope: {
         require: (integration: string, scope: string) => {
@@ -148,7 +152,10 @@ export class SkillRuntime {
     try {
       result = await skill.execute(args, ctx);
     } catch (e: unknown) {
-      result = { ok: false, reason: `skill threw: ${e instanceof Error ? e.message : String(e)}` };
+      result = {
+        ok: false,
+        reason: `skill threw: ${e instanceof Error ? e.message : String(e)}`,
+      };
     }
 
     // P15: push every run into the in-memory ring buffer for the Skill Run Log view.
@@ -311,9 +318,7 @@ export class SkillRuntime {
     const seen = new Set<string>();
     for (const t of this.entities.allTouches()) {
       const fm = t.frontmatter as Record<string, unknown>;
-      const attendees = Array.isArray(fm.attendees)
-        ? fm.attendees
-        : [];
+      const attendees = Array.isArray(fm.attendees) ? fm.attendees : [];
       const names: string[] = attendees.map(
         (a: unknown) =>
           String(a)

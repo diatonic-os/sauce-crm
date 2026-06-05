@@ -68,12 +68,72 @@ export class MirrorSync {
     private readonly opts: MirrorSyncOptions = {},
   ) {}
 
+  // ── Per-path serialization (LANCE-003) ─────────────────────────────────
+  // Lance mirror ops are read-modify-write (tags/edges are delete-then-add,
+  // entities mergeInsert), so overlapping invocations for the same path can
+  // duplicate or drop rows under Obsidian's rapid-fire `changed` events.
+  // Every mutation for a path runs on that path's promise chain. syncFile
+  // additionally COALESCES: while one run is queued (not yet started), new
+  // requests for the same path fold into it — the file content is re-read at
+  // execution time, so the last run always reflects the latest state.
+  private readonly pathChains = new Map<string, Promise<void>>();
+  private readonly pathQueued = new Set<string>();
+
+  // PLC-04: once the plugin unloads, the mirror is closed and every realtime
+  // vault-event entrypoint returns early — no new ops are enqueued onto the
+  // path chains after teardown begins.
+  private closed = false;
+
+  /** Stop accepting new realtime sync ops. Called from the plugin's onunload. */
+  close(): void {
+    this.closed = true;
+  }
+
+  private chainTail(key: string): Promise<void> {
+    return this.pathChains.get(key) ?? Promise.resolve();
+  }
+
+  /** Run `op` after every previously enqueued op for `keys` has settled. */
+  private enqueue<T>(keys: string[], op: () => Promise<T>): Promise<T> {
+    const prev = Promise.allSettled(keys.map((k) => this.chainTail(k)));
+    const run = prev.then(() => op());
+    // The chain must survive op failures — park a settled tail per key.
+    const tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    for (const k of keys) this.pathChains.set(k, tail);
+    void tail.then(() => {
+      for (const k of keys) {
+        if (this.pathChains.get(k) === tail) this.pathChains.delete(k);
+      }
+    });
+    return run;
+  }
+
   async syncFile(
     file: TFile,
     opts: { embed?: boolean } = {},
   ): Promise<boolean> {
+    if (this.closed) return false; // PLC-04
     if (file.extension !== "md") return false;
     if (isExcluded(file.path, this.opts.excludeGlobs ?? [])) return false;
+    // Coalesce: if a sync for this path is already queued behind an in-flight
+    // one, this event is redundant — the queued run re-reads the file.
+    const key = file.path;
+    if (this.pathQueued.has(key)) return false;
+    this.pathQueued.add(key);
+    return this.enqueue([key], async () => {
+      this.pathQueued.delete(key);
+      return this.syncFileNow(file, opts);
+    });
+  }
+
+  /** The unserialized sync body — only ever invoked via the path chain. */
+  private async syncFileNow(
+    file: TFile,
+    opts: { embed?: boolean } = {},
+  ): Promise<boolean> {
     const mf = await this.build(file);
     if (!mf) return false; // not a typed entity (and fullVaultIndex is off)
     const changed = await this.mirror.bodyChanged(mf);
@@ -93,11 +153,16 @@ export class MirrorSync {
   }
 
   async deleteFile(path: string): Promise<void> {
-    await this.mirror.onDelete(path);
+    if (this.closed) return; // PLC-04
+    await this.enqueue([path], () => this.mirror.onDelete(path));
   }
 
   async renameFile(oldPath: string, newPath: string): Promise<void> {
-    await this.mirror.onRename(oldPath, newPath);
+    if (this.closed) return; // PLC-04
+    // Serialize against BOTH paths: a rename races with edits to either side.
+    await this.enqueue([oldPath, newPath], () =>
+      this.mirror.onRename(oldPath, newPath),
+    );
   }
 
   /** Full reconcile of every markdown entity — first install / manual rebuild.
@@ -146,7 +211,9 @@ export class MirrorSync {
     return {
       path: file.path,
       type,
-      ...(fm["primary_type"] ? { primaryType: String(fm["primary_type"]) } : {}),
+      ...(fm["primary_type"]
+        ? { primaryType: String(fm["primary_type"]) }
+        : {}),
       frontmatter: fm,
       body: raw.replace(FRONTMATTER_RE, ""),
       bodyHash: hashString(raw),

@@ -14,7 +14,9 @@ function fakeVectorIndex(opts: {
   hits?: VectorHit[];
   empty?: boolean;
   emptyThrows?: boolean;
-}): VectorIndexLike & { queryCalls: Array<{ vector: number[]; limit: number }> } {
+}): VectorIndexLike & {
+  queryCalls: Array<{ vector: number[]; limit: number }>;
+} {
   const queryCalls: Array<{ vector: number[]; limit: number }> = [];
   return {
     queryCalls,
@@ -29,7 +31,9 @@ function fakeVectorIndex(opts: {
   };
 }
 
-function makeBackend(overrides: Partial<LanceMemoryBackendDeps> = {}): LanceMemoryBackend {
+function makeBackend(
+  overrides: Partial<LanceMemoryBackendDeps> = {},
+): LanceMemoryBackend {
   const deps: LanceMemoryBackendDeps = {
     vectorIndex: fakeVectorIndex({}),
     provenanceStore: { byFingerprint: async () => [] },
@@ -46,7 +50,9 @@ describe("LanceMemoryBackend", () => {
 
   describe("semanticSearch", () => {
     it("returns [] and does not query when embed yields null", async () => {
-      const vectorIndex = fakeVectorIndex({ hits: [{ id: "a", distance: 0.1 }] });
+      const vectorIndex = fakeVectorIndex({
+        hits: [{ id: "a", distance: 0.1 }],
+      });
       const backend = makeBackend({ vectorIndex, embedFn: async () => null });
       const hits = await backend.semanticSearch({ query: "anything" });
       expect(hits).toEqual([]);
@@ -63,28 +69,54 @@ describe("LanceMemoryBackend", () => {
       const backend = makeBackend({ vectorIndex });
       const hits = await backend.semanticSearch({ query: "find me" });
       expect(hits).toEqual([
-        { path: "entity-1", fp: "entity-1", score: 0.05, snippet: undefined, degraded: false },
-        { path: "entity-2", fp: "entity-2", score: 0.42, snippet: undefined, degraded: false },
+        {
+          path: "entity-1",
+          fp: "entity-1",
+          score: 0.05,
+          snippet: undefined,
+          degraded: false,
+        },
+        {
+          path: "entity-2",
+          fp: "entity-2",
+          score: 0.42,
+          snippet: undefined,
+          degraded: false,
+        },
       ]);
     });
 
     it("uses resolveHit to fill path/fp/snippet when provided", async () => {
-      const vectorIndex = fakeVectorIndex({ hits: [{ id: "entity-1", distance: 0.9 }] });
+      const vectorIndex = fakeVectorIndex({
+        hits: [{ id: "entity-1", distance: 0.9 }],
+      });
       const backend = makeBackend({
         vectorIndex,
         resolveHit: (id) =>
           id === "entity-1"
-            ? { path: "People/Alice.md", fp: "fp-alice", snippet: "hello world" }
+            ? {
+                path: "People/Alice.md",
+                fp: "fp-alice",
+                snippet: "hello world",
+              }
             : null,
       });
       const hits = await backend.semanticSearch({ query: "alice" });
       expect(hits).toEqual([
-        { path: "People/Alice.md", fp: "fp-alice", score: 0.9, snippet: "hello world", degraded: false },
+        {
+          path: "People/Alice.md",
+          fp: "fp-alice",
+          score: 0.9,
+          snippet: "hello world",
+          degraded: false,
+        },
       ]);
     });
 
     it("falls back to raw id when resolveHit returns null", async () => {
-      const vectorIndex = fakeVectorIndex({ hits: [{ id: "orphan", distance: 0.3 }] });
+      const vectorIndex = fakeVectorIndex({
+        hits: [{ id: "orphan", distance: 0.3 }],
+      });
       const backend = makeBackend({ vectorIndex, resolveHit: () => null });
       const hits = await backend.semanticSearch({ query: "q" });
       expect(hits[0]!.path).toBe("orphan");
@@ -94,7 +126,10 @@ describe("LanceMemoryBackend", () => {
 
     it("passes k through to the vector index as the limit (default 10)", async () => {
       const withK = fakeVectorIndex({});
-      await makeBackend({ vectorIndex: withK }).semanticSearch({ query: "q", k: 3 });
+      await makeBackend({ vectorIndex: withK }).semanticSearch({
+        query: "q",
+        k: 3,
+      });
       expect(withK.queryCalls[0]!.limit).toBe(3);
 
       const noK = fakeVectorIndex({});
@@ -105,7 +140,9 @@ describe("LanceMemoryBackend", () => {
 
   describe("recall", () => {
     it("aliases semanticSearch with the same query and k", async () => {
-      const vectorIndex = fakeVectorIndex({ hits: [{ id: "x", distance: 0.2 }] });
+      const vectorIndex = fakeVectorIndex({
+        hits: [{ id: "x", distance: 0.2 }],
+      });
       const backend = makeBackend({ vectorIndex });
       const hits = await backend.recall("cue text", 5);
       expect(vectorIndex.queryCalls[0]!.limit).toBe(5);
@@ -150,17 +187,23 @@ describe("LanceMemoryBackend", () => {
 
   describe("ready", () => {
     it("is true when the index is non-empty", async () => {
-      const backend = makeBackend({ vectorIndex: fakeVectorIndex({ empty: false }) });
+      const backend = makeBackend({
+        vectorIndex: fakeVectorIndex({ empty: false }),
+      });
       expect(await backend.ready()).toBe(true);
     });
 
     it("is false when the index is empty", async () => {
-      const backend = makeBackend({ vectorIndex: fakeVectorIndex({ empty: true }) });
+      const backend = makeBackend({
+        vectorIndex: fakeVectorIndex({ empty: true }),
+      });
       expect(await backend.ready()).toBe(false);
     });
 
     it("is true (defensive) when isEmpty throws", async () => {
-      const backend = makeBackend({ vectorIndex: fakeVectorIndex({ emptyThrows: true }) });
+      const backend = makeBackend({
+        vectorIndex: fakeVectorIndex({ emptyThrows: true }),
+      });
       expect(await backend.ready()).toBe(true);
     });
   });

@@ -11,10 +11,7 @@
 // unavailable and `transcribe` throws a clear error (no silent failure) —
 // callers fall back to cloud STT or the bridge.
 
-import {
-  execFileNoThrow,
-  type ExecResult,
-} from "../../utils/execFileNoThrow";
+import { execFileNoThrow, type ExecResult } from "../../utils/execFileNoThrow";
 import type {
   TranscribeOptions,
   TranscriptionProvider,
@@ -51,7 +48,8 @@ export class WhisperEngine implements TranscriptionProvider {
   private readonly run: NonNullable<WhisperEngineDeps["run"]>;
 
   constructor(private readonly deps: WhisperEngineDeps) {
-    this.run = deps.run ?? ((cmd, args, opts) => execFileNoThrow(cmd, args, opts));
+    this.run =
+      deps.run ?? ((cmd, args, opts) => execFileNoThrow(cmd, args, opts));
   }
 
   private get bin(): string {

@@ -117,11 +117,11 @@ function extractNotionProp(p: unknown): unknown {
   const prop = p as Record<string, unknown>;
   switch (prop.type) {
     case "title":
-      return (prop.title as Array<{ plain_text?: string }> ?? [])
+      return ((prop.title as Array<{ plain_text?: string }>) ?? [])
         .map((x) => x.plain_text ?? "")
         .join("");
     case "rich_text":
-      return (prop.rich_text as Array<{ plain_text?: string }> ?? [])
+      return ((prop.rich_text as Array<{ plain_text?: string }>) ?? [])
         .map((x) => x.plain_text ?? "")
         .join("");
     case "email":
@@ -131,14 +131,20 @@ function extractNotionProp(p: unknown): unknown {
     case "url":
       return prop.url ?? null;
     case "select":
-      return (prop.select as Record<string, unknown> | null | undefined)?.name ?? null;
+      return (
+        (prop.select as Record<string, unknown> | null | undefined)?.name ??
+        null
+      );
     case "multi_select":
-      return (prop.multi_select as Array<{ name?: unknown }> ?? [])
-        .map((x) => x.name);
+      return ((prop.multi_select as Array<{ name?: unknown }>) ?? []).map(
+        (x) => x.name,
+      );
     case "number":
       return prop.number ?? null;
     case "date":
-      return (prop.date as Record<string, unknown> | null | undefined)?.start ?? null;
+      return (
+        (prop.date as Record<string, unknown> | null | undefined)?.start ?? null
+      );
     case "checkbox":
       return Boolean(prop.checkbox);
     default:

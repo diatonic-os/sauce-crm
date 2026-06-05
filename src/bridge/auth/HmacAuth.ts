@@ -67,10 +67,16 @@ export class HmacAuthVerifier implements AuthVerifier {
     opts?: HmacVerifierOpts,
   ) {
     this.windowMs = opts?.windowMs ?? TS_WINDOW_MS;
-    this.nonceCacheSize = Math.max(1, opts?.nonceCacheSize ?? DEFAULT_NONCE_CACHE);
+    this.nonceCacheSize = Math.max(
+      1,
+      opts?.nonceCacheSize ?? DEFAULT_NONCE_CACHE,
+    );
   }
 
-  async verify(parts: SignedRequestParts, signature: string): Promise<AuthResult> {
+  async verify(
+    parts: SignedRequestParts,
+    signature: string,
+  ): Promise<AuthResult> {
     const key = await this.keyProvider();
     if (key === null) return { ok: false, reason: "not-paired" };
 
@@ -84,7 +90,10 @@ export class HmacAuthVerifier implements AuthVerifier {
       return { ok: false, reason: "replayed-nonce" };
     }
 
-    const expected = await this.crypto.hmacHex(key, canonicalRequestString(parts));
+    const expected = await this.crypto.hmacHex(
+      key,
+      canonicalRequestString(parts),
+    );
     if (!constantTimeEqualHex(expected, signature)) {
       return { ok: false, reason: "bad-signature" };
     }

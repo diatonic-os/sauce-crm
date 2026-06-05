@@ -205,7 +205,7 @@ export class SmtpImapPage extends SettingsPage {
       el(
         "div",
         { class: "sauce-security-notice" },
-        "Security: Sauce Graph never accepts your real login password. App-specific passwords are encrypted at rest via libsodium secretbox in the KeyVault, gated by your master password. Passwords are zeroed in memory after each IMAP/SMTP call.",
+        "Security: Sauce Graph never accepts your real login password. App-specific passwords are encrypted at rest via PBKDF2-SHA256 (600k iterations) + AES-256-GCM in the KeyVault, gated by your master password. Passwords are zeroed in memory after each IMAP/SMTP call.",
       ),
     );
   }

@@ -1,7 +1,9 @@
 import { ItemView, type Plugin, WorkspaceLeaf } from "obsidian";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_SYNC_STATUS_REAL: ViewTypeId = asViewTypeId("sauce-crm-sync-status");
+export const VIEW_SYNC_STATUS_REAL: ViewTypeId = asViewTypeId(
+  "sauce-crm-sync-status",
+);
 
 export class SyncStatusViewReal extends ItemView {
   constructor(leaf: WorkspaceLeaf, _plugin: Plugin) {

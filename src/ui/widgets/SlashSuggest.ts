@@ -34,8 +34,7 @@ export function filterSlashItems(
   const q = query.trim().toLowerCase();
   if (!q) return items.slice();
   return items.filter(
-    (i) =>
-      i.id.toLowerCase().includes(q) || i.label.toLowerCase().includes(q),
+    (i) => i.id.toLowerCase().includes(q) || i.label.toLowerCase().includes(q),
   );
 }
 

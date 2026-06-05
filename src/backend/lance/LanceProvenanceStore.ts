@@ -60,9 +60,7 @@ export class LanceProvenanceStore implements IProvenanceStore {
   }
 
   async all(): Promise<ProvenanceRecord[]> {
-    const rows = (await this.table
-      .query()
-      .toArray()) as ProvenanceRow[];
+    const rows = (await this.table.query().toArray()) as ProvenanceRow[];
     return rows.map(fromRow).sort((a, b) => a.ts - b.ts);
   }
 }

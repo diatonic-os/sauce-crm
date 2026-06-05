@@ -1,11 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
 import { ROUTES } from "../../contract";
-import { TailscaleReachabilityProbe, type HttpRequestFn } from "./ReachabilityProbe";
+import {
+  TailscaleReachabilityProbe,
+  type HttpRequestFn,
+} from "./ReachabilityProbe";
 
 const BASE = "http://desktop.ts.net:7777";
 
 function okResponse(ok = true) {
-  return { status: 200, json: { ok, version: "1.0.0", lance: "ready" }, text: "" };
+  return {
+    status: 200,
+    json: { ok, version: "1.0.0", lance: "ready" },
+    text: "",
+  };
 }
 
 describe("TailscaleReachabilityProbe", () => {
@@ -45,7 +52,11 @@ describe("TailscaleReachabilityProbe", () => {
 
   it("caches the result within ttl (no re-probe)", async () => {
     const request: HttpRequestFn = vi.fn(async () => okResponse(true));
-    const probe = new TailscaleReachabilityProbe({ baseUrl: BASE, request, ttlMs: 10_000 });
+    const probe = new TailscaleReachabilityProbe({
+      baseUrl: BASE,
+      request,
+      ttlMs: 10_000,
+    });
 
     expect(await probe.isReachable()).toBe(true);
     expect(await probe.isReachable()).toBe(true);
@@ -55,7 +66,11 @@ describe("TailscaleReachabilityProbe", () => {
   it("re-probes after ttl expires", async () => {
     let toggle = true;
     const request: HttpRequestFn = vi.fn(async () => okResponse(toggle));
-    const probe = new TailscaleReachabilityProbe({ baseUrl: BASE, request, ttlMs: 5 });
+    const probe = new TailscaleReachabilityProbe({
+      baseUrl: BASE,
+      request,
+      ttlMs: 5,
+    });
 
     expect(await probe.isReachable()).toBe(true);
     await new Promise((r) => setTimeout(r, 10));
@@ -75,7 +90,10 @@ describe("TailscaleReachabilityProbe", () => {
 
   it("strips a trailing slash from baseUrl so the health url is well-formed", async () => {
     const request: HttpRequestFn = vi.fn(async () => okResponse(true));
-    const probe = new TailscaleReachabilityProbe({ baseUrl: BASE + "/", request });
+    const probe = new TailscaleReachabilityProbe({
+      baseUrl: BASE + "/",
+      request,
+    });
 
     await probe.isReachable();
     expect(request).toHaveBeenCalledWith(

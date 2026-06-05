@@ -142,9 +142,12 @@ export class TwilioClient {
   }
 
   async listTranscriptions(): Promise<TwilioTranscription[]> {
-    const r = await this.get<{ transcriptions?: unknown[] }>("/Transcriptions", {
-      PageSize: 50,
-    });
+    const r = await this.get<{ transcriptions?: unknown[] }>(
+      "/Transcriptions",
+      {
+        PageSize: 50,
+      },
+    );
     return (r.transcriptions ?? []).map(decodeTranscription);
   }
 
@@ -162,17 +165,11 @@ function asStr(v: unknown): string {
   return typeof v === "string" ? v : String(v ?? "");
 }
 /** Returns a 1-entry object spread or empty object, so exactOptionalPropertyTypes is satisfied. */
-function opt<K extends string>(
-  key: K,
-  v: unknown,
-): { [P in K]?: string } {
+function opt<K extends string>(key: K, v: unknown): { [P in K]?: string } {
   if (v == null) return {};
   return { [key]: String(v) } as { [P in K]?: string };
 }
-function optNum<K extends string>(
-  key: K,
-  v: unknown,
-): { [P in K]?: number } {
+function optNum<K extends string>(key: K, v: unknown): { [P in K]?: number } {
   if (typeof v !== "number") return {};
   return { [key]: v } as { [P in K]?: number };
 }

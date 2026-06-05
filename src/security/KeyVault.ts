@@ -1,4 +1,8 @@
-// SPEC §18.2 — Argon2id-derived master key + AES-256-GCM secretbox per secret.
+// SPEC §18.2 — master key derived via PBKDF2-SHA256 (600k iterations) + an
+// AES-256-GCM "secretbox" per secret. (The CryptoBackend method is named
+// `argon2id` for historical reasons; the live backend in v2-init.ts implements
+// it with PBKDF2-SHA256 — Argon2id would need a native dep we choose not to
+// ship. UI/doc copy must say "PBKDF2-SHA256 (600k iterations) + AES-256-GCM".)
 // Storage: the `api_keys_enc` table on the LanceDB single-backend, via the
 // ISecretStore interface (implemented by LanceSecretStore).
 // SGV2 envelope: every ciphertext written by secretboxSeal is prefixed with
@@ -54,8 +58,17 @@ export interface CryptoBackend {
  * and any future envelope-format drift without silent-failure decryption. */
 export const SGV2_MAGIC = new Uint8Array([0x53, 0x47, 0x56, 0x32, 0x01]); // "SGV2\x01"
 
+/** Default sentinel service row — proves the master password and anchors the
+ *  KDF salt. Used by unlock / changeMasterPassword / resetVault. */
+export const KV_SENTINEL_SERVICE = "__kv_sentinel__";
+
 const KDF = { memKiB: 64 * 1024, passes: 3, parallelism: 2, outBytes: 32 };
-const NONCE_BYTES = 24;
+// AES-GCM uses a 96-bit (12-byte) IV. Previously this was 24 (a NaCl-secretbox
+// holdover) but the AES-GCM backend only ever consumed nonce.slice(0,12), so the
+// trailing 12 bytes were dead weight. We now generate exactly 12. Backward-compat:
+// old stored blobs carry a 24-byte nonce field; decrypt still works because both
+// seal and open slice(0,12), so the same first 12 bytes are used. (SEC-03)
+const NONCE_BYTES = 12;
 const SALT_BYTES = 16;
 
 /**
@@ -168,7 +181,7 @@ export class KeyVault {
 
   async unlock(
     password: string,
-    sentinelService = "__kv_sentinel__",
+    sentinelService = KV_SENTINEL_SERVICE,
   ): Promise<void> {
     await this.timed("unlock", sentinelService, async () => {
       const existing = await this.store.get(sentinelService);
@@ -256,8 +269,178 @@ export class KeyVault {
     return (await this.store.list()).filter((s) => !s.startsWith("__"));
   }
 
-  async masterKeyHmacBytes(): Promise<Uint8Array> {
+  /**
+   * SEC-08 — Derive a distinct HMAC subkey for the audit log instead of handing
+   * out the raw AES master key. Uses HKDF-SHA256 (WebCrypto) with a fixed,
+   * non-secret info string so the derivation is deterministic: the SAME master
+   * password yields the SAME audit subkey every session, which preserves
+   * audit-chain verifiability across unlocks (existing chains signed under this
+   * subkey still verify after a relock/unlock with the same password).
+   *
+   * Audit-chain compatibility note: chains written before this change were
+   * signed with the RAW master key. They will NOT verify under the derived
+   * subkey. There is no in-place migration here (the audit log is append-only
+   * and storage-agnostic); a re-key event is expected to roll the chain forward
+   * under the new subkey. The same-password-same-subkey guarantee above means no
+   * *future* breakage on relock — only the one-time transition off the raw key.
+   */
+  async deriveAuditHmacKey(): Promise<Uint8Array> {
     if (!this.masterKey) throw new Error("vault locked");
-    return this.masterKey;
+    return hkdfSha256(this.masterKey, "audit-hmac", 32);
   }
+
+  /**
+   * @deprecated SEC-08 — Renamed to {@link deriveAuditHmacKey}. Previously this
+   * returned the RAW AES master key, which AuditLog then used directly as an
+   * HMAC key (key reuse across two primitives). It now returns the HKDF-derived
+   * audit subkey. Retained as an alias only so external callers (v2-init's
+   * AuditLog/Provenance masterKey closures) keep compiling; prefer
+   * `deriveAuditHmacKey` in new code.
+   */
+  async masterKeyHmacBytes(): Promise<Uint8Array> {
+    return this.deriveAuditHmacKey();
+  }
+
+  /** True once a vault has been provisioned (sentinel row exists). Lets the UI
+   *  distinguish "set a new master password" from "unlock the existing vault". */
+  async hasVault(sentinelService = KV_SENTINEL_SERVICE): Promise<boolean> {
+    return (await this.store.get(sentinelService)) !== null;
+  }
+
+  /**
+   * SEC-05 — Change the master password. Verifies `oldPw` (decrypts the
+   * sentinel), then decrypts every stored secret under the OLD key and
+   * re-encrypts under a freshly derived NEW key (new salt), rewriting the
+   * sentinel last so the swap is observable only once every entry is re-keyed.
+   *
+   * Re-encryption happens entry-by-entry into the store; the sentinel is
+   * rewritten at the very end. If the process is interrupted mid-way, entries
+   * already rewritten are under the new key while the sentinel still proves the
+   * old one — so a retry with the old password would fail to read the rewritten
+   * entries. We minimize that window by rewriting the sentinel last and keeping
+   * the in-memory key pointed at the new key only after a clean pass. There is
+   * no cross-row transaction at the ISecretStore layer to lean on.
+   */
+  async changeMasterPassword(
+    oldPw: string,
+    newPw: string,
+    sentinelService = KV_SENTINEL_SERVICE,
+  ): Promise<void> {
+    if (!oldPw || !newPw) throw new Error("passwords must be non-empty");
+    await this.timed("change-master-password", sentinelService, async () => {
+      const sentinel = await this.store.get(sentinelService);
+      if (!sentinel)
+        throw new Error("no vault to change (set a password first)");
+
+      // Verify old password by opening the sentinel.
+      const oldKey = await this.crypto.argon2id(oldPw, sentinel.kdfSalt, KDF);
+      const proof = await this.crypto.secretboxOpen(
+        oldKey,
+        sentinel.nonce,
+        sentinel.ciphertext,
+      );
+      if (!proof) throw new Error("invalid old password");
+
+      // Derive the new key under a fresh salt.
+      const newSalt = this.crypto.randomBytes(SALT_BYTES);
+      const newKey = await this.crypto.argon2id(newPw, newSalt, KDF);
+
+      // Re-encrypt every non-sentinel secret: decrypt under oldKey, seal under newKey.
+      const services = (await this.store.list()).filter(
+        (s) => s !== sentinelService,
+      );
+      for (const service of services) {
+        const row = await this.store.get(service);
+        if (!row) continue;
+        const pt = await this.crypto.secretboxOpen(
+          oldKey,
+          row.nonce,
+          row.ciphertext,
+        );
+        if (!pt) throw new Error(`re-key failed: cannot decrypt ${service}`);
+        const nonce = this.crypto.randomBytes(NONCE_BYTES);
+        const ct = await this.crypto.secretboxSeal(newKey, nonce, pt);
+        await this.store.put(service, {
+          ...row,
+          ciphertext: ct,
+          nonce,
+          kdfSalt: newSalt,
+          rotatedTs: Date.now(),
+        });
+      }
+
+      // Rewrite the sentinel under the new key LAST (commit point).
+      const sentinelNonce = this.crypto.randomBytes(NONCE_BYTES);
+      const sentinelPt = new TextEncoder().encode("sauce-graph-kv-v1");
+      const sentinelCt = await this.crypto.secretboxSeal(
+        newKey,
+        sentinelNonce,
+        sentinelPt,
+      );
+      await this.store.put(sentinelService, {
+        service: sentinelService,
+        ciphertext: sentinelCt,
+        nonce: sentinelNonce,
+        kdfSalt: newSalt,
+        kdfIters: KDF.passes,
+        createdTs: sentinel.createdTs,
+        rotatedTs: Date.now(),
+      });
+
+      // Adopt the new key in memory so the session stays unlocked.
+      this.masterKey = newKey;
+      this.cachedSalt = newSalt;
+      this.lastUnlock = Date.now();
+    });
+  }
+
+  /**
+   * SEC-05 — Destructive reset. Wipes every stored secret AND the sentinel so a
+   * fresh master password can be provisioned via the next `unlock()`. All
+   * encrypted secrets are irrecoverably lost. Locks the vault afterward.
+   */
+  async resetVault(sentinelService = KV_SENTINEL_SERVICE): Promise<void> {
+    await this.timed("reset-vault", sentinelService, async () => {
+      const services = await this.store.list();
+      for (const service of services) {
+        await this.store.remove(service);
+      }
+      // Ensure the sentinel is gone even if list() filtered it out.
+      await this.store.remove(sentinelService);
+    });
+    this.lock();
+  }
+}
+
+/**
+ * HKDF-SHA256 (extract + expand) via WebCrypto. Deterministic for a given
+ * (ikm, info) pair — no random salt — so derived subkeys are stable across
+ * sessions, which audit-chain verification depends on. (SEC-08)
+ */
+async function hkdfSha256(
+  ikm: Uint8Array,
+  info: string,
+  outBytes: number,
+): Promise<Uint8Array> {
+  const subtle = (globalThis as { crypto?: { subtle?: SubtleCrypto } }).crypto
+    ?.subtle;
+  if (!subtle) throw new Error("Web Crypto unavailable for HKDF");
+  const base = await subtle.importKey(
+    "raw",
+    ikm as BufferSource,
+    "HKDF",
+    false,
+    ["deriveBits"],
+  );
+  const bits = await subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new Uint8Array(0) as BufferSource,
+      info: new TextEncoder().encode(info) as BufferSource,
+    },
+    base,
+    outBytes * 8,
+  );
+  return new Uint8Array(bits);
 }

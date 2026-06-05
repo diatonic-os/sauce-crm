@@ -126,7 +126,13 @@ export function parseCron(expr: string): ParsedCron {
     );
 
   // fields.length === 5 is validated above; all five destructured vars are defined.
-  const [minF, hourF, domF, monF, dowF] = fields as [string, string, string, string, string];
+  const [minF, hourF, domF, monF, dowF] = fields as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
 
   const minutes = parseField(minF, FIELD_SPECS[0]!); // FIELD_SPECS has 5 elements
   const hours = parseField(hourF, FIELD_SPECS[1]!);

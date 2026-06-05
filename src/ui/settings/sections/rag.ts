@@ -79,7 +79,9 @@ export function renderRagEmbeddings(
 
   new Setting(containerEl)
     .setName("Exclude folders (one per line)")
-    .setDesc("Vault-relative folder prefixes to skip during whole-vault indexing. E.g. templates, archive.")
+    .setDesc(
+      "Vault-relative folder prefixes to skip during whole-vault indexing. E.g. templates, archive.",
+    )
     .addTextArea((ta) => {
       ta.setValue((rag.excludeGlobs ?? []).join("\n"));
       ta.inputEl.rows = 3;
@@ -96,7 +98,7 @@ export function renderRagEmbeddings(
     .setName("Embedding dimension")
     .setDesc(
       `Override the vector dimension for LanceDB. Leave blank to use the compiled default (${DEFAULT_EMBEDDING_DIM}). ` +
-      "Must match your model's output dimension. Changing this requires a full index rebuild — the plugin will warn you.",
+        "Must match your model's output dimension. Changing this requires a full index rebuild — the plugin will warn you.",
     )
     .addText((t) => {
       t.setPlaceholder(String(DEFAULT_EMBEDDING_DIM));
@@ -116,7 +118,7 @@ export function renderRagEmbeddings(
         if (n !== (rag.embeddingDim ?? DEFAULT_EMBEDDING_DIM)) {
           new Notice(
             `Embedding dimension changed to ${n}. A full index rebuild is required — ` +
-            "use the \"Rebuild LanceDB Index\" command in the command palette.",
+              'use the "Rebuild LanceDB Index" command in the command palette.',
           );
         }
         rag.embeddingDim = n;

@@ -34,7 +34,12 @@ export interface VaultReader {
   list(): Promise<{ path: string; mtime: number }[]>;
   read(path: string): Promise<string>;
   /** derived from Obsidian metadataCache (injected in production). */
-  meta(path: string): { title: string; type: string; tags: string[]; links: string[] };
+  meta(path: string): {
+    title: string;
+    type: string;
+    tags: string[];
+    links: string[];
+  };
 }
 
 export interface LocalHashIndexDeps {
@@ -171,7 +176,11 @@ export class LocalHashIndex {
   /** Insert/replace an entry in both maps, pruning any stale fp for the same path. */
   private put(entry: IndexEntry): void {
     const existing = this.byPathMap.get(entry.path);
-    if (existing && existing.fp !== entry.fp && this.byFpMap.get(existing.fp) === existing) {
+    if (
+      existing &&
+      existing.fp !== entry.fp &&
+      this.byFpMap.get(existing.fp) === existing
+    ) {
       this.byFpMap.delete(existing.fp);
     }
     this.byPathMap.set(entry.path, entry);

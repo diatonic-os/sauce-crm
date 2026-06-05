@@ -41,7 +41,20 @@ import type { Logger } from "./telemetry/types";
 // not to ship; the passes count from the KDF opts is multiplied by 200k iterations).
 // Seal/open use AES-256-GCM under a versioned `SGV2\x01` envelope so any leftover
 // zero-buffer ciphertexts from the pre-A2 stub fail open instead of decrypting silently.
-async function sealAesGcm(
+
+// AES-GCM nonce is exactly 12 bytes (96 bits) — the WebCrypto-recommended IV size.
+// New blobs are sealed with 12-byte nonces (see GCM_NONCE_BYTES). Some pre-fix blobs
+// were stored with a 24-byte nonce of which only the first 12 bytes ever fed AES-GCM;
+// this helper takes the leading 12 bytes either way, so OLD 24-byte-nonce blobs still
+// decrypt. Length-aware on read AND write — never silently truncate to a different slice.
+export const GCM_NONCE_BYTES = 12;
+function gcmIv(nonce: Uint8Array): Uint8Array {
+  return nonce.length === GCM_NONCE_BYTES
+    ? nonce
+    : nonce.slice(0, GCM_NONCE_BYTES);
+}
+
+export async function sealAesGcm(
   key: Uint8Array,
   nonce: Uint8Array,
   msg: Uint8Array,
@@ -55,7 +68,7 @@ async function sealAesGcm(
     ["encrypt"],
   );
   const ct = await subtle.encrypt(
-    { name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource },
+    { name: "AES-GCM", iv: gcmIv(nonce) as BufferSource },
     k,
     msg as BufferSource,
   );
@@ -66,7 +79,7 @@ async function sealAesGcm(
   out.set(ctBytes, SGV2_MAGIC.length);
   return out;
 }
-async function openAesGcm(
+export async function openAesGcm(
   key: Uint8Array,
   nonce: Uint8Array,
   enveloped: Uint8Array,
@@ -86,7 +99,7 @@ async function openAesGcm(
   );
   try {
     const pt = await subtle.decrypt(
-      { name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource },
+      { name: "AES-GCM", iv: gcmIv(nonce) as BufferSource },
       k,
       ct as BufferSource,
     );
@@ -173,9 +186,17 @@ export interface V2Runtime {
   proxy: ProxyClient;
   sync: SyncEngine;
   inference: InferenceEngine;
+  /** In-flight background compaction kicked off at init, if any. teardownV2
+   *  awaits it (bounded) before close() so the detached compaction can't race
+   *  the connection teardown (LANCE-006). Resolves/rejects are swallowed. */
+  pendingCompaction: Promise<unknown> | null;
 }
 
 export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
+  // The plugin subclass initializes `logger` as a field default, so it is
+  // always present by the time onload() calls initV2(). Route init-time
+  // diagnostics through it (the base Plugin type lacks the field).
+  const initLogger = (plugin as unknown as { logger?: Logger }).logger ?? null;
   const pluginId = plugin.manifest.id;
   const pluginDir = normalizePath(`${app.vault.configDir}/plugins/${pluginId}`);
   // Native LanceDB resolves paths against process.cwd() (NOT the vault) and is
@@ -183,9 +204,7 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   // on-disk plugin dir, which the desktop FileSystemAdapter exposes via
   // getBasePath(); on mobile there is no base path (and no LanceDB anyway).
   const vaultBase =
-    app.vault.adapter.getBasePath?.() ??
-    app.vault.adapter.basePath ??
-    "";
+    app.vault.adapter.getBasePath?.() ?? app.vault.adapter.basePath ?? "";
   const absPluginDir = vaultBase
     ? `${vaultBase}/${app.vault.configDir}/plugins/${pluginId}`
     : undefined;
@@ -197,7 +216,10 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   const centralDataDir = vaultBase ? lanceDataDir(pe, vaultBase) : undefined;
   // Module base: prefer the central runtime; fall back to a legacy in-plugin
   // install so existing users keep working without reinstalling.
-  const moduleBase = firstExistingModuleBase([lanceRuntimeDir(pe), absPluginDir]);
+  const moduleBase = firstExistingModuleBase([
+    lanceRuntimeDir(pe),
+    absPluginDir,
+  ]);
 
   // One-time migration: move a v1 in-vault store to the central location BEFORE
   // we open it. Safe + idempotent (never clobbers a populated target).
@@ -207,23 +229,44 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
         legacyLanceDir(absPluginDir),
         centralDataDir,
       );
-      if (mig.migrated) {
-        console.log("Sauce V2: migrated LanceDB out of the vault", {
+      if (mig.reason === "copied-legacy-cleanup-failed") {
+        // Data WAS copied to the central store — but the legacy in-vault store
+        // couldn't be removed. Operator must clean it up manually (LANCE-007).
+        initLogger?.warn(
+          "Sauce V2: migrated LanceDB out of the vault, but manual cleanup of the legacy store is needed",
+          {
+            legacyDir: legacyLanceDir(absPluginDir),
+            error: mig.error,
+            to: centralDataDir,
+          },
+        );
+      } else if (mig.migrated) {
+        initLogger?.debug("Sauce V2: migrated LanceDB out of the vault", {
           reason: mig.reason,
           to: centralDataDir,
         });
       } else if (mig.reason === "failed") {
-        console.warn("Sauce V2: LanceDB migration failed; using fresh store", {
-          error: mig.error,
-        });
+        initLogger?.warn(
+          "Sauce V2: LanceDB migration failed; using fresh store",
+          {
+            error: mig.error,
+          },
+        );
       }
     } catch (e) {
-      console.warn("Sauce V2: LanceDB migration error", { error: String(e) });
+      initLogger?.warn("Sauce V2: LanceDB migration error", {
+        error: String(e),
+      });
     }
   }
 
-  const lanceDir = centralDataDir ?? `${pluginDir}/data/lancedb`;
-  const pluginSettings = (plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }).settings; // Plugin subclass field; base Plugin type lacks it
+  // LANCE-002 guard: never fall back to a vault-relative dataDir — native
+  // lancedb connect() would resolve it against process.cwd(), an unpredictable
+  // location. No absolute base path ⇒ no Lance backend (graph-RAG fallback).
+  const lanceDir = centralDataDir;
+  const pluginSettings = (
+    plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }
+  ).settings; // Plugin subclass field; base Plugin type lacks it
   const embeddingDim = pluginSettings?.lancedb?.embeddingDim;
 
   // ─── Backend: LanceDB single-backend (require-install) ───────────────
@@ -232,8 +275,11 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   // and feature use is gated until the operator approves the install.
   let lance: LanceBackend | null = null;
   let backendKind: "lancedb" | "uninitialized" = "uninitialized";
+  // Track any background compaction so teardownV2 can await it before close()
+  // (LANCE-006 — detached compaction must not race the connection teardown).
+  let pendingCompaction: Promise<unknown> | null = null;
   const detect = detectLanceDB(moduleBase);
-  if (detect.state === "available") {
+  if (lanceDir && detect.state === "available") {
     try {
       // Bound init: a pathological store (e.g. thousands of un-compacted
       // versions) must NOT freeze vault load. On timeout we fall through to the
@@ -248,7 +294,7 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
         "backend init",
       );
       backendKind = "lancedb";
-      console.log("Sauce V2 backend: LanceDB", {
+      initLogger?.debug("Sauce V2 backend: LanceDB", {
         dir: lanceDir,
         version: detect.version,
         dim: lance.embeddingDim,
@@ -259,25 +305,34 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
       // choking on that file count is what surfaces as Obsidian's "watcher"
       // error. Trigger background compaction on EITHER signal (count or size)
       // so the store collapses back to a handful of files without delaying load.
-      const fileProbe = dirFileCountBounded(lanceDir, LANCE_BLOAT_WARN_FILES + 1);
+      const fileProbe = dirFileCountBounded(
+        lanceDir,
+        LANCE_BLOAT_WARN_FILES + 1,
+      );
       const sizeProbe = dirSizeBounded(lanceDir, LANCE_BLOAT_WARN_BYTES + 1);
-      if (fileProbe > LANCE_BLOAT_WARN_FILES || sizeProbe > LANCE_BLOAT_WARN_BYTES) {
+      if (
+        fileProbe > LANCE_BLOAT_WARN_FILES ||
+        sizeProbe > LANCE_BLOAT_WARN_BYTES
+      ) {
         const db = lance.db;
-        console.warn(
+        initLogger?.warn(
           `Sauce V2 LanceDB is bloated (${fileProbe}+ files / ${Math.round(sizeProbe / 1048576)}+ MB) — compacting in background`,
         );
-        void compactConnection(db).then(
-          (r) => console.log("Sauce V2 LanceDB compaction done", r),
-          (e: unknown) => console.warn("Sauce V2 LanceDB compaction failed", String(e)),
+        pendingCompaction = compactConnection(db).then(
+          (r) => initLogger?.debug("Sauce V2 LanceDB compaction done", { r }),
+          (e: unknown) =>
+            initLogger?.warn("Sauce V2 LanceDB compaction failed", {
+              error: String(e),
+            }),
         );
       }
     } catch (e) {
-      console.warn("Sauce V2 LanceDB init failed; backend unavailable", {
+      initLogger?.warn("Sauce V2 LanceDB init failed; backend unavailable", {
         error: String(e),
       });
     }
   } else {
-    console.log("Sauce V2 backend: LanceDB not available", { detect });
+    initLogger?.debug("Sauce V2 backend: LanceDB not available", { detect });
   }
 
   // ─── Scopes ──────────────────────────────────────────────────────────
@@ -296,7 +351,7 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
       const kvLogger: Logger | null = pluginLogger?.child("keyvault") ?? null;
       keyVault = new KeyVault(lance.secrets, cb, kvLogger ?? null);
     } catch (e) {
-      console.warn("Sauce V2 KeyVault init failed", { error: String(e) });
+      initLogger?.warn("Sauce V2 KeyVault init failed", { error: String(e) });
     }
   }
 
@@ -373,6 +428,7 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
     proxy,
     sync,
     inference,
+    pendingCompaction,
   };
 }
 
@@ -388,9 +444,29 @@ export async function teardownV2(rt: V2Runtime | null): Promise<void> {
   } catch {
     /* */
   }
+  // LANCE-006: drain any in-flight background compaction (bounded) BEFORE
+  // closing the native connection, so the detached compaction can't operate on
+  // a closed handle. We never reject — a slow/failed compaction must not block
+  // teardown past the bound.
+  if (rt.pendingCompaction) {
+    try {
+      await Promise.race([
+        rt.pendingCompaction.catch(() => undefined),
+        new Promise((resolve) =>
+          setTimeout(resolve, COMPACTION_DRAIN_TIMEOUT_MS),
+        ),
+      ]);
+    } catch {
+      /* */
+    }
+  }
   try {
     await rt.lance?.close();
   } catch {
     /* */
   }
 }
+
+/** Upper bound (ms) teardownV2 waits for a background compaction to settle
+ *  before closing the connection anyway (LANCE-006). */
+const COMPACTION_DRAIN_TIMEOUT_MS = 5_000;

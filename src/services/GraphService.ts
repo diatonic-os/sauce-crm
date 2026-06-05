@@ -64,7 +64,13 @@ export class GraphService implements PipelineGraphSink {
   ): void {
     const list = this.adj.get(src) ?? [];
     if (list.some((e) => e.dst === dst && e.kind === kind)) return;
-    list.push({ src, dst, kind, weight: 1, ...(props !== undefined && { props }) });
+    list.push({
+      src,
+      dst,
+      kind,
+      weight: 1,
+      ...(props !== undefined && { props }),
+    });
     this.adj.set(src, list);
   }
 

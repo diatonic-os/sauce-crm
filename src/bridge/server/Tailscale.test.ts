@@ -21,7 +21,9 @@ describe("pickTailscaleAddress", () => {
     const ifaces = {
       lo: [{ family: "IPv4", address: "127.0.0.1", internal: true }],
       eth0: [{ family: "IPv4", address: "192.168.1.20", internal: false }],
-      tailscale0: [{ family: "IPv4", address: "100.101.102.103", internal: false }],
+      tailscale0: [
+        { family: "IPv4", address: "100.101.102.103", internal: false },
+      ],
     };
     expect(pickTailscaleAddress(ifaces)).toBe("100.101.102.103");
   });

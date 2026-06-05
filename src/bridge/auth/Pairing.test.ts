@@ -79,7 +79,9 @@ describe("tokenToKey", () => {
   it("both devices derive the same key from the same token", async () => {
     // Simulate two independent devices each running tokenToKey on the shared
     // token with their own (identical-shape) hasher instance.
-    const desktopHasher: PairingHasher = { sha256Hex: async (d) => fnvHex64(d) };
+    const desktopHasher: PairingHasher = {
+      sha256Hex: async (d) => fnvHex64(d),
+    };
     const mobileHasher: PairingHasher = { sha256Hex: async (d) => fnvHex64(d) };
     const token = generatePairingToken();
     const desktopKey = await tokenToKey(token, desktopHasher);

@@ -99,7 +99,10 @@ export class HybridMemoryBackend implements MemoryBackend {
   /** Shared routing: prefer the bridge when the desktop is reachable AND ready;
    *  fall back to local on a transient BridgeError. When not reachable, go
    *  straight to local. */
-  private async route<T>(viaBridge: () => Promise<T>, viaLocal: () => Promise<T>): Promise<T> {
+  private async route<T>(
+    viaBridge: () => Promise<T>,
+    viaLocal: () => Promise<T>,
+  ): Promise<T> {
     let reachable = false;
     try {
       reachable = await this.probe.isReachable();

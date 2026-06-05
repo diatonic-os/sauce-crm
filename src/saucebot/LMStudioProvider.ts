@@ -33,7 +33,9 @@ export class LMStudioProvider extends OpenAICompatibleProvider {
     this.cfg = {
       endpoint: cfg.endpoint ?? "http://localhost:1234/v1",
       ...(cfg.apiKey !== undefined ? { apiKey: cfg.apiKey } : {}),
-      ...(cfg.defaultModel !== undefined ? { defaultModel: cfg.defaultModel } : {}),
+      ...(cfg.defaultModel !== undefined
+        ? { defaultModel: cfg.defaultModel }
+        : {}),
       toolUse: cfg.toolUse ?? false,
     };
   }

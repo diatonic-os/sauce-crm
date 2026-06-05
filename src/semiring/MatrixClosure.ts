@@ -37,7 +37,8 @@ export function mul<T>(sr: Semiring<T>, a: Matrix<T>, b: Matrix<T>): Matrix<T> {
     const rowOut = out[i]!;
     for (let j = 0; j < n; j++) {
       let acc: T = sr.zero;
-      for (let k = 0; k < n; k++) acc = sr.add(acc, sr.mul(rowA[k]!, b[k]![j]!));
+      for (let k = 0; k < n; k++)
+        acc = sr.add(acc, sr.mul(rowA[k]!, b[k]![j]!));
       rowOut[j] = acc;
     }
   }

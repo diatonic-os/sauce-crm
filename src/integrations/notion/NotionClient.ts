@@ -43,7 +43,11 @@ export class NotionClient {
     return this.opts.version ?? "2022-06-28";
   }
 
-  private async req<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async req<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<T> {
     const tok = await this.opts.token();
     const bodyStr = body == null ? undefined : JSON.stringify(body);
     const r = await this.opts.fetch.fetch(`${this.base()}${path}`, {
@@ -75,14 +79,13 @@ export class NotionClient {
     databaseId: string,
     opts: { pageSize?: number; startCursor?: string } = {},
   ): Promise<{ pages: NotionPage[]; nextCursor: string | null }> {
-    const r = await this.req<{ results: unknown[]; next_cursor: string | null }>(
-      "POST",
-      `/databases/${encodeURIComponent(databaseId)}/query`,
-      {
-        page_size: opts.pageSize ?? 100,
-        start_cursor: opts.startCursor,
-      },
-    );
+    const r = await this.req<{
+      results: unknown[];
+      next_cursor: string | null;
+    }>("POST", `/databases/${encodeURIComponent(databaseId)}/query`, {
+      page_size: opts.pageSize ?? 100,
+      start_cursor: opts.startCursor,
+    });
     // Notion /databases/:id/query guarantees page-shaped results.
     return { pages: r.results as NotionPage[], nextCursor: r.next_cursor };
   }

@@ -53,7 +53,11 @@ export class ConflictModal extends Modal {
       sel.value = "local";
       this.decisions[f.name] = "local";
       sel.onchange = () => {
-        this.decisions[f.name] = sel.value as "local" | "remote" | "both" | "skip";
+        this.decisions[f.name] = sel.value as
+          | "local"
+          | "remote"
+          | "both"
+          | "skip";
       };
     }
 

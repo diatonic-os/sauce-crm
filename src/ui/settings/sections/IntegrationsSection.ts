@@ -53,7 +53,9 @@ export function renderIntegrationsSection(
     const registry = host.obsidianPlugins;
     // Wrap the host action so the cards re-render (reflecting new state) after
     // it completes, without losing the active sub-tab.
-    const onAction: ((pluginId: string, event: PluginButtonEvent) => void) | undefined = host.onPluginAction
+    const onAction:
+      | ((pluginId: string, event: PluginButtonEvent) => void)
+      | undefined = host.onPluginAction
       ? (pluginId: string, event: PluginButtonEvent) => {
           void Promise.resolve(host.onPluginAction!(pluginId, event)).then(() =>
             renderBody(),
@@ -61,10 +63,18 @@ export function renderIntegrationsSection(
         }
       : undefined;
     if (active === "community") {
-      if (registry) renderCommunityPluginsPage(body, { registry, ...(onAction ? { onAction } : {}) });
+      if (registry)
+        renderCommunityPluginsPage(body, {
+          registry,
+          ...(onAction ? { onAction } : {}),
+        });
       else emptyHint(body, "Plugin registry not initialized.");
     } else if (active === "core") {
-      if (registry) renderCorePluginsPage(body, { registry, ...(onAction ? { onAction } : {}) });
+      if (registry)
+        renderCorePluginsPage(body, {
+          registry,
+          ...(onAction ? { onAction } : {}),
+        });
       else emptyHint(body, "Plugin registry not initialized.");
     } else {
       if (host.renderServices) host.renderServices(body);

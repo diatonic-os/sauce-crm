@@ -6,11 +6,20 @@ import { discoverTailscaleAddress } from "../../../bridge/server/Tailscale";
 /** Settings section: Mobile Bridge. Desktop runs the (default-OFF) memory
  *  server; mobile points at the paired desktop. The server only ever binds the
  *  Tailscale interface and requires a shared pairing token. */
-export function renderBridge(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
+export function renderBridge(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
   plugin.logger?.debug?.("settings.section_render", { section: "bridge" });
   const s = plugin.settings;
   if (!s.bridge) {
-    s.bridge = { enabled: false, port: 8787, bindHost: "", baseUrl: "", pairingToken: "" };
+    s.bridge = {
+      enabled: false,
+      port: 8787,
+      bindHost: "",
+      baseUrl: "",
+      pairingToken: "",
+    };
   }
   const b = s.bridge;
 
@@ -33,7 +42,11 @@ export function renderBridge(containerEl: HTMLElement, plugin: SauceGraphPlugin)
 
 type Bridge = NonNullable<SauceGraphPlugin["settings"]["bridge"]>;
 
-function renderDesktop(containerEl: HTMLElement, plugin: SauceGraphPlugin, b: Bridge): void {
+function renderDesktop(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+  b: Bridge,
+): void {
   const status = plugin.bridgeService?.status();
   const statusText = !status
     ? "not initialized"
@@ -43,7 +56,9 @@ function renderDesktop(containerEl: HTMLElement, plugin: SauceGraphPlugin, b: Br
 
   new Setting(containerEl)
     .setName("Enable memory server")
-    .setDesc(`Serve this desktop's memory to your paired phone. Status: ${statusText}`)
+    .setDesc(
+      `Serve this desktop's memory to your paired phone. Status: ${statusText}`,
+    )
     .addToggle((t) =>
       t.setValue(!!b.enabled).onChange(async (v) => {
         b.enabled = v;
@@ -82,7 +97,10 @@ function renderDesktop(containerEl: HTMLElement, plugin: SauceGraphPlugin, b: Br
     );
   // Fill in the discovered address as a hint.
   void discoverTailscaleAddress().then((addr) => {
-    if (addr) bindSetting.setDesc(`Leave blank to auto-discover. Detected Tailscale IP: ${addr}`);
+    if (addr)
+      bindSetting.setDesc(
+        `Leave blank to auto-discover. Detected Tailscale IP: ${addr}`,
+      );
   });
 
   new Setting(containerEl)
@@ -93,20 +111,30 @@ function renderDesktop(containerEl: HTMLElement, plugin: SauceGraphPlugin, b: Br
         : "Not set. Generate a token, then enter it on your phone.",
     )
     .addButton((btn) =>
-      btn.setButtonText(b.pairingToken ? "Regenerate" : "Generate").onClick(async () => {
-        b.pairingToken = generatePairingToken();
-        await plugin.saveSettings();
-        await plugin.refreshBridge();
-        new Notice("New pairing token generated. Enter it on your phone to re-pair.");
-        plugin.app.workspace.trigger("sauce:settings-rerender");
-      }),
+      btn
+        .setButtonText(b.pairingToken ? "Regenerate" : "Generate")
+        .onClick(async () => {
+          b.pairingToken = generatePairingToken();
+          await plugin.saveSettings();
+          await plugin.refreshBridge();
+          new Notice(
+            "New pairing token generated. Enter it on your phone to re-pair.",
+          );
+          plugin.app.workspace.trigger("sauce:settings-rerender");
+        }),
     );
 }
 
-function renderMobile(containerEl: HTMLElement, plugin: SauceGraphPlugin, b: Bridge): void {
+function renderMobile(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+  b: Bridge,
+): void {
   new Setting(containerEl)
     .setName("Desktop bridge URL")
-    .setDesc("e.g. http://<desktop-tailscale-ip>:8787 — find it in the desktop's Mobile Bridge settings.")
+    .setDesc(
+      "e.g. http://<desktop-tailscale-ip>:8787 — find it in the desktop's Mobile Bridge settings.",
+    )
     .addText((t) =>
       t
         .setPlaceholder("http://100.x.y.z:8787")
@@ -122,12 +150,10 @@ function renderMobile(containerEl: HTMLElement, plugin: SauceGraphPlugin, b: Bri
     .setName("Pairing token")
     .setDesc("Paste the token shown in the desktop's Mobile Bridge settings.")
     .addText((t) =>
-      t
-        .setValue(b.pairingToken ?? "")
-        .onChange(async (v) => {
-          b.pairingToken = v.trim();
-          await plugin.saveSettings();
-          await plugin.refreshBridge();
-        }),
+      t.setValue(b.pairingToken ?? "").onChange(async (v) => {
+        b.pairingToken = v.trim();
+        await plugin.saveSettings();
+        await plugin.refreshBridge();
+      }),
     );
 }

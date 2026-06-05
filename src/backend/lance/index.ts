@@ -19,7 +19,12 @@ import { LanceProvenanceStore } from "./LanceProvenanceStore";
 import { LanceDocChunkStore } from "./LanceDocChunkStore";
 import { ensureGraphTables, LanceGraphStore } from "./graph";
 export { LanceGraphStore } from "./graph";
-export type { GraphStore, GraphNodeRow, GraphEdgeRow, UpsertNodeInput } from "./graph";
+export type {
+  GraphStore,
+  GraphNodeRow,
+  GraphEdgeRow,
+  UpsertNodeInput,
+} from "./graph";
 
 export * from "./LanceSchema";
 export * from "./LanceConnection";
@@ -104,6 +109,9 @@ export async function initLanceBackend(
     ensureTable(db, TABLES.provenance, embeddingDim),
   ]);
   await ensureTable(db, TABLES.syncState, embeddingDim);
+  // addenda is part of LanceSchema (seed row + delete predicate, iterated by
+  // ALL_TABLES); create it here so the live schema matches the declared one.
+  await ensureTable(db, TABLES.addenda, embeddingDim);
   const docChunks = await ensureTable(db, TABLES.docChunks, embeddingDim);
   const { nodes: graphNodes, edges: graphEdges } = await ensureGraphTables(db);
 

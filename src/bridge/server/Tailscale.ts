@@ -21,7 +21,11 @@ export function isTailscaleCgnat(ip: string): boolean {
 /** Pick the first Tailscale-range IPv4 from a map of interface → addresses
  *  (the shape of os.networkInterfaces()). Pure, for testability. */
 export function pickTailscaleAddress(
-  ifaces: Record<string, Array<{ family?: string | number; address?: string; internal?: boolean }> | undefined>,
+  ifaces: Record<
+    string,
+    | Array<{ family?: string | number; address?: string; internal?: boolean }>
+    | undefined
+  >,
 ): string | null {
   for (const list of Object.values(ifaces)) {
     for (const a of list ?? []) {
@@ -40,7 +44,9 @@ export function pickTailscaleAddress(
 export async function discoverTailscaleAddress(): Promise<string | null> {
   if (typeof process === "undefined") return null; // mobile — can't bind anyway
   try {
-    const os = require("os") as typeof import("node:os");
+    const req = (globalThis as unknown as { require?: NodeRequire }).require;
+    if (!req) return null;
+    const os = req("os") as typeof import("node:os");
     return pickTailscaleAddress(
       os.networkInterfaces() as Parameters<typeof pickTailscaleAddress>[0],
     );

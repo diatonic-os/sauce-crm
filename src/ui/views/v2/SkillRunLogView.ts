@@ -3,7 +3,9 @@ import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
-export const VIEW_SKILL_RUN_LOG: ViewTypeId = asViewTypeId("sauce-skill-run-log");
+export const VIEW_SKILL_RUN_LOG: ViewTypeId = asViewTypeId(
+  "sauce-skill-run-log",
+);
 
 export interface SkillRunRow {
   ts: number;

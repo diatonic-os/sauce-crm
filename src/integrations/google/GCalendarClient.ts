@@ -54,8 +54,12 @@ export class GCalendarClient {
     );
     return {
       events: r.items ?? [],
-      ...(r.nextSyncToken !== undefined ? { nextSyncToken: r.nextSyncToken } : {}),
-      ...(r.nextPageToken !== undefined ? { nextPageToken: r.nextPageToken } : {}),
+      ...(r.nextSyncToken !== undefined
+        ? { nextSyncToken: r.nextSyncToken }
+        : {}),
+      ...(r.nextPageToken !== undefined
+        ? { nextPageToken: r.nextPageToken }
+        : {}),
     };
   }
 

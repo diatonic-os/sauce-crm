@@ -1,37 +1,34 @@
-// LanceDB auto-installer + capability detector for the Sauce CRM plugin.
+// LanceDB capability detector for the Sauce CRM plugin.
 //
-// LanceDB ships as a native N-API binding and is only installable on
+// LanceDB ships as a native N-API binding and is only loadable on
 // desktop Electron — iOS/Android Obsidian runs WebView-only with no
-// native module loader. Plugin manifest declares isDesktopOnly: true,
-// so this module focuses on desktop install paths while exposing a
-// clean fallback API the rest of the code can call without knowing
-// whether vector search is available.
+// native module loader. Plugin manifest declares isDesktopOnly: true.
 //
-// The detector runs at plugin onload. If LanceDB is not resolvable the
-// caller surfaces the install prompt (LanceDBInstallModal). The user
-// either approves the install (with explicit consent checkbox) or
-// skips — in which case VectorSearchService falls back to graph-RAG.
+// Marketplace policy note (MKT-001): this module previously offered a
+// runtime `npm install @lancedb/lancedb` path via child_process. That
+// pattern — downloading and installing code outside the reviewed
+// release — is prohibited by the Obsidian Developer Policies, so the
+// installer was removed entirely (2026-06-05). The plugin now only
+// *detects* an existing installation:
 //
-// Strategies (preferred → fallback):
-//   1. Already-resolvable via require() — no work needed.
-//   2. Operator-approved `npm install @lancedb/lancedb --prefix
-//      <pluginDir>` via Electron's child_process.
-//   3. Fallback: graph-RAG only (RagAssembler.semantic via fuzzy).
+//   1. Already-resolvable via require() — vector search enabled.
+//   2. Not resolvable — graph-RAG fallback (RagAssembler.semantic via
+//      fuzzy). The LanceDBInstallModal explains the optional manual,
+//      out-of-band install for power users; the plugin never spawns a
+//      package manager or downloads code at runtime.
 
 export type LanceDBStatus =
   | { state: "available"; version: string }
   | { state: "unavailable"; reason: string }
-  | { state: "mobile-unsupported" }
-  | { state: "installing"; progress: string }
-  | { state: "install-failed"; error: string };
+  | { state: "mobile-unsupported" };
 
 export interface LanceDBCapability {
   status: LanceDBStatus;
   /** True iff the plugin should attempt to USE LanceDB. False means the
    *  caller must use graph-RAG-only mode. */
   enabled: boolean;
-  /** True iff the operator has not yet decided. UI surfaces the install
-   *  prompt iff this is true. */
+  /** True iff the operator has not yet decided. UI surfaces the info
+   *  modal iff this is true. */
   awaitingDecision: boolean;
 }
 
@@ -41,7 +38,7 @@ export interface LanceDBCapability {
  *  `pluginDir` (absolute) enables the same resolution fallback `loadLance` uses:
  *  Obsidian's renderer require() resolves from Electron internals and never the
  *  plugin folder, so a bare `require("@lancedb/lancedb")` reports "Cannot find
- *  module" even when the require-install landed it at `<pluginDir>/node_modules`.
+ *  module" even when a manual install landed it at `<pluginDir>/node_modules`.
  *  We retry by absolute path so detection agrees with what the connection loads. */
 export function detectLanceDB(pluginDir?: string): LanceDBStatus {
   const proc = (
@@ -78,15 +75,17 @@ export function detectLanceDB(pluginDir?: string): LanceDBStatus {
 }
 
 /** Persisted decision shape — lives in plugin settings under
- *  `lancedb.installDecision`. */
+ *  `lancedb.installDecision`. Retained name/shape for settings
+ *  compatibility with pre-0.3.0 data.json files. */
 export interface LanceDBInstallDecision {
-  /** "approved": user clicked install + checked consent.
+  /** "approved": user confirmed a manual install (or legacy runtime
+   *  install from <0.3.0) — re-detect on load.
    *  "skipped": user clicked "Skip for now".
    *  "pending": no decision yet (initial state). */
   state: "approved" | "skipped" | "pending";
   /** ISO date of the decision (for "remind me later" cadence). */
   decidedAt?: string;
-  /** Last attempt outcome for transparency. */
+  /** Last detection outcome for transparency. */
   lastAttempt?: { ok: boolean; error?: string; ts: string };
 }
 
@@ -94,7 +93,7 @@ export const DEFAULT_LANCEDB_DECISION: LanceDBInstallDecision = {
   state: "pending",
 };
 
-/** Aggregator the plugin uses to decide whether to surface the install
+/** Aggregator the plugin uses to decide whether to surface the info
  *  modal on onload. */
 export function computeCapability(
   decision: LanceDBInstallDecision,
@@ -114,240 +113,9 @@ export function computeCapability(
         enabled: false,
         awaitingDecision: decision.state === "pending",
       };
-    case "installing":
-    case "install-failed":
-      return { status: detect, enabled: false, awaitingDecision: false };
     default: {
       const _exhaustive: never = detectState;
       throw new Error(`unhandled: ${String(_exhaustive)}`);
     }
-  }
-}
-
-// ---------- Installer ----------
-
-export interface InstallerHost {
-  /** Absolute path to the plugin's data directory. LanceDB is installed
-   *  here so it persists across plugin reloads without polluting npm
-   *  globals. */
-  pluginDir(): string;
-  /** Spawn a child process and stream output. Returns the exit code, or
-   *  null if spawning is unavailable (mobile or sandboxed Electron). */
-  spawn(
-    cmd: string,
-    args: string[],
-    cwd: string,
-    onLine: (stream: "stdout" | "stderr", line: string) => void,
-  ): Promise<number | null>;
-}
-
-export type InstallProgress =
-  | { kind: "start"; message: string }
-  | { kind: "line"; stream: "stdout" | "stderr"; line: string }
-  | { kind: "done"; ok: boolean; durationMs: number; error?: string };
-
-/** Hook the installer can call to persist a single log line to disk. The
- *  modal supplies this so install logs survive after the modal closes. */
-export type LogSink = (line: string) => void | Promise<void>;
-
-export class LanceDBInstaller {
-  constructor(private readonly host: InstallerHost) {}
-
-  /** Runs `npm install @lancedb/lancedb --prefix <pluginDir>`. Streams
-   *  output via onProgress AND through the optional persistent logSink
-   *  so failures can be diagnosed after the modal closes.
-   *
-   *  Resilience: Electron's PATH frequently omits the npm install dir
-   *  on macOS/Linux (especially when launched from .desktop / .app). We
-   *  try `npm` first, then fall back to common nvm/node paths. Returns
-   *  true on exit code 0. */
-  async install(
-    onProgress: (p: InstallProgress) => void,
-    logSink?: LogSink,
-  ): Promise<boolean> {
-    const t0 = Date.now();
-    const cwd = this.host.pluginDir();
-    // The install prefix is now the central out-of-vault runtime dir, which may
-    // not exist yet on a fresh machine — `npm --prefix <cwd>` needs it present.
-    try {
-      const req = (globalThis as unknown as { require?: NodeRequire }).require;
-      if (typeof req === "function") {
-        (req("fs") as typeof import("fs")).mkdirSync(cwd, { recursive: true });
-      }
-    } catch {
-      /* best-effort; spawn will surface a real failure */
-    }
-    const log = async (line: string): Promise<void> => {
-      if (logSink) await logSink(line);
-    };
-    await log(`[${new Date().toISOString()}] === LanceDB install ===`);
-    await log(`cwd=${cwd}`);
-    await log(`PATH=${this.peekEnv("PATH")}`);
-    await log(`HOME=${this.peekEnv("HOME")}`);
-    await log(
-      `platform=${this.peekPlatform()} node=${this.peekEnv("npm_node_execpath") || "?"}`,
-    );
-
-    onProgress({
-      kind: "start",
-      message: `Installing @lancedb/lancedb to ${cwd}`,
-    });
-
-    // Candidate npm command paths, tried in order. Each candidate is
-    // verified for existence (where path-shaped) before spawn.
-    const npmCandidates = this.candidateNpmPaths();
-    await log(`candidate npm executables: ${JSON.stringify(npmCandidates)}`);
-
-    let exitCode: number | null = null;
-    let lastError = "";
-    for (const npmCmd of npmCandidates) {
-      await log(`trying: ${npmCmd}`);
-      try {
-        exitCode = await this.host.spawn(
-          npmCmd,
-          [
-            "install",
-            "@lancedb/lancedb",
-            "--prefix",
-            cwd,
-            "--no-audit",
-            "--no-fund",
-          ],
-          cwd,
-          (stream, line) => {
-            onProgress({ kind: "line", stream, line });
-            void log(`[${stream}] ${line}`);
-          },
-        );
-        await log(`exit code: ${exitCode}`);
-        if (exitCode === 0) break;
-        if (exitCode === null) {
-          lastError = `spawn unavailable / ENOENT for "${npmCmd}"`;
-          await log(lastError);
-          continue;
-        }
-        lastError = `${npmCmd} exited with code ${exitCode}`;
-        break; // non-zero from a real run — don't try other paths
-      } catch (err) {
-        lastError = (err as Error).message;
-        await log(`spawn threw: ${lastError}`);
-      }
-    }
-
-    const ok = exitCode === 0;
-    const durationMs = Date.now() - t0;
-    await log(
-      `=== install ${ok ? "SUCCEEDED" : "FAILED"} in ${(durationMs / 1000).toFixed(1)}s ===`,
-    );
-    onProgress({
-      kind: "done",
-      ok,
-      durationMs,
-      ...(!ok && { error: lastError || "unknown install failure" }),
-    });
-    return ok;
-  }
-
-  private peekEnv(key: string): string {
-    const proc = (
-      globalThis as unknown as {
-        process?: { env?: Record<string, string | undefined> };
-      }
-    ).process;
-    return proc?.env?.[key] ?? "(unset)";
-  }
-
-  private peekPlatform(): string {
-    const proc = (
-      globalThis as unknown as {
-        process?: { platform?: string; arch?: string };
-      }
-    ).process;
-    return `${proc?.platform ?? "?"}/${proc?.arch ?? "?"}`;
-  }
-
-  private candidateNpmPaths(): string[] {
-    // Plain "npm" works when Electron inherits the user's shell PATH.
-    // The fallbacks cover macOS .app launches, Linux .desktop launches,
-    // and nvm-managed Node — the three most common "npm not found" cases.
-    const proc = (
-      globalThis as unknown as {
-        process?: {
-          env?: Record<string, string | undefined>;
-          platform?: string;
-        };
-      }
-    ).process;
-    const env = proc?.env ?? {};
-    const home = env.HOME ?? "/home";
-    const candidates = [
-      "npm",
-      "/usr/local/bin/npm",
-      "/opt/homebrew/bin/npm",
-      `${home}/.nvm/versions/node/${env.NODE_VERSION ?? "v24.15.0"}/bin/npm`,
-      `${home}/.npm-global/bin/npm`,
-      `${home}/.local/bin/npm`,
-    ];
-    // De-dup while preserving order.
-    return [...new Set(candidates)];
-  }
-}
-
-// ---------- ObsidianInstallerHost ----------
-
-/** Wires the abstract InstallerHost to Electron desktop primitives. On
- *  mobile, spawn() returns null and the installer short-circuits. */
-export class ObsidianInstallerHost implements InstallerHost {
-  constructor(private readonly _pluginDir: string) {}
-
-  pluginDir(): string {
-    return this._pluginDir;
-  }
-
-  async spawn(
-    cmd: string,
-    args: string[],
-    cwd: string,
-    onLine: (stream: "stdout" | "stderr", line: string) => void,
-  ): Promise<number | null> {
-    const proc = (
-      globalThis as unknown as {
-        process?: { versions?: { electron?: string } };
-      }
-    ).process;
-    if (typeof proc?.versions?.electron !== "string") return null;
-    const req = (globalThis as unknown as { require?: NodeRequire }).require;
-    if (typeof req !== "function") return null;
-    let childProcess: typeof import("child_process");
-    try {
-      childProcess = req("child_process") as typeof import("child_process");
-    } catch {
-      return null;
-    }
-    return await new Promise<number | null>((resolve) => {
-      const child = childProcess.spawn(cmd, args, { cwd, shell: false });
-      const buf: Record<"stdout" | "stderr", string> = {
-        stdout: "",
-        stderr: "",
-      };
-      const onChunk = (stream: "stdout" | "stderr") => (chunk: Buffer) => {
-        buf[stream] += chunk.toString("utf-8");
-        const lines = buf[stream].split("\n");
-        buf[stream] = lines.pop() ?? "";
-        for (const line of lines) if (line) onLine(stream, line);
-      };
-      child.stdout?.on("data", onChunk("stdout"));
-      child.stderr?.on("data", onChunk("stderr"));
-      child.on("close", (code) => {
-        for (const stream of ["stdout", "stderr"] as const) {
-          if (buf[stream]) onLine(stream, buf[stream]);
-        }
-        resolve(code);
-      });
-      child.on("error", (err) => {
-        onLine("stderr", `spawn error: ${err.message}`);
-        resolve(null);
-      });
-    });
   }
 }

@@ -88,9 +88,7 @@ tags: [sub-vault, registry-entry]
     return this.listSubVaults().map((sv) => {
       const rawRole = sv.role;
       const role: RegistryEntry["role"] =
-        rawRole === "primary" || rawRole === "archive"
-          ? rawRole
-          : "secondary"; // default for any unrecognised string written by older installs
+        rawRole === "primary" || rawRole === "archive" ? rawRole : "secondary"; // default for any unrecognised string written by older installs
       return {
         vault_id: sv.vault_id,
         path: sv.path,

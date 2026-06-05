@@ -26,7 +26,9 @@ export class GDriveClient {
     });
     return {
       files: r.files ?? [],
-      ...(r.nextPageToken !== undefined ? { nextPageToken: r.nextPageToken } : {}),
+      ...(r.nextPageToken !== undefined
+        ? { nextPageToken: r.nextPageToken }
+        : {}),
     };
   }
 

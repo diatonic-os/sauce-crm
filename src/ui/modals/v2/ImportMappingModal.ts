@@ -37,7 +37,9 @@ export class ImportMappingModal extends Modal {
 
     new Setting(c).setName("Format").addDropdown((d) => {
       for (const k of Object.keys(ADAPTERS)) d.addOption(k, k.toUpperCase());
-      d.setValue(this.adapterId).onChange((v) => (this.adapterId = v as keyof typeof ADAPTERS));
+      d.setValue(this.adapterId).onChange(
+        (v) => (this.adapterId = v as keyof typeof ADAPTERS),
+      );
     });
 
     new Setting(c)
@@ -99,7 +101,10 @@ export class ImportMappingModal extends Modal {
     }).onclick = async () => {
       try {
         const adapterCtor = ADAPTERS[this.adapterId];
-        if (!adapterCtor) { previewBody.setText("unknown adapter"); return; }
+        if (!adapterCtor) {
+          previewBody.setText("unknown adapter");
+          return;
+        }
         const adapter = adapterCtor();
         this.preview = await adapter.parse(this.rawText, this.mapping);
         previewBody.setText(
@@ -113,7 +118,9 @@ export class ImportMappingModal extends Modal {
               .join("\n"),
         );
       } catch (e: unknown) {
-        previewBody.setText(`parse error: ${e instanceof Error ? e.message : String(e)}`);
+        previewBody.setText(
+          `parse error: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     };
     btns.createEl("button", { text: "Import", cls: "sauce-button" }).onclick =
@@ -127,12 +134,17 @@ export class ImportMappingModal extends Modal {
   private async commit(): Promise<void> {
     if (this.preview.length === 0) {
       const adapterCtor = ADAPTERS[this.adapterId];
-      if (!adapterCtor) { new Notice("unknown adapter"); return; }
+      if (!adapterCtor) {
+        new Notice("unknown adapter");
+        return;
+      }
       try {
         const adapter = adapterCtor();
         this.preview = await adapter.parse(this.rawText, this.mapping);
       } catch (e: unknown) {
-        new Notice(`parse error: ${e instanceof Error ? e.message : String(e)}`);
+        new Notice(
+          `parse error: ${e instanceof Error ? e.message : String(e)}`,
+        );
         return;
       }
     }

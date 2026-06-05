@@ -105,7 +105,13 @@ describe("BridgeMemoryBackend", () => {
   it("has mode 'bridge'", () => {
     const { fn } = makeHttp(() => jsonRes(200, {}));
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
     expect(be.mode).toBe("bridge");
   });
 
@@ -138,10 +144,20 @@ describe("BridgeMemoryBackend", () => {
 
   it("GET requests (health) send empty body and EMPTY body hash", async () => {
     const { fn, calls } = makeHttp(() =>
-      jsonRes(200, { ok: true, version: BRIDGE_PROTOCOL_VERSION, lance: "ready" }),
+      jsonRes(200, {
+        ok: true,
+        version: BRIDGE_PROTOCOL_VERSION,
+        lance: "ready",
+      }),
     );
     const { signer, signed } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     await be.ready();
 
@@ -157,7 +173,13 @@ describe("BridgeMemoryBackend", () => {
       return jsonRes(200, { fp: "FP1", dim: 768, cached: false });
     });
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     const first = await be.embed("note body", "FP1");
     expect(first).toEqual({ fp: "FP1", dim: 768, cached: false });
@@ -172,14 +194,29 @@ describe("BridgeMemoryBackend", () => {
   it("provenance returns cached records on a second call (cache hit)", async () => {
     let netCalls = 0;
     const recs: import("../../../services/Provenance").ProvenanceRecord[] = [
-      { fp: "FP9", op: "test", subject: "s", kind: "note", ts: 0, parentFp: "", meta: null, signature: "" },
+      {
+        fp: "FP9",
+        op: "test",
+        subject: "s",
+        kind: "note",
+        ts: 0,
+        parentFp: "",
+        meta: null,
+        signature: "",
+      },
     ];
     const { fn } = makeHttp(() => {
       netCalls++;
       return jsonRes(200, { fp: "FP9", records: recs });
     });
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     const a = await be.provenance("FP9");
     expect(a).toEqual(recs);
@@ -193,7 +230,13 @@ describe("BridgeMemoryBackend", () => {
   it("maps 401 → BridgeError 'unauthorized'", async () => {
     const { fn } = makeHttp(() => jsonRes(401, { error: "nope" }));
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     await expect(be.semanticSearch({ query: "x" })).rejects.toMatchObject({
       name: "BridgeError",
@@ -205,7 +248,13 @@ describe("BridgeMemoryBackend", () => {
   it("maps a transport throw → BridgeError 'unreachable'", async () => {
     const { fn } = makeHttp(() => new Error("ECONNREFUSED"));
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     await expect(be.recall("cue")).rejects.toMatchObject({
       name: "BridgeError",
@@ -216,7 +265,13 @@ describe("BridgeMemoryBackend", () => {
   it("maps a 5xx → BridgeError 'server-error'", async () => {
     const { fn } = makeHttp(() => jsonRes(503, { error: "down" }));
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     await expect(be.embed("t", "FPx")).rejects.toMatchObject({
       name: "BridgeError",
@@ -226,17 +281,33 @@ describe("BridgeMemoryBackend", () => {
   });
 
   it("ready() returns false on protocol major mismatch", async () => {
-    const { fn } = makeHttp(() => jsonRes(200, { ok: true, version: "2.0.0", lance: "ready" }));
+    const { fn } = makeHttp(() =>
+      jsonRes(200, { ok: true, version: "2.0.0", lance: "ready" }),
+    );
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     await expect(be.ready()).resolves.toBe(false);
   });
 
   it("ready() returns true when major matches and ok=true", async () => {
-    const { fn } = makeHttp(() => jsonRes(200, { ok: true, version: "1.4.2", lance: "ready" }));
+    const { fn } = makeHttp(() =>
+      jsonRes(200, { ok: true, version: "1.4.2", lance: "ready" }),
+    );
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     await expect(be.ready()).resolves.toBe(true);
   });
@@ -244,7 +315,13 @@ describe("BridgeMemoryBackend", () => {
   it("ready() returns false on transport throw", async () => {
     const { fn } = makeHttp(() => new Error("offline"));
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     await expect(be.ready()).resolves.toBe(false);
   });
@@ -253,10 +330,20 @@ describe("BridgeMemoryBackend", () => {
     let netCalls = 0;
     const { fn } = makeHttp(() => {
       netCalls++;
-      return jsonRes(200, { ok: true, version: BRIDGE_PROTOCOL_VERSION, lance: "ready" });
+      return jsonRes(200, {
+        ok: true,
+        version: BRIDGE_PROTOCOL_VERSION,
+        lance: "ready",
+      });
     });
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
 
     await be.ready();
     await be.ready();
@@ -284,7 +371,13 @@ describe("BridgeMemoryBackend", () => {
       return jsonRes(200, { hits: [] });
     });
     const { signer } = makeSigner();
-    const be = new BridgeMemoryBackend({ baseUrl: BASE, request: fn, signer, hasher, cache });
+    const be = new BridgeMemoryBackend({
+      baseUrl: BASE,
+      request: fn,
+      signer,
+      hasher,
+      cache,
+    });
     await be.recall("a");
     await be.recall("b");
     expect(seen.size).toBe(2);

@@ -98,10 +98,13 @@ export async function execFileNoThrow(
         args,
         {
           ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
-          ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+          ...(opts.timeoutMs !== undefined
+            ? { timeoutMs: opts.timeoutMs }
+            : {}),
         },
         (err, stdout, stderr) => {
-          const errCode = err && "code" in err ? (err as { code?: unknown }).code : undefined;
+          const errCode =
+            err && "code" in err ? (err as { code?: unknown }).code : undefined;
           const code = typeof errCode === "number" ? errCode : err ? 1 : 0;
           resolve({
             code,

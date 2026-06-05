@@ -18,12 +18,18 @@ const FTS_COLUMN = "body_md";
 
 export class LanceFtsIndex implements MirrorFtsHook {
   private ensured = false;
+  /** Set once we've logged an ensure failure, so we warn at most once per
+   *  session instead of on every write (LANCE-005). */
+  private warnedFailure = false;
 
   constructor(private readonly entities: LanceTable) {}
 
-  /** Create the FTS index if absent. No-op once present. LanceDB rejects index
-   *  creation on an empty table, so callers should ensure rows exist first;
-   *  failures are swallowed and retried on the next call. */
+  /** Create the FTS index if absent. No-op once present and once ensured —
+   *  we do NOT reset `ensured` on every call (that forced a listIndices +
+   *  per-write optimize() churn). LanceDB rejects index creation on an empty
+   *  table; on failure we leave `ensured` false to retry later, but warn at
+   *  most once per session. The optimize() after createIndex (and only then)
+   *  flushes the freshly built index — writes themselves don't optimize. */
   private async ensureIndex(): Promise<void> {
     if (this.ensured) return;
     try {
@@ -34,32 +40,34 @@ export class LanceFtsIndex implements MirrorFtsHook {
         await this.entities.createIndex(FTS_COLUMN, {
           config: loadLance().Index.fts(),
         });
+        // Flush the just-created index once; not on every write.
+        try {
+          await this.entities.optimize();
+        } catch {
+          /* best effort */
+        }
       }
       this.ensured = true;
-    } catch {
-      /* table empty or index in flight — retry next call */
+    } catch (e) {
+      // table empty or index in flight — retry on a later call. Warn once.
+      if (!this.warnedFailure) {
+        this.warnedFailure = true;
+        // eslint-disable-next-line no-restricted-syntax -- no logger threads into this index hook (constructed by the lance factory with no plugin/logger handle); deferral is a best-effort warn
+        console.warn("Sauce V2 FTS index ensure deferred", String(e));
+      }
     }
   }
 
-  /** A vault write changed an entity body; fold new rows into the FTS index. */
+  /** A vault write changed an entity body; fold new rows into the FTS index.
+   *  No per-write optimize() — LanceDB's FTS picks up new rows on the next
+   *  search; createIndex's one-time optimize covers the initial build. */
   async index(_entityId: string, _title: string, _body: string): Promise<void> {
-    this.ensured = false;
     await this.ensureIndex();
-    try {
-      await this.entities.optimize();
-    } catch {
-      /* best effort */
-    }
   }
 
   async remove(_entityId: string): Promise<void> {
-    // Row deletion is handled by the mirror; the index reflects it after the
-    // next optimize. Force a refresh.
-    try {
-      await this.entities.optimize();
-    } catch {
-      /* best effort */
-    }
+    // Row deletion is handled by the mirror; the index reflects it on the next
+    // search/optimize cycle. No per-call optimize() (LANCE-005 churn fix).
   }
 
   async search(query: string, limit = 25): Promise<FtsHit[]> {

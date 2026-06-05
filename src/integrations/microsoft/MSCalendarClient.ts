@@ -22,7 +22,9 @@ export class MSCalendarClient {
     });
     return {
       events: r.value ?? [],
-      ...(r["@odata.nextLink"] !== undefined ? { nextLink: r["@odata.nextLink"] } : {}),
+      ...(r["@odata.nextLink"] !== undefined
+        ? { nextLink: r["@odata.nextLink"] }
+        : {}),
     };
   }
 

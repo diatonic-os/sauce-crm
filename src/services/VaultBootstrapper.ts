@@ -62,7 +62,10 @@ export class VaultBootstrapper {
     await this.ensureFile("_LANES.md", LANES_SEED);
     await this.ensureFile("_WEEKLY.md", WEEKLY_SEED);
     // SauceBot agent workspace seeds.
-    await this.ensureFile(`${this.paths.saucebot}/_README.md`, SAUCEBOT_README_SEED);
+    await this.ensureFile(
+      `${this.paths.saucebot}/_README.md`,
+      SAUCEBOT_README_SEED,
+    );
     await this.ensureFile(
       `${this.paths.saucebotAgents}/_default-agent.md`,
       SAUCEBOT_DEFAULT_AGENT_SEED,

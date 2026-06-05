@@ -146,18 +146,18 @@ export function renderCopilot(
   };
   renderCred = () => {
     credHost.empty();
-    const isLocal = cfgStr("provider") === "ollama" || cfgStr("provider") === "lmstudio";
+    const isLocal =
+      cfgStr("provider") === "ollama" || cfgStr("provider") === "lmstudio";
     if (!isLocal) {
       new Setting(credHost)
         .setName("API key")
         .setDesc(
-          "Stored locally. Set keys for multiple providers (encrypted) via the onboarding wizard's KeyVault step.",
+          "Stored in your OS keychain (or the encrypted KeyVault) — never written to the plugin's data.json. Set keys for multiple providers via the onboarding wizard.",
         )
         .addText((t) => {
           t.inputEl.type = "password";
           t.setValue(cfgStr("apiKey")).onChange(async (v) => {
-            cfg.apiKey = v;
-            await plugin.saveSettings();
+            await plugin.storeCopilotKey(v);
             pushCopilotUpdate(plugin);
           });
         });

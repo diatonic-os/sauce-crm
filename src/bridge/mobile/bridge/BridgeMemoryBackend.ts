@@ -108,7 +108,11 @@ export class BridgeMemoryBackend implements MemoryBackend {
   /** Sign + send one request. Serializes the body, hashes it, builds the
    *  canonical signed parts, sets the three auth headers, and maps failures to
    *  BridgeError. Returns the parsed HttpResponse for 2xx. */
-  private async call(method: string, path: string, bodyObj?: unknown): Promise<HttpResponse> {
+  private async call(
+    method: string,
+    path: string,
+    bodyObj?: unknown,
+  ): Promise<HttpResponse> {
     const body = bodyObj === undefined ? "" : JSON.stringify(bodyObj);
     const bodyHash = await this.hasher.sha256Hex(body);
     const parts: SignedRequestParts = {
@@ -145,9 +149,17 @@ export class BridgeMemoryBackend implements MemoryBackend {
 
     if (res.status >= 200 && res.status < 300) return res;
     if (res.status === 401) {
-      throw new BridgeError("unauthorized", `unauthorized on ${path}`, res.status);
+      throw new BridgeError(
+        "unauthorized",
+        `unauthorized on ${path}`,
+        res.status,
+      );
     }
-    throw new BridgeError("server-error", `bridge ${path} returned ${res.status}`, res.status);
+    throw new BridgeError(
+      "server-error",
+      `bridge ${path} returned ${res.status}`,
+      res.status,
+    );
   }
 
   /** Parse the response body. Obsidian requestUrl exposes `.json`; fall back to
@@ -159,7 +171,10 @@ export class BridgeMemoryBackend implements MemoryBackend {
       try {
         return JSON.parse(res.text) as T;
       } catch {
-        throw new BridgeError("bad-response", "bridge response was not valid JSON");
+        throw new BridgeError(
+          "bad-response",
+          "bridge response was not valid JSON",
+        );
       }
     }
     throw new BridgeError("bad-response", "bridge response had no body");
@@ -167,7 +182,10 @@ export class BridgeMemoryBackend implements MemoryBackend {
 
   async semanticSearch(q: MemoryQuery): Promise<MemoryHit[]> {
     // Query-addressed, not fp-addressed → no fp cache here (keep it simple).
-    const res = await this.call("POST", ROUTES.search, { query: q.query, k: q.k });
+    const res = await this.call("POST", ROUTES.search, {
+      query: q.query,
+      k: q.k,
+    });
     return this.parse<SearchResponse>(res).hits ?? [];
   }
 

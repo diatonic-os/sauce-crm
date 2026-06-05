@@ -108,9 +108,7 @@ export class CommunityPluginsModal extends Modal {
         text: "Enable in Settings",
       });
       enable.onclick = () => {
-        openCommunityPluginsPage(
-          this.opts.app as unknown as PluginHostShape,
-        );
+        openCommunityPluginsPage(this.opts.app as unknown as PluginHostShape);
       };
     } else {
       const ok = actions.createEl("span", {

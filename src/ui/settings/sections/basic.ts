@@ -1,5 +1,6 @@
 import { Setting, Notice, setIcon } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
+import { ConfirmModal } from "../../components/v2/ConfirmModal";
 
 function markAdvanced(set: Setting): Setting {
   set.settingEl.addClass("sg-advanced");
@@ -82,7 +83,9 @@ export function renderBasic(
         new Notice("Sauce Graph initialized.");
         banner.remove();
       } catch (e: unknown) {
-        new Notice(`Bootstrap failed: ${e instanceof Error ? e.message : String(e)}`);
+        new Notice(
+          `Bootstrap failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     };
   }
@@ -112,19 +115,21 @@ export function renderBasic(
   gsBtn("Walkthrough", "book-open", false, () =>
     runCommand(plugin, "onboarding"),
   );
-  gsBtn("Reset & reload settings", "rotate-ccw", false, async () => {
-    if (
-      !window.confirm(
-        "Reset onboarding state and reload settings? Your notes, keys, and integrations are not affected.",
-      )
-    )
-      return;
-    s.hasInitialized = false;
-    s.hasDismissedFirstRun = false;
-    await plugin.saveSettings();
-    new Notice("Settings reloaded.");
-    containerEl.empty();
-    renderBasic(containerEl, plugin);
+  gsBtn("Reset & reload settings", "rotate-ccw", false, () => {
+    // PLC-01: Obsidian modal instead of the forbidden blocking window.confirm().
+    new ConfirmModal(plugin.app, {
+      title: "Reset & reload settings",
+      body: "Reset onboarding state and reload settings? Your notes, keys, and integrations are not affected.",
+      confirmLabel: "Reset & reload",
+      onConfirm: async () => {
+        s.hasInitialized = false;
+        s.hasDismissedFirstRun = false;
+        await plugin.saveSettings();
+        new Notice("Settings reloaded.");
+        containerEl.empty();
+        renderBasic(containerEl, plugin);
+      },
+    }).open();
   });
 
   // At a glance — KPI cards
@@ -185,10 +190,12 @@ export function renderBasic(
     .setName("Vault name")
     .setDesc("Display name used in banners and exports.")
     .addText((t) =>
-      t.setValue(typeof s.vaultName === "string" ? s.vaultName : "").onChange(async (v) => {
-        s.vaultName = v;
-        await plugin.saveSettings();
-      }),
+      t
+        .setValue(typeof s.vaultName === "string" ? s.vaultName : "")
+        .onChange(async (v) => {
+          s.vaultName = v;
+          await plugin.saveSettings();
+        }),
     );
 
   const cadenceEnum: string[] = plugin.settings.enums?.["cadence"] ?? [
@@ -204,7 +211,11 @@ export function renderBasic(
     )
     .addDropdown((d) => {
       for (const c of cadenceEnum) d.addOption(c, c);
-      d.setValue(typeof s.defaultCadence === "string" ? s.defaultCadence : (cadenceEnum[0] ?? "")).onChange(async (v) => {
+      d.setValue(
+        typeof s.defaultCadence === "string"
+          ? s.defaultCadence
+          : (cadenceEnum[0] ?? ""),
+      ).onChange(async (v) => {
         s.defaultCadence = v;
         await plugin.saveSettings();
       });
@@ -258,17 +269,24 @@ export function renderBasic(
         b
           .setButtonText("Reset…")
           .setWarning()
-          .onClick(async () => {
-            const ok = window.confirm(
-              "Reset all plugin settings to defaults? Vault files are not deleted.",
-            );
-            if (!ok) return;
-            try {
-              await (plugin as unknown as { resetSettings?(): Promise<void> }).resetSettings?.();
-              new Notice("Settings reset.");
-            } catch {
-              new Notice("Reset not yet wired; manual file edit required.");
-            }
+          .onClick(() => {
+            // PLC-01: Obsidian modal instead of the forbidden window.confirm().
+            new ConfirmModal(plugin.app, {
+              title: "Reset all settings",
+              body: "Reset all plugin settings to defaults? Vault files are not deleted.",
+              confirmLabel: "Reset",
+              destructive: true,
+              onConfirm: async () => {
+                try {
+                  await (
+                    plugin as unknown as { resetSettings?(): Promise<void> }
+                  ).resetSettings?.();
+                  new Notice("Settings reset.");
+                } catch {
+                  new Notice("Reset not yet wired; manual file edit required.");
+                }
+              },
+            }).open();
           }),
       ),
   );

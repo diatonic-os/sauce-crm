@@ -403,7 +403,9 @@ export function wireSvcV1(
   // This is best-effort: a failure (e.g. fresh install with empty tables) is
   // swallowed and the graph starts empty, which is the correct initial state.
   if (opts.graphStore) {
-    graph.hydrate(opts.graphStore).catch(() => {/* empty graph on first run */});
+    graph.hydrate(opts.graphStore).catch(() => {
+      /* empty graph on first run */
+    });
   }
   const downstream = new DownstreamRegistry(SVC_V1_VERSION);
 

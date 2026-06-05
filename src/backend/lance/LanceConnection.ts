@@ -43,7 +43,9 @@ export function loadLance(pluginDir?: string): LanceModule {
     cachedLance = req("@lancedb/lancedb") as LanceModule;
   } catch (bareErr) {
     if (!pluginDir) throw bareErr;
-    cachedLance = req(`${pluginDir}/node_modules/@lancedb/lancedb`) as LanceModule;
+    cachedLance = req(
+      `${pluginDir}/node_modules/@lancedb/lancedb`,
+    ) as LanceModule;
   }
   return cachedLance;
 }
