@@ -1,7 +1,7 @@
 {
   "id": "sauce-crm",
   "name": "Sauce CRM",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "minAppVersion": "1.5.0",
   "description": "Manage warm relationships as vault notes: people, organizations, touch logs, and addenda. Includes an encrypted KeyVault for credentials and an AI copilot for Anthropic, OpenAI, Ollama, LM Studio, and NVIDIA NIM.",
   "author": "Drew Fortini",
