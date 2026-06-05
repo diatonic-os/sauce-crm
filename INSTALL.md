@@ -1,6 +1,6 @@
 # Sauce CRM — Install (build from source / local install)
 
-> Latest stable: **0.4.1**. This plugin is **not yet in the Obsidian community
+> Latest stable: **0.4.2**. This plugin is **not yet in the Obsidian community
 > directory** — install it manually with one of the options below.
 >
 > Repository: <https://github.com/Diatonic-OS/sauce-crm>
@@ -26,7 +26,7 @@ won't list it.
 
 > The fastest path for a brand-new machine. One command detects Obsidian
 > (and offers to install it), lets you pick a vault folder with a native
-> dialog, stages the **0.4.1** plugin into it, and pre-enables it — leaving
+> dialog, stages the **0.4.2** plugin into it, and pre-enables it — leaving
 > exactly **one click** for you (the Restricted-Mode trust prompt, which the
 > installer is not allowed to bypass). Requires **Obsidian ≥ 1.5.0**
 > (the script offers to install it) and is **desktop-only**.
@@ -46,14 +46,14 @@ irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/insta
 ### Pin to a release tag (recommended for repeatable installs)
 
 Piping `main` always runs the current tip of the installer. To pin to a
-reviewed release, **replace `main` with a release tag** (e.g. `0.4.1`):
+reviewed release, **replace `main` with a release tag** (e.g. `0.4.2`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.1/installer/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.2/installer/install.sh | bash
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.1/installer/install.ps1 | iex
+irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.2/installer/install.ps1 | iex
 ```
 
 ### Prefer not to pipe to a shell?
@@ -92,7 +92,7 @@ notepad install.ps1    # review it
    folder** and a **vault name** (default `sauce-crm-vault`); it creates
    `<parent>/<name>`. It **refuses to clobber a non-empty existing folder**.
 5. **Stages the plugin** into `<vault>/.obsidian/plugins/sauce-crm/`,
-   downloading `main.js`, `manifest.json`, `styles.css` from the **0.4.1**
+   downloading `main.js`, `manifest.json`, `styles.css` from the **0.4.2**
    release plus `versions.json`, and **integrity-checks each** (non-empty;
    `manifest.json` must parse and have `id == "sauce-crm"`).
 6. **Pre-enables the plugin** by writing
@@ -128,7 +128,7 @@ work yourself.
 
 ## Option A — install a pre-built release (fastest, no toolchain)
 
-1. Open the release: <https://github.com/Diatonic-OS/sauce-crm/releases/tag/0.4.1>
+1. Open the release: <https://github.com/Diatonic-OS/sauce-crm/releases/tag/0.4.2>
 2. Download the three plugin assets: **`main.js`**, **`manifest.json`**, **`styles.css`**.
    (Ignore `sauce-crm-daemon.cjs` unless you want the optional daemon — see below.)
 3. Create the plugin folder in your vault and drop the files in:
@@ -154,7 +154,7 @@ work yourself.
 
 ```bash
 # 1. clone the newest stable tag
-git clone --branch 0.4.1 --depth 1 https://github.com/Diatonic-OS/sauce-crm.git
+git clone --branch 0.4.2 --depth 1 https://github.com/Diatonic-OS/sauce-crm.git
 cd sauce-crm
 
 # 2. install dev dependencies (build-time only; nothing ships to the vault)
@@ -298,7 +298,7 @@ the `uninstall` script in the matching `daemon/packaging/<os>/` folder.
 - **Plugin doesn't appear in the list** → the folder name must be exactly
   `sauce-crm` and must contain `main.js` + `manifest.json`. Reload plugins.
 - **"Could not resolve node:…" during build** → you're on a stale checkout;
-  `git pull` to 0.4.1+ (a build-hygiene fix for the renderer bundle landed there).
+  `git pull` to 0.4.2+ (a build-hygiene fix for the renderer bundle landed there).
 - **`npm install` is slow / pulls native modules** → expected; the vector
   backend (`@lancedb/lancedb`) is an optional native dep used only on desktop.
   The plugin runs with lexical + graph search if it's absent.
