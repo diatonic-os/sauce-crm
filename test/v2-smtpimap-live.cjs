@@ -642,7 +642,7 @@ async function main() {
     imapPort: 993,
     smtpHost: "smtp.gmail.com",
     smtpPort: 465,
-    username: "drew@saucetech.io",
+    username: "user@gmail.com",
     authMode: "plain"
   });
   await integ.connect();
@@ -672,7 +672,7 @@ async function main() {
     // re-add with xoauth2
     imapHost: "imap.gmail.com",
     imapPort: 993,
-    username: "drew@saucetech.io",
+    username: "user@gmail.com",
     authMode: "xoauth2"
   });
   const xtok = await source.get("smtp_imap:drew_saucetech:oauth-access-token");
@@ -698,7 +698,7 @@ async function main() {
   scopes.set("smtp_imap", "inbox.read", true);
   console.log("\n--- SOCKS5 egress (smoke test) ---");
   const proxiedClient = new SmtpImapClient({
-    account: { id: "x", imapHost: "imap.gmail.com", imapPort: 993, username: "drew@saucetech.io", authMode: "plain" },
+    account: { id: "x", imapHost: "imap.gmail.com", imapPort: 993, username: "user@gmail.com", authMode: "plain" },
     source,
     proxy: { host: "127.0.0.1", port: 19999 },
     // intentionally unreachable
@@ -708,7 +708,7 @@ async function main() {
   check("SOCKS5 misroute fails closed (not silent plaintext fallback)", !proxyResult.ok, `error="${proxyResult.error?.slice(0, 60)}"`);
   console.log("\n--- TLS strict verification ---");
   const strictClient = new SmtpImapClient({
-    account: { id: "x", imapHost: "imap.gmail.com", imapPort: 993, username: "drew@saucetech.io", authMode: "plain" },
+    account: { id: "x", imapHost: "imap.gmail.com", imapPort: 993, username: "user@gmail.com", authMode: "plain" },
     source,
     rejectUnauthorized: true,
     minTlsVersion: "TLSv1.2",

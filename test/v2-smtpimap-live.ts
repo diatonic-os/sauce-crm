@@ -66,7 +66,7 @@ async function main(): Promise<void> {
     imapPort: 993,
     smtpHost: 'smtp.gmail.com',
     smtpPort: 465,
-    username: 'drew@saucetech.io',
+    username: 'user@gmail.com',
     authMode: 'plain',
   });
   await integ.connect();
@@ -100,7 +100,7 @@ async function main(): Promise<void> {
   integ.addAccount({
     id: 'drew_saucetech',  // re-add with xoauth2
     imapHost: 'imap.gmail.com', imapPort: 993,
-    username: 'drew@saucetech.io', authMode: 'xoauth2',
+    username: 'user@gmail.com', authMode: 'xoauth2',
   });
   const xtok = await source.get('smtp_imap:drew_saucetech:oauth-access-token');
   if (!xtok) skipMsg('XOAUTH2 live probe', 'no OAuth access token (set via Google Workspace OAuth integration first)');
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
   // ─── SOCKS5 proxy path (rejected at proxy, never leaves machine plaintext) ─
   console.log('\n--- SOCKS5 egress (smoke test) ---');
   const proxiedClient = new SmtpImapClient({
-    account: { id: 'x', imapHost: 'imap.gmail.com', imapPort: 993, username: 'drew@saucetech.io', authMode: 'plain' },
+    account: { id: 'x', imapHost: 'imap.gmail.com', imapPort: 993, username: 'user@gmail.com', authMode: 'plain' },
     source,
     proxy: { host: '127.0.0.1', port: 19999 },   // intentionally unreachable
     handshakeTimeoutMs: 2_000,
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
   // ─── Strict TLS verification ─────────────────────────────────────────
   console.log('\n--- TLS strict verification ---');
   const strictClient = new SmtpImapClient({
-    account: { id: 'x', imapHost: 'imap.gmail.com', imapPort: 993, username: 'drew@saucetech.io', authMode: 'plain' },
+    account: { id: 'x', imapHost: 'imap.gmail.com', imapPort: 993, username: 'user@gmail.com', authMode: 'plain' },
     source,
     rejectUnauthorized: true,
     minTlsVersion: 'TLSv1.2',

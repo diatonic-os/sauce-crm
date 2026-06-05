@@ -251,7 +251,7 @@ function check(name, cond, detail = "") {
 async function main() {
   console.log("\n=== SMTP/IMAP help links ===");
   check("5 providers registered", PROVIDER_HELP.length === 5, `n=${PROVIDER_HELP.length}`);
-  check("Gmail matches drew@saucetech.io", helpForEmail("drew@saucetech.io")?.id === "google_workspace");
+  check("Gmail matches user@gmail.com", helpForEmail("user@gmail.com")?.id === "google_workspace");
   check("iCloud matches @icloud.com", helpForEmail("test@icloud.com")?.id === "apple_icloud");
   check("Outlook matches @outlook.com", helpForEmail("foo@outlook.com")?.id === "microsoft_365");
   check("Fastmail matches @fastmail.com", helpForEmail("a@fastmail.com")?.id === "fastmail");
@@ -329,7 +329,7 @@ async function main() {
   check("Clicking Gmail help opens myaccount.google.com", opened[0] === "https://myaccount.google.com/apppasswords", `opened=${opened[0]}`);
   const oauthButtons = buttons.filter((b) => b.textContent === "OAuth setup");
   check("OAuth setup buttons rendered for providers that support it", oauthButtons.length === 2, `n=${oauthButtons.length}`);
-  const h = SmtpImapPage.getHelp("drew@saucetech.io");
+  const h = SmtpImapPage.getHelp("user@gmail.com");
   check("Static getHelp resolves email", h?.id === "google_workspace");
   console.log("\n=== RESULTS ===");
   console.log(`PASS ${pass}   FAIL ${fail}`);
