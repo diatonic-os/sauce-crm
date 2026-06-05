@@ -8,7 +8,7 @@ prompt, which an installer is not permitted to bypass).
 
 - Plugin id: **`sauce-crm`** (the vault plugin folder name MUST be exactly this)
 - Display name: **Sauce CRM** · Desktop-only · Requires **Obsidian ≥ 1.5.0**
-- Pinned plugin release: **0.4.2**
+- Pinned plugin release: **0.4.3**
 - Repository: <https://github.com/Diatonic-OS/sauce-crm>
 
 ---
@@ -30,14 +30,14 @@ irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/insta
 ### Pin to a release tag (recommended)
 
 `main` is the tip of the installer. For a repeatable install, replace `main`
-with a release tag (e.g. `0.4.2`):
+with a release tag (e.g. `0.4.3`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.2/installer/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.3/installer/install.sh | bash
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.2/installer/install.ps1 | iex
+irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.3/installer/install.ps1 | iex
 ```
 
 ### Prefer not to pipe to a shell?
@@ -100,7 +100,7 @@ notepad install.ps1
    - **Refuses to clobber a non-empty existing folder** (offers rename/abort).
 5. **Install the plugin into the vault:** create
    `<vault>/.obsidian/plugins/sauce-crm/`, download `main.js`,
-   `manifest.json`, `styles.css` from the **0.4.2** release and
+   `manifest.json`, `styles.css` from the **0.4.3** release and
    `versions.json` from raw, then **verify each** (non-empty;
    `manifest.json` parses and `.id == "sauce-crm"`).
 6. **Pre-enable:** write `community-plugins.json = ["sauce-crm"]`, and
@@ -122,9 +122,9 @@ notepad install.ps1
 ### Release assets the scripts fetch
 
 - `main.js`, `manifest.json`, `styles.css` —
-  `https://github.com/Diatonic-OS/sauce-crm/releases/download/0.4.2/{…}`
+  `https://github.com/Diatonic-OS/sauce-crm/releases/download/0.4.3/{…}`
 - `versions.json` —
-  `https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.2/versions.json`
+  `https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.3/versions.json`
 
 ---
 

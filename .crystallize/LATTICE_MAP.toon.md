@@ -92,11 +92,11 @@ DEF-AX004 ✅ (instanceof-guarded). **grep state=broken/unknown → 0 (G-007 met
 > service hardening). All content above is intact; this section is append-only.
 > Every number below was re-verified by running the gate commands on commit 9cb93a3.
 
-### meta.plugin (0.4.2, re-verified 2026-06-05)
-- id `sauce-crm`, version **`0.4.2`** (was `0.3.0`), minAppVersion `1.5.0`,
+### meta.plugin (0.4.3, re-verified 2026-06-05)
+- id `sauce-crm`, version **`0.4.3`** (was `0.3.0`), minAppVersion `1.5.0`,
   isDesktopOnly **`true`** (was `false` — 0.4.x added Node-builtin/daemon/OS-keychain
   desktop-only surface; mobile path now via the daemon bridge, not in-process)
-- **403** non-test TS/Svelte source files under `src/` + **6** daemon non-test src files
+- **401** non-test TS/Svelte source files under `src/` + **6** daemon non-test src files
 - `main.js` bundle **629,975 bytes** = **+9.50%** vs the 575,339 B v0.3.0 anchor
   (G-002 limit +25%; anchor stays the v0.3.0 baseline per task contract)
 - tests: **1107** passing across **186** test files (vitest authoritative; canonical
@@ -154,7 +154,7 @@ DEF-AX004 ✅ (instanceof-guarded). **grep state=broken/unknown → 0 (G-007 met
 ### AXIS-H · installer (NEW, non-TS)
 - `installer/**` (`install.sh` + `install.ps1`): one-line cross-OS installer
   (detect/consent-install Obsidian, pick vault, install plugin, pre-enable); bundled
-  into the pinnable 0.4.2 release. Not TS — exempt from type axioms. Does NOT bypass
+  into the pinnable 0.4.3 release. Not TS — exempt from type axioms. Does NOT bypass
   Obsidian Restricted Mode (DEC-014).
 
 ### 0.4.x DEFECT CELLS (audit deltas — all repaired/connected)

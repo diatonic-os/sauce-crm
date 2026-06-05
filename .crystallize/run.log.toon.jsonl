@@ -63,3 +63,5 @@
 {"_t":"deliverables.04x","D001":"LATTICE_MAP.toon.md (## 0.4.x INTEGRATION appended)","D004":"TEST_MATRIX.report.md (## 0.4.x re-verification appended)","D005":"DECISIONS.md DEC-008..014 appended","D006":"run.log.toon.jsonl appended"}
 {"_t":"phase.exit","phase":"P-04x","gates_green":["G-001","G-002","G-003","G-007"],"exit_criteria_met":true,"ts":"2026-06-05"}
 {"_t":"run.end","run_id":"run-20260605-lattice-04x-integration","status":"0.4.x surface crystallized; all gates green; no new defect cells","ts":"2026-06-05"}
+{"_t":"release.tag","tag":"0.4.3","commit":"edf47ed+versionbump","supersedes_record":"DEC-014 version 0.4.2","reason":"tag the fully-crystallized main; latest release == main HEAD","bundle_bytes":629975,"ts":"2026-06-05"}
+{"_t":"dec","id":"DEC-015","title":"Full crystallization tagged and released as 0.4.3","status":"locked","ts":"2026-06-05"}

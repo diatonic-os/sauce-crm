@@ -55,7 +55,7 @@ Obsidian debug-startup tool); onload structure is unchanged by this refactor.
 
 ## 0.4.x re-verification (run-20260605-lattice-04x-integration)
 
-Sub-run on commit `9cb93a3` (baseline 12a4008 → v0.4.2). Every figure below was
+Sub-run on commit `9cb93a3` (baseline 12a4008 → v0.4.3). Every figure below was
 produced by running the gate command, not copied from the audit packet.
 
 ### Static gates (re-run, authoritative)

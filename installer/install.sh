@@ -11,7 +11,7 @@
 #      that install to finish (subprocess exit 0 == "install finished").
 #   4. Opens a native folder picker (GUI when available, tty prompt fallback)
 #      to choose a PARENT directory + vault NAME, then creates <parent>/<name>.
-#   5. Installs the Sauce CRM plugin (0.4.2) into
+#   5. Installs the Sauce CRM plugin (0.4.3) into
 #      <vault>/.obsidian/plugins/sauce-crm/ — every download is verified
 #      non-empty and the manifest is verified to parse with id "sauce-crm".
 #   6. Pre-enables the plugin (community-plugins.json) and registers the vault
@@ -45,7 +45,7 @@ set -euo pipefail
 # ----------------------------------------------------------------------------
 PLUGIN_ID="sauce-crm"
 PLUGIN_NAME="Sauce CRM"
-PLUGIN_VERSION="0.4.2"
+PLUGIN_VERSION="0.4.3"
 REL_BASE="https://github.com/Diatonic-OS/sauce-crm/releases/download/${PLUGIN_VERSION}"
 RAW_BASE="https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/${PLUGIN_VERSION}"
 OBSIDIAN_RELEASES_API="https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest"
@@ -753,8 +753,8 @@ main "$@"
 #   date/dirname/cut/od/tr/grep/sed/cp/mkdir/find  standard POSIX utilities
 #
 # ASSUMPTIONS
-#   - The 0.4.2 release assets (main.js, manifest.json, styles.css) and the
-#     0.4.2 raw versions.json exist at the documented URLs.
+#   - The 0.4.3 release assets (main.js, manifest.json, styles.css) and the
+#     0.4.3 raw versions.json exist at the documented URLs.
 #   - The user has write access to the chosen vault parent, ~/.config (Linux)
 #     or ~/Library/Application Support (macOS), and (macOS .dmg path only)
 #     /Applications. No sudo is used; a non-writable /Applications on the .dmg

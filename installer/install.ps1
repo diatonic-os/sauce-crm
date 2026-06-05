@@ -14,7 +14,7 @@
      4. GUI folder/name picker for the new vault (WinForms + VisualBasic),
         graceful tty fallback. Refuses to clobber a non-empty folder.
      5. Stage the plugin into <vault>/.obsidian/plugins/sauce-crm/ from the
-        0.4.2 release assets; integrity-check each download.
+        0.4.3 release assets; integrity-check each download.
      6. Pre-enable: community-plugins.json = ["sauce-crm"]; register the vault
         in the global obsidian.json without clobbering existing entries.
      7. Honest restricted-mode notice (the one click the user must perform).
@@ -24,9 +24,9 @@
    id            : sauce-crm   (vault plugin folder MUST be exactly this)
    display       : Sauce CRM
    minAppVersion : 1.5.0
-   release tag   : 0.4.2
-   assets        : https://github.com/Diatonic-OS/sauce-crm/releases/download/0.4.2/{main.js,manifest.json,styles.css}
-   versions.json : https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.2/versions.json
+   release tag   : 0.4.3
+   assets        : https://github.com/Diatonic-OS/sauce-crm/releases/download/0.4.3/{main.js,manifest.json,styles.css}
+   versions.json : https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.3/versions.json
 
  Compatibility
    Windows PowerShell 5.1 compatible. NO PowerShell 7-only syntax:
@@ -52,9 +52,9 @@ $ErrorActionPreference = 'Stop'
 # ------------------------------------------------------------------------------
 $PluginId       = 'sauce-crm'
 $PluginDisplay  = 'Sauce CRM'
-$PluginVersion  = '0.4.2'
-$ReleaseBase    = 'https://github.com/Diatonic-OS/sauce-crm/releases/download/0.4.2'
-$VersionsUrl    = 'https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.2/versions.json'
+$PluginVersion  = '0.4.3'
+$ReleaseBase    = 'https://github.com/Diatonic-OS/sauce-crm/releases/download/0.4.3'
+$VersionsUrl    = 'https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.3/versions.json'
 $ObsidianApiLatest = 'https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest'
 $DefaultVaultName  = 'sauce-crm-vault'
 
