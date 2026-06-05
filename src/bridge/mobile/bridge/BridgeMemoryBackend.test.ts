@@ -238,11 +238,13 @@ describe("BridgeMemoryBackend", () => {
       cache,
     });
 
-    await expect(be.semanticSearch({ query: "x" })).rejects.toMatchObject({
-      name: "BridgeError",
-      code: "unauthorized",
-      status: 401,
-    });
+    const err = await be.semanticSearch({ query: "x" }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(BridgeError);
+    expect((err as BridgeError).code).toBe("unauthorized");
+    expect((err as BridgeError).status).toBe(401);
   });
 
   it("maps a transport throw → BridgeError 'unreachable'", async () => {
@@ -256,10 +258,12 @@ describe("BridgeMemoryBackend", () => {
       cache,
     });
 
-    await expect(be.recall("cue")).rejects.toMatchObject({
-      name: "BridgeError",
-      code: "unreachable",
-    });
+    const err = await be.recall("cue").then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(BridgeError);
+    expect((err as BridgeError).code).toBe("unreachable");
   });
 
   it("maps a 5xx → BridgeError 'server-error'", async () => {
@@ -273,11 +277,13 @@ describe("BridgeMemoryBackend", () => {
       cache,
     });
 
-    await expect(be.embed("t", "FPx")).rejects.toMatchObject({
-      name: "BridgeError",
-      code: "server-error",
-      status: 503,
-    });
+    const err = await be.embed("t", "FPx").then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(BridgeError);
+    expect((err as BridgeError).code).toBe("server-error");
+    expect((err as BridgeError).status).toBe(503);
   });
 
   it("ready() returns false on protocol major mismatch", async () => {

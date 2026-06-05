@@ -220,9 +220,11 @@ export async function initV2(
   // getBasePath(); on mobile there is no base path (and no LanceDB anyway).
   const vaultBase =
     app.vault.adapter.getBasePath?.() ?? app.vault.adapter.basePath ?? "";
-  const absPluginDir = vaultBase
-    ? `${vaultBase}/${app.vault.configDir}/plugins/${pluginId}`
-    : undefined;
+  // DRY: absPluginDir is the same vault-relative segment as pluginDir, rooted at
+  // the absolute vault base. Deriving it from pluginDir keeps the two in sync —
+  // the vault-relative form (pluginDir) feeds Obsidian adapter ops, the absolute
+  // form (absPluginDir) feeds native LanceDB which resolves against process.cwd().
+  const absPluginDir = vaultBase ? `${vaultBase}/${pluginDir}` : undefined;
 
   // Centralized, OUT-OF-VAULT home (app.data.user) for the derived store and the
   // native module — keeps LanceDB's thousands of fragment files out of the

@@ -58,22 +58,22 @@ export class InferenceEngine {
     sigLines: string[],
     sourceId: string,
   ): InferenceEntity[] {
-    const a = this.attributes.inferCompanyFromSignature(
-      entityId,
-      sigLines,
-      sourceId,
-    );
-    return a
-      ? [
-          this.toInference(
-            "attribute",
-            entityId,
-            { attribute: a.attribute, value: a.value },
-            a.confidence,
-            a.sources,
-          ),
-        ]
-      : [];
+    const a: AttributeProposal | null =
+      this.attributes.inferCompanyFromSignature(entityId, sigLines, sourceId);
+    // Gate emission on the proposal's verdict: a `discard` verdict means the
+    // combined confidence fell below the per-kind propose threshold
+    // (ConfidenceModel.verdict), so the signal is too weak to surface as an
+    // InferenceEntity. Only `propose`/`auto_accept` verdicts are emitted.
+    if (!a || a.verdict === "discard") return [];
+    return [
+      this.toInference(
+        "attribute",
+        entityId,
+        { attribute: a.attribute, value: a.value },
+        a.confidence,
+        a.sources,
+      ),
+    ];
   }
   private toInference(
     kind: InferenceEntity["inference_kind"],

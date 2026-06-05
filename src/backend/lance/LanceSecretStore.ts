@@ -3,8 +3,17 @@
 // (Arrow string columns) and decoded back to Uint8Array on read.
 
 import type { ISecretStore, EncryptedSecret } from "../../security/KeyVault";
-import { TABLES, type ApiKeyEncRow } from "./LanceSchema";
-import { sqlStr, type LanceTable } from "./LanceConnection";
+import {
+  TABLES,
+  DEFAULT_EMBEDDING_DIM,
+  type ApiKeyEncRow,
+} from "./LanceSchema";
+import {
+  ensureTable,
+  sqlStr,
+  type LanceConnection,
+  type LanceTable,
+} from "./LanceConnection";
 
 function b64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
@@ -14,7 +23,24 @@ function unb64(s: string): Uint8Array {
 }
 
 export class LanceSecretStore implements ISecretStore {
+  /** The physical Lance table this store binds to. Mirrors how
+   *  `index.ts` pairs every sibling store with its `TABLES.<name>`, so the
+   *  table identity is asserted here rather than being a magic string
+   *  hand-threaded from the caller. */
+  static readonly TABLE = TABLES.apiKeysEnc;
+
   constructor(private readonly table: LanceTable) {}
+
+  /** Open (creating if absent) the `api_keys_enc` table on `db` and wrap it.
+   *  Callers should prefer this over `new LanceSecretStore(rawTable)` so the
+   *  table name is owned by the store, not the call site. */
+  static async open(
+    db: LanceConnection,
+    embeddingDim: number = DEFAULT_EMBEDDING_DIM,
+  ): Promise<LanceSecretStore> {
+    const table = await ensureTable(db, LanceSecretStore.TABLE, embeddingDim);
+    return new LanceSecretStore(table);
+  }
 
   async put(service: string, row: EncryptedSecret): Promise<void> {
     const r: ApiKeyEncRow = {

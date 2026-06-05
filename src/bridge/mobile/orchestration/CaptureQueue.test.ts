@@ -182,6 +182,32 @@ describe("CaptureQueue", () => {
     expect(pending.map((c) => c.id)).toEqual(["b"]);
   });
 
+  it("enqueue calls vault.write exactly once with the capture path + markdown", async () => {
+    const writeSpy = vi.fn(async () => {});
+    const files = new Set<string>();
+    const vault: VaultWriter = {
+      write: writeSpy,
+      async exists(p: string) {
+        return files.has(p);
+      },
+    };
+    const store = makeStore();
+    const q = new CaptureQueue({
+      vault,
+      store,
+      now: () => 1,
+      genId: () => "x",
+    });
+
+    await q.enqueue("inbox/n.md", "# body");
+
+    expect(writeSpy).toHaveBeenCalledTimes(1);
+    expect(writeSpy).toHaveBeenCalledWith(
+      "inbox/n.md",
+      expect.stringContaining("# body"),
+    );
+  });
+
   it("generates unique ids across multiple enqueues by default", async () => {
     const vault = makeVault();
     const store = makeStore();

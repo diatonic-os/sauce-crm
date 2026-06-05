@@ -74,6 +74,7 @@ export class SauceBotChatView extends ItemView {
   private suggestionsEl!: HTMLDivElement;
   private providerSel!: HTMLSelectElement;
   private modelSel!: HTMLSelectElement;
+  private embedProviderSel!: HTMLSelectElement;
   private embedSel!: HTMLSelectElement;
   private micButton: HTMLButtonElement | null = null;
   private recognition: SpeechRecognitionLike | null = null;
@@ -142,7 +143,18 @@ export class SauceBotChatView extends ItemView {
       void this.onModelChange();
     };
 
-    // Embeddings model (RAG) — separate provider/model resolved from settings.
+    // Embeddings provider (RAG) — decoupled from the chat provider so users
+    // can embed locally (LM Studio / Ollama) while chatting against a cloud
+    // model. Populated from EMBED_PROVIDERS; switching it re-lists the
+    // embedding models for the newly selected provider.
+    this.embedProviderSel = this.labeledSelect(models, "Embed Provider");
+    for (const p of EMBED_PROVIDERS) this.option(this.embedProviderSel, p, p);
+    this.embedProviderSel.value = this.plugin.settings.features.rag.provider;
+    this.embedProviderSel.onchange = () => {
+      void this.onEmbedProviderChange();
+    };
+
+    // Embeddings model (RAG) — resolved from the selected embed provider.
     this.embedSel = this.labeledSelect(models, "Embeddings");
     this.embedSel.onchange = () => {
       void this.onEmbedChange();
@@ -280,6 +292,19 @@ export class SauceBotChatView extends ItemView {
     this.plugin.settings.copilot.model = model;
     await this.plugin.saveSettings();
     this.plugin.copilot?.updateSettings?.({ model });
+  }
+  private async onEmbedProviderChange(): Promise<void> {
+    const provider = this.embedProviderSel.value as EmbedProviderId;
+    const rag = this.plugin.settings.features.rag;
+    if (provider === rag.provider) return;
+    rag.provider = provider;
+    await this.plugin.saveSettings();
+    // Re-list embedding models for the new provider, then re-sync the active
+    // embedding config so the runtime picks up the switched provider/model.
+    await this.refreshEmbedOptions();
+    (
+      this.plugin as unknown as { syncEmbeddingConfig?: () => void }
+    ).syncEmbeddingConfig?.();
   }
   private async onEmbedChange(): Promise<void> {
     const model = this.embedSel.value;

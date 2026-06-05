@@ -39,12 +39,7 @@ export class CalendarView extends ItemView {
       target: this.contentEl,
       props: {
         events,
-        onOpenPath: (path: string) => {
-          // Open the vault file in a new tab via the plugin's workspace.
-          this.plugin.app.workspace.openLinkText(path, "", false).catch(() => {
-            /* silently ignore if path doesn't resolve */
-          });
-        },
+        onOpenPath: (path: string) => this.openPath(path),
       },
     });
   }
@@ -54,6 +49,19 @@ export class CalendarView extends ItemView {
       unmount(this.svelteApp);
       this.svelteApp = undefined;
     }
+  }
+
+  /** Resolve a calendar event's vault `path` and open it. Mirrors the
+   *  resolve-and-guard pattern used by the sibling v2 views (SauceBotChatView,
+   *  DashboardViews): only a path that resolves to a real `TFile` is opened —
+   *  a missing/stale path (e.g. a deleted touch) is silently ignored rather
+   *  than routed through `openLinkText`, which would create a phantom tab. */
+  openPath(path: string): void {
+    const f = this.plugin.app.vault.getAbstractFileByPath(path);
+    if (f instanceof TFile) {
+      void this.plugin.app.workspace.getLeaf(false).openFile(f);
+    }
+    // else: path no longer resolves to a file — nothing to open.
   }
 
   /** Reads vault for touch / task / followup files and maps each into

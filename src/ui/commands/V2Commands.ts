@@ -2,7 +2,6 @@
 export interface V2CommandDescriptor {
   id: string;
   name: string;
-  defaultHotkey?: string;
   category:
     | "capture"
     | "view"
@@ -18,21 +17,14 @@ export const V2_COMMANDS: V2CommandDescriptor[] = [
   {
     id: "sauce:quick-capture",
     name: "Quick Capture (CDEL)",
-    defaultHotkey: "Mod+Shift+Q",
     category: "capture",
   },
   {
     id: "sauce:open-copilot",
     name: "Open SauceBot",
-    defaultHotkey: "Mod+J",
     category: "view",
   },
-  {
-    id: "sauce:open-map",
-    name: "Open Map",
-    defaultHotkey: "Mod+M",
-    category: "view",
-  },
+  { id: "sauce:open-map", name: "Open Map", category: "view" },
   { id: "sauce:open-ai-inbox", name: "Open AI Inbox", category: "view" },
   { id: "sauce:open-sync-status", name: "Open Sync Status", category: "view" },
   { id: "sauce:open-audit-log", name: "Open Audit Log", category: "view" },
@@ -61,12 +53,7 @@ export const V2_COMMANDS: V2CommandDescriptor[] = [
     name: "Transcribe Audio File…",
     category: "skill",
   },
-  {
-    id: "sauce:lock-vault",
-    name: "Lock Vault",
-    defaultHotkey: "Mod+L",
-    category: "security",
-  },
+  { id: "sauce:lock-vault", name: "Lock Vault", category: "security" },
   { id: "sauce:unlock-vault", name: "Unlock Vault", category: "security" },
   { id: "sauce:rotate-keys", name: "Rotate Keys…", category: "security" },
   {
@@ -108,7 +95,6 @@ export function registerV2Commands(opts: {
   addCommand: (cmd: {
     id: string;
     name: string;
-    hotkeys?: { modifiers: string[]; key: string }[];
     callback: () => void | Promise<void>;
   }) => void;
   handler: V2CommandHandler;
@@ -121,10 +107,4 @@ export function registerV2Commands(opts: {
       callback: () => opts.handler(c.id),
     });
   }
-}
-
-function parseHotkey(s: string): { modifiers: string[]; key: string } {
-  const parts = s.split("+").map((p) => p.trim());
-  const key = parts.pop()!;
-  return { modifiers: parts, key };
 }

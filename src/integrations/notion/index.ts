@@ -17,6 +17,13 @@ export interface NotionIntegrationHost {
   readonly proxy: ProxyClient;
   readonly fetch?: FetchHost;
   readonly token?: () => Promise<string>;
+  /**
+   * Optional change-feed hook invoked with the human titles of pages pulled
+   * from a `database:<id>` sync. Used by the host for entity-matching and
+   * logging — when absent, titles are still extracted (and counted) but not
+   * surfaced. Called once per `queryDatabase` page batch.
+   */
+  readonly onPagesDiscovered?: (titles: string[]) => void;
 }
 
 export class NotionIntegration implements IIntegration {
@@ -85,6 +92,10 @@ export class NotionIntegration implements IIntegration {
             ...(cursor !== undefined ? { startCursor: cursor } : {}),
           });
           pulled += r.pages.length;
+          // Surface the human titles of the pulled pages (for entity matching
+          // / logging) rather than discarding them after the count.
+          const titles = r.pages.map(pageTitle).filter(Boolean);
+          if (titles.length) this.host.onPagesDiscovered?.(titles);
           cursor = r.nextCursor ?? undefined;
         } while (cursor && pulled < 1000);
       }

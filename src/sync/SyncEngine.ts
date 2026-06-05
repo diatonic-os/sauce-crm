@@ -18,8 +18,13 @@ export class SyncEngine {
   async wireResources(integrationId: string): Promise<void> {
     const i = this.integrations.get(integrationId);
     if (!i) throw new Error(`no integration: ${integrationId}`);
-    const resources = await i.listResources();
+    const resources: SyncResource[] = await i.listResources();
     for (const r of resources) {
+      // Disabled resources are not scheduled — wiring them would create idle
+      // jobs that fire syncResource() against a resource the user turned off.
+      // Re-enabling requires a fresh wireResources() pass (or a future
+      // rewire() that diffs the resource set).
+      if (!r.enabled) continue;
       const job: ScheduledJob = {
         id: `${integrationId}::${r.id}`,
         integration: integrationId,

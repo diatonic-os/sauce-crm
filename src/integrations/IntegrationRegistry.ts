@@ -14,6 +14,7 @@ import { AppleIntegration } from "./apple";
 import { NotionIntegration } from "./notion";
 import { TwilioIntegration } from "./twilio";
 import { SmtpImapIntegration } from "./smtpimap";
+import type { SmtpImapAccount } from "./smtpimap/SmtpImapClient";
 import type { FetchHost, TokenResolver } from "./google/types";
 import type { AppleAuth } from "./apple/types";
 import type { TwilioAuth } from "./twilio/TwilioClient";
@@ -66,6 +67,16 @@ export class IntegrationRegistry {
   apple: AppleIntegration | null = null;
   notion: NotionIntegration | null = null;
   twilio: TwilioIntegration | null = null;
+  smtpImap: SmtpImapIntegration | null = null;
+  /**
+   * Socket bridge injected at runtime (P15). The plugin renderer cannot open
+   * raw TCP sockets, so the actual IMAP/SMTP transport is provided by a
+   * Node-side companion or relay implementing SmtpImapHost. This is the
+   * injection point named by UnconfiguredSmtpImapHost's error message
+   * ("plugin.integrations.setSmtpImapHost()"). Defaults to the bridge passed
+   * in tokens, or null until set.
+   */
+  private smtpImapHost: SmtpImapHost | null = null;
   private resources = new Map<IntegrationId, SyncResource[]>();
 
   oauth: OAuthFlow | null = null;
@@ -119,16 +130,69 @@ export class IntegrationRegistry {
       fetch: this.fetch,
       ...(tokens.twilio !== undefined ? { auth: tokens.twilio } : {}),
     });
+    this.smtpImap = new SmtpImapIntegration({
+      scopes,
+      proxy,
+      ...(this.oauth ? { oauth: this.oauth } : {}),
+    });
+    // A pre-supplied socket bridge (Electron-main companion or relay) may be
+    // injected via tokens; otherwise it is wired later through
+    // setSmtpImapHost(). Either way it lives on the registry, not the
+    // integration class (which speaks to the network via SmtpImapClient).
+    this.smtpImapHost = tokens.smtpImapBridge ?? null;
     this.resources.set("google_workspace", defaultGoogleResources());
     this.resources.set("microsoft_365", defaultMicrosoftResources());
     this.resources.set("apple", defaultAppleResources());
     this.resources.set("notion", defaultNotionResources());
     this.resources.set("twilio", defaultTwilioResources());
+    this.resources.set("smtp_imap", defaultSmtpImapResources());
     this.google.setResources(this.resources.get("google_workspace")!);
     this.microsoft.setResources(this.resources.get("microsoft_365")!);
     this.apple.setResources(this.resources.get("apple")!);
     this.notion.setResources(this.resources.get("notion")!);
     this.twilio.setResources(this.resources.get("twilio")!);
+    this.smtpImap.setResources(this.resources.get("smtp_imap")!);
+  }
+
+  /**
+   * Inject the SMTP/IMAP socket bridge (Node-side companion or TCP-over-HTTPS
+   * relay). Referenced by UnconfiguredSmtpImapHost's error message. Returns the
+   * registry for chaining.
+   */
+  setSmtpImapHost(host: SmtpImapHost): this {
+    this.smtpImapHost = host;
+    return this;
+  }
+
+  /** The currently-wired SMTP/IMAP socket bridge, or null if none. */
+  getSmtpImapHost(): SmtpImapHost | null {
+    return this.smtpImapHost;
+  }
+
+  /**
+   * Resolve the imap/smtp credential resolvers from tokens into an
+   * SmtpImapAccount and register it on the SMTP/IMAP integration. No-op when
+   * neither resolver is configured. Returns the registered account, if any.
+   */
+  async loadSmtpImapAccount(
+    accountId = "default",
+  ): Promise<SmtpImapAccount | null> {
+    if (!this.smtpImap) return null;
+    if (!this.tokens.imap && !this.tokens.smtp) return null;
+    const imap = this.tokens.imap ? await this.tokens.imap() : null;
+    const smtp = this.tokens.smtp ? await this.tokens.smtp() : null;
+    if (!imap && !smtp) return null;
+    const account: SmtpImapAccount = {
+      id: accountId,
+      imapHost: imap?.host ?? "",
+      imapPort: imap?.port ?? 993,
+      ...(smtp?.host !== undefined ? { smtpHost: smtp.host } : {}),
+      ...(smtp?.port !== undefined ? { smtpPort: smtp.port } : {}),
+      username: imap?.username ?? smtp?.username ?? "",
+      authMode: "plain",
+    };
+    this.smtpImap.addAccount(account);
+    return account;
   }
 
   list(): IIntegration[] {
@@ -138,6 +202,7 @@ export class IntegrationRegistry {
     if (this.apple) out.push(this.apple);
     if (this.notion) out.push(this.notion);
     if (this.twilio) out.push(this.twilio);
+    if (this.smtpImap) out.push(this.smtpImap);
     return out;
   }
 
@@ -147,6 +212,7 @@ export class IntegrationRegistry {
     if (id === "apple") return this.apple;
     if (id === "notion") return this.notion;
     if (id === "twilio") return this.twilio;
+    if (id === "smtp_imap") return this.smtpImap;
     return null;
   }
 
@@ -282,4 +348,20 @@ function defaultTwilioResources(): SyncResource[] {
     mk("recordings", "Twilio recordings", "1h"),
     mk("transcriptions", "Twilio transcriptions", "1h"),
   ];
+}
+
+function defaultSmtpImapResources(): SyncResource[] {
+  const mk = (
+    id: string,
+    label: string,
+    frequency: SyncFrequency,
+  ): SyncResource => ({
+    id,
+    label,
+    frequency,
+    enabled: false,
+    lastPullTs: null,
+    cursor: null,
+  });
+  return [mk("inbox", "Inbox (recent)", "1h"), mk("sent", "Sent", "manual")];
 }

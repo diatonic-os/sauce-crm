@@ -625,19 +625,11 @@ export class HierarchyTreeView extends BaseView {
     root.empty();
     root.addClass("sauce-view");
     root.createEl("h2", { text: "Org Hierarchy" });
-    const orgs = this.plugin.entityService.allOrgs();
+    const orgs = this.plugin.entityService
+      .allOrgs()
+      .filter((e): e is Org => e instanceof Org);
+    const { tops, children } = buildOrgHierarchy(orgs);
     const byName = new Map(orgs.map((o) => [o.file.basename, o]));
-    const children = new Map<string, string[]>();
-    const tops: string[] = [];
-    for (const o of orgs) {
-      const p = String(o.frontmatter.parent ?? "")
-        .replace(/\[\[|\]\]/g, "")
-        .split("|")[0];
-      if (p && byName.has(p)) {
-        if (!children.has(p)) children.set(p, []);
-        children.get(p)!.push(o.file.basename);
-      } else tops.push(o.file.basename);
-    }
     const render = (name: string, container: HTMLElement) => {
       const node = container.createDiv({ cls: "sauce-tree-node", text: name });
       const org = byName.get(name);
@@ -725,6 +717,36 @@ export class ParentDashboardView extends BaseView {
     root.createEl("p", { text: `Generated ${todayIso()}` });
   }
   override async onClose(): Promise<void> {}
+}
+
+/** Strip an Obsidian wikilink wrapper (`[[Name|Alias]]` → `Name`) from a
+ *  typed Org.parent value, returning `null` when there is no parent. */
+function orgParentName(org: Org): string | null {
+  if (!org.isSubsidiary()) return null;
+  const stripped = String(org.parent ?? "").replace(/\[\[|\]\]/g, "");
+  return (stripped.split("|")[0] ?? stripped).trim();
+}
+
+/** Build the org corporate tree from typed Org instances. An org is a child
+ *  when its `.parent` getter resolves to another org present in the set;
+ *  everything else (including dangling parents) becomes a top-level root. */
+export function buildOrgHierarchy(orgs: Org[]): {
+  tops: string[];
+  children: Map<string, string[]>;
+} {
+  const byName = new Map(orgs.map((o) => [o.file.basename, o]));
+  const children = new Map<string, string[]>();
+  const tops: string[] = [];
+  for (const o of orgs) {
+    const p = orgParentName(o);
+    if (p && byName.has(p)) {
+      if (!children.has(p)) children.set(p, []);
+      children.get(p)!.push(o.file.basename);
+    } else {
+      tops.push(o.file.basename);
+    }
+  }
+  return { tops, children };
 }
 
 function clamp(value: number, min: number, max: number): number {

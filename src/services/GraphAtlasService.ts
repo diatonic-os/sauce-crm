@@ -100,6 +100,16 @@ const RELATION_KEYS = new Set([
   "addends",
 ]);
 
+/** Edge relations whose presence denotes a logged interaction between the two
+ *  endpoints (used by scoreNodes to derive a per-node interaction tally that is
+ *  independent of the intrinsic interactionScore). */
+const INTERACTION_RELATIONS = new Set([
+  "attended",
+  "touch",
+  "interacted",
+  "contact",
+]);
+
 const TYPE_TO_KIND: Record<string, GraphKind> = {
   "warm-contact": "person",
   org: "org",
@@ -443,7 +453,17 @@ export class GraphAtlasService {
     edges: GraphEdge[],
     now: number,
   ): void {
+    // Index nodes once so edge endpoints can be resolved to their kinds without
+    // an O(n) scan per edge (the standalone nodeById() helper is O(n)).
+    const nodeIndex = new Map<string, GraphNode>();
+    for (const node of nodes) nodeIndex.set(node.id, node);
+
     const degreeById = new Map<string, number>();
+    // Per-node tally of INCIDENT interaction edges (graph-derived, distinct from
+    // the intrinsic interactionScore()). An edge counts as an interaction when
+    // its relation denotes one (attended/touch/interacted/contact) OR either
+    // endpoint is a touch/event node; the count accrues to the NON-interaction
+    // endpoint so a person accumulates the interactions that point at them.
     const interactionById = new Map<string, number>();
     const edgeAdj = new Map<string, GraphEdge[]>();
     for (const edge of edges) {
@@ -455,6 +475,29 @@ export class GraphAtlasService {
       const b = edgeAdj.get(edge.target) ?? [];
       b.push(edge);
       edgeAdj.set(edge.target, b);
+
+      const sourceNode = nodeIndex.get(edge.source);
+      const targetNode = nodeIndex.get(edge.target);
+      const sourceIsInteraction =
+        sourceNode?.kind === "touch" || sourceNode?.kind === "event";
+      const targetIsInteraction =
+        targetNode?.kind === "touch" || targetNode?.kind === "event";
+      const relationIsInteraction = INTERACTION_RELATIONS.has(edge.relation);
+      if (relationIsInteraction || sourceIsInteraction || targetIsInteraction) {
+        // Credit the non-interaction endpoint(s). When the relation itself is an
+        // interaction (e.g. `contact`) but neither endpoint is a touch/event,
+        // both endpoints earn the tally.
+        if (!sourceIsInteraction)
+          interactionById.set(
+            edge.source,
+            (interactionById.get(edge.source) ?? 0) + 1,
+          );
+        if (!targetIsInteraction)
+          interactionById.set(
+            edge.target,
+            (interactionById.get(edge.target) ?? 0) + 1,
+          );
+      }
     }
 
     for (const node of nodes) {
@@ -462,6 +505,10 @@ export class GraphAtlasService {
         this.app.metadataCache.getFileCache(node.file)?.frontmatter ?? {};
       const degree = degreeById.get(node.id) ?? 0;
       const interactions = this.interactionScore(node.kind, fm);
+      // Graph-derived count of incident interaction edges, blended alongside the
+      // intrinsic per-node interactionScore so a person with many logged touches
+      // outranks an otherwise-identical person with none.
+      const incidentInteractions = interactionById.get(node.id) ?? 0;
       const recency = this.recencyScore(fm, now, node.file);
       const geo = node.geo;
       const tagCount = Array.isArray(fm.tags) ? fm.tags.length : 0;
@@ -471,11 +518,12 @@ export class GraphAtlasService {
         base +
         relationBoost +
         interactions * 0.35 +
+        incidentInteractions * 0.25 +
         recency * 1.6 +
         geo * 0.7 +
         tagCount * 0.08;
       node.degree = degree;
-      node.interactions = interactions;
+      node.interactions = interactions + incidentInteractions;
       node.recency = recency;
       node.score = score;
       node.mass = Math.max(0.8, score);
@@ -483,8 +531,8 @@ export class GraphAtlasService {
     }
 
     for (const edge of edges) {
-      const source = nodeById(nodes, edge.source);
-      const target = nodeById(nodes, edge.target);
+      const source = nodeIndex.get(edge.source);
+      const target = nodeIndex.get(edge.target);
       if (!source || !target) continue;
       const influence = (source.score + target.score) / 2;
       edge.weight = edge.weight * Math.max(0.8, Math.sqrt(influence) / 2);
@@ -530,7 +578,20 @@ export class GraphAtlasService {
         dates.push(value.slice(0, 10));
     }
     const latest = dates.sort().at(-1);
-    if (!latest) return 0.15;
+    if (!latest) {
+      // No ISO date in frontmatter — fall back to the file's on-disk mtime so
+      // notes lacking explicit date frontmatter still carry a real recency
+      // signal instead of a flat floor. TFile.stat.mtime is an epoch-ms number.
+      const mtime = file.stat?.mtime;
+      if (typeof mtime === "number" && Number.isFinite(mtime)) {
+        const daysOld = Math.max(
+          0,
+          daysBetween(new Date(mtime), new Date(now)),
+        );
+        return clamp(1.6 / (1 + daysOld / 21), 0.1, 1.6);
+      }
+      return 0.15;
+    }
     const d = new Date(`${latest}T00:00:00Z`);
     if (Number.isNaN(d.getTime())) return 0.15;
     const daysOld = Math.max(0, daysBetween(d, new Date(now)));

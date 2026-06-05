@@ -1,18 +1,27 @@
 import { App, normalizePath, TFile } from "obsidian";
 import { todayIso } from "../util/DateUtil";
 
+// Vault paths handed to Obsidian Vault APIs are normalized once, here, so the
+// separators + leading-slash safety that normalizePath provides apply uniformly
+// — matching the codebase-wide convention (v2-init, ImportMappingModal,
+// EdgeSyncService, ObsidianAdapters, main.ts). Defined as constants so the
+// getAbstractFileByPath check and the create/createFolder call can never drift.
+const VAULTS_DIR = normalizePath("vaults");
+const ADDENDA_DIR = normalizePath("_addenda");
+const PARENT_VAULT_FILE = normalizePath("PARENT-VAULT.md");
+
 export class ParentVaultBootstrapper {
   constructor(public app: App) {}
 
   async ensure(): Promise<void> {
-    const folder = this.app.vault.getAbstractFileByPath("vaults");
-    if (!folder) await this.app.vault.createFolder("vaults");
-    const addenda = this.app.vault.getAbstractFileByPath("_addenda");
-    if (!addenda) await this.app.vault.createFolder("_addenda");
-    const pv = this.app.vault.getAbstractFileByPath("PARENT-VAULT.md");
+    const folder = this.app.vault.getAbstractFileByPath(VAULTS_DIR);
+    if (!folder) await this.app.vault.createFolder(VAULTS_DIR);
+    const addenda = this.app.vault.getAbstractFileByPath(ADDENDA_DIR);
+    if (!addenda) await this.app.vault.createFolder(ADDENDA_DIR);
+    const pv = this.app.vault.getAbstractFileByPath(PARENT_VAULT_FILE);
     if (!(pv instanceof TFile)) {
       await this.app.vault.create(
-        "PARENT-VAULT.md",
+        PARENT_VAULT_FILE,
         PARENT_VAULT_SEED.replace("{{date}}", todayIso()),
       );
     }
