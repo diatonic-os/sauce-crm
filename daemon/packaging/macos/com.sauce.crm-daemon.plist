@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  sauce-crm-daemon · launchd USER LaunchAgent.
+
+  This is a TEMPLATE. install.sh rewrites three tokens before copying it to
+  ~/Library/LaunchAgents/com.sauce.crm-daemon.plist :
+
+    __NODE_BIN__       absolute path to node (>=18), from `command -v node`
+    __DAEMON_BUNDLE__  absolute path to sauce-crm-daemon.cjs (installed copy)
+    __LOG_DIR__        absolute path to ~/Library/Logs/sauce-crm-daemon
+
+  Scope: per-user (gui/$UID domain). No sudo, no root, no system daemon.
+  KeepAlive is crash-only (Crashed=true, SuccessfulExit=false) so a clean
+  `launchctl bootout` / graceful SIGTERM shutdown does NOT get relaunched,
+  but an unexpected crash does.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sauce.crm-daemon</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__NODE_BIN__</string>
+        <string>__DAEMON_BUNDLE__</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>Crashed</key>
+        <true/>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>__LOG_DIR__/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__LOG_DIR__/stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SAUCE_DAEMON_LOG_FILE</key>
+        <string>__LOG_DIR__/daemon.jsonl</string>
+    </dict>
+</dict>
+</plist>

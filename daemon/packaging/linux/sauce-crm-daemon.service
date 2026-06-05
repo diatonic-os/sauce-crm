@@ -1,0 +1,62 @@
+# systemd USER unit for sauce-crm-daemon.
+#
+# Install to ~/.config/systemd/user/sauce-crm-daemon.service, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now sauce-crm-daemon.service
+#
+# NO root / sudo required. The daemon binds 127.0.0.1:8788 (loopback only) and
+# owns a vault's LanceDB store as a single writer. install.sh substitutes
+# %h-relative paths at install time; this unit ships with the canonical layout
+# the installer writes ($HOME/.local/lib/sauce-crm-daemon/sauce-crm-daemon.cjs).
+
+[Unit]
+Description=sauce-crm-daemon (localhost LanceDB sidecar for the sauce-crm Obsidian plugin)
+Documentation=https://github.com/sauce-technologies/sauce-crm
+After=network.target
+
+[Service]
+Type=simple
+# %h expands to the user's home dir; node + bundle paths are resolved by install.sh.
+ExecStart=__NODE_BIN__ %h/.local/lib/sauce-crm-daemon/sauce-crm-daemon.cjs
+Restart=on-failure
+RestartSec=3
+# Surface logs via the journal: journalctl --user -u sauce-crm-daemon
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sauce-crm-daemon
+
+# ── Hardening (user-unit-appropriate; nothing here needs root) ──────────────
+# The daemon only needs: read its bundle, read/write its config + Lance store
+# under ONE central per-user data dir, and a loopback socket. Config, runtime
+# native module, and per-vault Lance stores ALL live under
+# <XDG_DATA_HOME or ~/.local/share>/sauce-crm (see src/services/platformPaths.ts:
+# appDataRoot — there is NO separate ~/.config dir). Everything below tightens
+# the sandbox without breaking that single writable root.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# Writable carve-out for the central data dir. This is the default location
+# (~/.local/share/sauce-crm). If you set XDG_DATA_HOME to a non-default path,
+# add a matching ReadWritePaths= line (or Environment=XDG_DATA_HOME=...) here.
+ReadWritePaths=%h/.local/share/sauce-crm
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+# Loopback + unix sockets only; no need for anything exotic.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=default.target

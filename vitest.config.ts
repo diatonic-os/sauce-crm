@@ -17,6 +17,6 @@ export default defineConfig({
     ],
     // singleFork (set above): the @lancedb/lancedb native addon panics when
     // multiple vitest worker processes load/tear it down concurrently.
-    include: ['test/**/*.test.ts', 'src/**/*.test.ts', 'sdk/**/*.test.ts'],
+    include: ['test/**/*.test.ts', 'src/**/*.test.ts', 'sdk/**/*.test.ts', 'daemon/src/**/*.test.ts'],
   },
 });

@@ -176,7 +176,9 @@ export interface V2Runtime {
   /** The LanceDB single-backend, or null when LanceDB is not yet installed
    *  (require-install mode — the install modal gates feature use). */
   lance: LanceBackend | null;
-  backendKind: "lancedb" | "uninitialized";
+  /** "daemon" ⇒ the sauce-crm-daemon owns the Lance store and the plugin
+   *  deliberately skipped local init (single-writer rule). */
+  backendKind: "lancedb" | "uninitialized" | "daemon";
   scopes: ScopeRegistry;
   keyVault: KeyVault | null;
   auditLog: AuditLog | null;
@@ -192,7 +194,20 @@ export interface V2Runtime {
   pendingCompaction: Promise<unknown> | null;
 }
 
-export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
+export interface InitV2Options {
+  /** Single-writer rule: when true, the sauce-crm-daemon already owns the
+   *  vault's Lance store, so initV2 MUST NOT open it locally. The backend stays
+   *  null and backendKind is reported as "daemon". KeyVault/AuditLog/Provenance
+   *  (which require a local Lance handle) stay null in this mode — the daemon
+   *  is the persistence authority. */
+  skipLance?: boolean;
+}
+
+export async function initV2(
+  app: App,
+  plugin: Plugin,
+  options?: InitV2Options,
+): Promise<V2Runtime> {
   // The plugin subclass initializes `logger` as a field default, so it is
   // always present by the time onload() calls initV2(). Route init-time
   // diagnostics through it (the base Plugin type lacks the field).
@@ -274,12 +289,18 @@ export async function initV2(app: App, plugin: Plugin): Promise<V2Runtime> {
   // installed we leave the backend null; main.ts surfaces the install modal
   // and feature use is gated until the operator approves the install.
   let lance: LanceBackend | null = null;
-  let backendKind: "lancedb" | "uninitialized" = "uninitialized";
+  let backendKind: "lancedb" | "uninitialized" | "daemon" = "uninitialized";
   // Track any background compaction so teardownV2 can await it before close()
   // (LANCE-006 — detached compaction must not race the connection teardown).
   let pendingCompaction: Promise<unknown> | null = null;
   const detect = detectLanceDB(moduleBase);
-  if (lanceDir && detect.state === "available") {
+  if (options?.skipLance) {
+    // Single-writer rule: the daemon owns the store. Never open it here.
+    backendKind = "daemon";
+    initLogger?.debug(
+      "Sauce V2 backend: skipping local LanceDB (sauce-crm-daemon present)",
+    );
+  } else if (lanceDir && detect.state === "available") {
     try {
       // Bound init: a pathological store (e.g. thousands of un-compacted
       // versions) must NOT freeze vault load. On timeout we fall through to the

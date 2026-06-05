@@ -91,6 +91,13 @@ import {
 import { SauceGraphSettingTab } from "./ui/settings/SauceGraphSettingTab";
 import { ActionButton } from "./ui/widgets/ActionButton";
 import { initV2, teardownV2, V2Runtime } from "./v2-init";
+import {
+  probeDaemon,
+  makeDaemonFetch,
+  createDaemonBackend,
+  daemonBaseUrl,
+  type DaemonHealth,
+} from "./services/DaemonClient";
 import { compactConnection } from "./backend/lance/maintenance";
 // MOB-BRIDGE-001 — mobile memory bridge (see MOBILE-BRIDGE-SPEC.md).
 import type { MemoryBackend } from "./bridge/contract";
@@ -250,8 +257,23 @@ export interface SauceGraphSettings {
   skillsAutonomy?: "manual" | "suggest" | "assist" | "auto" | "custom";
   /** MOB-BRIDGE-001 — mobile memory bridge. Server is OFF by default. */
   bridge?: BridgeSettings;
+  /** sauce-crm-daemon integration. Disabled by default; when enabled and the
+   *  daemon answers /health, the plugin uses the daemon's Lance store remotely
+   *  and SKIPS local Lance init (single-writer rule). */
+  daemon?: DaemonSettings;
   /** Forward-compat beta opt-in gate. Absent in production releases. */
   beta?: { enabled?: boolean };
+}
+
+/** sauce-crm-daemon settings. The pairing token is a shared secret — redacted
+ *  from data.json (SEC-07 pattern) and stored in the credential chain under
+ *  "daemon:pairing-token". */
+export interface DaemonSettings {
+  enabled: boolean;
+  /** Loopback port the daemon listens on (default 8788). */
+  port: number;
+  /** Shared HMAC pairing token (hex). Redacted on save; durable copy in chain. */
+  pairingToken: string;
 }
 
 /** Mobile-bridge settings. Desktop fields: enabled/port/bindHost/pairingToken.
@@ -354,6 +376,11 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
     port: 8787,
     bindHost: "",
     baseUrl: "",
+    pairingToken: "",
+  },
+  daemon: {
+    enabled: false,
+    port: 8788,
     pairingToken: "",
   },
 };
@@ -542,6 +569,13 @@ export default class SauceGraphPlugin extends Plugin {
   memory: MemoryBackend | null = null;
   /** Desktop-only memory server lifecycle (default-OFF). */
   bridgeService: BridgeService | null = null;
+  /** sauce-crm-daemon: when the daemon answers /health at boot, this holds the
+   *  remote (HMAC) MemoryBackend and the plugin SKIPS local Lance init
+   *  (single-writer rule). Null when the daemon is disabled/absent. */
+  daemonBackend: MemoryBackend | null = null;
+  /** Last successful daemon /health probe (for the settings status row). Null
+   *  when the daemon is disabled or unreachable. */
+  daemonHealth: DaemonHealth | null = null;
   v2Registry: V2Registry = new V2Registry();
   // Structured logger satisfying the Logger interface from telemetry/types.
   // Console-backed; v2 components reach for `event()` and `child()`.
@@ -669,8 +703,15 @@ export default class SauceGraphPlugin extends Plugin {
       });
     });
 
+    // sauce-crm-daemon single-writer detection (must run BEFORE initV2 so we can
+    // skip local Lance init when the daemon owns the store). On success this
+    // hydrates this.daemonBackend + this.daemonHealth; on failure the local path
+    // is untouched (fallback). Never throws into boot.
+    const daemonPresent = await this.probeDaemonForBoot();
+    boot.mark("daemon-probe");
+
     try {
-      this.v2 = await initV2(this.app, this);
+      this.v2 = await initV2(this.app, this, { skipLance: daemonPresent });
     } catch (e) {
       this.logger.warn("Sauce V2 init failed", { error: String(e) });
     }
@@ -1062,6 +1103,9 @@ export default class SauceGraphPlugin extends Plugin {
       // SEC-07: hydrate/migrate the pairing token into memory BEFORE the bridge
       // starts, so refreshBridge() reads a populated token.
       await this.migrateBridgePairingToken();
+      // SEC-07: same for the daemon token. The boot probe used a keychain-only
+      // fallback; this completes the legacy-plaintext→chain migration + scrub.
+      await this.migrateDaemonPairingToken();
       await this.refreshBridge();
     } catch (e) {
       this.logger.warn("Sauce mobile-bridge init failed (non-fatal)", {
@@ -1686,6 +1730,11 @@ export default class SauceGraphPlugin extends Plugin {
       name: "New Relation",
       callback: () =>
         new RelationModal(this.app, this, this.activeFile()).open(),
+    });
+    this.addCommand({
+      id: "reconnect-daemon",
+      name: "Reconnect daemon",
+      callback: () => void this.reconnectDaemon(),
     });
     this.addCommand({
       id: "promote-prospect",
@@ -2505,6 +2554,7 @@ export default class SauceGraphPlugin extends Plugin {
       },
       copilot: { ...DEFAULT_SETTINGS.copilot, ...(loaded?.copilot ?? {}) },
       bridge: { ...DEFAULT_SETTINGS.bridge!, ...(loaded?.bridge ?? {}) },
+      daemon: { ...DEFAULT_SETTINGS.daemon!, ...(loaded?.daemon ?? {}) },
       features: mergeFeatureSettings(loaded?.features),
       showAdvanced: {
         ...DEFAULT_SETTINGS.showAdvanced,
@@ -2524,6 +2574,11 @@ export default class SauceGraphPlugin extends Plugin {
       ...(this.settings.bridge
         ? { bridge: { ...this.settings.bridge, pairingToken: "" } }
         : {}),
+      // SEC-07: the daemon pairing token is a shared secret — strip it too; the
+      // durable copy lives in the chain under daemon:pairing-token.
+      ...(this.settings.daemon
+        ? { daemon: { ...this.settings.daemon, pairingToken: "" } }
+        : {}),
     };
     await this.saveData(redacted);
     // SEC-07: keep the durable bridge-token copy in the chain in sync with the
@@ -2533,6 +2588,15 @@ export default class SauceGraphPlugin extends Plugin {
     if (tok && this.credentialChain) {
       await this.credentialChain
         .put(this.bridgePairingService(), tok)
+        .catch(() => {
+          /* no writable source: token survives in memory for this session */
+        });
+    }
+    // SEC-07: same for the daemon token.
+    const dtok = this.settings.daemon?.pairingToken;
+    if (dtok && this.credentialChain) {
+      await this.credentialChain
+        .put(this.daemonPairingService(), dtok)
         .catch(() => {
           /* no writable source: token survives in memory for this session */
         });
@@ -2552,6 +2616,32 @@ export default class SauceGraphPlugin extends Plugin {
    *  the encrypted chain. */
   bridgePairingService(): string {
     return "bridge:pairing-token";
+  }
+
+  /** SEC-07: credential-chain service id for the sauce-crm-daemon pairing token.
+   *  Like the bridge token, redacted from data.json; durable copy in the chain. */
+  daemonPairingService(): string {
+    return "daemon:pairing-token";
+  }
+
+  /** SEC-07: one-time migration + hydration of the daemon pairing token,
+   *  mirroring the bridge-token flow. Awaited BEFORE the boot daemon probe so a
+   *  paired daemon's token is in memory when the client is built. */
+  private async migrateDaemonPairingToken(): Promise<void> {
+    if (!this.credentialChain || !this.settings.daemon) return;
+    const svc = this.daemonPairingService();
+    const legacy = this.settings.daemon.pairingToken;
+    if (legacy) {
+      try {
+        await this.credentialChain.put(svc, legacy);
+      } catch {
+        return; // No writable source: keep in memory (never re-persisted plain).
+      }
+      await this.saveSettings();
+    } else {
+      const stored = await this.credentialChain.get(svc).catch(() => null);
+      if (stored) this.settings.daemon.pairingToken = stored;
+    }
   }
 
   /** SEC-07: one-time migration + hydration of the bridge pairing token,
@@ -2627,6 +2717,12 @@ export default class SauceGraphPlugin extends Plugin {
   buildMemoryBackend(): void {
     const hasher = makeContentHasher(bridgeSha256Hex);
     if (!Platform.isMobile) {
+      // Single-writer rule: when the daemon owns the store, the plugin's memory
+      // surface is the remote daemon backend (local Lance was never opened).
+      if (this.daemonBackend) {
+        this.memory = this.daemonBackend;
+        return;
+      }
       if (this.v2?.lance) {
         this.memory = createDesktopMemory({
           vectors: this.v2.lance.vectors,
@@ -2699,6 +2795,119 @@ export default class SauceGraphPlugin extends Plugin {
       bindHost: b.bindHost,
       pairingToken: b.pairingToken,
     });
+  }
+
+  /** sauce-crm-daemon: absolute vault base path used as the `x-sauce-vault`
+   *  header so the daemon routes to THIS vault's store. Empty on mobile. */
+  private vaultBasePath(): string {
+    return (
+      this.app.vault.adapter.getBasePath?.() ??
+      this.app.vault.adapter.basePath ??
+      ""
+    );
+  }
+
+  /** Resolve the daemon pairing token for this session. Prefers the in-memory
+   *  settings copy; falls back to the OS-keychain credential source (which needs
+   *  no Lance/v2, so this is safe to call during early boot before the full
+   *  credentialChain exists). Returns "" when no token is available. */
+  private async resolveDaemonToken(): Promise<string> {
+    const inMem = this.settings.daemon?.pairingToken;
+    if (inMem) return inMem;
+    try {
+      const src = makeSafeStorageCredentialSource(
+        secretsFile(currentPathEnv()),
+      );
+      const stored = await src.get(this.daemonPairingService());
+      return stored ?? "";
+    } catch {
+      return "";
+    }
+  }
+
+  /** Build (or rebuild) the daemon MemoryBackend from current settings + token.
+   *  Pure wiring — does not probe. Returns null when disabled, unpaired, or off
+   *  the desktop. */
+  private async buildDaemonBackend(): Promise<MemoryBackend | null> {
+    if (Platform.isMobile) return null;
+    const d = this.settings.daemon;
+    if (!d?.enabled) return null;
+    const token = await this.resolveDaemonToken();
+    if (!token) return null;
+    return createDaemonBackend({
+      baseUrl: daemonBaseUrl(d.port),
+      pairingToken: token,
+      vaultBasePath: this.vaultBasePath(),
+      requestUrl: (r) => requestUrl(r),
+      sha256Hex: bridgeSha256Hex,
+      hmacHex: bridgeHmacHex,
+    });
+  }
+
+  /** Boot-time daemon detection. Probes GET /health; on success sets
+   *  this.daemonHealth + this.daemonBackend and returns true so initV2 skips the
+   *  local Lance store (single-writer rule). On any failure clears both and
+   *  returns false (local path is used). Never throws. */
+  async probeDaemonForBoot(): Promise<boolean> {
+    this.daemonHealth = null;
+    this.daemonBackend = null;
+    const d = this.settings.daemon;
+    if (Platform.isMobile || !d?.enabled) return false;
+    let health: DaemonHealth | null = null;
+    try {
+      health = await probeDaemon(makeDaemonFetch(), { port: d.port });
+    } catch {
+      health = null;
+    }
+    if (!health) {
+      this.logger.debug("sauce-crm-daemon not detected; using local backend", {
+        port: d.port,
+      });
+      return false;
+    }
+    const backend = await this.buildDaemonBackend();
+    if (!backend) {
+      // Health OK but no token to authenticate /v1 calls — treat as unavailable
+      // so we don't half-wire a backend that 401s. Operator must pair.
+      this.logger.warn(
+        "sauce-crm-daemon is up but no pairing token is set — pair it in settings",
+      );
+      return false;
+    }
+    this.daemonHealth = health;
+    this.daemonBackend = backend;
+    this.logger.event?.("daemon.connected", {
+      version: health.version,
+      lance: health.lance,
+    });
+    return true;
+  }
+
+  /** Re-probe the daemon and re-wire the memory backend live (the "Reconnect
+   *  daemon" command). When the daemon transitions present→absent or absent→
+   *  present we do NOT hot-swap the local Lance store mid-session (that would
+   *  violate single-writer ordering already locked at boot); instead we surface
+   *  a notice telling the operator to reload so the boot path re-runs cleanly. */
+  async reconnectDaemon(): Promise<void> {
+    const wasConnected = !!this.daemonBackend;
+    const nowConnected = await this.probeDaemonForBoot();
+    if (nowConnected && this.daemonHealth) {
+      // Re-point the live memory surface at the (possibly fresh) daemon backend.
+      this.memory = this.daemonBackend;
+      new Notice(
+        `sauce-crm-daemon connected (v${this.daemonHealth.version}, lance ` +
+          `${this.daemonHealth.lance.available ? `dim ${this.daemonHealth.lance.dim}` : "warming"}).`,
+      );
+    } else if (wasConnected && !nowConnected) {
+      new Notice(
+        "sauce-crm-daemon is no longer reachable. Reload Obsidian to fall back " +
+          "to the local backend.",
+      );
+    } else {
+      new Notice(
+        "sauce-crm-daemon not detected. Reload Obsidian after starting it.",
+      );
+    }
   }
 
   /** Push the RAG/embedding + prompt settings into the Copilot runtime. Called

@@ -57,6 +57,23 @@ export interface MemoryHttpServerDeps {
   lanceStatus: () => LanceStatus;
   /** Request body cap in bytes. Default 1_000_000. */
   maxBodyBytes?: number;
+  /** Optional unauthenticated route hook, consulted BEFORE body-read and auth.
+   *  Pure extension seam (added for the sauce-crm-daemon's GET /health): return
+   *  an `ExtraRouteResult` to short-circuit the request, or `null` to fall
+   *  through to the standard pipeline. When omitted, behavior is unchanged.
+   *  The hook MUST be side-effect-free w.r.t. the response (the server writes
+   *  the JSON); it only decides status + body. Use for INFO-only localhost
+   *  routes — never expose authenticated capability through it. */
+  extraRoutes?: (
+    method: string,
+    path: string,
+  ) => ExtraRouteResult | null | undefined;
+}
+
+/** Result of a matched {@link MemoryHttpServerDeps.extraRoutes} hook. */
+export interface ExtraRouteResult {
+  status: number;
+  body: unknown;
 }
 
 const DEFAULT_MAX_BODY_BYTES = 1_000_000;
@@ -168,6 +185,23 @@ export class MemoryHttpServer {
     });
   }
 
+  /** Run the full request pipeline on an externally-owned socket WITHOUT this
+   *  instance listening itself. Composition seam for the sauce-crm-daemon,
+   *  which owns the Node http.Server (so it can set per-vault request context
+   *  and serve its own GET /health) and delegates the /v1/* surface here.
+   *  Mirrors the internal handler's last-resort 500 guard. `start()` is
+   *  unaffected — this is purely additive. */
+  async handleRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
+    try {
+      await this.handle(req, res);
+    } catch {
+      this.fail(res, 500, "server-error", "internal error");
+    }
+  }
+
   // ───────────────────────── request pipeline ─────────────────────────
 
   private async handle(
@@ -178,6 +212,15 @@ export class MemoryHttpServer {
     // Strip query string; routing keys off pathname only.
     const rawUrl = req.url ?? "/";
     const path = rawUrl.split("?")[0]!; // split always yields ≥1 element
+
+    // Pure extension seam: consult the injected extraRoutes hook first. It runs
+    // BEFORE body-read and auth, so it must only serve unauthenticated info
+    // routes (e.g. the daemon's GET /health). No hook → unchanged behavior.
+    const extra = this.deps.extraRoutes?.(method, path);
+    if (extra) {
+      this.ok(res, extra.status, extra.body);
+      return;
+    }
 
     // /health is public — no auth, no body needed.
     if (method === "GET" && path === ROUTES.health) {
