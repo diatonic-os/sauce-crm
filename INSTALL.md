@@ -22,6 +22,110 @@ won't list it.
 
 ---
 
+## Option 0 — one-line installer (no toolchain, no manual folders)
+
+> The fastest path for a brand-new machine. One command detects Obsidian
+> (and offers to install it), lets you pick a vault folder with a native
+> dialog, stages the **0.4.1** plugin into it, and pre-enables it — leaving
+> exactly **one click** for you (the Restricted-Mode trust prompt, which the
+> installer is not allowed to bypass). Requires **Obsidian ≥ 1.5.0**
+> (the script offers to install it) and is **desktop-only**.
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/install.ps1 | iex
+```
+
+### Pin to a release tag (recommended for repeatable installs)
+
+Piping `main` always runs the current tip of the installer. To pin to a
+reviewed release, **replace `main` with a release tag** (e.g. `0.4.1`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.1/installer/install.sh | bash
+```
+
+```powershell
+irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.1/installer/install.ps1 | iex
+```
+
+### Prefer not to pipe to a shell?
+
+Download the script, **read it**, then run it — same result, full transparency:
+
+```bash
+curl -fsSL -o install.sh https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/install.sh
+less install.sh        # review it
+bash install.sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/install.ps1 -OutFile install.ps1
+notepad install.ps1    # review it
+.\install.ps1
+```
+
+### What the script actually does (step by step)
+
+1. **Detects your OS + architecture.**
+2. **Detects whether the Obsidian *app* is installed** (app bundle / package /
+   AppImage / registry — not the plugin). If found, it skips ahead.
+3. **If Obsidian is absent → it asks first (consent point #1).** It prints
+   exactly what it will install and the method, then **prompts you (default
+   *No*)**. Only on a *yes* does it install — package-manager first, with a
+   direct-download fallback, and it **waits for the install to finish**:
+   - macOS: `brew install --cask obsidian`, else the official `.dmg`.
+   - Linux: `flatpak install flathub md.obsidian.Obsidian`, else the official
+     `.AppImage` (with a `.desktop` launcher); `snap` as a last resort.
+   - Windows: `winget install Obsidian.Obsidian`, else the official `.exe`.
+   - **Decline and it stops** (Obsidian is required) with the manual download
+     link: <https://obsidian.md/download>.
+4. **Opens a folder picker** (native dialog — Finder dialog / `zenity` /
+   `kdialog` / WinForms, with a text-prompt fallback). You choose a **parent
+   folder** and a **vault name** (default `sauce-crm-vault`); it creates
+   `<parent>/<name>`. It **refuses to clobber a non-empty existing folder**.
+5. **Stages the plugin** into `<vault>/.obsidian/plugins/sauce-crm/`,
+   downloading `main.js`, `manifest.json`, `styles.css` from the **0.4.1**
+   release plus `versions.json`, and **integrity-checks each** (non-empty;
+   `manifest.json` must parse and have `id == "sauce-crm"`).
+6. **Pre-enables the plugin** by writing
+   `community-plugins.json = ["sauce-crm"]`, and **registers the vault** in
+   Obsidian's global vault list (`obsidian.json`) so it shows up — *merging*
+   into the existing file, never corrupting it.
+7. **Stops at the honest one click.** On first open, Obsidian shows a one-time
+   **"Turn off Restricted Mode → Trust author and enable plugins"** prompt.
+   That is a security boundary the installer **does not and cannot bypass** —
+   you click it once. The script offers to **open the vault now**
+   (`obsidian://open?path=…`).
+8. **Prints a summary:** Obsidian status, vault path, plugin version, the one
+   click remaining, and how to install the optional daemon
+   (see [Optional — the local daemon](#optional--the-local-daemon-04x-lightweight-runtime)).
+
+### Consent & safety summary
+
+- **Two consent points, both default-safe:** installing Obsidian (only if
+  absent, default *No*) and opening the vault at the end. No `sudo` is used
+  unless genuinely unavoidable, and only with explicit consent.
+- **Idempotent:** re-running detects an existing Obsidian install and an
+  existing vault and skips that work.
+- **Non-destructive:** it never overwrites `obsidian.json` or
+  `community-plugins.json` blindly — it parse-merges, and refuses an
+  occupied vault folder.
+- **The one thing it can't do for you:** click the Restricted-Mode trust
+  prompt. That is by design.
+
+If you'd rather do it by hand, the manual options below do the same staging
+work yourself.
+
+---
+
 ## Option A — install a pre-built release (fastest, no toolchain)
 
 1. Open the release: <https://github.com/Diatonic-OS/sauce-crm/releases/tag/0.4.1>
