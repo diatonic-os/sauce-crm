@@ -33,6 +33,7 @@ import type {
   EmbedResult,
   TransportCipher,
 } from "../../src/bridge/contract";
+import { VAULT_HEADER as CONTRACT_VAULT_HEADER } from "../../src/bridge/contract";
 import type { ProvenanceRecord } from "../../src/services/Provenance";
 import { VaultRegistry } from "./vaults";
 import {
@@ -43,8 +44,10 @@ import {
 import type { WhisperDaemonConfig } from "./config";
 import { validateBinaryPath } from "../../src/services/transcribe/WhisperArgs";
 
-/** Header a client uses to select its vault (absolute vault base path). */
-export const VAULT_HEADER = "x-sauce-vault";
+/** Header a client uses to select its vault (absolute vault base path).
+ *  Re-exported from the shared bridge contract (single source of truth) so the
+ *  daemon and the plugin's DaemonClient resolve the same literal. */
+export const VAULT_HEADER = CONTRACT_VAULT_HEADER;
 /** Unauthenticated health route (localhost-only, info-only). */
 export const HEALTH_ROUTE = "/health";
 

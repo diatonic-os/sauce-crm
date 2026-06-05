@@ -9,6 +9,7 @@
 
 import type { LanceDocChunkStore } from "../backend/lance/LanceDocChunkStore";
 import type { DocChunkRow } from "../backend/lance/LanceSchema";
+import { lazyRequire } from "../utils/lazyRequire";
 
 export type DocFormat = "txt" | "md" | "pdf" | "docx";
 export const SUPPORTED_FORMATS: DocFormat[] = ["txt", "md", "pdf", "docx"];
@@ -54,22 +55,6 @@ export interface HarvestOptions {
   extractors?: ExtractorRegistry;
   chunkSize?: number;
   overlap?: number;
-}
-
-/** Lazily resolve an optional native parser; throws a clear error if absent. */
-function lazyRequire<T = unknown>(mod: string): T {
-  const req =
-    (globalThis as unknown as { require?: NodeRequire }).require ??
-    (typeof require !== "undefined" ? require : undefined);
-  if (typeof req !== "function")
-    throw new Error(`require() unavailable — cannot load ${mod}`);
-  try {
-    return req(mod) as T;
-  } catch {
-    throw new Error(
-      `Parser "${mod}" is not installed. Run: npm install ${mod} --prefix <pluginDir>`,
-    );
-  }
 }
 
 function decode(input: ExtractInput): string {

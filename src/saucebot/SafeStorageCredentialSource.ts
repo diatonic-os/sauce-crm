@@ -10,6 +10,7 @@
 // fakes; `makeSafeStorageCredentialSource` wires the real Electron + fs.
 
 import type { CredentialSource } from "./CredentialSource";
+import { tryRequire } from "../utils/lazyRequire";
 
 /** The slice of Electron's safeStorage we depend on. */
 export interface SafeStorageLike {
@@ -81,26 +82,10 @@ export class SafeStorageCredentialSource implements CredentialSource {
 export function makeSafeStorageCredentialSource(
   secretsPath: string,
 ): SafeStorageCredentialSource {
-  const req =
-    (globalThis as unknown as { require?: NodeRequire }).require ??
-    (typeof require !== "undefined" ? require : undefined);
-  let ss: SafeStorageLike | null = null;
-  let fs: typeof import("fs") | null = null;
-  let path: typeof import("path") | null = null;
-  if (typeof req === "function") {
-    try {
-      const electron = req("electron") as { safeStorage?: SafeStorageLike };
-      ss = electron.safeStorage ?? null;
-    } catch {
-      ss = null;
-    }
-    try {
-      fs = req("fs") as typeof import("fs");
-      path = req("path") as typeof import("path");
-    } catch {
-      fs = null;
-    }
-  }
+  const electron = tryRequire<{ safeStorage?: SafeStorageLike }>("electron");
+  const ss: SafeStorageLike | null = electron?.safeStorage ?? null;
+  const fs = tryRequire<typeof import("fs")>("fs") ?? null;
+  const path = fs ? tryRequire<typeof import("path")>("path") ?? null : null;
   const io: SecretsIO = {
     read(): Record<string, string> {
       if (!fs) return {};

@@ -17,6 +17,8 @@
 //      out-of-band install for power users; the plugin never spawns a
 //      package manager or downloads code at runtime.
 
+import { resolveNodeRequire } from "../utils/lazyRequire";
+
 export type LanceDBStatus =
   | { state: "available"; version: string }
   | { state: "unavailable"; reason: string }
@@ -47,7 +49,7 @@ export function detectLanceDB(pluginDir?: string): LanceDBStatus {
   if (typeof proc?.versions?.electron !== "string") {
     return { state: "mobile-unsupported" };
   }
-  const req = (globalThis as unknown as { require?: NodeRequire }).require;
+  const req = resolveNodeRequire();
   if (typeof req !== "function") {
     return {
       state: "unavailable",

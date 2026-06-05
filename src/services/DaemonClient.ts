@@ -33,6 +33,7 @@ import {
   TS_HEADER,
   ENC_HEADER,
   TRANSPORT_ENC_VERSION,
+  VAULT_HEADER,
   canonicalRequestString,
   type SignedRequestParts,
 } from "../bridge/contract";
@@ -43,9 +44,10 @@ import type {
 } from "./transcribe/TranscriptionProvider";
 
 /** Header the daemon reads to select the vault store (absolute vault base path).
- *  Mirrors daemon/src/server.ts VAULT_HEADER — kept as a literal here so the
- *  plugin bundle never imports daemon/** (out of the plugin's compile root). */
-export const DAEMON_VAULT_HEADER = "x-sauce-vault";
+ *  Re-exported from the shared bridge contract — the single source of truth that
+ *  the daemon ALSO imports — so the plugin and daemon can never drift. The
+ *  `DAEMON_VAULT_HEADER` name is retained for existing plugin call sites. */
+export const DAEMON_VAULT_HEADER = VAULT_HEADER;
 
 /** Default loopback host + port for the daemon (design constants). */
 export const DAEMON_DEFAULT_HOST = "127.0.0.1";

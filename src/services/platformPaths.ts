@@ -16,6 +16,8 @@
 // All resolvers are PURE — they take {platform, env, home} so they unit-test
 // across every OS without the host. `currentPathEnv()` reads the live process.
 
+import { tryRequire } from "../utils/lazyRequire";
+
 export type Platform =
   | "win32"
   | "darwin"
@@ -137,19 +139,9 @@ export async function migrateLegacyStore(
   legacyDir: string,
   targetDir: string,
 ): Promise<MigrationResult> {
-  const req =
-    (globalThis as unknown as { require?: NodeRequire }).require ??
-    (typeof require !== "undefined" ? require : undefined);
-  if (typeof req !== "function")
-    return { migrated: false, reason: "unavailable" };
-  let fs: typeof import("fs");
-  let path: typeof import("path");
-  try {
-    fs = req("fs") as typeof import("fs");
-    path = req("path") as typeof import("path");
-  } catch {
-    return { migrated: false, reason: "unavailable" };
-  }
+  const fs = tryRequire<typeof import("fs")>("fs");
+  const path = tryRequire<typeof import("path")>("path");
+  if (!fs || !path) return { migrated: false, reason: "unavailable" };
   if (!fs.existsSync(legacyDir))
     return { migrated: false, reason: "no-legacy" };
   if (fs.existsSync(targetDir)) {
@@ -204,16 +196,8 @@ export function firstExistingModuleBase(
 ): string | undefined {
   const present = candidates.filter((c): c is string => !!c);
   if (present.length === 0) return undefined;
-  const req =
-    (globalThis as unknown as { require?: NodeRequire }).require ??
-    (typeof require !== "undefined" ? require : undefined);
-  if (typeof req !== "function") return present[0];
-  let fs: typeof import("fs");
-  try {
-    fs = req("fs") as typeof import("fs");
-  } catch {
-    return present[0];
-  }
+  const fs = tryRequire<typeof import("fs")>("fs");
+  if (!fs) return present[0];
   for (const base of present) {
     try {
       if (fs.existsSync(joinPosix(base, "node_modules/@lancedb/lancedb"))) {

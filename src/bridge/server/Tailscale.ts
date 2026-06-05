@@ -9,6 +9,8 @@
 // sufficient and avoids spawning anything. The operator can override the bind
 // address in settings if discovery comes up empty.
 
+import { tryRequire } from "../../utils/lazyRequire";
+
 /** True iff `ip` is in the Tailscale CGNAT range 100.64.0.0/10. */
 export function isTailscaleCgnat(ip: string): boolean {
   const m = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(ip);
@@ -44,9 +46,8 @@ export function pickTailscaleAddress(
 export async function discoverTailscaleAddress(): Promise<string | null> {
   if (typeof process === "undefined") return null; // mobile — can't bind anyway
   try {
-    const req = (globalThis as unknown as { require?: NodeRequire }).require;
-    if (!req) return null;
-    const os = req("os") as typeof import("node:os");
+    const os = tryRequire<typeof import("node:os")>("os");
+    if (!os) return null;
     return pickTailscaleAddress(
       os.networkInterfaces() as Parameters<typeof pickTailscaleAddress>[0],
     );

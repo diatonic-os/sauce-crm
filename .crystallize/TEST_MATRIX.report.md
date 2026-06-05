@@ -50,3 +50,43 @@ Obsidian debug-startup tool); onload structure is unchanged by this refactor.
 ### Residual manual checklist (operator)
 1. Command palette → run a sampling of Sauce CRM commands; open the network-heavy views (Copilot, Map, Sync Status, AI Inbox); watch the console.
 2. Settings → toggle through each Sauce CRM page; change a value; confirm persistence on reload.
+
+---
+
+## 0.4.x re-verification (run-20260605-lattice-04x-integration)
+
+Sub-run on commit `9cb93a3` (baseline 12a4008 → v0.4.2). Every figure below was
+produced by running the gate command, not copied from the audit packet.
+
+### Static gates (re-run, authoritative)
+
+| Gate | Check | Result |
+|---|---|---|
+| **G-001** | `npx tsc --noEmit` full R-003 strict (all 12 flags), plugin | ✅ **0 errors** |
+| **G-001** (daemon) | `npx tsc --noEmit` in `daemon/` (any-free + tsc-clean) | ✅ **0 errors**, **0 `any`** in non-test src |
+| **G-002** | `npm run build` (tsc + esbuild production) | ✅ **PASS** — `main.js` **629,975 B** = **+9.50%** vs 575,339 B v0.3.0 anchor (SS-003 limit +25%) |
+| **G-003** | `npx vitest run` | ✅ **1107/1107** across **186** test files |
+| **G-007** | LATTICE_MAP zero broken/unknown cells | ✅ all 0.4.x cells connected; grep state=broken/unknown → 0 |
+
+R-004 census re-checked: exactly **1** real `as any` (`EntityService.ts:121`,
+frontmatter write) + the ObsidianApiSchema string-data colon-any set (**52** entries).
+The 3 other `as any` string hits in src are COMMENTS (not violations). Daemon `any`
+grep hits (×2) are `as unknown as OpenVault["lance"]` mock seams in `daemon/src/*.test.ts`.
+
+### Per-new-module coverage
+
+| Module | Coverage surface | Result |
+|---|---|---|
+| daemon `config.ts` / `server.ts` / `vaults.ts` | `daemon/src/*.test.ts` (server, whisper-route, config/vaults resolution; VAULT_HEADER routing) | ✅ pass |
+| `DaemonClient` | probeDaemon + createDaemonBackend single-writer detection | ✅ pass |
+| transport crypto (`bridge/crypto.ts`) | tamper (GCM auth-tag) + replay rejection, HKDF key separation, transportEncrypt/Decrypt round-trip | ✅ pass |
+| `WhisperArgs` | pure argv allowlist builder (shared plugin+daemon; rejects non-allowlisted flags) | ✅ pass |
+| `RateLimiter` (`TokenBucketRateLimiter`) | per-remote-addr bucket, bounded LRU eviction, injected-clock refill | ✅ pass |
+| `MirrorSync.fullResyncDetailed` | full-resync detail reconciliation (+239 lines) | ✅ pass |
+| `KeyVault` change/reset/HKDF | master-password change, reset, HKDF re-derivation (+193 lines) | ✅ pass |
+| build-conventions guard (`test/build-conventions.test.ts`) | asserts node builtins use lazy bare-require, not static value import (0.4.0 node:tls regression guard) | ✅ pass |
+
+**Not auto-exercised (unchanged from v0.3.0):** the 82 commands, network-heavy views,
+and settings mutations remain a manual QA sweep. The daemon's live systemd/launchd
+install + plugin↔daemon socket handshake is an operator integration step (packaging
+scripts present under `daemon/packaging/**`, not CI-exercised here).

@@ -10,6 +10,7 @@
 // and (b) compact + prune so size stays proportional to the data.
 
 import type { LanceConnection } from "./LanceConnection";
+import { tryRequire } from "../../utils/lazyRequire";
 
 /** Reject a promise if it does not settle within `ms`. Used to bound LanceDB
  *  operations so a pathological store can never block vault load indefinitely.
@@ -44,18 +45,9 @@ export function withTimeout<T>(
  *  the partial total; a return value >= capBytes means "at least this large".
  *  Renderer-safe: `fs`/`path` are lazily required (never top-level imported). */
 export function dirSizeBounded(dir: string, capBytes: number): number {
-  const req =
-    (globalThis as unknown as { require?: NodeRequire }).require ??
-    (typeof require !== "undefined" ? require : undefined);
-  if (typeof req !== "function") return 0;
-  let fs: typeof import("fs");
-  let path: typeof import("path");
-  try {
-    fs = req("fs") as typeof import("fs");
-    path = req("path") as typeof import("path");
-  } catch {
-    return 0;
-  }
+  const fs = tryRequire<typeof import("fs")>("fs");
+  const path = tryRequire<typeof import("path")>("path");
+  if (!fs || !path) return 0;
   let total = 0;
   const stack: string[] = [dir];
   for (let cur = stack.pop(); cur !== undefined; cur = stack.pop()) {
@@ -86,18 +78,9 @@ export function dirSizeBounded(dir: string, capBytes: number): number {
  *  thousands of files is what manifests as Obsidian's "watcher" error. This is
  *  the cheap signal that triggers compaction. Renderer-safe (lazy fs require). */
 export function dirFileCountBounded(dir: string, cap: number): number {
-  const req =
-    (globalThis as unknown as { require?: NodeRequire }).require ??
-    (typeof require !== "undefined" ? require : undefined);
-  if (typeof req !== "function") return 0;
-  let fs: typeof import("fs");
-  let path: typeof import("path");
-  try {
-    fs = req("fs") as typeof import("fs");
-    path = req("path") as typeof import("path");
-  } catch {
-    return 0;
-  }
+  const fs = tryRequire<typeof import("fs")>("fs");
+  const path = tryRequire<typeof import("path")>("path");
+  if (!fs || !path) return 0;
   let count = 0;
   const stack: string[] = [dir];
   for (let cur = stack.pop(); cur !== undefined; cur = stack.pop()) {

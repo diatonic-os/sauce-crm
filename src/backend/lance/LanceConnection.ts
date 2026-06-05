@@ -10,6 +10,7 @@
 
 import type * as Lance from "@lancedb/lancedb";
 import { seedRows, seedDeletePredicate, type TableName } from "./LanceSchema";
+import { resolveNodeRequire } from "../../utils/lazyRequire";
 
 export type LanceModule = typeof Lance;
 export type LanceConnection = Lance.Connection;
@@ -33,9 +34,7 @@ let cachedLance: LanceModule | null = null;
 
 export function loadLance(pluginDir?: string): LanceModule {
   if (cachedLance) return cachedLance;
-  const req =
-    (globalThis as unknown as { require?: NodeRequire }).require ??
-    (typeof require !== "undefined" ? require : undefined);
+  const req = resolveNodeRequire();
   if (typeof req !== "function") {
     throw new Error("require() unavailable; LanceDB needs Electron/Node host");
   }

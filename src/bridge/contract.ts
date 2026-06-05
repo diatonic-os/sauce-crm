@@ -165,6 +165,13 @@ export const ROUTES = {
 
 // ───────────────────────── Auth (HMAC) ─────────────────────────
 
+/** Header a client uses to select its per-vault store (absolute vault base
+ *  path). Single source of truth shared by the daemon (which reads it to route
+ *  into the right vault store) and the plugin's DaemonClient (which sets it on
+ *  every request). Both trees import THIS constant — the daemon already imports
+ *  from this contract module — so the header can never drift between them. */
+export const VAULT_HEADER = "x-sauce-vault";
+
 /** Header carrying the request signature. */
 export const SIG_HEADER = "x-sauce-sig";
 /** Header carrying the per-request nonce. */
