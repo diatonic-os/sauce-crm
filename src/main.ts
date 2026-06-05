@@ -25,6 +25,7 @@ import {
   VaultGraphIndexer,
   buildVaultGraphIndexerHost,
 } from "./services/VaultGraphIndexer";
+import { BootTimer } from "./services/BootTimer";
 import { WhisperEngine } from "./services/transcribe/WhisperEngine";
 import { MemoryBackendRagAdapter } from "./bridge/MemoryBackendRagAdapter";
 import { injectMobileStyles } from "./ui/MobileStyles";
@@ -448,11 +449,42 @@ export default class SauceGraphPlugin extends Plugin {
   edgeSync!: EdgeSyncService;
   query!: QueryService;
   search!: SearchService;
-  bootstrap!: VaultBootstrapper;
-  parentBootstrap!: ParentVaultBootstrapper;
-  registry!: RegistryService;
-  fedValidator!: FederationValidator;
-  contractValidator!: ContractValidator;
+  // ── Phase-A boot optimization: lazy-on-first-use services ──────────────
+  // These have NO eager onload wiring (no construct-time side effects, no
+  // ordering invariants). They construct on first access via getters below,
+  // keeping their public non-null types so external consumers are unchanged.
+  private _bootstrap: VaultBootstrapper | null = null;
+  get bootstrap(): VaultBootstrapper {
+    return (this._bootstrap ??= new VaultBootstrapper(
+      this.app,
+      this.settings.paths,
+    ));
+  }
+  private _parentBootstrap: ParentVaultBootstrapper | null = null;
+  get parentBootstrap(): ParentVaultBootstrapper {
+    return (this._parentBootstrap ??= new ParentVaultBootstrapper(this.app));
+  }
+  private _registry: RegistryService | null = null;
+  get registry(): RegistryService {
+    return (this._registry ??= new RegistryService(this.app));
+  }
+  private _fedValidator: FederationValidator | null = null;
+  get fedValidator(): FederationValidator {
+    return (this._fedValidator ??= new FederationValidator());
+  }
+  private _contractValidator: ContractValidator | null = null;
+  get contractValidator(): ContractValidator {
+    return (this._contractValidator ??= new ContractValidator({
+      strictness: this.settings.strictness,
+      enums: this.enums(),
+      vaultLookup: (link) => {
+        const t = link.replace(/\[\[|\]\]/g, "").split("|")[0]!; // split always produces ≥1 element
+        const f = this.app.metadataCache.getFirstLinkpathDest(t, "");
+        if (!f) return null;
+        return this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
+      },
+    }));
+  }
   v2: V2Runtime | null = null;
   get syncEngine() {
     return this.v2?.sync ?? null;
@@ -482,8 +514,20 @@ export default class SauceGraphPlugin extends Plugin {
   credentialChain: ChainedCredentialSource | null = null;
   enrichment: EnrichmentService | null = null;
   documentHarvest: DocumentHarvestService | null = null;
-  pluginConfig: PluginConfigService | null = null;
-  tasks: TasksService | null = null;
+  // pluginConfig + tasks: lazy-on-first-use (codeblock/command consumers only;
+  // no eager onload wiring). Getters construct on first access.
+  private _pluginConfig: PluginConfigService | null = null;
+  get pluginConfig(): PluginConfigService {
+    return (this._pluginConfig ??= new PluginConfigService(
+      new ObsidianPluginConfigHost(this.app),
+      defaultProfiles(),
+      this.v2?.provenance ?? null,
+    ));
+  }
+  private _tasks: TasksService | null = null;
+  get tasks(): TasksService {
+    return (this._tasks ??= new TasksService(this.app));
+  }
   skills: SkillRuntime | null = null;
   integrations: IntegrationRegistry | null = null;
   /** CON-OBS-INTEG-001 — public svcV1 (mounted in onload) + its wiring handle. */
@@ -502,6 +546,13 @@ export default class SauceGraphPlugin extends Plugin {
   // Structured logger satisfying the Logger interface from telemetry/types.
   // Console-backed; v2 components reach for `event()` and `child()`.
   logger: import("./telemetry/types").Logger = makeConsoleLogger("sauce-crm");
+  // Phase-A boot timing. Constructed at the top of onload; segments marked at
+  // each boot phase boundary. Last report surfaced via "Show boot timing".
+  private bootTimer: BootTimer | null = null;
+  // Phase-A: deferred heavy boot work (vault walks / scheduler first scan).
+  // Registered during onload, drained inside the onLayoutReady callback so the
+  // O(vault) work never competes with the awaited boot path.
+  private readonly deferredPostLayout: Array<() => unknown> = [];
   // LanceDB capability — populated in onload. Read by VectorSearchService
   // (when wired) and by the RAG semantic path. While `enabled` is false,
   // the RAG falls back to graph + fuzzy.
@@ -550,7 +601,9 @@ export default class SauceGraphPlugin extends Plugin {
   }
 
   override async onload(): Promise<void> {
+    const boot = (this.bootTimer = new BootTimer());
     await this.loadSettings();
+    boot.mark("settings-load");
 
     // Mobile (Apple-native) optimization: inject the .is-mobile stylesheet and
     // surface a one-tap quick-capture ribbon for on-the-go recording.
@@ -589,6 +642,31 @@ export default class SauceGraphPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.maybePromptLanceDBInstall();
       this.indexAllOnLoad();
+      // Phase-A: run deferred heavy vault walks off the awaited boot path. Each
+      // thunk was registered during onload but its O(vault) work waits for the
+      // workspace layout (metadataCache is most complete here).
+      for (const task of this.deferredPostLayout) {
+        try {
+          const r = task();
+          if (r && typeof (r as Promise<unknown>).catch === "function") {
+            void (r as Promise<unknown>).catch((e: unknown) =>
+              this.logger.warn("Sauce post-layout task failed", {
+                error: String(e),
+              }),
+            );
+          }
+        } catch (e) {
+          this.logger.warn("Sauce post-layout task threw", {
+            error: String(e),
+          });
+        }
+      }
+      this.deferredPostLayout.length = 0;
+      const r = boot.report("post-layout");
+      this.logger.debug("boot.timing", {
+        segments: r.segments,
+        totalMs: r.totalMs,
+      });
     });
 
     try {
@@ -596,6 +674,7 @@ export default class SauceGraphPlugin extends Plugin {
     } catch (e) {
       this.logger.warn("Sauce V2 init failed", { error: String(e) });
     }
+    boot.mark("v2-init");
 
     this.entityService = new EntityService(this.app, this.settings.paths);
     this.edgeSync = new EdgeSyncService(
@@ -605,20 +684,8 @@ export default class SauceGraphPlugin extends Plugin {
     );
     this.query = new QueryService(this.app, this.entityService);
     this.search = new SearchService(this.app, this.entityService);
-    this.bootstrap = new VaultBootstrapper(this.app, this.settings.paths);
-    this.parentBootstrap = new ParentVaultBootstrapper(this.app);
-    this.registry = new RegistryService(this.app);
-    this.fedValidator = new FederationValidator();
-    this.contractValidator = new ContractValidator({
-      strictness: this.settings.strictness,
-      enums: this.enums(),
-      vaultLookup: (link) => {
-        const t = link.replace(/\[\[|\]\]/g, "").split("|")[0]!; // split always produces ≥1 element
-        const f = this.app.metadataCache.getFirstLinkpathDest(t, "");
-        if (!f) return null;
-        return this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
-      },
-    });
+    // bootstrap / parentBootstrap / registry / fedValidator / contractValidator
+    // are now lazy getters (constructed on first use) — see the field block.
 
     this.copilot = new SauceBotRuntime(
       this.app,
@@ -745,13 +812,9 @@ export default class SauceGraphPlugin extends Plugin {
       });
       this.copilot?.setTraceSink(this.v2.provenance ?? null);
     }
-    // Plugin auto-config engine (orchestrator): detect supported core/community
-    // plugins and propose canonical settings. Provenance-traced on apply.
-    this.pluginConfig = new PluginConfigService(
-      new ObsidianPluginConfigHost(this.app),
-      defaultProfiles(),
-      this.v2?.provenance ?? null,
-    );
+    // Plugin auto-config engine (orchestrator) is now a lazy getter — see the
+    // field block. Detect/propose runs only when the config UI or command opens.
+    boot.mark("services");
     // CON-OBS-INTEG-001 — mount the public svcV1 + Obsidian plugin adapter
     // registry. Wrapped so a wiring failure can never block plugin startup.
     try {
@@ -791,9 +854,14 @@ export default class SauceGraphPlugin extends Plugin {
           excludeGlobs: this.settings.features.rag.excludeGlobs ?? [],
         },
       );
-      void vaultIndexer.rebuild().catch(() => {
-        /* empty graph on first run / no vault access */
-      });
+      // Phase-A: defer the initial O(vault) rebuild to onLayoutReady so it
+      // doesn't compete with the awaited boot path (the manual command below
+      // stays eager so the palette entry is present immediately).
+      this.deferredPostLayout.push(() =>
+        vaultIndexer.rebuild().catch(() => {
+          /* empty graph on first run / no vault access */
+        }),
+      );
       this.addCommand({
         id: "rebuild-vault-graph",
         name: "Rebuild Vault Graph Index",
@@ -807,8 +875,8 @@ export default class SauceGraphPlugin extends Plugin {
         },
       });
     }
-    // Tasks ↔ Tasks-plugin checkbox bridge (W4): author/read tasks in _TASKS.md.
-    this.tasks = new TasksService(this.app);
+    // Tasks ↔ Tasks-plugin checkbox bridge (W4) is now a lazy getter — see the
+    // field block. Constructed when the tasks codeblock/command first runs.
     this.skills = new SkillRuntime(
       this.app,
       this.entityService,
@@ -830,7 +898,10 @@ export default class SauceGraphPlugin extends Plugin {
     const filesSvc = this.wiredSvc?.svcV1.files;
     if (this.copilot && filesSvc) {
       const linkProvider = new VaultContextProvider(this.app.metadataCache);
-      linkProvider.rebuild();
+      // Phase-A: defer the initial whole-metadataCache link-graph walk to
+      // onLayoutReady (metadataCache is most complete then). The "resolved"
+      // event registration stays eager so later cache updates still rebuild.
+      this.deferredPostLayout.push(() => linkProvider.rebuild());
       this.registerEvent(
         this.app.metadataCache.on("resolved", () => linkProvider.rebuild()),
       );
@@ -923,8 +994,11 @@ export default class SauceGraphPlugin extends Plugin {
         skillTaskSource,
         skillTaskPersister,
       );
-      scheduler.start(60_000);
+      // Phase-A: defer scheduler.start (which arms the 60s interval) to
+      // onLayoutReady. The register(stop) teardown stays eager so unload is
+      // always safe even if layout never becomes ready.
       this.register(() => scheduler.stop());
+      this.deferredPostLayout.push(() => scheduler.start(60_000));
     }
 
     // D (S8): wire local whisper transcription on desktop (the `transcribe`
@@ -979,6 +1053,7 @@ export default class SauceGraphPlugin extends Plugin {
     }
 
     this.integrations = new IntegrationRegistry(this.app, {});
+    boot.mark("copilot+skills+integrations");
 
     // MOB-BRIDGE-001 — build the platform memory backend and, on desktop,
     // (re)start the memory server per settings (default-OFF). Never throws into
@@ -1100,9 +1175,12 @@ export default class SauceGraphPlugin extends Plugin {
     this.registerView(VIEW_INBOX, (l) => new InboxView(l, this));
     this.registerView(VIEW_LEDGER, (l) => new LedgerView(l, this));
 
+    boot.mark("registry+bridge");
     this.registerViews();
+    boot.mark("views");
     this.registerCommands();
     this.addSettingTab(new SauceGraphSettingTab(this.app, this));
+    boot.mark("commands+settings-tab");
 
     // Ribbon icons — three configurable group launchers. The defaults
     // match the most common operator flows: People (new person + log
@@ -1511,7 +1589,33 @@ export default class SauceGraphPlugin extends Plugin {
       (_src, el) => void renderTasksBlock(el, this),
     );
 
+    boot.mark("event-handlers+codeblocks");
+    const onloadReport = boot.report("onload");
+    this.logger.debug("boot.timing", {
+      segments: onloadReport.segments,
+      totalMs: onloadReport.totalMs,
+    });
     this.logger?.info?.("Sauce Graph loaded"); // MKT-005: gate info behind logger
+  }
+
+  /** Phase-A: human-readable summary of the last boot-timing report, surfaced
+   *  via the "Sauce CRM: Show boot timing" command. Returns null if onload has
+   *  not produced a report yet. */
+  private showBootTiming(): void {
+    const r = this.bootTimer?.getLastReport();
+    if (!r) {
+      new Notice("Boot timing not available yet.");
+      return;
+    }
+    const summary = BootTimer.format(r);
+    const m = new Modal(this.app);
+    m.titleEl.setText("Sauce CRM — Boot timing");
+    m.contentEl.createEl("p", { text: `Total: ${r.totalMs} ms (${r.phase})` });
+    const list = m.contentEl.createEl("ul");
+    for (const s of r.segments)
+      list.createEl("li", { text: `${s.name}: ${s.ms} ms` });
+    m.contentEl.createEl("pre", { text: summary });
+    m.open();
   }
 
   registerViews(): void {
@@ -2110,6 +2214,11 @@ export default class SauceGraphPlugin extends Plugin {
       id: "fuzzy-search",
       name: "Fuzzy search",
       callback: () => new Notice("Use the Sauce Dashboard or DQL block."),
+    });
+    this.addCommand({
+      id: "show-boot-timing",
+      name: "Show boot timing",
+      callback: () => this.showBootTiming(),
     });
   }
 
