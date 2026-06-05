@@ -123,6 +123,211 @@ describe("MirrorSync", () => {
     expect(await mirror.listByType("org")).toHaveLength(1);
   });
 
+  it("fullResyncDetailed batches and yields between batches (fake scheduler)", async () => {
+    h = await tmpLance();
+    const t = await tables(h);
+    const mirror = new LanceEntityMirror(t);
+    const fm: Record<string, Record<string, unknown>> = {};
+    const content: Record<string, string> = {};
+    for (let i = 0; i < 5; i++) {
+      fm[`people/P${i}.md`] = { type: "person" };
+      content[`people/P${i}.md`] = `body ${i}`;
+    }
+    const app = fakeApp({ frontmatter: fm, content });
+    // Counting scheduler: each inter-batch yield resolves on a microtask, and we
+    // count them — 5 files / batchSize 2 ⇒ 3 batches ⇒ exactly 2 yields.
+    let yields = 0;
+    const sync = new MirrorSync(app, mirror, null, [], null, null, {
+      scheduleYield: (resume) => {
+        yields += 1;
+        void Promise.resolve().then(resume);
+      },
+    });
+
+    const r = await sync.fullResyncDetailed({ embed: false, batchSize: 2 });
+    expect(r.synced).toBe(5);
+    expect(r.total).toBe(5);
+    expect(r.cursor).toBe(5);
+    expect(r.cancelled).toBe(false);
+    expect(yields).toBe(2); // proves the resync yielded between batches
+    expect(await mirror.listByType("person")).toHaveLength(5);
+  });
+
+  it("fullResyncDetailed cancels mid-run via signal and reports a resumable cursor", async () => {
+    h = await tmpLance();
+    const t = await tables(h);
+    const mirror = new LanceEntityMirror(t);
+    const fm: Record<string, Record<string, unknown>> = {};
+    const content: Record<string, string> = {};
+    for (let i = 0; i < 6; i++) {
+      fm[`people/Q${i}.md`] = { type: "person" };
+      content[`people/Q${i}.md`] = `b${i}`;
+    }
+    const app = fakeApp({ frontmatter: fm, content });
+    const signal = { aborted: false };
+    let yields = 0;
+    const sync = new MirrorSync(app, mirror, null, [], null, null, {
+      // Abort on the first inter-batch yield ⇒ second batch must not run.
+      scheduleYield: (resume) => {
+        yields += 1;
+        signal.aborted = true;
+        resume();
+      },
+    });
+
+    const r = await sync.fullResyncDetailed({
+      embed: false,
+      batchSize: 2,
+      signal,
+    });
+    expect(r.cancelled).toBe(true);
+    expect(r.cursor).toBe(2); // only the first batch of 2 ran
+    expect(r.synced).toBe(2);
+    expect(r.drift).toBeNull(); // no reconciliation on a cancelled run
+    expect(yields).toBe(1);
+  });
+
+  it("fullResyncDetailed resumes from startIndex (cursor)", async () => {
+    h = await tmpLance();
+    const t = await tables(h);
+    const mirror = new LanceEntityMirror(t);
+    const fm: Record<string, Record<string, unknown>> = {};
+    const content: Record<string, string> = {};
+    for (let i = 0; i < 4; i++) {
+      fm[`people/R${i}.md`] = { type: "person" };
+      content[`people/R${i}.md`] = `b${i}`;
+    }
+    const app = fakeApp({ frontmatter: fm, content });
+    const sync = new MirrorSync(app, mirror, null, [], null, null, {
+      scheduleYield: (resume) => resume(),
+    });
+
+    // Resume from index 2 ⇒ only the last 2 files are processed.
+    const r = await sync.fullResyncDetailed({
+      embed: false,
+      batchSize: 10,
+      startIndex: 2,
+    });
+    expect(r.synced).toBe(2);
+    expect(r.cursor).toBe(4);
+    expect(r.total).toBe(4);
+  });
+
+  it("fullResyncDetailed reports monotonic progress with correct counts", async () => {
+    h = await tmpLance();
+    const t = await tables(h);
+    const mirror = new LanceEntityMirror(t);
+    const fm: Record<string, Record<string, unknown>> = {};
+    const content: Record<string, string> = {};
+    for (let i = 0; i < 3; i++) {
+      fm[`people/S${i}.md`] = { type: "person" };
+      content[`people/S${i}.md`] = `b${i}`;
+    }
+    const app = fakeApp({ frontmatter: fm, content });
+    const ticks: Array<{ done: number; total: number; phase: string }> = [];
+    const sync = new MirrorSync(app, mirror, null, [], null, null, {
+      scheduleYield: (resume) => resume(),
+    });
+
+    await sync.fullResyncDetailed({
+      embed: false,
+      batchSize: 1,
+      onProgress: (p) => ticks.push({ ...p }),
+    });
+
+    // Every tick has total === 3 and done never decreases.
+    expect(ticks.every((p) => p.total === 3)).toBe(true);
+    for (let i = 1; i < ticks.length; i++) {
+      expect(ticks[i]!.done).toBeGreaterThanOrEqual(ticks[i - 1]!.done);
+    }
+    // Indexing phase reaches done === total; a reconciling + done phase follow.
+    expect(ticks.some((p) => p.phase === "indexing" && p.done === 3)).toBe(true);
+    expect(ticks.some((p) => p.phase === "reconciling")).toBe(true);
+    expect(ticks.at(-1)?.phase).toBe("done");
+  });
+
+  it("reconciliation reports zero drift when mirror count matches vault entities", async () => {
+    h = await tmpLance();
+    const t = await tables(h);
+    const mirror = new LanceEntityMirror(t);
+    const app = fakeApp({
+      frontmatter: {
+        "people/A.md": { type: "person" },
+        "orgs/B.md": { type: "org" },
+      },
+      content: { "people/A.md": "a", "orgs/B.md": "b" },
+    });
+    const sync = new MirrorSync(app, mirror, null, [], null, null, {
+      scheduleYield: (resume) => resume(),
+      // Real mirror row count — the entities table holds exactly what we synced.
+      countMirrorRows: () => t.entities.countRows(),
+    });
+
+    const r = await sync.fullResyncDetailed({ embed: false });
+    expect(r.synced).toBe(2);
+    expect(r.mirrorRows).toBe(2);
+    expect(r.drift).toBe(0);
+  });
+
+  it("reconciliation surfaces drift when mirror count diverges", async () => {
+    h = await tmpLance();
+    const t = await tables(h);
+    const mirror = new LanceEntityMirror(t);
+    const app = fakeApp({
+      frontmatter: { "people/A.md": { type: "person" } },
+      content: { "people/A.md": "a" },
+    });
+    const sync = new MirrorSync(app, mirror, null, [], null, null, {
+      scheduleYield: (resume) => resume(),
+      countMirrorRows: async () => 5, // injected divergent count
+    });
+    const r = await sync.fullResyncDetailed({ embed: false });
+    expect(r.synced).toBe(1);
+    expect(r.mirrorRows).toBe(5);
+    expect(r.drift).toBe(4);
+  });
+
+  it("reconciliation drift is null when the mirror count is unavailable", async () => {
+    h = await tmpLance();
+    const t = await tables(h);
+    const mirror = new LanceEntityMirror(t);
+    const app = fakeApp({
+      frontmatter: { "people/A.md": { type: "person" } },
+      content: { "people/A.md": "a" },
+    });
+    const sync = new MirrorSync(app, mirror, null, [], null, null, {
+      scheduleYield: (resume) => resume(),
+      countMirrorRows: async () => {
+        throw new Error("count failed");
+      },
+    });
+    const r = await sync.fullResyncDetailed({ embed: false });
+    expect(r.mirrorRows).toBeNull();
+    expect(r.drift).toBeNull();
+  });
+
+  it("fullResyncDetailed halts at the next batch boundary once closed()", async () => {
+    h = await tmpLance();
+    const t = await tables(h);
+    const mirror = new LanceEntityMirror(t);
+    const fm: Record<string, Record<string, unknown>> = {};
+    const content: Record<string, string> = {};
+    for (let i = 0; i < 4; i++) {
+      fm[`people/C${i}.md`] = { type: "person" };
+      content[`people/C${i}.md`] = `b${i}`;
+    }
+    const app = fakeApp({ frontmatter: fm, content });
+    const sync = new MirrorSync(app, mirror, null, [], null, null, {
+      scheduleYield: (resume) => {
+        sync.close(); // teardown begins mid-resync
+        resume();
+      },
+    });
+    const r = await sync.fullResyncDetailed({ embed: false, batchSize: 2 });
+    expect(r.cancelled).toBe(true);
+    expect(r.cursor).toBe(2);
+  });
+
   it("honors realtime embedding toggle but still embeds on manual full resync", async () => {
     h = await tmpLance();
     const t = await tables(h);

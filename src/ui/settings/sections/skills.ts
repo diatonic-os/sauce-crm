@@ -1,8 +1,124 @@
-import { Setting } from "obsidian";
+import { Notice, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 
 const LEVELS = ["manual", "suggest", "assist", "auto"] as const;
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+interface TranscriptionUiSettings {
+  binaryPath: string;
+  model: string;
+  preferDaemon: boolean;
+}
+
+/** Render the Whisper transcription controls: absolute binary path + Detect +
+ *  Test (--help). The plugin NEVER installs whisper — these only point at an
+ *  existing binary or defer to the daemon. */
+function renderTranscription(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
+  const s = plugin.settings as unknown as {
+    transcription?: TranscriptionUiSettings;
+  };
+  const t: TranscriptionUiSettings = (s.transcription ??= {
+    binaryPath: "",
+    model: "large-v3-turbo",
+    preferDaemon: true,
+  });
+  const save = () => plugin.saveSettings();
+
+  containerEl.createEl("h3", { text: "Transcription (Whisper)" });
+  containerEl.createEl("p", {
+    cls: "sauce-field-help",
+    text:
+      "Local audio transcription via a Whisper CLI. The plugin never downloads " +
+      "or installs Whisper — point it at an absolute binary path, or enable the " +
+      "sauce-crm daemon (which can provision Whisper) and prefer it below.",
+  });
+
+  new Setting(containerEl)
+    .setName("Whisper binary path")
+    .setDesc(
+      "Absolute path to the whisper CLI (e.g. /home/you/.venv/bin/whisper). " +
+        "Relative paths and PATH lookups are rejected for safety.",
+    )
+    .addText((txt) =>
+      txt
+        .setPlaceholder("/absolute/path/to/whisper")
+        .setValue(t.binaryPath)
+        .onChange(async (v) => {
+          t.binaryPath = v.trim();
+          await save();
+          // Re-wire the local engine so the change takes effect immediately.
+          plugin.wireWhisperEngine?.();
+        }),
+    );
+
+  new Setting(containerEl)
+    .setName("Default model")
+    .setDesc("Whisper model id (e.g. large-v3-turbo, base.en).")
+    .addText((txt) =>
+      txt
+        .setPlaceholder("large-v3-turbo")
+        .setValue(t.model)
+        .onChange(async (v) => {
+          t.model = v.trim() || "large-v3-turbo";
+          await save();
+          plugin.wireWhisperEngine?.();
+        }),
+    );
+
+  new Setting(containerEl)
+    .setName("Prefer daemon for transcription")
+    .setDesc(
+      "When the sauce-crm daemon advertises Whisper in /health, route " +
+        "transcription to it (no local spawn needed).",
+    )
+    .addToggle((tog) =>
+      tog.setValue(t.preferDaemon).onChange(async (v) => {
+        t.preferDaemon = v;
+        await save();
+      }),
+    );
+
+  new Setting(containerEl)
+    .setName("Detect binary")
+    .setDesc("Scan common absolute install locations and offer what is found.")
+    .addButton((b) =>
+      b.setButtonText("Detect").onClick(async () => {
+        const found = plugin.detectWhisperBinaries?.() ?? [];
+        if (found.length === 0) {
+          new Notice("No Whisper binary found in common locations.");
+          return;
+        }
+        // Apply the first hit; surface all so the operator can adjust.
+        t.binaryPath = found[0]!;
+        await save();
+        plugin.wireWhisperEngine?.();
+        new Notice(
+          `Found: ${found.join(", ")} — set to ${found[0]}. Edit if needed.`,
+        );
+        // Refresh so the text field shows the applied path.
+        containerEl.empty();
+        renderSkills(containerEl, plugin);
+      }),
+    );
+
+  new Setting(containerEl)
+    .setName("Test transcription")
+    .setDesc(
+      "Run a one-shot --help probe (exit 0) against the configured binary.",
+    )
+    .addButton((b) =>
+      b.setButtonText("Test").onClick(async () => {
+        const res = (await plugin.testWhisperBinary?.()) ?? {
+          ok: false,
+          message: "Test unavailable.",
+        };
+        new Notice(res.message);
+      }),
+    );
+}
 
 export function renderSkills(
   containerEl: HTMLElement,
@@ -94,6 +210,7 @@ export function renderSkills(
       cls: "sauce-field-help",
       text: "No skills registered.",
     });
+    renderTranscription(containerEl, plugin);
     return;
   }
 
@@ -150,4 +267,6 @@ export function renderSkills(
       await save();
     };
   }
+
+  renderTranscription(containerEl, plugin);
 }

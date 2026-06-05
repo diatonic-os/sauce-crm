@@ -139,6 +139,32 @@ describe("createDaemonBackend", () => {
     expect(call.headers?.["x-sauce-ts"]).toBeTruthy();
   });
 
+  it("encrypts the request body and sends X-Sauce-Enc:v1", async () => {
+    let sentBody: string | undefined;
+    let encHeader: string | undefined;
+    const requestUrl: RequestUrlLike = async (req) => {
+      sentBody = req.body;
+      encHeader = req.headers?.["x-sauce-enc"];
+      return { status: 200, text: JSON.stringify({ hits: [] }) };
+    };
+    const backend = createDaemonBackend({
+      baseUrl: daemonBaseUrl(),
+      pairingToken: "deadbeef".repeat(8),
+      vaultBasePath: "/v",
+      requestUrl,
+      sha256Hex,
+      hmacHex,
+    });
+    await backend.semanticSearch({ query: "SECRETQUERY", k: 1 });
+    expect(encHeader).toBe("v1");
+    // The wire body is an EncEnvelope, NOT the plaintext query.
+    expect(sentBody).toBeTruthy();
+    expect(sentBody).not.toContain("SECRETQUERY");
+    const env = JSON.parse(sentBody!);
+    expect(env.v).toBe("v1");
+    expect(typeof env.data).toBe("string");
+  });
+
   it("omits the vault header when vaultBasePath is empty", async () => {
     let sawHeader = true;
     const requestUrl: RequestUrlLike = async (req) => {

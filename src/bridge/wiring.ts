@@ -20,6 +20,7 @@ import {
   type ReachabilityProbe,
   type HttpRequestFn,
   type HttpResponse,
+  type TransportCipher,
 } from "./contract";
 import { LanceMemoryBackend } from "./desktop";
 import { BridgeMemoryBackend } from "./mobile/bridge";
@@ -116,6 +117,10 @@ export function createMobileMemory(deps: {
   probe: ReachabilityProbe;
   lexicalHost: ConstructorParameters<typeof LexicalMemoryBackend>[0]["host"];
   localIndex: LocalHashIndex;
+  /** Optional app-layer AES-256-GCM cipher (built from the pairing key via
+   *  crypto.deriveTransportKey). When supplied, the mobile bridge encrypts every
+   *  request body and decrypts responses. Omit ⇒ legacy plaintext+HMAC. */
+  cipher?: TransportCipher;
 }): MemoryBackend {
   const bridge = new BridgeMemoryBackend({
     baseUrl: deps.baseUrl,
@@ -123,6 +128,7 @@ export function createMobileMemory(deps: {
     signer: deps.signer,
     hasher: deps.hasher,
     cache: deps.cache,
+    ...(deps.cipher ? { cipher: deps.cipher } : {}),
   });
   const local = new LexicalMemoryBackend({
     host: deps.lexicalHost,

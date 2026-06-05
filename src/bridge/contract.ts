@@ -174,6 +174,45 @@ export const TS_HEADER = "x-sauce-ts";
 /** Max clock skew (ms) the desktop verifier tolerates. */
 export const TS_WINDOW_MS = 300_000;
 
+// ───────────────────────── Transport encryption (app-layer) ─────────────────
+
+/** Header a client sets to request/declare app-layer body encryption. When a
+ *  request carries `X-Sauce-Enc: v1`, BOTH the request body (if any) and the
+ *  response body are AES-256-GCM ciphertext (see crypto.transportEncrypt). The
+ *  server MUST answer encrypted whenever the request header is present. Absent
+ *  ⇒ legacy plaintext+HMAC (accepted this release; deprecated). */
+export const ENC_HEADER = "x-sauce-enc";
+
+/** The only encryption wire version currently understood. */
+export const TRANSPORT_ENC_VERSION = "v1";
+
+/** Envelope around an encrypted body. The plaintext JSON is encrypted to a
+ *  single base64 token; we wrap it so a reviewer can see the version on the
+ *  wire and so future versions can carry extra fields without ambiguity. */
+export interface EncEnvelope {
+  /** Wire version; currently always {@link TRANSPORT_ENC_VERSION}. */
+  v: string;
+  /** base64( IV[12] || ciphertext || GCM-tag[16] ) of the plaintext body. */
+  data: string;
+}
+
+/** Type guard for a well-formed {@link EncEnvelope}. */
+export function isEncEnvelope(x: unknown): x is EncEnvelope {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return typeof o.v === "string" && typeof o.data === "string";
+}
+
+/** Portable AES-GCM transport surface (injected, mirrors {@link ContentHasher}
+ *  / HmacCrypto so server + client + tests share one shape). Prod binds this to
+ *  crypto.transportEncrypt/transportDecrypt over a key from deriveTransportKey.
+ *  `encrypt`/`decrypt` operate on UTF-8 strings; `decrypt` MUST throw on tamper
+ *  (GCM tag failure) so callers can hard-reject. */
+export interface TransportCipher {
+  encrypt(plaintext: string): Promise<string>;
+  decrypt(wire: string): Promise<string>;
+}
+
 /** Inputs the signer/verifier agree to hash. `bodyHash` = sha256Hex(rawBody). */
 export interface SignedRequestParts {
   method: string;

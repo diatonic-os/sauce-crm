@@ -18,6 +18,7 @@ import {
 import { VaultRegistry } from "./vaults";
 import { DaemonServer } from "./server";
 import { DAEMON_VERSION } from "./version";
+import type { TranscribeFs } from "./transcribe";
 
 interface Argv {
   port?: number;
@@ -97,6 +98,39 @@ async function makeLogger(
   return (e) => stream.write(JSON.stringify(e) + "\n");
 }
 
+/** node:fs-backed TranscribeFs for the transcribe route. */
+async function makeTranscribeFs(): Promise<TranscribeFs> {
+  const fs = await import("node:fs");
+  return {
+    mkdtemp: (prefix) => fs.promises.mkdtemp(prefix),
+    writeFile: (p, data) => fs.promises.writeFile(p, data, { mode: 0o600 }),
+    readFile: (p, enc) => fs.promises.readFile(p, enc),
+    rm: (p, opts) => fs.promises.rm(p, opts),
+    statIsFile: (p) => {
+      try {
+        return fs.statSync(p).isFile();
+      } catch {
+        return false;
+      }
+    },
+    accessExecutable: (p) => {
+      try {
+        fs.accessSync(p, fs.constants.X_OK);
+        return true;
+      } catch {
+        if (process.platform === "win32") {
+          try {
+            return fs.statSync(p).isFile();
+          } catch {
+            return false;
+          }
+        }
+        return false;
+      }
+    },
+  };
+}
+
 export interface BootedDaemon {
   server: DaemonServer;
   registry: VaultRegistry;
@@ -125,6 +159,10 @@ export async function boot(argv: Argv): Promise<BootedDaemon> {
   // a caller can point the daemon at a specific store without a config edit.
   const defaultVault = argv.vault ?? config.defaultVault ?? argv.dataDir ?? null;
 
+  // Build a node:fs-backed seam for the transcribe route (POST /v1/transcribe).
+  const transcribeFs = await makeTranscribeFs();
+  const os = await import("node:os");
+
   const server = new DaemonServer({
     registry,
     pairingToken: config.pairingToken,
@@ -133,6 +171,12 @@ export async function boot(argv: Argv): Promise<BootedDaemon> {
     version: DAEMON_VERSION,
     defaultVault: () => defaultVault,
     log,
+    ...(config.allowNonLoopback !== undefined
+      ? { allowNonLoopback: config.allowNonLoopback }
+      : {}),
+    whisper: () => config.whisper,
+    transcribeFs,
+    tmpBase: os.tmpdir(),
   });
 
   const address = await server.start();

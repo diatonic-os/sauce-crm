@@ -10,6 +10,15 @@
 #   ./install.sh <URL>           # download bundle from a release URL instead
 #   ./install.sh /path/to.cjs    # copy bundle from an explicit local path
 #
+# Optional flags (any position):
+#   --with-whisper               # ALSO provision openai-whisper (asks first)
+#   --yes | -y                   # assume "yes" to the whisper prompt
+#
+# Whisper provisioning is OPT-IN and DEFAULT-OFF. When requested it installs the
+# `openai-whisper` Python package via the platform-native supported route
+# (uv tool install / pipx / pip --user, in that preference order). Model weights
+# are NOT downloaded here — whisper fetches them on first use.
+#
 # Re-running is idempotent: it overwrites the bundle + unit, reloads, re-enables.
 set -eu
 
@@ -29,6 +38,58 @@ log()  { printf '%s\n' "install.sh: $*"; }
 err()  { printf '%s\n' "install.sh: error: $*" >&2; }
 die()  { err "$*"; exit 1; }
 
+# Provision openai-whisper via the platform-native supported route. OPT-IN: only
+# runs when --with-whisper is passed. Prints exactly what it will do and requires
+# an interactive "yes" (or --yes). Default-OFF: returns 0 without acting when not
+# requested. Never uses sudo; installs into the user scope.
+provision_whisper() {
+  [ "${WITH_WHISPER}" -eq 1 ] || return 0
+
+  # Choose the installer: uv (preferred), pipx, then pip --user.
+  WHISPER_CMD=""
+  if command -v uv >/dev/null 2>&1; then
+    WHISPER_CMD="uv tool install openai-whisper"
+  elif command -v pipx >/dev/null 2>&1; then
+    WHISPER_CMD="pipx install openai-whisper"
+  elif command -v python3 >/dev/null 2>&1; then
+    WHISPER_CMD="python3 -m pip install --user openai-whisper"
+  else
+    err "--with-whisper: no uv, pipx, or python3 found; cannot provision whisper."
+    err "install one of them, or set the binary path manually in plugin settings."
+    return 1
+  fi
+
+  log "--with-whisper requested. This will run:"
+  log "    ${WHISPER_CMD}"
+  log "Model weights are downloaded by whisper on first use, not now."
+
+  if [ "${ASSUME_YES}" -ne 1 ]; then
+    printf 'install.sh: proceed with whisper install? [y/N] '
+    read -r reply || reply=""
+    case "${reply}" in
+      y|Y|yes|YES) : ;;
+      *) log "skipped whisper install (declined)."; return 0 ;;
+    esac
+  fi
+
+  # WHISPER_CMD is an internally-built constant; word-splitting is intended.
+  # shellcheck disable=SC2086
+  if ${WHISPER_CMD}; then
+    WHISPER_BIN=$(command -v whisper 2>/dev/null || true)
+    if [ -n "${WHISPER_BIN}" ]; then
+      log "whisper installed → ${WHISPER_BIN}"
+      log "set this ABSOLUTE path in the daemon config (whisper.binaryPath) or in"
+      log "plugin Settings → Skills → Transcription, then enable whisper."
+    else
+      log "whisper install finished, but the binary is not on PATH yet."
+      log "find it (e.g. ~/.local/bin/whisper) and set its absolute path in config."
+    fi
+  else
+    err "whisper install command failed."
+    return 1
+  fi
+}
+
 # ── 1. Preconditions ────────────────────────────────────────────────────────
 
 command -v node >/dev/null 2>&1 || die "node not found on PATH (need >= 18)."
@@ -43,9 +104,28 @@ log "node ${NODE_MAJOR} OK (${NODE_BIN})"
 
 command -v systemctl >/dev/null 2>&1 || die "systemctl not found (systemd required)."
 
+# ── 1b. Parse flags (separate --with-whisper / --yes from the bundle source) ─
+
+WITH_WHISPER=0
+ASSUME_YES=0
+ARG=""
+for a in "$@"; do
+  case "${a}" in
+    --with-whisper) WITH_WHISPER=1 ;;
+    --yes|-y)       ASSUME_YES=1 ;;
+    --*)            die "unknown flag: ${a}" ;;
+    *)
+      if [ -z "${ARG}" ]; then
+        ARG="${a}"
+      else
+        die "unexpected extra argument: ${a}"
+      fi
+      ;;
+  esac
+done
+
 # ── 2. Resolve the bundle source ────────────────────────────────────────────
 
-ARG="${1:-}"
 TMP_DOWNLOAD=""
 
 cleanup() {
@@ -140,6 +220,10 @@ else
   err "inspect logs: journalctl --user -u ${UNIT_FILE} -n 50 --no-pager"
   exit 1
 fi
+
+# ── 7. Optional: provision whisper (opt-in, default-off) ────────────────────
+
+provision_whisper || die "whisper provisioning failed (the daemon is still installed)."
 
 log "done. Manage with:"
 log "  systemctl --user status ${UNIT_FILE}"

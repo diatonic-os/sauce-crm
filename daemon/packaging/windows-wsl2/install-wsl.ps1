@@ -44,7 +44,11 @@ param(
   [int]$Port = 8788,
   [string]$Vault,
   [string]$BundlePath,
-  [switch]$NoStart
+  [switch]$NoStart,
+  # OPT-IN, default-off: also provision openai-whisper inside the distro.
+  [switch]$WithWhisper,
+  # Assume "yes" to the whisper prompt (passed through to the inner script).
+  [switch]$Yes
 )
 
 Set-StrictMode -Version 2.0
@@ -159,8 +163,10 @@ if ($Vault) {
 
 # --- 4. Run the inner installer inside the distro --------------------------
 $envPrefix = "SAUCE_DAEMON_BUNDLE_SRC='$stageBundle' SAUCE_DAEMON_PORT='$Port'"
-if ($wslVault) { $envPrefix += " SAUCE_DAEMON_VAULT='$wslVault'" }
-if ($NoStart)  { $envPrefix += " SAUCE_DAEMON_NO_START='1'" }
+if ($wslVault)     { $envPrefix += " SAUCE_DAEMON_VAULT='$wslVault'" }
+if ($NoStart)      { $envPrefix += " SAUCE_DAEMON_NO_START='1'" }
+if ($WithWhisper)  { $envPrefix += " SAUCE_DAEMON_WITH_WHISPER='1'" }
+if ($Yes)          { $envPrefix += " SAUCE_DAEMON_ASSUME_YES='1'" }
 
 Info "running inner installer..."
 & wsl.exe -d $Distro -e bash -lc "$envPrefix bash '$stageInner'"

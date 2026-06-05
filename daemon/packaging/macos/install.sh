@@ -10,7 +10,22 @@
 # Idempotent: re-running re-copies the bundle, re-renders the plist, boots out
 # any prior instance, and bootstraps the fresh one.
 #
+# Optional flags:
+#   --with-whisper   ALSO provision openai-whisper (asks first; default-off).
+#   --yes | -y       assume "yes" to the whisper prompt.
+# Whisper model weights are downloaded by whisper on first use, not here.
+#
 set -euo pipefail
+
+WITH_WHISPER=0
+ASSUME_YES=0
+for arg in "$@"; do
+  case "${arg}" in
+    --with-whisper) WITH_WHISPER=1 ;;
+    --yes|-y)       ASSUME_YES=1 ;;
+    *)              printf 'install.sh: unknown argument: %s\n' "${arg}" >&2; exit 1 ;;
+  esac
+done
 
 LABEL="com.sauce.crm-daemon"
 APP_SUPPORT="${HOME}/Library/Application Support/sauce-crm-daemon"
@@ -28,6 +43,51 @@ PLIST_SRC="${SCRIPT_DIR}/${LABEL}.plist"
 
 say()  { printf '  %s\n' "$*"; }
 fail() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
+
+# Provision openai-whisper (opt-in; default-off). Prefers brew, then uv, pipx,
+# pip --user. Prints the command, requires interactive confirm (or --yes), no
+# sudo. Returns 0 without acting when --with-whisper was not passed.
+provision_whisper() {
+  [ "${WITH_WHISPER}" -eq 1 ] || return 0
+  local cmd=""
+  if command -v brew >/dev/null 2>&1; then
+    cmd="brew install openai-whisper"
+  elif command -v uv >/dev/null 2>&1; then
+    cmd="uv tool install openai-whisper"
+  elif command -v pipx >/dev/null 2>&1; then
+    cmd="pipx install openai-whisper"
+  elif command -v python3 >/dev/null 2>&1; then
+    cmd="python3 -m pip install --user openai-whisper"
+  else
+    fail "--with-whisper: no brew, uv, pipx, or python3 found to provision whisper."
+  fi
+  say "--with-whisper requested. This will run:"
+  say "    ${cmd}"
+  say "Model weights download on first use, not now."
+  if [ "${ASSUME_YES}" -ne 1 ]; then
+    printf 'install.sh: proceed with whisper install? [y/N] '
+    read -r reply || reply=""
+    case "${reply}" in
+      y|Y|yes|YES) : ;;
+      *) say "skipped whisper install (declined)."; return 0 ;;
+    esac
+  fi
+  # Word-splitting of cmd is intentional (internally-built constant).
+  # shellcheck disable=SC2086
+  if ${cmd}; then
+    local bin
+    bin="$(command -v whisper 2>/dev/null || true)"
+    if [ -n "${bin}" ]; then
+      say "whisper installed -> ${bin}"
+      say "set this ABSOLUTE path in the daemon config (whisper.binaryPath) or in"
+      say "plugin Settings -> Skills -> Transcription, then enable whisper."
+    else
+      say "whisper installed but not yet on PATH; locate it and set its absolute path."
+    fi
+  else
+    fail "whisper install command failed."
+  fi
+}
 
 echo "sauce-crm-daemon · install"
 
@@ -94,4 +154,8 @@ else
 fi
 echo "  curl -fsS http://127.0.0.1:${PORT}/health"
 echo
+
+# 9. Optional: provision whisper (opt-in, default-off).
+provision_whisper
+
 echo "Uninstall with: ${SCRIPT_DIR}/uninstall.sh"

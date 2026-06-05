@@ -42,6 +42,25 @@ export interface DaemonConfig {
   defaultVault: string | null;
   /** Extra registered vault base paths (absolute). */
   vaults: string[];
+  /** Explicit opt-in to bind a non-loopback interface (0.0.0.0/::). Absent /
+   *  false = loopback only (secure default). Surfaced so the exposure is an
+   *  auditable config edit, never an accident. */
+  allowNonLoopback?: boolean;
+  /** Local Whisper transcription served over POST /v1/transcribe. Disabled by
+   *  default. `binaryPath` must be an absolute path (validated before spawn);
+   *  the daemon's installer (--with-whisper) can provision it. */
+  whisper?: WhisperDaemonConfig;
+}
+
+/** Daemon-side Whisper config. The daemon MAY auto-install whisper via its
+ *  packaging script (our channel); this config points the route at the binary. */
+export interface WhisperDaemonConfig {
+  /** Route is served only when true. Default false. */
+  enabled: boolean;
+  /** Absolute path to the whisper CLI. Empty = route returns 503. */
+  binaryPath?: string;
+  /** Default model id. */
+  model?: string;
 }
 
 /** Resolved, fully-qualified runtime paths for one daemon process. */
@@ -87,7 +106,26 @@ export function freshConfig(
     pairingToken: overrides?.pairingToken ?? genToken(),
     defaultVault: overrides?.defaultVault ?? null,
     vaults: overrides?.vaults ?? [],
+    ...(overrides?.allowNonLoopback !== undefined
+      ? { allowNonLoopback: overrides.allowNonLoopback }
+      : {}),
+    ...(overrides?.whisper !== undefined ? { whisper: overrides.whisper } : {}),
   };
+}
+
+/** Narrow an unknown blob into a WhisperDaemonConfig (or undefined). */
+function coerceWhisper(raw: unknown): WhisperDaemonConfig | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  const enabled = r.enabled === true;
+  const cfg: WhisperDaemonConfig = { enabled };
+  if (typeof r.binaryPath === "string" && r.binaryPath.length > 0) {
+    cfg.binaryPath = r.binaryPath;
+  }
+  if (typeof r.model === "string" && r.model.length > 0) {
+    cfg.model = r.model;
+  }
+  return cfg;
 }
 
 /** Narrow an unknown parsed JSON blob into a DaemonConfig, filling defaults for
@@ -112,6 +150,10 @@ export function coerceConfig(raw: unknown): DaemonConfig {
     defaultVault:
       typeof r.defaultVault === "string" ? r.defaultVault : null,
     vaults,
+    ...(r.allowNonLoopback === true ? { allowNonLoopback: true } : {}),
+    ...(coerceWhisper(r.whisper) !== undefined
+      ? { whisper: coerceWhisper(r.whisper)! }
+      : {}),
   };
 }
 

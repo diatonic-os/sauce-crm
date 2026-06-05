@@ -21,7 +21,26 @@ import {
   type RequestUrlLike,
 } from "../bridge/wiring";
 import { BridgeMemoryBackend } from "../bridge/mobile/bridge/BridgeMemoryBackend";
-import type { MemoryBackend } from "../bridge/contract";
+import {
+  deriveTransportKey,
+  transportDecrypt,
+  transportEncrypt,
+} from "../bridge/crypto";
+import type { MemoryBackend, TransportCipher } from "../bridge/contract";
+import {
+  SIG_HEADER,
+  NONCE_HEADER,
+  TS_HEADER,
+  ENC_HEADER,
+  TRANSPORT_ENC_VERSION,
+  canonicalRequestString,
+  type SignedRequestParts,
+} from "../bridge/contract";
+import type {
+  TranscribeOptions,
+  TranscriptionProvider,
+  TranscriptionResult,
+} from "./transcribe/TranscriptionProvider";
 
 /** Header the daemon reads to select the vault store (absolute vault base path).
  *  Mirrors daemon/src/server.ts VAULT_HEADER — kept as a literal here so the
@@ -44,6 +63,14 @@ export interface DaemonHealth {
   pid: number;
   uptimeMs: number;
   lance: { available: boolean; dim: number | null };
+  /** Capability flag (Part C). When `available`, prefer POST /v1/transcribe
+   *  over a local spawn. Older daemons omit it ⇒ treated as unavailable. */
+  whisper?: { available: boolean };
+}
+
+/** True iff the daemon advertises a usable whisper transcription capability. */
+export function daemonHasWhisper(h: DaemonHealth | null): boolean {
+  return !!h?.whisper?.available;
 }
 
 /** Minimal fetch surface the probe needs. The plugin binds this to a fetch that
@@ -156,6 +183,13 @@ export function createDaemonBackend(deps: DaemonBackendDeps): MemoryBackend {
   const signer = new HmacAuthSigner({ hmacHex: deps.hmacHex }, () =>
     tokenToKey(deps.pairingToken, { sha256Hex: deps.sha256Hex }),
   );
+  // App-layer AES-256-GCM cipher, keyed by an HKDF subkey of the pairing key
+  // (info "transport-enc"), independent of the HMAC key. Lazily derives the key
+  // once and reuses it; every request body is encrypted and every response is
+  // decrypted (the daemon's /health stays plaintext on both ends).
+  const cipher = makeTransportCipher(() =>
+    tokenToKey(deps.pairingToken, { sha256Hex: deps.sha256Hex }),
+  );
   // Wrap the transport to inject the vault-selection header on every call.
   const baseRequest = makeHttpRequestFn(deps.requestUrl);
   const request: typeof baseRequest = (req) =>
@@ -174,5 +208,152 @@ export function createDaemonBackend(deps: DaemonBackendDeps): MemoryBackend {
     signer,
     hasher,
     cache: new InMemoryResultCache(),
+    cipher,
   });
+}
+
+/**
+ * Build a {@link TransportCipher} from a pairing-key provider. The AES-256-GCM
+ * key (an HKDF subkey of the pairing key) is derived ONCE on first use and the
+ * resulting promise is cached, so per-request encrypt/decrypt skips re-derivation.
+ * Pure of any platform import — uses the shared Web-Crypto helpers in crypto.ts.
+ */
+export function makeTransportCipher(
+  pairingKey: () => Promise<Uint8Array>,
+): TransportCipher {
+  let keyP: Promise<CryptoKey> | null = null;
+  const key = (): Promise<CryptoKey> => {
+    if (!keyP) keyP = pairingKey().then((k) => deriveTransportKey(k));
+    return keyP;
+  };
+  return {
+    async encrypt(plaintext: string): Promise<string> {
+      return transportEncrypt(await key(), plaintext);
+    },
+    async decrypt(wire: string): Promise<string> {
+      return transportDecrypt(await key(), wire);
+    },
+  };
+}
+
+// ───────────────────────── daemon transcription (Part C) ─────────────────────
+
+/** Read an audio file's bytes as base64. The plugin binds this to node:fs on
+ *  desktop; mobile can read via the vault adapter. */
+export type ReadAudioBase64 = (path: string) => Promise<string>;
+
+export interface DaemonTranscriberDeps {
+  baseUrl: string;
+  pairingToken: string;
+  requestUrl: RequestUrlLike;
+  sha256Hex: (s: string) => Promise<string>;
+  hmacHex: (key: Uint8Array, msg: string) => Promise<string>;
+  /** Reads an audio path to base64. */
+  readAudioBase64: ReadAudioBase64;
+  /** Nonce source (default: crypto.randomUUID-ish). */
+  nonce?: () => string;
+}
+
+const TRANSCRIBE_PATH = "/v1/transcribe";
+
+function defaultNonce(): string {
+  // 16 hex chars is sufficient for the replay LRU; avoids a crypto import here.
+  return Date.now().toString(16) + Math.random().toString(16).slice(2, 10);
+}
+
+/**
+ * A {@link TranscriptionProvider} that sends audio to the daemon's encrypted,
+ * HMAC-signed POST /v1/transcribe and returns the transcript. No local process
+ * is ever spawned — the daemon owns the whisper binary. Used when the daemon's
+ * /health advertises `whisper.available` and the operator prefers the daemon.
+ */
+export function createDaemonTranscriber(
+  deps: DaemonTranscriberDeps,
+): TranscriptionProvider {
+  const cipher = makeTransportCipher(() =>
+    tokenToKey(deps.pairingToken, { sha256Hex: deps.sha256Hex }),
+  );
+  const nonceFn = deps.nonce ?? defaultNonce;
+
+  async function postTranscribe(
+    audioPath: string,
+    opts: TranscribeOptions,
+  ): Promise<TranscriptionResult> {
+    const base64 = await deps.readAudioBase64(audioPath);
+    const filename = audioPath.slice(
+      Math.max(audioPath.lastIndexOf("/"), audioPath.lastIndexOf("\\")) + 1,
+    );
+    const payload = JSON.stringify({
+      audioBase64: base64,
+      filename,
+      ...(opts.model ? { model: opts.model } : {}),
+      ...(opts.language ? { language: opts.language } : {}),
+    });
+    // Encrypt the body, then sign the WIRE (envelope) bytes — matching the
+    // daemon's verify-over-wire then decrypt order.
+    const data = await cipher.encrypt(payload);
+    const wire = JSON.stringify({ v: TRANSPORT_ENC_VERSION, data });
+    const key = await tokenToKey(deps.pairingToken, {
+      sha256Hex: deps.sha256Hex,
+    });
+    const parts: SignedRequestParts = {
+      method: "POST",
+      path: TRANSCRIBE_PATH,
+      bodyHash: await deps.sha256Hex(wire),
+      nonce: nonceFn(),
+      ts: Date.now(),
+    };
+    const sig = await deps.hmacHex(key, canonicalRequestString(parts));
+    const res = await deps.requestUrl({
+      url: deps.baseUrl + TRANSCRIBE_PATH,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [SIG_HEADER]: sig,
+        [NONCE_HEADER]: parts.nonce,
+        [TS_HEADER]: String(parts.ts),
+        [ENC_HEADER]: TRANSPORT_ENC_VERSION,
+      },
+      body: wire,
+      throw: false,
+    });
+    if (res.status !== 200) {
+      throw new Error(
+        `daemon transcribe failed (HTTP ${res.status}): ${res.text || "no body"}`,
+      );
+    }
+    // Response is an encrypted envelope; decrypt then parse.
+    let envelope: { v?: string; data?: string };
+    try {
+      envelope = JSON.parse(res.text) as { v?: string; data?: string };
+    } catch {
+      throw new Error("daemon transcribe: malformed response envelope");
+    }
+    if (!envelope.data) {
+      throw new Error("daemon transcribe: empty response envelope");
+    }
+    const plain = await cipher.decrypt(envelope.data);
+    const out = JSON.parse(plain) as { text?: string; language?: string };
+    if (typeof out.text !== "string") {
+      throw new Error("daemon transcribe: response missing text");
+    }
+    return {
+      text: out.text,
+      ...(out.language !== undefined ? { language: out.language } : {}),
+    };
+  }
+
+  return {
+    id: "whisper-daemon",
+    label: "Whisper (daemon)",
+    async isAvailable(): Promise<boolean> {
+      return true; // caller gates on /health whisper.available before wiring this
+    },
+    transcribe(
+      audioPath: string,
+      opts: TranscribeOptions = {},
+    ): Promise<TranscriptionResult> {
+      return postTranscribe(audioPath, opts);
+    },
+  };
 }

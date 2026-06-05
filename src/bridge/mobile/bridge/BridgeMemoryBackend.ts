@@ -11,15 +11,19 @@ import type { ProvenanceRecord } from "../../../services/Provenance";
 import {
   BridgeError,
   BRIDGE_PROTOCOL_VERSION,
+  ENC_HEADER,
   NONCE_HEADER,
   ROUTES,
   SIG_HEADER,
+  TRANSPORT_ENC_VERSION,
   TS_HEADER,
   cacheKey,
+  isEncEnvelope,
   type AuthSigner,
   type BackendMode,
   type ContentHasher,
   type EmbedResult,
+  type EncEnvelope,
   type HealthResponse,
   type HttpRequestFn,
   type HttpResponse,
@@ -30,6 +34,7 @@ import {
   type ResultCache,
   type SearchResponse,
   type SignedRequestParts,
+  type TransportCipher,
 } from "../../contract";
 
 // Transport types are canonically defined in ../../contract (AX-002). Re-exported
@@ -49,6 +54,12 @@ export interface BridgeMemoryBackendDeps {
   cache: ResultCache;
   /** Per-request nonce source. Default: random hex via Web Crypto. */
   nonceFn?: () => string;
+  /** App-layer AES-256-GCM transport cipher (built from the pairing key via
+   *  crypto.deriveTransportKey). When present, every request body is encrypted
+   *  into an EncEnvelope, `X-Sauce-Enc: v1` is sent, and the response envelope is
+   *  decrypted. When absent, the client speaks legacy plaintext+HMAC (still
+   *  accepted by the current server, but deprecated). */
+  cipher?: TransportCipher;
 }
 
 /** How long a successful /health result is trusted without re-probing. */
@@ -91,6 +102,7 @@ export class BridgeMemoryBackend implements MemoryBackend {
   private readonly hasher: ContentHasher;
   private readonly cache: ResultCache;
   private readonly nonceFn: () => string;
+  private readonly cipher: TransportCipher | null;
 
   private healthCache: { at: number; ok: boolean } | null = null;
 
@@ -103,6 +115,7 @@ export class BridgeMemoryBackend implements MemoryBackend {
     this.hasher = deps.hasher;
     this.cache = deps.cache;
     this.nonceFn = deps.nonceFn ?? defaultNonce;
+    this.cipher = deps.cipher ?? null;
   }
 
   /** Sign + send one request. Serializes the body, hashes it, builds the
@@ -113,7 +126,21 @@ export class BridgeMemoryBackend implements MemoryBackend {
     path: string,
     bodyObj?: unknown,
   ): Promise<HttpResponse> {
-    const body = bodyObj === undefined ? "" : JSON.stringify(bodyObj);
+    // Plaintext JSON body the route consumes.
+    const plain = bodyObj === undefined ? "" : JSON.stringify(bodyObj);
+
+    // App-layer encryption: encrypt the plaintext into an EncEnvelope and send
+    // THAT as the wire body. HMAC signs the wire bytes (envelope), so integrity
+    // and replay protection cover exactly what crosses the network. /health
+    // carries no body and the server answers it in the clear (it short-circuits
+    // before decryption) — the response decode is envelope-aware regardless.
+    let body = plain;
+    if (this.cipher && bodyObj !== undefined) {
+      const data = await this.cipher.encrypt(plain);
+      const env: EncEnvelope = { v: TRANSPORT_ENC_VERSION, data };
+      body = JSON.stringify(env);
+    }
+
     const bodyHash = await this.hasher.sha256Hex(body);
     const parts: SignedRequestParts = {
       method,
@@ -129,6 +156,9 @@ export class BridgeMemoryBackend implements MemoryBackend {
       [NONCE_HEADER]: parts.nonce,
       [TS_HEADER]: String(parts.ts),
     };
+    // Declare encryption whenever a cipher is configured so the server answers
+    // encrypted even for no-body requests (the server's /health is exempt).
+    if (this.cipher) headers[ENC_HEADER] = TRANSPORT_ENC_VERSION;
     if (bodyObj !== undefined) headers["content-type"] = "application/json";
 
     let res: HttpResponse;
@@ -162,22 +192,54 @@ export class BridgeMemoryBackend implements MemoryBackend {
     );
   }
 
-  /** Parse the response body. Obsidian requestUrl exposes `.json`; fall back to
-   *  parsing `.text`. Throws BridgeError("bad-response") if neither yields an
-   *  object. */
-  private parse<T>(res: HttpResponse): T {
-    if (res.json !== undefined && res.json !== null) return res.json as T;
-    if (typeof res.text === "string" && res.text.length > 0) {
+  /** Parse the response body, transparently decrypting an EncEnvelope when this
+   *  client has a cipher. Obsidian requestUrl exposes `.json`; fall back to
+   *  parsing `.text`. A plaintext response (e.g. /health) passes straight
+   *  through even when a cipher is configured. Throws BridgeError("bad-response")
+   *  on malformed JSON, an empty body, or a decryption/tamper failure. */
+  private async parse<T>(res: HttpResponse): Promise<T> {
+    let value: unknown = res.json;
+    if (value === undefined || value === null) {
+      if (typeof res.text === "string" && res.text.length > 0) {
+        try {
+          value = JSON.parse(res.text);
+        } catch {
+          throw new BridgeError(
+            "bad-response",
+            "bridge response was not valid JSON",
+          );
+        }
+      } else {
+        throw new BridgeError("bad-response", "bridge response had no body");
+      }
+    }
+    // Envelope-aware decode: an encrypted server answers {v,data}; decrypt it.
+    if (this.cipher && isEncEnvelope(value)) {
+      if (value.v !== TRANSPORT_ENC_VERSION) {
+        throw new BridgeError(
+          "bad-response",
+          `unsupported response encryption version ${value.v}`,
+        );
+      }
+      let inner: string;
       try {
-        return JSON.parse(res.text) as T;
+        inner = await this.cipher.decrypt(value.data);
       } catch {
         throw new BridgeError(
           "bad-response",
-          "bridge response was not valid JSON",
+          "bridge response failed to decrypt (tamper or key mismatch)",
+        );
+      }
+      try {
+        return JSON.parse(inner) as T;
+      } catch {
+        throw new BridgeError(
+          "bad-response",
+          "decrypted bridge response was not valid JSON",
         );
       }
     }
-    throw new BridgeError("bad-response", "bridge response had no body");
+    return value as T;
   }
 
   async semanticSearch(q: MemoryQuery): Promise<MemoryHit[]> {
@@ -186,12 +248,12 @@ export class BridgeMemoryBackend implements MemoryBackend {
       query: q.query,
       k: q.k,
     });
-    return this.parse<SearchResponse>(res).hits ?? [];
+    return (await this.parse<SearchResponse>(res)).hits ?? [];
   }
 
   async recall(q: string, k?: number): Promise<MemoryHit[]> {
     const res = await this.call("POST", ROUTES.recall, { q, k });
-    return this.parse<SearchResponse>(res).hits ?? [];
+    return (await this.parse<SearchResponse>(res)).hits ?? [];
   }
 
   async embed(text: string, fp: string): Promise<EmbedResult | null> {
@@ -201,7 +263,7 @@ export class BridgeMemoryBackend implements MemoryBackend {
     if (hit) return hit;
 
     const res = await this.call("POST", ROUTES.embed, { fp, text });
-    const result = this.parse<EmbedResult>(res);
+    const result = await this.parse<EmbedResult>(res);
     await this.cache.set(key, result);
     return result;
   }
@@ -212,7 +274,7 @@ export class BridgeMemoryBackend implements MemoryBackend {
     if (hit) return hit;
 
     const res = await this.call("GET", ROUTES.provenance(fp));
-    const records = this.parse<ProvenanceResponse>(res).records ?? [];
+    const records = (await this.parse<ProvenanceResponse>(res)).records ?? [];
     await this.cache.set(key, records);
     return records;
   }
@@ -225,7 +287,7 @@ export class BridgeMemoryBackend implements MemoryBackend {
     }
     try {
       const res = await this.call("GET", ROUTES.health);
-      const health = this.parse<HealthResponse>(res);
+      const health = await this.parse<HealthResponse>(res);
       if (majorOf(health.version) !== majorOf(BRIDGE_PROTOCOL_VERSION)) {
         throw new BridgeError(
           "protocol-mismatch",

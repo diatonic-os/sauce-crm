@@ -3,3 +3,5 @@
 // (or equivalent) before touching it. The mobile bundle must NOT import this.
 export { MemoryHttpServer } from "./MemoryHttpServer";
 export type { MemoryHttpServerDeps, LanceStatus } from "./MemoryHttpServer";
+export { TokenBucketRateLimiter } from "./RateLimiter";
+export type { TokenBucketOpts } from "./RateLimiter";

@@ -19,8 +19,20 @@ import type {
   EmbedResult,
   SignedRequestParts,
 } from "../../src/bridge/contract";
-import { ROUTES, canonicalRequestString } from "../../src/bridge/contract";
-import { sha256Hex, hmacHex } from "../../src/bridge/crypto";
+import {
+  ROUTES,
+  canonicalRequestString,
+  ENC_HEADER,
+  TRANSPORT_ENC_VERSION,
+  isEncEnvelope,
+} from "../../src/bridge/contract";
+import {
+  sha256Hex,
+  hmacHex,
+  deriveTransportKey,
+  transportEncrypt,
+  transportDecrypt,
+} from "../../src/bridge/crypto";
 import { tokenToKey } from "../../src/bridge/auth";
 import type { ProvenanceRecord } from "../../src/services/Provenance";
 import type { PathEnv } from "../../src/services/platformPaths";
@@ -190,6 +202,50 @@ describe("DaemonServer", () => {
     await fetch(`${base}${ROUTES.search}`, { method: "POST", headers, body });
     const health = server.health();
     expect(health.lance).toEqual({ available: true, dim: 768 });
+  });
+
+  it("parity: accepts an ENCRYPTED /v1 request and answers encrypted", async () => {
+    const { registry } = fakeRegistry();
+    const { base } = await startServer(registry, "/vault/a");
+
+    // Build the shared transport cipher exactly as both ends derive it.
+    const key = await tokenToKey(TOKEN, { sha256Hex });
+    const aes = await deriveTransportKey(key);
+
+    const plain = JSON.stringify({ query: "encrypted-hi" });
+    const data = await transportEncrypt(aes, plain);
+    const body = JSON.stringify({ v: TRANSPORT_ENC_VERSION, data });
+    const headers = await signedHeaders("POST", ROUTES.search, body);
+    headers[ENC_HEADER] = TRANSPORT_ENC_VERSION;
+
+    const res = await fetch(`${base}${ROUTES.search}`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get(ENC_HEADER)).toBe(TRANSPORT_ENC_VERSION);
+    const text = await res.text();
+    expect(text).not.toContain("Note.md"); // response is ciphertext
+    const env = JSON.parse(text);
+    expect(isEncEnvelope(env)).toBe(true);
+    const dec = JSON.parse(await transportDecrypt(aes, env.data));
+    expect(dec.hits[0].path).toBe("/vault/a/Note.md");
+  });
+
+  it("parity: still accepts a legacy PLAINTEXT /v1 request (back-compat)", async () => {
+    const { registry } = fakeRegistry();
+    const { base } = await startServer(registry, "/vault/a");
+    const body = JSON.stringify({ query: "plain-hi" });
+    const headers = await signedHeaders("POST", ROUTES.search, body);
+    const res = await fetch(`${base}${ROUTES.search}`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.hits[0].path).toBe("/vault/a/Note.md");
   });
 
   it("graceful shutdown closes the socket and every open Lance store", async () => {

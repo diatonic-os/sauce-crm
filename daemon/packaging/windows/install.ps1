@@ -50,10 +50,15 @@
 #>
 [CmdletBinding()]
 param(
-    [int]    $Port       = 8788,
-    [string] $Vault      = "",
+    [int]    $Port        = 8788,
+    [string] $Vault       = "",
     [switch] $NoStart,
-    [string] $BundlePath = ""
+    [string] $BundlePath  = "",
+    # OPT-IN, default-off: also provision openai-whisper for the daemon's
+    # transcription route. Model weights download on first use, not here.
+    [switch] $WithWhisper,
+    # Assume "yes" to the whisper confirmation prompt (for unattended installs).
+    [switch] $Yes
 )
 
 # PowerShell 5.1 compatible. Strict, fail-fast.
@@ -73,6 +78,60 @@ $InstallBundle = Join-Path $InstallDir $BundleName
 # ---------------------------------------------------------------------------
 function Write-Step([string] $Message) {
     Write-Host "[sauce-crm-daemon] $Message"
+}
+
+# Provision openai-whisper (opt-in via -WithWhisper; default-off). Prefers pipx,
+# then uv, then `pip --user`. Prints the command, requires confirmation unless
+# -Yes. No admin rights. Model weights download on first use, not here.
+function Install-Whisper {
+    param(
+        [switch] $Enabled,
+        [switch] $AssumeYes
+    )
+    if (-not $Enabled) { return }
+
+    $cmd = $null
+    if (Get-Command pipx -ErrorAction SilentlyContinue) {
+        $cmd = "pipx install openai-whisper"
+    }
+    elseif (Get-Command uv -ErrorAction SilentlyContinue) {
+        $cmd = "uv tool install openai-whisper"
+    }
+    elseif (Get-Command python -ErrorAction SilentlyContinue) {
+        $cmd = "python -m pip install --user openai-whisper"
+    }
+    else {
+        throw "-WithWhisper: no pipx, uv, or python found on PATH to provision whisper."
+    }
+
+    Write-Step "-WithWhisper requested. This will run:"
+    Write-Step "    $cmd"
+    Write-Step "Model weights download on first use, not now."
+
+    if (-not $AssumeYes) {
+        $reply = Read-Host "Proceed with whisper install? [y/N]"
+        if ($reply -notmatch '^(y|Y|yes|YES)$') {
+            Write-Step "Skipped whisper install (declined)."
+            return
+        }
+    }
+
+    # Run the chosen installer. Word-splitting is intentional here.
+    $parts = $cmd -split ' '
+    & $parts[0] $parts[1..($parts.Length - 1)]
+    if ($LASTEXITCODE -ne 0) {
+        throw "whisper install command failed (exit $LASTEXITCODE)."
+    }
+
+    $bin = Get-Command whisper -ErrorAction SilentlyContinue
+    if ($bin) {
+        Write-Step "whisper installed -> $($bin.Source)"
+        Write-Step "Set this ABSOLUTE path in the daemon config (whisper.binaryPath) or in"
+        Write-Step "plugin Settings -> Skills -> Transcription, then enable whisper."
+    }
+    else {
+        Write-Step "whisper installed but not yet on PATH; locate whisper.exe and set its absolute path."
+    }
 }
 
 function Assert-NodeOnPath {
@@ -222,6 +281,9 @@ if (-not $NoStart) {
 } else {
     Write-Step "-NoStart specified; task will start at next logon."
 }
+
+# Optional: provision whisper (opt-in, default-off).
+Install-Whisper -Enabled:$WithWhisper -AssumeYes:$Yes
 
 Write-Host ""
 Write-Step "Install complete."

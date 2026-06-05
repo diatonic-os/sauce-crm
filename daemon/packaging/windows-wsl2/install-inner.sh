@@ -20,10 +20,53 @@
 #   SAUCE_DAEMON_VAULT       default vault base path (translated to a WSL
 #                            path, e.g. /mnt/c/Users/me/Vault). Optional.
 #   SAUCE_DAEMON_NO_START    if "1", install + enable but do not start now.
+#   SAUCE_DAEMON_WITH_WHISPER if "1", ALSO provision openai-whisper (opt-in,
+#                            default-off). Model weights download on first use.
+#   SAUCE_DAEMON_ASSUME_YES  if "1", assume "yes" to the whisper prompt.
 set -euo pipefail
 
 log()  { printf 'install-inner: %s\n' "$*"; }
 die()  { printf 'install-inner: ERROR: %s\n' "$*" >&2; exit 1; }
+
+# Provision openai-whisper inside the distro (opt-in via env; default-off).
+# Prefers uv, then pipx, then pip --user. No sudo. The WSL inner script inherits
+# the same Linux provisioning route as the native Linux installer.
+provision_whisper() {
+  [ "${SAUCE_DAEMON_WITH_WHISPER:-0}" = "1" ] || return 0
+  local cmd=""
+  if command -v uv >/dev/null 2>&1; then
+    cmd="uv tool install openai-whisper"
+  elif command -v pipx >/dev/null 2>&1; then
+    cmd="pipx install openai-whisper"
+  elif command -v python3 >/dev/null 2>&1; then
+    cmd="python3 -m pip install --user openai-whisper"
+  else
+    die "--with-whisper: no uv, pipx, or python3 in the distro to provision whisper."
+  fi
+  log "SAUCE_DAEMON_WITH_WHISPER=1 — this will run: ${cmd}"
+  log "Model weights download on first use, not now."
+  if [ "${SAUCE_DAEMON_ASSUME_YES:-0}" != "1" ]; then
+    printf 'install-inner: proceed with whisper install? [y/N] '
+    read -r reply || reply=""
+    case "${reply}" in
+      y|Y|yes|YES) : ;;
+      *) log "skipped whisper install (declined)."; return 0 ;;
+    esac
+  fi
+  # Word-splitting of cmd is intentional (internally-built constant).
+  # shellcheck disable=SC2086
+  if ${cmd}; then
+    local bin
+    bin="$(command -v whisper 2>/dev/null || true)"
+    if [ -n "${bin}" ]; then
+      log "whisper installed → ${bin} (set this absolute path in config/settings)."
+    else
+      log "whisper installed but not on PATH yet; locate it and set its absolute path."
+    fi
+  else
+    die "whisper install command failed."
+  fi
+}
 
 # --- 0. Preconditions ------------------------------------------------------
 command -v node >/dev/null 2>&1 || die "node not found on PATH inside the distro. Install Node 18+ (e.g. via nvm or the distro package) and re-run."
@@ -128,5 +171,8 @@ else
   log "first-run pairing token (if just minted) is in the log above and in:"
   log "  $DATA_HOME/sauce-crm/daemon/config.json"
 fi
+
+# --- 6. Optional: provision whisper (opt-in via env, default-off) ----------
+provision_whisper
 
 log "done. Health: curl -s http://127.0.0.1:$PORT/health"

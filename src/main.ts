@@ -27,6 +27,12 @@ import {
 } from "./services/VaultGraphIndexer";
 import { BootTimer } from "./services/BootTimer";
 import { WhisperEngine } from "./services/transcribe/WhisperEngine";
+import { ChildProcessRegistry } from "./utils/execFileNoThrow";
+import {
+  candidateBinaryPaths,
+  validateBinaryPath,
+  type PathProbe,
+} from "./services/transcribe/WhisperArgs";
 import { MemoryBackendRagAdapter } from "./bridge/MemoryBackendRagAdapter";
 import { injectMobileStyles } from "./ui/MobileStyles";
 import {
@@ -42,6 +48,7 @@ import {
 import { QueryService } from "./services/QueryService";
 import { SearchService } from "./services/SearchService";
 import { MirrorSync } from "./services/MirrorSync";
+import type { FullResyncProgress } from "./services/MirrorSync";
 import {
   EnrichmentService,
   defaultHeuristicStages,
@@ -95,10 +102,13 @@ import {
   probeDaemon,
   makeDaemonFetch,
   createDaemonBackend,
+  createDaemonTranscriber,
   daemonBaseUrl,
+  daemonHasWhisper,
   type DaemonHealth,
 } from "./services/DaemonClient";
 import { compactConnection } from "./backend/lance/maintenance";
+import { TABLES } from "./backend/lance/LanceSchema";
 // MOB-BRIDGE-001 — mobile memory bridge (see MOBILE-BRIDGE-SPEC.md).
 import type { MemoryBackend } from "./bridge/contract";
 import {
@@ -242,8 +252,22 @@ export interface SauceGraphSettings {
    *  vault events keep the mirror current; use "Rebuild LanceDB Index" to force. */
   lancedbIndexOnLoad?: boolean;
   /** Set true once the initial full index has run, so we don't resync on every
-   *  load. Cleared by a manual rebuild if a fresh full index is wanted. */
+   *  load. Cleared by a manual rebuild if a fresh full index is wanted.
+   *  Superseded by {@link lancedbIndexState} but kept for back-compat reads. */
   lancedbInitialIndexDone?: boolean;
+  /** Persisted full-vault index state — drives resume-after-interruption and the
+   *  Settings → Data "last index" stats. `cursor`/`total` track an in-flight or
+   *  interrupted resync (cursor < total ⇒ resumable); `completedAt` is the ISO
+   *  timestamp of the last COMPLETED full index; `drift` is the last
+   *  reconciliation result (vault entities vs mirror rows). */
+  lancedbIndexState?: {
+    cursor: number;
+    total: number;
+    synced?: number;
+    completedAt?: string;
+    drift?: number | null;
+    mirrorRows?: number | null;
+  };
   /** Persistent approval decisions (approve-always / deny-always per
    *  action class). Read by every risky flow before executing. */
   approvals?: ApprovalRecord;
@@ -263,6 +287,24 @@ export interface SauceGraphSettings {
   daemon?: DaemonSettings;
   /** Forward-compat beta opt-in gate. Absent in production releases. */
   beta?: { enabled?: boolean };
+  /** Local Whisper transcription (S8). Default empty/off — the plugin never
+   *  downloads or installs whisper; the operator sets an absolute binary path
+   *  (or uses Detect), or routes transcription through the daemon. */
+  transcription?: TranscriptionSettings;
+}
+
+/** Whisper transcription settings (plugin side). The plugin NEVER installs the
+ *  binary; `binaryPath` must be an absolute path the operator points at, or
+ *  empty (then transcription is unavailable locally and the daemon route, if
+ *  enabled, is used instead). */
+export interface TranscriptionSettings {
+  /** Absolute path to the whisper CLI. Empty = not configured. */
+  binaryPath: string;
+  /** Default model id (e.g. "large-v3-turbo"). */
+  model: string;
+  /** Prefer the daemon's /v1/transcribe over a local spawn when the daemon
+   *  advertises whisper capability in /health. Default true (zero local spawn). */
+  preferDaemon: boolean;
 }
 
 /** sauce-crm-daemon settings. The pairing token is a shared secret — redacted
@@ -382,6 +424,11 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
     enabled: false,
     port: 8788,
     pairingToken: "",
+  },
+  transcription: {
+    binaryPath: "",
+    model: "large-v3-turbo",
+    preferDaemon: true,
   },
 };
 
@@ -536,6 +583,13 @@ export default class SauceGraphPlugin extends Plugin {
   }
   copilot: SauceBotRuntime | null = null;
   mirrorSync: MirrorSync | null = null;
+  /** In-flight full-vault resync controller — non-null only while a rebuild is
+   *  running. Holds the abort handle (so a second invocation cancels the first)
+   *  and the status-bar element. */
+  private activeResync: {
+    abort: () => void;
+    statusEl: HTMLElement | null;
+  } | null = null;
   /** Encrypted credential chain (OS keychain → KeyVault). Durable home of
    *  the copilot API key — data.json never stores secrets (SEC-01). */
   credentialChain: ChainedCredentialSource | null = null;
@@ -600,6 +654,8 @@ export default class SauceGraphPlugin extends Plugin {
   // routes through. Wired into the LanceDB install button, the swarm
   // dispatch path, and any future spawn-process / send-network call.
   approvalGate!: ApprovalGate;
+  /** Tracks live whisper child processes so onunload terminates them (S8). */
+  private readonly childProcs = new ChildProcessRegistry();
 
   // Credentials accessor — lazily wraps the v2 KeyVault in an
   // IntegrationCredentials surface, which is what v2 modals expect.
@@ -796,6 +852,18 @@ export default class SauceGraphPlugin extends Plugin {
           // and honor the operator's exclude-folder list.
           fullVaultIndex: this.settings.features.rag.fullVaultIndex,
           excludeGlobs: this.settings.features.rag.excludeGlobs,
+          // Reconciliation count source: total rows in the entity mirror table.
+          // Decoupled via callback so MirrorSync stays free of LanceDB internals.
+          countMirrorRows: async () => {
+            const db = this.v2?.lance?.db;
+            if (!db) return null;
+            try {
+              const tbl = await db.openTable(TABLES.entities);
+              return await tbl.countRows();
+            } catch {
+              return null;
+            }
+          },
         },
       );
       // B (S6): give vault search a semantic path over the same Lance vectors
@@ -1043,36 +1111,14 @@ export default class SauceGraphPlugin extends Plugin {
     }
 
     // D (S8): wire local whisper transcription on desktop (the `transcribe`
-    // skill + chat audio uploads route through this). Mobile/sandboxed
-    // runtimes lack child_process/fs, so the engine stays unset there and
-    // dispatch reports "not configured" rather than failing silently.
-    try {
-      const nodeRequire =
-        typeof require !== "undefined"
-          ? (require as (m: string) => unknown)
-          : null;
-      const fsMod = nodeRequire?.("fs") as
-        | { promises: { readFile(p: string, enc: string): Promise<string> } }
-        | undefined;
-      const osMod = nodeRequire?.("os") as { tmpdir(): string } | undefined;
-      if (this.skills && fsMod && osMod) {
-        this.skills.setTranscriber(
-          new WhisperEngine({
-            readText: async (p) => {
-              try {
-                return await fsMod.promises.readFile(p, "utf8");
-              } catch {
-                return null;
-              }
-            },
-            outputDir: osMod.tmpdir(),
-            defaultModel: "large-v3-turbo",
-          }),
-        );
-      }
-    } catch {
-      /* desktop-only; mobile uses cloud/bridge STT */
-    }
+    // skill + chat audio uploads route through this). Mobile/sandboxed runtimes
+    // lack child_process/fs, so the engine stays unset there and dispatch
+    // reports "not configured" rather than failing silently. HARDENED:
+    //   - binaryPath comes ONLY from settings (no PATH guessing); validated
+    //     (absolute + exists + executable) before every spawn,
+    //   - the first spawn per session passes through the ApprovalGate,
+    //   - every spawn is audited + the child is tracked for kill-on-unload.
+    this.wireWhisperEngine();
 
     // C (S7): route skill ctx.audit to the durable HMAC-chained audit log so
     // manual + scheduled skill runs are recorded and visible in the Audit Log
@@ -2153,29 +2199,23 @@ export default class SauceGraphPlugin extends Plugin {
     });
     this.addCommand({
       id: "rebuild-lance-index",
-      name: "Rebuild LanceDB Index (full resync + embed)",
-      callback: async () => {
-        if (!this.mirrorSync) {
-          new Notice("LanceDB not installed — approve install first.");
-          return;
+      name: "Sauce CRM: Rebuild vault index (full resync + embed)",
+      callback: () => {
+        // Cancellable, batched, progress-reporting full resync with a live
+        // status-bar item. Re-invoking while one runs cancels the prior run.
+        void this.rebuildVaultIndex();
+      },
+    });
+    this.addCommand({
+      id: "cancel-vault-index",
+      name: "Sauce CRM: Cancel running vault index",
+      checkCallback: (checking) => {
+        if (!this.activeResync) return false;
+        if (!checking) {
+          this.activeResync.abort();
+          new Notice("Vault index cancellation requested…");
         }
-        new Notice("Rebuilding LanceDB index…");
-        const n = await this.mirrorSync.fullResync();
-        // A full resync rewrites every entity → a new version per table. Compact
-        // afterwards (background) to prune the superseded versions, so repeated
-        // rebuilds can't balloon the store (the bloat that froze vault load).
-        const db = this.v2?.lance?.db;
-        if (db) {
-          void compactConnection(db).then(
-            // MKT-005: route info-level output through the logger, not console.log.
-            (r) => this.logger?.info?.("lancedb.compacted_after_resync", { r }),
-            (e: unknown) =>
-              this.logger?.warn?.("LanceDB post-resync compaction failed", {
-                error: String(e),
-              }),
-          );
-        }
-        new Notice(`LanceDB index rebuilt: ${n} entities synced.`);
+        return true;
       },
     });
     this.addCommand({
@@ -2355,16 +2395,55 @@ export default class SauceGraphPlugin extends Plugin {
     // entity as a new LanceDB fragment, exploding the store into tens of
     // thousands of files (the CPU/memory/watcher blowup). After the first index
     // realtime vault events keep the mirror current; a manual rebuild forces it.
-    if (this.settings.lancedbInitialIndexDone === true) return;
+    const completed =
+      this.settings.lancedbInitialIndexDone === true ||
+      this.settings.lancedbIndexState?.completedAt != null;
+    // Resume an interrupted index (cursor persisted but never completed) from
+    // where it left off rather than restarting.
+    const st = this.settings.lancedbIndexState;
+    const resumeFrom =
+      !completed && st != null && st.cursor > 0 && st.cursor < st.total
+        ? st.cursor
+        : 0;
+    if (completed) return;
+    const signal = { aborted: false };
     void this.mirrorSync
-      .fullResync({ embed: false })
-      .then(async (n) => {
-        this.logger?.info?.("lancedb.index_on_load", { indexed: n });
+      .fullResyncDetailed({
+        embed: false, // mirror-only on load — embeddings append on change/rebuild
+        startIndex: resumeFrom,
+        signal,
+        onProgress: (p) => {
+          if (p.phase !== "indexing") return;
+          // Checkpoint the cursor so an interrupted load resumes next time.
+          this.settings.lancedbIndexState = {
+            ...(this.settings.lancedbIndexState ?? {
+              cursor: 0,
+              total: p.total,
+            }),
+            cursor: p.done,
+            total: p.total,
+          };
+        },
+      })
+      .then(async (r) => {
+        this.logger?.info?.("lancedb.index_on_load", {
+          indexed: r.synced,
+          resumedFrom: resumeFrom,
+          drift: r.drift,
+        });
         // Collapse the fragments the bulk index just created, then remember
         // we've indexed so we never churn on subsequent loads.
         const db = this.v2?.lance?.db;
         if (db) await compactConnection(db).catch(() => undefined);
         this.settings.lancedbInitialIndexDone = true;
+        this.settings.lancedbIndexState = {
+          cursor: r.cursor,
+          total: r.total,
+          synced: r.synced,
+          completedAt: new Date().toISOString(),
+          drift: r.drift,
+          mirrorRows: r.mirrorRows,
+        };
         await this.saveData(this.settings).catch(() => undefined);
       })
       .catch((e) =>
@@ -2372,6 +2451,124 @@ export default class SauceGraphPlugin extends Plugin {
           error: String(e),
         }),
       );
+  }
+
+  /** Production-grade FULL VAULT INDEX rebuild. Runs a batched, cancellable,
+   *  resumable {@link MirrorSync.fullResyncDetailed} with a live status-bar
+   *  item (N/total), persists a resume cursor so an interruption continues
+   *  instead of restarting, reconciles vault entities vs mirror rows, and
+   *  surfaces a completion Notice. Re-invoking while a rebuild is in flight
+   *  cancels the running one first.
+   *
+   *  @param resume When true, continue from the persisted cursor instead of
+   *                restarting from 0 (used by the resume-on-load path). */
+  async rebuildVaultIndex(opts: { resume?: boolean } = {}): Promise<void> {
+    if (!this.mirrorSync) {
+      new Notice("LanceDB not installed — approve install first.");
+      return;
+    }
+    // Cancel any in-flight rebuild so we never run two resyncs concurrently
+    // (overlapping resyncs churn the mirror + fight over the path chains).
+    if (this.activeResync) {
+      this.activeResync.abort();
+      this.activeResync = null;
+    }
+
+    let aborted = false;
+    const signal = {
+      get aborted() {
+        return aborted;
+      },
+    };
+    const statusEl = this.addStatusBarItem();
+    statusEl.addClass("sg-index-status");
+    statusEl.setText("Sauce CRM: indexing…");
+    this.activeResync = {
+      abort: () => {
+        aborted = true;
+      },
+      statusEl,
+    };
+
+    const startIndex = opts.resume
+      ? (this.settings.lancedbIndexState?.cursor ?? 0)
+      : 0;
+    new Notice(
+      opts.resume && startIndex > 0
+        ? `Resuming vault index from ${startIndex}…`
+        : "Rebuilding vault index…",
+    );
+
+    const onProgress = (p: FullResyncProgress): void => {
+      if (p.phase === "reconciling") {
+        statusEl.setText("Sauce CRM: reconciling…");
+        return;
+      }
+      if (p.phase === "done") return;
+      statusEl.setText(`Sauce CRM: indexing ${p.done}/${p.total}`);
+      // Persist the cursor at every batch boundary so a crash/quit mid-index
+      // leaves a resumable checkpoint on disk.
+      this.settings.lancedbIndexState = {
+        ...(this.settings.lancedbIndexState ?? { cursor: 0, total: p.total }),
+        cursor: p.done,
+        total: p.total,
+      };
+    };
+
+    try {
+      const r = await this.mirrorSync.fullResyncDetailed({
+        embed: true,
+        signal,
+        onProgress,
+      });
+      // Persist final index state. A completed run stamps completedAt + drift;
+      // a cancelled run leaves the resumable cursor in place.
+      this.settings.lancedbIndexState = {
+        cursor: r.cursor,
+        total: r.total,
+        synced: r.synced,
+        ...(r.cancelled ? {} : { completedAt: new Date().toISOString() }),
+        drift: r.drift,
+        mirrorRows: r.mirrorRows,
+      };
+      // Keep the legacy boolean in step so index-on-load doesn't re-fire.
+      if (!r.cancelled) this.settings.lancedbInitialIndexDone = true;
+      await this.saveData(this.settings).catch(() => undefined);
+
+      if (r.cancelled) {
+        new Notice(
+          `Vault index cancelled at ${r.cursor}/${r.total} — re-run to resume.`,
+        );
+      } else {
+        // Compact away the per-entity fragments the bulk index created so
+        // repeated rebuilds can't balloon the store.
+        const db = this.v2?.lance?.db;
+        if (db) {
+          void compactConnection(db).then(
+            (cr) =>
+              this.logger?.info?.("lancedb.compacted_after_resync", { r: cr }),
+            (e: unknown) =>
+              this.logger?.warn?.("LanceDB post-resync compaction failed", {
+                error: String(e),
+              }),
+          );
+        }
+        const driftNote =
+          r.drift != null && r.drift > 0
+            ? ` (drift ${r.drift}: ${r.synced} vault vs ${r.mirrorRows} mirror)`
+            : "";
+        new Notice(
+          `Vault index rebuilt: ${r.synced} entit${r.synced === 1 ? "y" : "ies"}${driftNote}.`,
+        );
+      }
+    } catch (e: unknown) {
+      new Notice(
+        `Vault index failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      statusEl.remove();
+      if (this.activeResync?.statusEl === statusEl) this.activeResync = null;
+    }
   }
 
   private async openView(type: string): Promise<void> {
@@ -2555,6 +2752,10 @@ export default class SauceGraphPlugin extends Plugin {
       copilot: { ...DEFAULT_SETTINGS.copilot, ...(loaded?.copilot ?? {}) },
       bridge: { ...DEFAULT_SETTINGS.bridge!, ...(loaded?.bridge ?? {}) },
       daemon: { ...DEFAULT_SETTINGS.daemon!, ...(loaded?.daemon ?? {}) },
+      transcription: {
+        ...DEFAULT_SETTINGS.transcription!,
+        ...(loaded?.transcription ?? {}),
+      },
       features: mergeFeatureSettings(loaded?.features),
       showAdvanced: {
         ...DEFAULT_SETTINGS.showAdvanced,
@@ -3094,9 +3295,236 @@ export default class SauceGraphPlugin extends Plugin {
     }
   }
 
+  /** Build a node:fs-backed PathProbe for whisper binary validation, or null on
+   *  a runtime without fs (mobile/sandboxed). */
+  private makePathProbe(): PathProbe | null {
+    try {
+      const nodeRequire =
+        typeof require !== "undefined"
+          ? (require as (m: string) => unknown)
+          : null;
+      const fsMod = nodeRequire?.("fs") as
+        | {
+            statSync(p: string): { isFile(): boolean };
+            accessSync(p: string, mode: number): void;
+            constants: { X_OK: number };
+          }
+        | undefined;
+      if (!fsMod) return null;
+      return {
+        isFile: (p) => {
+          try {
+            return fsMod.statSync(p).isFile();
+          } catch {
+            return false;
+          }
+        },
+        isExecutable: (p) => {
+          try {
+            // On Windows X_OK is a no-op; statSync(isFile) above is the real gate.
+            fsMod.accessSync(p, fsMod.constants.X_OK);
+            return true;
+          } catch {
+            // Windows fallback: accessSync(X_OK) can throw EINVAL — treat a
+            // readable regular file as runnable there.
+            if (process.platform === "win32") {
+              try {
+                return fsMod.statSync(p).isFile();
+              } catch {
+                return false;
+              }
+            }
+            return false;
+          }
+        },
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** (Re)build the local Whisper engine from current settings and install it on
+   *  the skill runtime. Idempotent — callable on load and after a settings
+   *  change to the binary path / model. When fs is unavailable (mobile) or no
+   *  binary path is configured, the transcriber is left unset and the daemon
+   *  route / a clear Notice covers the absent state. */
+  wireWhisperEngine(): void {
+    if (!this.skills) return;
+    // Part C: prefer the daemon route when it advertises whisper + the operator
+    // opted in. Async token resolution runs in the background; until it resolves
+    // (or if it fails) the local engine wired below covers the gap.
+    void this.maybeWireDaemonTranscriber();
+    try {
+      const nodeRequire =
+        typeof require !== "undefined"
+          ? (require as (m: string) => unknown)
+          : null;
+      const fsMod = nodeRequire?.("fs") as
+        | { promises: { readFile(p: string, enc: string): Promise<string> } }
+        | undefined;
+      const osMod = nodeRequire?.("os") as { tmpdir(): string } | undefined;
+      const probe = this.makePathProbe();
+      if (!fsMod || !osMod || !probe) {
+        this.skills.setTranscriber(null);
+        return;
+      }
+      const t = this.settings.transcription ?? DEFAULT_SETTINGS.transcription!;
+      // No PATH guessing: an unset/relative path leaves the local engine
+      // unconfigured (dispatch reports "not configured"; daemon route may cover).
+      if (!t.binaryPath || !validateBinaryPath(t.binaryPath, probe).ok) {
+        this.skills.setTranscriber(null);
+        return;
+      }
+      this.skills.setTranscriber(
+        new WhisperEngine({
+          binPath: t.binaryPath,
+          pathProbe: probe,
+          readText: async (p) => {
+            try {
+              return await fsMod.promises.readFile(p, "utf8");
+            } catch {
+              return null;
+            }
+          },
+          outputDir: osMod.tmpdir(),
+          defaultModel: t.model || "large-v3-turbo",
+          registry: this.childProcs,
+          consent: {
+            ask: async (req) => {
+              const r = await this.approvalGate.ask(req);
+              return { approved: r.approved };
+            },
+          },
+          audit: async (op, entityId, details) => {
+            const al = this.v2?.auditLog;
+            if (!al) return;
+            await al.append({
+              ts: Date.now(),
+              op,
+              entityId,
+              agentId: null,
+              integration: null,
+              beforeHash: null,
+              afterHash: null,
+              details,
+            });
+          },
+        }),
+      );
+    } catch {
+      /* desktop-only; mobile uses cloud/bridge STT */
+    }
+  }
+
+  /** Part C: when the daemon is connected, advertises whisper, and the operator
+   *  prefers it, install the daemon-backed transcriber (zero local spawn). On
+   *  any miss (not enabled, no token, daemon lacks whisper) this is a no-op and
+   *  the local engine wired by wireWhisperEngine stands. */
+  private async maybeWireDaemonTranscriber(): Promise<void> {
+    if (!this.skills) return;
+    const t = this.settings.transcription ?? DEFAULT_SETTINGS.transcription!;
+    if (!t.preferDaemon) return;
+    const d = this.settings.daemon;
+    if (Platform.isMobile || !d?.enabled) return;
+    if (!daemonHasWhisper(this.daemonHealth)) return;
+    const token = await this.resolveDaemonToken();
+    if (!token) return;
+    const nodeRequire =
+      typeof require !== "undefined"
+        ? (require as (m: string) => unknown)
+        : null;
+    const fsMod = nodeRequire?.("fs") as
+      | { promises: { readFile(p: string): Promise<Buffer> } }
+      | undefined;
+    if (!fsMod) return;
+    try {
+      this.skills.setTranscriber(
+        createDaemonTranscriber({
+          baseUrl: daemonBaseUrl(d.port),
+          pairingToken: token,
+          requestUrl: (r) => requestUrl(r),
+          sha256Hex: bridgeSha256Hex,
+          hmacHex: bridgeHmacHex,
+          readAudioBase64: async (p) =>
+            (await fsMod.promises.readFile(p)).toString("base64"),
+        }),
+      );
+      this.logger.event?.("daemon.transcriber.wired", { port: d.port });
+    } catch {
+      /* leave the local engine in place */
+    }
+  }
+
+  /** Settings "Detect" action: probe common ABSOLUTE install locations for a
+   *  whisper binary and return the ones that exist + are executable. We never
+   *  auto-apply — the settings UI surfaces the hits and the operator picks one.
+   *  No PATH lookup, no spawning here (validation is fs-only). */
+  detectWhisperBinaries(): string[] {
+    const probe = this.makePathProbe();
+    if (!probe) return [];
+    let home = "";
+    try {
+      const nodeRequire =
+        typeof require !== "undefined"
+          ? (require as (m: string) => unknown)
+          : null;
+      const osMod = nodeRequire?.("os") as { homedir(): string } | undefined;
+      home = osMod?.homedir() ?? "";
+    } catch {
+      home = "";
+    }
+    if (!home) return [];
+    return candidateBinaryPaths(process.platform, home).filter(
+      (p) => validateBinaryPath(p, probe).ok,
+    );
+  }
+
+  /** Settings "Test transcription" action: validate the configured binary path
+   *  and run a single `--help` (exit-0) probe through the hardened spawn util —
+   *  no audio, no model download. Returns a human-readable result string. */
+  async testWhisperBinary(): Promise<{ ok: boolean; message: string }> {
+    const t = this.settings.transcription ?? DEFAULT_SETTINGS.transcription!;
+    const probe = this.makePathProbe();
+    if (!probe) {
+      return { ok: false, message: "Spawning is unavailable on this runtime." };
+    }
+    const v = validateBinaryPath(t.binaryPath, probe);
+    if (!v.ok) return { ok: false, message: v.reason ?? "invalid binary path" };
+    const { execFileNoThrow } = await import("./utils/execFileNoThrow");
+    const r = await execFileNoThrow(t.binaryPath, ["--help"], {
+      timeoutMs: 10_000,
+      registry: this.childProcs,
+    });
+    if (r.code === 0) {
+      return {
+        ok: true,
+        message: "Whisper binary responded (--help, exit 0).",
+      };
+    }
+    return {
+      ok: false,
+      message: `Probe failed (exit ${r.code ?? "n/a"}): ${
+        r.stderr || r.error || "no output"
+      }`,
+    };
+  }
+
   override async onunload(): Promise<void> {
     // PLC-04: stop realtime handlers before any teardown begins.
     this.unloaded = true;
+    // S8: terminate any whisper child still running so a disabled plugin never
+    // leaves an orphaned transcription process behind.
+    try {
+      this.childProcs.killAll();
+    } catch {
+      /* best-effort */
+    }
+    // Abort any in-flight full-vault rebuild so onunload doesn't leave a
+    // detached resync writing to a closing mirror. MirrorSync.close() also
+    // halts the resync at its next batch boundary via the `closed` flag.
+    this.activeResync?.abort();
+    this.activeResync?.statusEl?.remove();
+    this.activeResync = null;
     this.mirrorSync?.close();
     if (this.viewRefreshTimer !== null)
       window.clearTimeout(this.viewRefreshTimer);

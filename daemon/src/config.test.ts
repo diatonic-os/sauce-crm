@@ -72,4 +72,27 @@ describe("daemon config", () => {
     expect(c.vaults).toEqual([]);
     expect(c.defaultVault).toBeNull();
   });
+
+  it("coerceConfig defaults whisper to absent (disabled) and round-trips it", () => {
+    const base = freshConfig({}, () => "tok");
+    expect(coerceConfig({ ...base }).whisper).toBeUndefined();
+    const withWhisper = coerceConfig({
+      ...base,
+      whisper: { enabled: true, binaryPath: "/usr/bin/whisper", model: "tiny" },
+    });
+    expect(withWhisper.whisper).toEqual({
+      enabled: true,
+      binaryPath: "/usr/bin/whisper",
+      model: "tiny",
+    });
+  });
+
+  it("coerceConfig drops a non-boolean whisper.enabled to false and ignores junk", () => {
+    const base = freshConfig({}, () => "tok");
+    const c = coerceConfig({
+      ...base,
+      whisper: { enabled: "yes", binaryPath: 42, model: "" },
+    });
+    expect(c.whisper).toEqual({ enabled: false });
+  });
 });

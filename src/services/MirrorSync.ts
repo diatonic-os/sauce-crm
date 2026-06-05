@@ -29,6 +29,63 @@ export interface MirrorSyncOptions {
    *  Uses simple prefix matching (no regex) so it is ReDoS-safe.
    *  Example: ["templates", "archive"] excludes those top-level folders. */
   excludeGlobs?: string[];
+  /** Count of rows currently in the LanceDB entity mirror. Injected so the
+   *  reconciliation pass (post-resync drift check) stays decoupled from the
+   *  concrete LanceDB table handle. Returns null when the count is unavailable. */
+  countMirrorRows?: () => Promise<number | null>;
+  /** Yield control back to the event loop between batches so the renderer never
+   *  freezes during a full-vault resync. Defaults to a `setTimeout(0)` macrotask
+   *  (drains microtasks + lets paint happen). Injected so tests can drive it with
+   *  fake timers. Receives the resolve callback to invoke when the host is idle. */
+  scheduleYield?: (resume: () => void) => void;
+}
+
+/** Phase of a full resync, surfaced to the progress callback + status bar. */
+export type FullResyncPhase = "indexing" | "reconciling" | "done";
+
+/** Progress tick emitted during a {@link MirrorSync.fullResync}. */
+export interface FullResyncProgress {
+  /** Files processed so far (vault-relative index into the file list). */
+  done: number;
+  /** Total markdown files the resync will walk. */
+  total: number;
+  /** Current phase. */
+  phase: FullResyncPhase;
+}
+
+/** Options for a batched/cancellable/resumable full resync. */
+export interface FullResyncOptions {
+  /** Embed each entity (default true — manual rebuild re-embeds the vault). */
+  embed?: boolean;
+  /** Files per batch before yielding to the event loop. Default 50. */
+  batchSize?: number;
+  /** Resume cursor — skip the first `startIndex` files. Lets an interrupted
+   *  index continue instead of restarting. Default 0. */
+  startIndex?: number;
+  /** Abort handle — checked at every batch boundary. When aborted the resync
+   *  stops cleanly and reports `cancelled: true` with the cursor it reached. */
+  signal?: { readonly aborted: boolean };
+  /** Progress callback, invoked once per batch boundary (and at completion). */
+  onProgress?: (p: FullResyncProgress) => void;
+}
+
+/** Result of a detailed full resync — carries the resume cursor + drift. */
+export interface FullResyncResult {
+  /** Entities actually synced this run (excludes skipped non-entities). */
+  synced: number;
+  /** Total markdown files walked (the resync's denominator). */
+  total: number;
+  /** Cursor reached — the index of the next file to process. Equals `total`
+   *  when the resync ran to completion; less when cancelled. Persist this to
+   *  resume an interrupted index. */
+  cursor: number;
+  /** True when the resync stopped early due to cancellation or teardown. */
+  cancelled: boolean;
+  /** Reconciliation: |vault entities − mirror rows|. Null when the mirror row
+   *  count is unavailable or the resync was cancelled (drift undefined). */
+  drift: number | null;
+  /** Mirror row count observed during reconciliation (null when unavailable). */
+  mirrorRows: number | null;
 }
 
 /** Returns true when `path` matches any of the simple exclude prefixes.
@@ -166,19 +223,116 @@ export class MirrorSync {
   }
 
   /** Full reconcile of every markdown entity — first install / manual rebuild.
-   *  Returns the count of entities synced. */
+   *  Returns the count of entities synced.
+   *
+   *  Backward-compatible thin wrapper over {@link fullResyncDetailed}: callers
+   *  that just want a count keep the old `(opts) => Promise<number>` shape. */
   async fullResync(
     opts: { embed?: boolean } = { embed: true },
   ): Promise<number> {
-    let n = 0;
-    for (const f of this.app.vault.getMarkdownFiles()) {
+    const r = await this.fullResyncDetailed(opts);
+    return r.synced;
+  }
+
+  /** Batched, cancellable, resumable full resync of every markdown entity.
+   *
+   *  - **Batched:** processes `batchSize` files (default 50), then yields to the
+   *    event loop (`scheduleYield`, default `setTimeout(0)`) so the Obsidian
+   *    renderer keeps painting and never freezes on a large vault.
+   *  - **Cancellable:** `signal.aborted` is checked at every batch boundary; an
+   *    aborted resync returns `{ cancelled: true }` with the cursor it reached.
+   *  - **Progress-reporting:** `onProgress({ done, total, phase })` fires once per
+   *    batch boundary and at completion.
+   *  - **Resumable:** `startIndex` skips already-indexed files so an interrupted
+   *    index continues from a persisted cursor instead of restarting.
+   *
+   *  After a complete (non-cancelled) run it performs a cheap reconciliation:
+   *  compares the vault entity count against the mirror row count and reports
+   *  the absolute drift. */
+  async fullResyncDetailed(
+    opts: FullResyncOptions = {},
+  ): Promise<FullResyncResult> {
+    const embed = opts.embed ?? true;
+    const batchSize = Math.max(1, opts.batchSize ?? 50);
+    const files = this.app.vault.getMarkdownFiles();
+    const total = files.length;
+    let cursor = Math.min(Math.max(0, opts.startIndex ?? 0), total);
+    let synced = 0;
+    let cancelled = false;
+
+    const report = (phase: FullResyncPhase): void => {
       try {
-        if (await this.syncFile(f, opts)) n += 1;
+        opts.onProgress?.({ done: cursor, total, phase });
       } catch {
-        /* skip a single malformed file rather than abort the whole resync */
+        /* a throwing progress sink must never abort the resync */
       }
+    };
+
+    // Emit an initial tick so a status bar can render immediately (even when
+    // resuming partway through).
+    report("indexing");
+
+    while (cursor < total) {
+      // Cancellation / teardown check at the batch boundary.
+      if (this.closed || opts.signal?.aborted) {
+        cancelled = true;
+        break;
+      }
+      const end = Math.min(cursor + batchSize, total);
+      for (let i = cursor; i < end; i++) {
+        const f = files[i];
+        if (!f) continue;
+        try {
+          if (await this.syncFile(f, { embed })) synced += 1;
+        } catch {
+          /* skip a single malformed file rather than abort the whole resync */
+        }
+      }
+      cursor = end;
+      report("indexing");
+      // Yield before the next batch so the renderer can paint.
+      if (cursor < total) await this.yieldToEventLoop();
     }
-    return n;
+
+    // Reconciliation only after a complete run — drift is undefined mid-cancel.
+    let drift: number | null = null;
+    let mirrorRows: number | null = null;
+    if (!cancelled) {
+      report("reconciling");
+      const rec = await this.reconcile(synced);
+      drift = rec.drift;
+      mirrorRows = rec.mirrorRows;
+    }
+
+    report("done");
+    return { synced, total, cursor, cancelled, drift, mirrorRows };
+  }
+
+  /** Cheap integrity check: compare the freshly-synced vault entity count against
+   *  the LanceDB mirror row count. Returns the observed mirror rows and the
+   *  absolute drift (null when the mirror count is unavailable). */
+  async reconcile(
+    vaultEntityCount: number,
+  ): Promise<{ mirrorRows: number | null; drift: number | null }> {
+    let mirrorRows: number | null = null;
+    try {
+      mirrorRows = (await this.opts.countMirrorRows?.()) ?? null;
+    } catch {
+      mirrorRows = null;
+    }
+    const drift =
+      mirrorRows == null ? null : Math.abs(vaultEntityCount - mirrorRows);
+    return { mirrorRows, drift };
+  }
+
+  /** Yield to the event loop between batches. Uses the injected scheduler (tests
+   *  drive it with fake timers); defaults to a `setTimeout(0)` macrotask. */
+  private yieldToEventLoop(): Promise<void> {
+    const sched = this.opts.scheduleYield;
+    return new Promise<void>((resolve) => {
+      if (sched) sched(resolve);
+      else setTimeout(resolve, 0);
+    });
   }
 
   private async embed(mf: MirrorFile, parentFp?: string): Promise<void> {

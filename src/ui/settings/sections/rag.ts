@@ -69,7 +69,13 @@ export function renderRagEmbeddings(
 
   addToggleRow(containerEl, {
     name: "Index whole vault",
-    desc: 'Mirror ALL markdown notes (not just typed entities) into the vector index. Untyped notes receive a fallback type of "note". Requires a manual index rebuild after enabling.',
+    desc:
+      "Opt-in. Typed entities (people / orgs / touches) are ALWAYS indexed " +
+      "regardless of this toggle. Turn ON to also mirror every untyped " +
+      'markdown note (fallback type "note") into the vector index. ' +
+      "Trade-off: broader semantic recall across loose notes, at the cost of a " +
+      "larger LanceDB store, longer rebuilds, and more embedding compute. " +
+      "Excluded folders below are honored either way. Run Rebuild vault index after changing this.",
     value: rag.fullVaultIndex,
     onChange: async (v) => {
       rag.fullVaultIndex = v;

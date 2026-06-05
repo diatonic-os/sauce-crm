@@ -6,6 +6,68 @@ function markAdvanced(set: Setting): Setting {
   return set;
 }
 
+/** Human-friendly relative-ish timestamp for the last-index display.
+ *  Falls back to the raw ISO string when it can't be parsed.
+ *  Exported for unit testing (the DOM render path needs Obsidian's element
+ *  extensions, which aren't available under jsdom). */
+export function formatWhen(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  const deltaMs = Date.now() - t;
+  const mins = Math.floor(deltaMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+/** Persisted full-vault index state, as stored on settings.lancedbIndexState. */
+export interface IndexStateView {
+  cursor: number;
+  total: number;
+  synced?: number;
+  completedAt?: string;
+  drift?: number | null;
+  mirrorRows?: number | null;
+}
+
+/** Pure description of the last-index stats line + whether it represents drift.
+ *  Extracted from the render path so the reconciliation/drift display logic is
+ *  unit-testable without Obsidian's DOM element extensions. */
+export function describeIndexState(idx: IndexStateView | undefined): {
+  text: string;
+  drift: boolean;
+} {
+  if (!idx || (idx.completedAt == null && idx.cursor === 0)) {
+    return {
+      text: "Vault index: not yet built. Use Rebuild vault index above.",
+      drift: false,
+    };
+  }
+  if (idx.completedAt == null) {
+    return {
+      text: `Vault index: interrupted at ${idx.cursor}/${idx.total} — rebuild to resume.`,
+      drift: false,
+    };
+  }
+  const when = formatWhen(idx.completedAt);
+  const synced = idx.synced ?? idx.total;
+  let text = `Vault index: ${synced} entit${synced === 1 ? "y" : "ies"}, last built ${when}.`;
+  let drift = false;
+  if (idx.drift != null) {
+    if (idx.drift === 0) {
+      text += " Mirror reconciled (no drift).";
+    } else {
+      text += ` Drift ${idx.drift} (${synced} vault vs ${idx.mirrorRows ?? "?"} mirror rows) — rebuild to reconcile.`;
+      drift = true;
+    }
+  }
+  return { text, drift };
+}
+
 function runCommand(plugin: SauceGraphPlugin, id: string): boolean {
   // app.commands is ambient-typed in src/types/obsidian-augment.ts
   return !!plugin.app.commands?.executeCommandById?.(id);
@@ -124,24 +186,19 @@ export function renderData(
     )
     .addButton((b) => {
       if (dbEnabled) {
-        b.setButtonText("Reindex vault")
-          .setTooltip("Re-mirror and re-embed every entity into LanceDB.")
-          .onClick(async () => {
+        b.setButtonText("Rebuild vault index")
+          .setTooltip(
+            "Batched, cancellable full re-mirror + re-embed of every entity into LanceDB. " +
+              "Progress shows in the status bar; safe to keep working while it runs.",
+          )
+          .onClick(() => {
             if (!plugin.mirrorSync) {
               new Notice("LanceDB mirror not ready.");
               return;
             }
-            new Notice("Reindexing vault into LanceDB…");
-            try {
-              const n = await plugin.mirrorSync.fullResync({ embed: true });
-              new Notice(
-                `Reindexed ${n} entit${n === 1 ? "y" : "ies"} into LanceDB.`,
-              );
-            } catch (e: unknown) {
-              new Notice(
-                `Reindex failed: ${e instanceof Error ? e.message : String(e)}`,
-              );
-            }
+            // Delegate to the cancellable, progress-reporting, resumable runner
+            // (status-bar item + reconciliation + persisted cursor live there).
+            void plugin.rebuildVaultIndex();
           });
       } else {
         b.setButtonText("Install LanceDB")
@@ -150,6 +207,22 @@ export function renderData(
           .onClick(() => plugin.openLanceDBInstall());
       }
     });
+
+  // ── Last-index stats + drift ────────────────────────────────────────
+  // Surface the persisted index state so the operator can see when the vault
+  // was last fully indexed, how many entities, and any reconciliation drift
+  // (vault entities vs LanceDB mirror rows).
+  if (dbEnabled) {
+    const statsEl = containerEl.createDiv({ cls: "sg-index-stats" });
+    const { text, drift } = describeIndexState(
+      plugin.settings.lancedbIndexState,
+    );
+    const p = statsEl.createEl("p", {
+      cls: "setting-item-description",
+      text,
+    });
+    if (drift) p.addClass("sg-index-drift");
+  }
 
   new Setting(containerEl)
     .setName("Index on plugin load")

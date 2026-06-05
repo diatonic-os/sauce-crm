@@ -110,6 +110,37 @@ Recognized env: `SAUCE_DAEMON_PORT`, `SAUCE_DAEMON_CONFIG`,
 > If you set a non-default `XDG_DATA_HOME`, add a matching `ReadWritePaths=`
 > line to the unit so the sandbox permits writes to your data dir.
 
+## Optional: Whisper transcription (`--with-whisper`)
+
+The daemon can serve `POST /v1/transcribe` (HMAC-signed + AES-GCM encrypted,
+100 MB body cap) so the plugin transcribes audio without spawning anything
+locally. This capability is **opt-in and default-off**.
+
+```sh
+./install.sh --with-whisper          # asks before installing whisper
+./install.sh --with-whisper --yes    # unattended (assume yes)
+```
+
+`--with-whisper` provisions the `openai-whisper` Python package via the first
+available platform-native route — `uv tool install`, then `pipx install`, then
+`pip install --user`. It prints exactly what it will run and requires an
+interactive confirm unless `--yes` is passed. No `sudo`.
+
+> **Model weights are NOT downloaded by the installer.** Whisper fetches the
+> model on first use (e.g. the first transcription request), per upstream
+> behavior.
+
+After install, set the resolved **absolute** binary path and enable the route in
+the daemon config (`<central>/sauce-crm/daemon/config.json`):
+
+```json
+"whisper": { "enabled": true, "binaryPath": "/home/you/.local/bin/whisper" }
+```
+
+When `whisper.enabled` is true and the binary validates, `GET /health` reports
+`"whisper": { "available": true }` and the plugin (with "Prefer daemon for
+transcription" on) routes transcription to the daemon — zero local spawn.
+
 ## Security model
 
 - **Loopback only** (`127.0.0.1`); the daemon constructor refuses `0.0.0.0`/`::`.
