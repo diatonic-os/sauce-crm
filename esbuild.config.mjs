@@ -65,6 +65,10 @@ const ctx = await esbuild.context({
     "@lezer/highlight",
     "@lezer/lr",
     ...builtins,
+    // Also externalize the `node:`-prefixed forms — `builtin-modules` lists
+    // bare names ("tls"), so `import ... from "node:tls"` (desktop-only code
+    // paths like the SMTP/IMAP client) would otherwise fail to resolve.
+    ...builtins.map((m) => `node:${m}`),
   ],
   format: "cjs",
   target: "es2020",
