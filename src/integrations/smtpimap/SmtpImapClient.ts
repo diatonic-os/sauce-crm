@@ -9,8 +9,13 @@
 // adds Buffer-polyfill weight and a transitive surface area we don't need for our small set of
 // IMAP commands (CAPABILITY, LOGIN, AUTHENTICATE, SELECT, SEARCH, FETCH, LOGOUT).
 
-import * as tls from "node:tls";
-import * as net from "node:net";
+// Type-only imports — erased at compile, never reach the renderer bundle. The
+// runtime modules are acquired lazily via bare-name require at the two connect
+// sites below (codebase convention; see MemoryHttpServer/detectLmStudioEndpoint).
+// This keeps esbuild from bundling node builtins at module load and defers all
+// native work to the moment a connection is actually opened.
+import type * as tls from "node:tls";
+import type * as net from "node:net";
 import type { CredentialSource } from "../../saucebot/CredentialSource";
 
 export type ImapAuthMode = "plain" | "xoauth2";
@@ -92,6 +97,9 @@ export class SmtpImapClient {
             account.imapPort,
           )
         : null;
+      // Lazy bare-name require at use-time (renderer-safe; matches convention).
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const tlsRT = require("tls") as typeof import("node:tls");
       socket = await new Promise<tls.TLSSocket>((resolve, reject) => {
         const tlsOpts: tls.ConnectionOptions = {
           host: account.imapHost,
@@ -101,7 +109,7 @@ export class SmtpImapClient {
           minVersion: this.opts.minTlsVersion ?? "TLSv1.2",
           socket: innerSocket ?? undefined,
         };
-        const s: tls.TLSSocket = tls.connect(tlsOpts, () => resolve(s));
+        const s: tls.TLSSocket = tlsRT.connect(tlsOpts, () => resolve(s));
         s.once("error", (e: Error) => reject(e));
       });
 
@@ -258,8 +266,11 @@ export class SmtpImapClient {
     host: string,
     port: number,
   ): Promise<net.Socket> {
+    // Lazy bare-name require at use-time (renderer-safe; matches convention).
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const netRT = require("net") as typeof import("node:net");
     return new Promise((resolve, reject) => {
-      const sock = net.connect(cfg.port, cfg.host, () => {
+      const sock = netRT.connect(cfg.port, cfg.host, () => {
         // RFC 1928 — minimal SOCKS5 client with optional username/password (RFC 1929).
         const auths = cfg.username
           ? Buffer.from([0x05, 0x02, 0x00, 0x02])
