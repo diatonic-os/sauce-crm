@@ -851,6 +851,42 @@ export class SauceBotChatView extends ItemView {
         }),
       );
 
+    // Local-model tuning (LM Studio / Ollama cloud-parity). Auto-on for local
+    // providers; full controls live in plugin Settings → Copilot.
+    c.createEl("h4", { text: "Local model tuning" });
+    const lt = (cfg as unknown as { localTuning?: Record<string, unknown> })
+      .localTuning ?? {};
+    (cfg as unknown as { localTuning: Record<string, unknown> }).localTuning = lt;
+    new Setting(c)
+      .setName("Prose tool prompting")
+      .setDesc("Helps small models call tools reliably.")
+      .addToggle((t) =>
+        t.setValue(lt.toolPrompt !== false).onChange(async (v) => {
+          lt.toolPrompt = v;
+          await save();
+        }),
+      );
+    new Setting(c)
+      .setName("Repair malformed tool calls")
+      .addToggle((t) =>
+        t.setValue(lt.toolRepairReask !== false).onChange(async (v) => {
+          lt.toolRepairReask = v;
+          await save();
+        }),
+      );
+    new Setting(c)
+      .setName("Self-correct empty answers")
+      .addToggle((t) =>
+        t.setValue(lt.emptyAnswerRetry !== false).onChange(async (v) => {
+          lt.emptyAnswerRetry = v;
+          await save();
+        }),
+      );
+    c.createEl("p", {
+      cls: "sauce-help-body",
+      text: "More tuning (history compaction budget, force on/off) in Settings → Copilot → Local model tuning.",
+    });
+
     modal.open();
   }
 

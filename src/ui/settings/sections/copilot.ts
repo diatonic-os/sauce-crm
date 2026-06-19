@@ -375,6 +375,8 @@ export function renderCopilot(
   renderDocuments(containerEl, plugin);
   // Prompts & sessions (PLAN T6).
   renderPrompts(containerEl, plugin);
+  // Local-model quality tuning (cloud-parity for LM Studio / Ollama).
+  renderLocalTuning(containerEl, plugin);
   // Context distillation (TOON compaction).
   renderDistill(containerEl, plugin);
   // Sauce Brain dashboard folder.
@@ -486,6 +488,94 @@ function renderSauceDb(containerEl: HTMLElement, plugin: SauceGraphPlugin): void
         }),
       );
   }
+}
+
+/** Local-model tuning — closes the local-vs-cloud quality gap for LM Studio /
+ *  Ollama. Cloud providers ignore these; they auto-activate for local providers
+ *  (or can be forced). See LocalTuningSettings in SauceBotRuntime. */
+function renderLocalTuning(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
+  containerEl.createEl("h3", {
+    text: "Local model tuning",
+    cls: "sauce-settings-section-title",
+  });
+  const cfg = plugin.settings.copilot as unknown as Record<string, unknown>;
+  const lt = (cfg.localTuning && typeof cfg.localTuning === "object"
+    ? cfg.localTuning
+    : {}) as Record<string, unknown>;
+  cfg.localTuning = lt;
+  const save = async (): Promise<void> => {
+    await plugin.saveSettings();
+    pushCopilotUpdate(plugin);
+  };
+
+  containerEl.createEl("p", {
+    cls: "sauce-cp-suggestions",
+    text: "Helps local models (LM Studio / Ollama) reach cloud-level multi-turn + tool quality: prose tool prompts, history compaction, malformed-tool-call repair, and self-correction. Auto-on for local providers; cloud providers are unaffected.",
+  });
+
+  new Setting(containerEl)
+    .setName("Enable local tuning")
+    .setDesc("Auto = on for local providers, off for cloud. Force on/off here.")
+    .addDropdown((dd) =>
+      dd
+        .addOption("auto", "Auto (recommended)")
+        .addOption("on", "Always on")
+        .addOption("off", "Always off")
+        .setValue(lt.enabled === true ? "on" : lt.enabled === false ? "off" : "auto")
+        .onChange(async (v) => {
+          if (v === "on") lt.enabled = true;
+          else if (v === "off") lt.enabled = false;
+          else delete lt.enabled;
+          await save();
+        }),
+    );
+
+  new Setting(containerEl)
+    .setName("Prose tool prompting")
+    .setDesc("Inject a plain-language tool schema + example so small models call tools reliably.")
+    .addToggle((t) =>
+      t.setValue(lt.toolPrompt !== false).onChange(async (v) => {
+        lt.toolPrompt = v;
+        await save();
+      }),
+    );
+
+  new Setting(containerEl)
+    .setName("History compaction budget (tokens)")
+    .setDesc("Compact older turns once accumulated history exceeds this; the latest turn is kept verbatim.")
+    .addText((t) =>
+      t
+        .setPlaceholder("2000")
+        .setValue(String((lt.historyTokenBudget as number) ?? 2000))
+        .onChange(async (v) => {
+          const n = parseInt(v, 10);
+          lt.historyTokenBudget = Number.isFinite(n) && n > 0 ? n : 2000;
+          await save();
+        }),
+    );
+
+  new Setting(containerEl)
+    .setName("Repair malformed tool calls")
+    .setDesc("Re-ask once to coax valid tool JSON when a local model emits a malformed call.")
+    .addToggle((t) =>
+      t.setValue(lt.toolRepairReask !== false).onChange(async (v) => {
+        lt.toolRepairReask = v;
+        await save();
+      }),
+    );
+
+  new Setting(containerEl)
+    .setName("Self-correct empty answers")
+    .setDesc("One compaction + retry when a turn ends empty or truncated.")
+    .addToggle((t) =>
+      t.setValue(lt.emptyAnswerRetry !== false).onChange(async (v) => {
+        lt.emptyAnswerRetry = v;
+        await save();
+      }),
+    );
 }
 
 /** Distillation — compact retrieved context to TOON before it is sent to the
