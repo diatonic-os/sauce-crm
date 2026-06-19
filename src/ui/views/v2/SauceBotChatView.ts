@@ -31,6 +31,10 @@ import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 import { SlashSuggest, type SlashItem } from "../../widgets/SlashSuggest";
 import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 import {
+  FloatingDropdown,
+  type FloatingOption,
+} from "../../components/v2/FloatingDropdown";
+import {
   newChatId,
   newConversationId,
   newMessageId,
@@ -85,6 +89,16 @@ export class SauceBotChatView extends ItemView {
   private modelStatusEl: HTMLElement | null = null;
   private embedProviderSel!: HTMLSelectElement;
   private embedSel!: HTMLSelectElement;
+  // Icon control-panel triggers (slim row under the branded header). Each opens
+  // a borderless FloatingDropdown that drives the matching backing <select>.
+  private providerIcon!: HTMLButtonElement;
+  private modelIcon!: HTMLButtonElement;
+  private embedProviderIcon!: HTMLButtonElement;
+  private embedIcon!: HTMLButtonElement;
+  private providerDd: FloatingDropdown | null = null;
+  private modelDd: FloatingDropdown | null = null;
+  private embedProviderDd: FloatingDropdown | null = null;
+  private embedDd: FloatingDropdown | null = null;
   private micButton: HTMLButtonElement | null = null;
   private recognition: SpeechRecognitionLike | null = null;
   // S4: "/" slash picker + the skill it forces on the next send (if any).
@@ -157,25 +171,27 @@ export class SauceBotChatView extends ItemView {
   /** Per-field help, shown when the header "?" is toggled on. Detailed yet
    *  simple — written for non-developers. */
   private registerHelp(): void {
+    // Help anchors the visible control-panel icons (the backing <select>s are
+    // hidden); the text still describes the underlying setting each icon drives.
     this.help.register(
-      this.providerSel,
+      this.providerIcon,
       "Provider",
-      "Which AI service answers. 'LM Studio' and 'Ollama' run free models on this computer; 'Anthropic' and 'OpenAI' are paid cloud services that need an API key (set in Settings).",
+      "Which AI service answers. 'LM Studio' and 'Ollama' run free models on this computer; 'Anthropic' and 'OpenAI' are paid cloud services that need an API key (set in Settings). Click the icon to choose.",
     );
     this.help.register(
-      this.modelSel,
+      this.modelIcon,
       "Model",
-      "The specific model that replies. The label shows its context size (e.g. 32k), quantization, and 'tools' if it can use your CRM tools. A ● means it's already loaded in LM Studio (faster first reply).",
+      "The specific model that replies. The label shows its context size (e.g. 32k), quantization, and 'tools' if it can use your CRM tools. A ● means it's already loaded in LM Studio (faster first reply). Click the icon to choose.",
     );
     this.help.register(
-      this.embedProviderSel,
+      this.embedProviderIcon,
       "Embeddings provider",
-      "Embeddings turn your notes into vectors so SauceBot can find the most relevant people and notes. This picks which service creates them — a local one is free and private.",
+      "Embeddings turn your notes into vectors so SauceBot can find the most relevant people and notes. This picks which service creates them — a local one is free and private. Click the icon to choose.",
     );
     this.help.register(
-      this.embedSel,
+      this.embedIcon,
       "Embedding model",
-      "The model used to index your vault for search. Smaller is faster; larger can be more accurate. Only embedding-type models are listed here.",
+      "The model used to index your vault for search. Smaller is faster; larger can be more accurate. Only embedding-type models are listed here. Click the icon to choose.",
     );
     this.help.register(
       this.inputEl,
@@ -196,15 +212,21 @@ export class SauceBotChatView extends ItemView {
       );
   }
 
-  // ---------- Header: inline model picker + icon toolbar ----------
+  // ---------- Header: slim icon control panel + hidden backing selects ----------
+  // The four <select> elements remain the source of truth (and keep their
+  // onchange handlers) but live in a visually-hidden container. A thin row of
+  // icons drives them via borderless FloatingDropdowns, keeping responses + the
+  // message bar as the visual focal points.
   private buildHeader(root: HTMLElement): void {
     const bar = root.createDiv({ cls: "sauce-copilot-bar" });
 
-    const models = bar.createDiv({ cls: "sauce-cp-models" });
+    // Hidden backing selects — kept in the DOM so their state + onchange wiring
+    // (and the help-callout anchors) are preserved untouched.
+    const backing = bar.createDiv({ cls: "sauce-cp-backing" });
     const cur = this.plugin.copilot?.getSettings();
 
     // Provider → Model (two-stage). Model options carry a status hint.
-    this.providerSel = this.labeledSelect(models, "Provider");
+    this.providerSel = this.hiddenSelect(backing);
     for (const p of CHAT_PROVIDERS)
       this.option(this.providerSel, p.id, p.label);
     this.providerSel.value = (cur?.provider as ChatProvider) ?? "anthropic";
@@ -212,20 +234,16 @@ export class SauceBotChatView extends ItemView {
       void this.onProviderChange();
     };
 
-    this.modelSel = this.labeledSelect(models, "Model");
+    this.modelSel = this.hiddenSelect(backing);
     this.modelSel.onchange = () => {
       void this.onModelChange();
     };
-    // Realtime model-load indicator (loading → ready/failed on switch).
-    this.modelStatusEl = this.modelSel.parentElement!.createSpan({
-      cls: "sauce-cp-model-status",
-    });
 
     // Embeddings provider (RAG) — decoupled from the chat provider so users
     // can embed locally (LM Studio / Ollama) while chatting against a cloud
     // model. Populated from EMBED_PROVIDERS; switching it re-lists the
     // embedding models for the newly selected provider.
-    this.embedProviderSel = this.labeledSelect(models, "Embed Provider");
+    this.embedProviderSel = this.hiddenSelect(backing);
     for (const p of EMBED_PROVIDERS) this.option(this.embedProviderSel, p, p);
     this.embedProviderSel.value = this.plugin.settings.features.rag.provider;
     this.embedProviderSel.onchange = () => {
@@ -233,12 +251,38 @@ export class SauceBotChatView extends ItemView {
     };
 
     // Embeddings model (RAG) — resolved from the selected embed provider.
-    this.embedSel = this.labeledSelect(models, "Embeddings");
+    this.embedSel = this.hiddenSelect(backing);
     this.embedSel.onchange = () => {
       void this.onEmbedChange();
     };
 
-    const actions = bar.createDiv({ cls: "sauce-copilot-actions" });
+    // --- Slim icon control panel: left-to-right config + action icons. ---
+    const panel = bar.createDiv({ cls: "sauce-cp-panel" });
+
+    const config = panel.createDiv({ cls: "sauce-cp-config" });
+    this.providerIcon = this.panelIcon(config, "server", "Provider", (ev) =>
+      this.providerDd?.toggle(ev.currentTarget as HTMLElement),
+    );
+    this.modelIcon = this.panelIcon(config, "cpu", "Model", (ev) =>
+      this.modelDd?.toggle(ev.currentTarget as HTMLElement),
+    );
+    // Realtime model-load indicator (loading → ready/failed on switch).
+    this.modelStatusEl = config.createSpan({ cls: "sauce-cp-model-status" });
+    config.createSpan({ cls: "sauce-cp-divider" });
+    this.embedProviderIcon = this.panelIcon(
+      config,
+      "database-zap",
+      "Embeddings provider",
+      (ev) => this.embedProviderDd?.toggle(ev.currentTarget as HTMLElement),
+    );
+    this.embedIcon = this.panelIcon(
+      config,
+      "scan-search",
+      "Embedding model",
+      (ev) => this.embedDd?.toggle(ev.currentTarget as HTMLElement),
+    );
+
+    const actions = panel.createDiv({ cls: "sauce-copilot-actions" });
     this.iconButton(actions, "circle-plus", "New chat", () =>
       this.newSession(),
     );
@@ -250,14 +294,95 @@ export class SauceBotChatView extends ItemView {
       this.openMoreMenu(ev),
     );
 
+    this.buildDropdowns();
     void this.refreshModelOptions();
     void this.refreshEmbedOptions();
   }
 
-  private labeledSelect(parent: HTMLElement, label: string): HTMLSelectElement {
-    const wrap = parent.createDiv({ cls: "sauce-cp-field" });
-    wrap.createEl("label", { cls: "sauce-cp-field-label", text: label });
-    return wrap.createEl("select", { cls: "sauce-cp-select dropdown" });
+  /** A backing <select> that is kept in the DOM (state + onchange + help
+   *  anchor) but visually hidden; the icon control panel drives it. */
+  private hiddenSelect(parent: HTMLElement): HTMLSelectElement {
+    return parent.createEl("select", { cls: "sauce-cp-select dropdown" });
+  }
+
+  /** A slim control-panel icon with a hover tooltip. */
+  private panelIcon(
+    parent: HTMLElement,
+    icon: string,
+    tip: string,
+    onClick: (ev: MouseEvent) => void,
+  ): HTMLButtonElement {
+    const b = parent.createEl("button", {
+      cls: "sauce-cp-icon sauce-cp-panel-icon clickable-icon",
+    });
+    setIcon(b, icon);
+    b.setAttribute("aria-label", tip);
+    b.title = tip;
+    b.onclick = (ev) => onClick(ev);
+    return b;
+  }
+
+  /** Build the four floating dropdowns. Each reads its options from the backing
+   *  <select> and, on pick, sets that select's value + fires its onchange — so
+   *  the existing handlers (onProviderChange/onModelChange/…) still drive all
+   *  state, persistence, warmup, and re-listing. */
+  private buildDropdowns(): void {
+    const fromSelect = (sel: HTMLSelectElement): FloatingOption[] => {
+      const out: FloatingOption[] = [];
+      for (const o of Array.from(sel.options)) {
+        let label = o.text;
+        const opt: FloatingOption = { value: o.value, label };
+        // Lift a leading "loaded" dot into a badge for a cleaner row.
+        if (label.startsWith("●")) {
+          opt.badge = "●";
+          label = label.replace(/^●\s*/, "");
+          opt.label = label;
+        }
+        // Split the first " · " hint (context/quant/"needs API key") into detail.
+        // formatModelLabel pads the first separator ("  ·  "); trim both sides.
+        const sep = label.indexOf("·");
+        if (sep > 0) {
+          opt.label = label.slice(0, sep).trim();
+          opt.detail = label
+            .slice(sep + 1)
+            .replace(/^\s*·?\s*/, "")
+            .trim();
+        }
+        if (o.disabled) opt.disabled = true;
+        out.push(opt);
+      }
+      return out;
+    };
+    const pick = (sel: HTMLSelectElement) => (value: string) => {
+      if (sel.value === value) return;
+      sel.value = value;
+      sel.onchange?.(new Event("change"));
+    };
+
+    this.providerDd = new FloatingDropdown({
+      title: "Chat provider",
+      getOptions: () => fromSelect(this.providerSel),
+      getSelected: () => this.providerSel.value,
+      onPick: pick(this.providerSel),
+    });
+    this.modelDd = new FloatingDropdown({
+      title: "Chat model",
+      getOptions: () => fromSelect(this.modelSel),
+      getSelected: () => this.modelSel.value,
+      onPick: pick(this.modelSel),
+    });
+    this.embedProviderDd = new FloatingDropdown({
+      title: "Embeddings provider",
+      getOptions: () => fromSelect(this.embedProviderSel),
+      getSelected: () => this.embedProviderSel.value,
+      onPick: pick(this.embedProviderSel),
+    });
+    this.embedDd = new FloatingDropdown({
+      title: "Embedding model",
+      getOptions: () => fromSelect(this.embedSel),
+      getSelected: () => this.embedSel.value,
+      onPick: pick(this.embedSel),
+    });
   }
   private option(
     sel: HTMLSelectElement,
@@ -499,30 +624,20 @@ export class SauceBotChatView extends ItemView {
     }
   }
 
-  // ---------- Footer input ----------
+  // ---------- Footer: content-aware message bar ----------
+  // The textarea auto-grows with content; attach / mic / send are tiny icons
+  // embedded INSIDE the bar (no separate button row). Send is the primary
+  // affordance and doubles as Stop while streaming.
   private buildInput(root: HTMLElement): void {
     const inputRow = root.createDiv({ cls: "sauce-copilot-input" });
-    this.inputEl = inputRow.createEl("textarea", {
-      cls: "sauce-copilot-textarea",
-      attr: {
-        placeholder: "Ask about your graph…  ( ⌘/Ctrl + Enter to send )",
-      },
-    });
-    const SR = getSpeechRecognition();
-    if (SR) {
-      this.micButton = this.iconButton(
-        inputRow,
-        "mic",
-        "Dictate (Web Speech API)",
-        () => this.toggleVoice(SR),
-      );
-      this.micButton.addClass("sauce-copilot-mic");
-    }
+
+    // Left-rail tools (attach, optional mic) sit flush inside the bar.
+    const lead = inputRow.createDiv({ cls: "sauce-cp-bar-tools is-lead" });
     // S7: paperclip upload — audio → transcribe (inserts the transcript into
     // the composer), documents → RAG harvest. Uses a detached file input so no
     // inline style is needed to hide it (G-001).
     const attach = this.iconButton(
-      inputRow,
+      lead,
       "paperclip",
       "Attach audio (transcribe) or a document (RAG)",
       () => {
@@ -537,14 +652,43 @@ export class SauceBotChatView extends ItemView {
       },
     );
     attach.addClass("sauce-cp-attach");
+    const SR = getSpeechRecognition();
+    if (SR) {
+      this.micButton = this.iconButton(
+        lead,
+        "mic",
+        "Dictate (Web Speech API)",
+        () => this.toggleVoice(SR),
+      );
+      this.micButton.addClass("sauce-copilot-mic");
+    }
+
+    this.inputEl = inputRow.createEl("textarea", {
+      cls: "sauce-copilot-textarea",
+      attr: {
+        placeholder: "Ask about your graph…  ( ⌘/Ctrl + Enter to send )",
+        rows: "1",
+      },
+    });
+
+    // Trailing send (primary; doubles as Stop while streaming).
+    const tail = inputRow.createDiv({ cls: "sauce-cp-bar-tools is-tail" });
     const send = this.iconButton(
-      inputRow,
+      tail,
       "send",
       "Send  ( ⌘/Ctrl + Enter )",
       () => this.onSendOrStop(),
     );
     send.addClass("sauce-cp-send");
     this.sendBtn = send;
+
+    // Auto-grow: the bar scales vertically with content up to a CSS max-height.
+    const autoGrow = () => {
+      const el = this.inputEl;
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    this.registerDomEvent(this.inputEl, "input", autoGrow);
     this.registerDomEvent(this.inputEl, "keydown", (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
@@ -869,6 +1013,11 @@ export class SauceBotChatView extends ItemView {
     this.isListening = false;
     this.slashSuggest?.detach();
     this.slashSuggest = null;
+    // Tear down any open floating dropdowns (and their global listeners).
+    this.providerDd?.close();
+    this.modelDd?.close();
+    this.embedProviderDd?.close();
+    this.embedDd?.close();
     await this.persistCurrentSession();
   }
 
@@ -931,6 +1080,7 @@ export class SauceBotChatView extends ItemView {
     }
     if (!this.firstUserMsg) this.firstUserMsg = q;
     this.inputEl.value = "";
+    this.inputEl.style.height = "auto"; // collapse the auto-grown bar after send
     // Consume any armed slash-skill for this send, then reset the affordance.
     const forceSkill = this.pendingForceSkill ?? undefined;
     this.pendingForceSkill = null;
