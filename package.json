@@ -1,6 +1,6 @@
 {
   "name": "sauce-crm",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "LSP-typed CRM + knowledge base for Obsidian.",
   "main": "main.js",
   "scripts": {

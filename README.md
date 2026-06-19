@@ -1,146 +1,170 @@
-# Sauce CRM
+# SauceOM — Sauce Operating Memory
 
-Relationship CRM for Obsidian. People, Organizations, Touches, Addenda — form-driven, contract-validated, with an encrypted KeyVault for OAuth + API credentials and a Copilot that auto-indexes models from every provider it knows about.
+**SauceOM** is an Obsidian plugin that turns your vault into an intelligent operating memory: a structured relationship graph, a crystallized knowledge index, and a local-first AI copilot — all in one.
 
 [![CI](https://github.com/Diatonic-OS/sauce-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/Diatonic-OS/sauce-crm/actions/workflows/ci.yml)
 [![Security](https://github.com/Diatonic-OS/sauce-crm/actions/workflows/security.yml/badge.svg)](https://github.com/Diatonic-OS/sauce-crm/actions/workflows/security.yml)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.5.0-purple)
+![Desktop only](https://img.shields.io/badge/platform-desktop--only-lightgrey)
+![License](https://img.shields.io/github/license/Diatonic-OS/sauce-crm)
 
-## Why Sauce CRM
+> **Plugin id:** `sauce-crm` · **Author:** Drew Fortini · **Desktop-only** · **Requires Obsidian ≥ 1.5.0**
 
-Most CRMs assume you're an outbound sales team. Sauce CRM treats your vault as the source of truth for *every* relationship in your life — co-founders, advisors, mentors, peers, family, vendors — and gives you a typed model on top of it (`primary_type`, `roles[]`, `closeness 1–5`, `cadence`, `intro_via`, etc.) so you can ask real questions like "who haven't I touched in 6 months and owes me a reply" without resorting to a manual spreadsheet.
+---
 
-## Features
+<!-- SCREENSHOT PLACEHOLDER: add a screenshot or GIF of the SauceBot chat view and/or the Relationship Graph here -->
 
-- **Form-only CRUD** — every entity is a typed form (PersonModal, OrgModal, TouchModal, AddendumModal). Markdown frontmatter stays canonical; you never have to remember field names.
-- **Contract validator** — `ContractValidator` checks every write against a spec. Strict mode blocks, warn mode flags, log mode just records to TRACE-LOG.
-- **Symmetric edges** — when you say A knows B, B automatically knows A. Same for `worked_with`, `intro_via`, `family`. Reciprocity is enforced.
-- **Semiring path queries** — `PATH FROM [[A]] TO [[B]] OVER knows MAXIMIZE warmth` returns the strongest closeness chain between two people. Useful for warm-intro discovery.
-- **Multi-vault federation** — register sub-vaults; queries can span them; addendum rollup keeps a parent vault's view consistent.
-- **Encrypted KeyVault** — AES-256-GCM with versioned `SGV2\x01` envelope. Master password required to unlock; OAuth refresh tokens + API keys stay encrypted at rest.
-- **OAuth (PKCE) + API-key integrations** — Google Workspace, Microsoft 365, Notion, Twilio, plus Copilot providers (Anthropic, OpenAI, Ollama, LM Studio, NVIDIA NIM). Bring-your-own OAuth clients — no shared Sauce-CRM app.
-- **Auto model indexing** — Copilot picker enumerates Ollama `/api/tags`, LM Studio `/v1/models`, NIM, and curated cloud lists. Refresh button busts the 30s cache.
-- **Structured telemetry** — every meaningful event lands in `.sauce/memory/TRACE-LOG.jsonl` via Obsidian's vault adapter. Filterable by level (trace/debug/info/warn/error); in-memory ring buffer fallback.
-- **CRM/ERP UI system** — modal-first capture for notes, ideas, observations, tasks, events, ledger entries, and pipeline deals; dashboard, calendar, task board, inbox, ledger, graph, heatmap, and Kanban views stay live as vault files change.
-- **Enterprise policy scaffold** — `_POLICY.md` and `PARENT-VAULT.md` define domain, department, founder-group, role, permission, approval, and upstream rollup rules for multi-user deployments.
+---
 
-## Install
+## What's Inside
 
-### From the community browser (after marketplace acceptance)
+SauceOM ships four tightly integrated sub-features:
 
-`Settings → Community Plugins → Browse → search "Sauce CRM" → Install`.
+| Sub-feature | What it does |
+|---|---|
+| **Sauce CRM** | People, organizations, touch logs, and addenda — form-driven, contract-validated, with symmetric edges and warm-intro path queries |
+| **Sauce RG** | Relationship Graph — map and graph views of every entity and edge in your vault |
+| **SauceBot** | The AI copilot: a branded chat view with live reasoning, local-first inference, and a rich model picker |
+| **Sauce Brain** | The indexed vault memory — a deterministic "snowflake matrix" of lexicon, taxonomy, fractal lattice, and hash-validated crystal digests, built automatically from your vault |
 
-### Manual install
+---
+
+## Feature Highlights
+
+### Sauce CRM
+- **Typed entity model** — Person, Organization, Touch, Addendum records with strict frontmatter contracts (`primary_type`, `roles[]`, `closeness 1–5`, `cadence`, `intro_via`, and more)
+- **Form-only CRUD** — every write goes through a modal (PersonModal, OrgModal, TouchModal, AddendumModal); you never hand-edit field names
+- **Symmetric edges** — tag A → knows → B and B automatically knows A; reciprocity enforced for `worked_with`, `intro_via`, `family`
+- **Semiring path queries** — find the warmest intro chain between any two people
+- **Tamper-evident audit log** — HMAC-chained record of every entity change (who/what agent id, when)
+- **Encrypted KeyVault** — AES-256-GCM (`SGV2` envelope) stores OAuth tokens and API keys; master-password locked, auto-locks on idle; credentials never written to `data.json`
+
+### Sauce RG
+- Interactive map and graph views over CRM entities and vault links
+- Live updates as vault files change
+
+### SauceBot (AI Copilot)
+- **Local-first by default** — connects to LM Studio (or Ollama) on localhost; zero cloud calls until you add a cloud provider key
+- **Cloud providers** — Anthropic, OpenAI, NVIDIA NIM (all opt-in, key required)
+- **Branded chat view** — icon control panel with floating dropdowns for provider, model, and embedding picker; content-aware message bar with attach and mic; send button doubles as stop during streaming
+- **Rich LM Studio model cards** — shows context size, quantization, ● loaded indicator, tool-capable badge, and vision flag via the `/api/v0` endpoint
+- **Live model-load indicator** — status transitions from loading → ready / failed when you switch models
+- **Copy buttons on answers** — one-click copy of any AI response
+- **Local model tuning** — prose tool prompting, history compaction budget, malformed-tool-call repair, and empty-answer self-correction; auto-enabled for local providers, cloud unaffected
+- **Distillation** — context is compacted to TOON (Token-Oriented Object Notation) before sending, gated by a token budget, cached
+- **Per-field help** — toggle the "?" icon in any settings panel; it turns purple when active
+- **Replay-grade trace** — every conversation layer gets a stable non-repeatable id (`inst_/cnv_/cht_/trn_/rsp_/msg_` prefix), model usage, and input/output fingerprints; persisted to `_addenda/_copilot/`
+
+### Sauce Brain
+- **Auto-builds on startup** — runs on `onLayoutReady`; incremental updates fire on vault edits; rebuilds automatically if the vault drifted while closed
+- **Snowflake matrix** — lexicon, taxonomy, fractal folder lattice, symmetric path/relationship matrix, and per-entity crystal digests (~10× token reduction vs raw inlining)
+- **Hash-validated** — crystal digests are SHA-256 verified; stale entries self-invalidate
+- **Persists under `_brain/`** in your vault (gitignore-able)
+- **SauceDB (paid tier)** — optionally mirrors the brain to a hosted LanceDB edge for faster retrieval; gated by license; free tier is fully local
+
+---
+
+## 60-Second Quick Start (local-first, LM Studio)
+
+**Prerequisites:** Obsidian ≥ 1.5.0, [LM Studio](https://lmstudio.ai) installed and running with at least one model loaded, desktop OS.
+
+### 1 — Install the plugin
+
+**Option A — Community Plugin Browser** (after marketplace acceptance)
+
+`Settings → Community Plugins → Browse → search "SauceOM" → Install → Enable`
+
+**Option B — Manual install**
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/Diatonic-OS/sauce-crm/releases/latest).
-2. Drop them into `<your-vault>/.obsidian/plugins/sauce-crm/`.
-3. Enable in `Settings → Community Plugins → Installed`.
+2. Create the folder `<your-vault>/.obsidian/plugins/sauce-crm/` — the folder name **must** be exactly `sauce-crm`.
+3. Drop the three files into that folder.
+4. Enable in `Settings → Community Plugins → Installed Plugins → SauceOM`.
 
-### Via BRAT (for pre-release builds)
+**Option C — Build from source**
 
-`Add Beta Plugin → Diatonic-OS/sauce-crm`. BRAT pulls the latest release automatically.
+```sh
+git clone https://github.com/Diatonic-OS/sauce-crm.git
+cd sauce-crm/plugin
+npm install
+npm run build        # produces main.js
+# copy main.js + manifest.json + styles.css into <vault>/.obsidian/plugins/sauce-crm/
+```
 
-## First-run setup
+### 2 — Point SauceBot at LM Studio
 
-1. **Settings → Sauce CRM → Copilot** — pick a provider; the model list auto-populates from that provider's catalog.
-2. **Settings → Sauce CRM → Integrations** — for each external service you want to connect:
-   - Click `Configure` → enter your OAuth client ID (or API key) → save to vault
-   - Click `Connect` → for OAuth providers a browser tab opens; complete the consent screen; you'll see "Connected — you can close this tab."
-3. **Master password** — on first vault unlock you'll set a password. This unlocks the KeyVault for the session; auto-locks after 30 min of idle.
+`Settings → SauceOM → Copilot`
 
-For provider-specific OAuth client setup (Google Cloud Console, Microsoft Entra, Notion integration token), see [`docs/oauth-byo/`](docs/oauth-byo/README.md).
+- **Provider:** LM Studio (selected by default)
+- **Base URL:** `http://localhost:1234` (LM Studio default; change if yours differs)
+- Click **Refresh models** — your loaded models appear automatically with context size, quantization, and tool-capability badges
+- Select a model
 
-For the full UI and file-native record contract, see [`docs/UI-SYSTEM.md`](docs/UI-SYSTEM.md).
+### 3 — Open SauceBot
+
+Click the SauceBot icon in the left ribbon, or run the command `SauceOM: Open SauceBot chat`. Sauce Brain builds automatically in the background on first load.
+
+### 4 — Add your first person
+
+Run the command `SauceOM: New Person` (or `Cmd/Ctrl+Shift+P`), fill out the form, and save. The entity lands in your vault as a frontmatter-structured Markdown file; Sauce Brain indexes it automatically.
+
+---
+
+## Settings Tour
+
+Open `Settings → SauceOM`.
+
+| Section | What you configure |
+|---|---|
+| **General** | Vault layout, entity folder paths, policy defaults |
+| **Copilot** | Provider, model, embedding model, base URL; local model tuning (compaction budget, tool-call repair); KeyVault master password |
+| **Integrations** | OAuth (Google, Microsoft 365, Notion) and API-key connectors; each shows Configure / Connect / Disconnect |
+| **Brain** | Brain rebuild triggers, crystal cache settings, `_brain/` folder location |
+| **SauceDB** | Hosted LanceDB endpoint (paid tier); license key entry |
+
+Every settings panel has inline help — click the **?** icon (it turns purple when active).
+
+---
+
+## Network and Data Disclosure
+
+> **Required by Obsidian's community plugin policy — please read.**
+
+- **AI inference:** SauceBot makes network calls **only** to the provider you explicitly configure. The default is LM Studio on `localhost` — no data leaves your machine. Cloud providers (Anthropic, OpenAI, NVIDIA NIM) are contacted only if you add an API key in Settings.
+- **Credentials:** API keys and OAuth tokens are stored in an AES-256-GCM encrypted KeyVault on your local disk. They are never written to `data.json` and never transmitted to any Sauce server.
+- **SauceDB (optional paid tier):** If you configure a SauceDB endpoint, brain index data (not your raw vault text) is synced to that hosted endpoint. This is opt-in and off by default.
+- **Telemetry:** None. SauceOM does not phone home, track usage, or send analytics anywhere.
+
+---
 
 ## Hotkeys (defaults)
 
 | Hotkey | Command |
 |---|---|
-| `Cmd+Shift+P` | New Person |
-| `Cmd+Shift+O` | New Org |
-| `Cmd+Shift+T` | Log Touch |
-| `Cmd+Shift+A` | New Addendum |
-| `Cmd+Shift+I` | New Intro |
-| `Cmd+E` | Edit Current |
+| `Cmd/Ctrl+Shift+P` | New Person |
+| `Cmd/Ctrl+Shift+O` | New Organization |
+| `Cmd/Ctrl+Shift+T` | Log Touch |
+| `Cmd/Ctrl+Shift+A` | New Addendum |
+| `Cmd/Ctrl+Shift+I` | New Intro |
+| `Cmd/Ctrl+E` | Edit Current Entity |
 
-## Development
+All hotkeys are reassignable in `Settings → Hotkeys`.
 
-```sh
-cd plugin/
-npm install
-npm run dev          # esbuild watch mode
-npm run typecheck    # tsc --noEmit
-npm test             # vitest (919 tests across 155 files as of 0.3.0)
-npm run build        # production bundle → main.js
-```
+---
 
-To install your dev build into a vault, symlink:
+## Documentation
 
-```sh
-ln -s "$(pwd)" "<vault>/.obsidian/plugins/sauce-crm"
-```
+- [User Guide](docs/USER-GUIDE.md) — end-to-end workflows, entity model reference, SauceBot usage
+- [Features](docs/FEATURES.md) — detailed feature reference for all four sub-features
+- [UI System](docs/UI-SYSTEM.md) — views, modals, and the branded component system
+- [Integrations](docs/integrations.md) — OAuth BYO client setup, API-key connectors
+- [Security](docs/SECURITY.md) — KeyVault design, audit log, credential handling
 
-Reload Obsidian (Cmd/Ctrl+R) after each `npm run dev` rebuild.
-
-## Privacy & data handling
-
-- **Everything is local.** Your vault never leaves your machine. The plugin makes outbound calls only to providers you explicitly connect (Google APIs, Microsoft Graph, Notion API, Twilio, your Copilot's LLM, optional web-search and geocoding providers) and to GitHub for update checks (Obsidian-driven). See [Network use](#disclosures) for the full endpoint list.
-- **No telemetry leaves the device.** `TRACE-LOG.jsonl` is local-only. No phone-home.
-- **Credentials are protected.** OAuth refresh tokens and API keys live in the OS keychain (Electron `safeStorage`) or, as a fallback, in an AES-256-GCM KeyVault behind a master password. The plain `data.json` only stores non-secret config.
-- **Bring-your-own OAuth.** The plugin does not contain a shared Sauce-CRM OAuth client. You register your own apps in each provider's developer console (see [`docs/oauth-byo/`](docs/oauth-byo/README.md)).
-
-## Disclosures
-
-Per the [Obsidian Developer Policies](https://docs.obsidian.md/Developer+policies#Disclosures):
-
-- **Network use.** The plugin makes outbound network requests **only to services you explicitly configure**. Every integration is **opt-in and default-off**; no network call is made until you turn a feature on and supply credentials. Transport is Obsidian's `requestUrl` API for ordinary request/response calls, plus the Electron renderer's **native `fetch()`** in two narrow cases where `requestUrl` cannot stream incrementally: Copilot **token streaming** (`src/saucebot/SauceBotHostAdapters.ts`, SSE/NDJSON) and **live model-catalog** enumeration (`src/saucebot/ModelCatalog.ts`). The full set of endpoints the plugin can reach, each only when you enable and configure it:
-  - **Copilot / LLM providers:** Anthropic (`api.anthropic.com`), OpenAI (`api.openai.com`), NVIDIA NIM (`integrate.api.nvidia.com`), OpenRouter (`openrouter.ai`), Groq (`api.groq.com`), Google Gemini (`generativelanguage.googleapis.com`), Ollama (local endpoint you set), LM Studio (local endpoint you set).
-  - **Integration providers:** Google Workspace (`*.googleapis.com`, `accounts.google.com`, `oauth2.googleapis.com`), Microsoft 365 (`graph.microsoft.com`, `login.microsoftonline.com`), Notion (`api.notion.com`), Twilio (`api.twilio.com`), and any SMTP/IMAP server you configure for the mail integration.
-  - **Optional web search:** Brave Search (`api.search.brave.com`), Tavily (`api.tavily.com`), DuckDuckGo HTML (`html.duckduckgo.com`).
-  - **Optional geocoding:** OpenStreetMap Nominatim (`nominatim.openstreetmap.org`), Mapbox (`api.mapbox.com`).
-  - **Update checks:** GitHub releases (Obsidian-driven, for BRAT / manual update flows).
-
-  All of the above are off by default. No telemetry, analytics, or phone-home traffic leaves the machine (see Telemetry below).
-- **Account requirements.** No "Sauce CRM" account exists — there is no sign-up and no shared backend. Integrations use **your own** OAuth apps and API keys (bring-your-own; see [`docs/oauth-byo/`](docs/oauth-byo/README.md)).
-- **Credentials & external file access.** API keys and OAuth refresh tokens are stored either in the OS keychain (Electron `safeStorage`) or, as a fallback, in the encrypted (AES-256-GCM) local KeyVault behind a master password — never in `data.json` (see Secrets below). The plugin reads/writes **only your vault files** plus, on **desktop only**, a local LanceDB store kept in a **central per-user data directory outside the vault** (so its many index files don't churn your vault sync/watchers) and the keychain-bound secrets file alongside it. LanceDB is a native module and is **not** installed automatically: the plugin detects whether it is present and, if not, shows a copyable `npm install @lancedb/lancedb --prefix <dir>` command you run yourself in a terminal, then re-checks for the install. Lexical search works without it.
-- **Local executables (opt-in).** The optional voicenote-transcription skill runs a **whisper CLI you have already installed yourself** (it is never downloaded or installed by the plugin); if the binary is absent the skill reports it and does nothing. The spawn is hardened: it goes through `execFile` (no shell), the binary path must be **absolute and is validated** (exists + executable) before every run, the argv is built from a **closed allowlist** (no user string is interpolated), the first spawn per session requires **explicit consent showing the exact command**, every spawn is audit-logged, and any running child is killed on plugin unload. Optionally, if you self-host the separately-distributed daemon, transcription can run there instead over the same authenticated+encrypted channel. The plugin never downloads or executes code from the network.
-- **Local network listener (opt-in, default-off).** The optional mobile-memory bridge starts a **local HTTP listener** so the mobile app can query the desktop LanceDB memory. It binds **loopback/Tailscale-only and refuses `0.0.0.0` by default** (an explicit opt-in is required to widen). Every non-health request is **HMAC-authenticated with nonce replay protection and a clock-skew window**, and request/response bodies are **AES-256-GCM encrypted at the app layer** — the AES key is an **HKDF-separated subkey of the pairing key** (independent of the HMAC key), with a fresh per-message IV; the wire token is `base64(IV‖ciphertext‖tag)`. A per-remote token-bucket rate limiter and body-size caps bound abuse. It binds only when you enable the bridge in Settings and stops on plugin unload. The same controls apply to the optional self-hosted daemon (not marketplace-distributed).
-- **Full-vault index rebuild (desktop, opt-in).** Rebuilding the local LanceDB index runs as a **batched, cancellable, resumable** full resync: it processes files in batches yielding to the UI between them, reports progress to the status bar, can be cancelled mid-run and **resumed from a saved cursor**, and reconciles the synced entity count against the mirror row count when it completes.
-- **Telemetry.** **No client-side/remote telemetry.** The only "telemetry" is a structured event log (`TelemetrySink`) written **locally** to `.sauce/memory/TRACE-LOG.jsonl` via Obsidian's vault adapter, with an in-memory ring-buffer fallback when the adapter is unavailable. It is never transmitted off the device; nothing is sent to the author or any third party.
-- **Secrets.** API keys and OAuth refresh tokens live in the OS keychain (Electron `safeStorage`) or, where that is unavailable, in the encrypted KeyVault. They are **never** written to `data.json` — `data.json` holds only non-secret configuration.
-- **Payments / ads.** None.
-- **Source.** Open source (MIT). Desktop-only (`isDesktopOnly: true`) because the LanceDB vector backend is a native module; mobile support is on the roadmap.
-
-## Contributing
-
-PRs welcome. Before submitting:
-
-- `npm run typecheck` clean
-- `npm test` green
-- `npm run lint` reviewed
-- New features land with a vitest covering the happy path + at least one error path
-- No `console.*` in `src/` — use `plugin.logger` (eslint enforces this)
-- No new secrets in `data.json` — route through `KeyVault` via `IntegrationCredentials`
-
-## Sponsors
-
-Sauce CRM is free and open source (MIT) — no paywalled tier, no telemetry. If it
-saves you time, sponsoring keeps the roadmap moving and the integrations
-maintained. Sponsorship is **optional and never gates a feature**; per our
-guardrails there are no donation prompts inside the plugin (this section and
-`SPONSORS.md` are the only places we ask).
-
-[**❤ Sponsor on GitHub**](https://github.com/sponsors/iamdrewfortini) · see [`SPONSORS.md`](SPONSORS.md) for tiers & perks.
-
-| Tier | / month | Highlights |
-|------|---------|-----------|
-| ☕ Supporter | $5 | Sponsor badge · Discord `#supporters` |
-| 🌶️ Sponsor | $25 | + BRAT beta channel · quarterly roadmap survey |
-| 🔧 Contributor | $100 | + name in `SPONSORS.md` · quarterly roadmap call |
-| 🛠️ Maintainer | $500 | + logo here · integration request priority · direct support |
-
-Beta builds ship through [BRAT](#via-brat-for-pre-release-builds) to sponsors who
-enable the beta channel (`saucecrm.beta.enabled`, default off).
+---
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+**Author:** Drew Fortini · [github.com/Diatonic-OS](https://github.com/Diatonic-OS)

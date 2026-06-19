@@ -1,136 +1,49 @@
-# Sauce CRM — Install (build from source / local install)
+# SauceOM — Installation Guide
 
-> Latest stable: **0.4.3**. This plugin is **not yet in the Obsidian community
-> directory** — install it manually with one of the options below.
+> **SauceOM** (Sauce Operating Memory) · Version **0.5.0** · Plugin id: `sauce-crm`
+> Desktop-only · Requires Obsidian ≥ 1.5.0 (Windows, macOS, Linux)
 >
 > Repository: <https://github.com/Diatonic-OS/sauce-crm>
-> Plugin id: `sauce-crm` · Display name: **Sauce CRM** · Desktop-only · Requires Obsidian ≥ 1.5.0
+
+SauceOM is the umbrella Obsidian plugin that ships four integrated sub-features:
+**Sauce CRM** (people, organizations, touch logs), **Sauce RG** (Relationship Graph
+with map and graph views), **SauceBot** (the AI copilot), and **Sauce Brain** (the
+indexed vault memory). All sub-features live in the single `sauce-crm` plugin.
 
 ---
 
-## ⚠️ The one rule that trips everyone up
+## Network & Privacy Disclosure
 
-Obsidian requires the plugin **folder name to exactly match the manifest `id`**.
-That id is **`sauce-crm`**. The install folder must be:
+> **Required disclosure (Obsidian community policy):**
+>
+> The SauceBot AI copilot makes network calls **only** to the provider you
+> configure. The default is **LM Studio or Ollama running on localhost** — no
+> data leaves your machine until you explicitly add a cloud provider key
+> (Anthropic, OpenAI, or NVIDIA NIM). The optional paid **SauceDB** tier syncs
+> brain data to a hosted endpoint you configure. No telemetry is collected or
+> transmitted otherwise.
+
+---
+
+## The one rule that trips people up
+
+Obsidian requires the plugin folder name to **exactly match the manifest `id`**.
+That id is **`sauce-crm`**. The folder must be:
 
 ```
 <your-vault>/.obsidian/plugins/sauce-crm/
 ```
 
-Not `sauce-graph`, not `Sauce CRM` — exactly `sauce-crm`, or Obsidian silently
-won't list it.
+Not `sauceom`, not `SauceOM`, not `sauce-graph` — exactly `sauce-crm`, or
+Obsidian silently will not list it.
 
 ---
 
-## Option 0 — one-line installer (no toolchain, no manual folders)
+## Option A — Install a pre-built release (fastest, no toolchain)
 
-> The fastest path for a brand-new machine. One command detects Obsidian
-> (and offers to install it), lets you pick a vault folder with a native
-> dialog, stages the **0.4.3** plugin into it, and pre-enables it — leaving
-> exactly **one click** for you (the Restricted-Mode trust prompt, which the
-> installer is not allowed to bypass). Requires **Obsidian ≥ 1.5.0**
-> (the script offers to install it) and is **desktop-only**.
-
-**macOS / Linux:**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/install.sh | bash
-```
-
-**Windows (PowerShell):**
-
-```powershell
-irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/install.ps1 | iex
-```
-
-### Pin to a release tag (recommended for repeatable installs)
-
-Piping `main` always runs the current tip of the installer. To pin to a
-reviewed release, **replace `main` with a release tag** (e.g. `0.4.3`):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.3/installer/install.sh | bash
-```
-
-```powershell
-irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/0.4.3/installer/install.ps1 | iex
-```
-
-### Prefer not to pipe to a shell?
-
-Download the script, **read it**, then run it — same result, full transparency:
-
-```bash
-curl -fsSL -o install.sh https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/install.sh
-less install.sh        # review it
-bash install.sh
-```
-
-```powershell
-irm https://raw.githubusercontent.com/Diatonic-OS/sauce-crm/main/installer/install.ps1 -OutFile install.ps1
-notepad install.ps1    # review it
-.\install.ps1
-```
-
-### What the script actually does (step by step)
-
-1. **Detects your OS + architecture.**
-2. **Detects whether the Obsidian *app* is installed** (app bundle / package /
-   AppImage / registry — not the plugin). If found, it skips ahead.
-3. **If Obsidian is absent → it asks first (consent point #1).** It prints
-   exactly what it will install and the method, then **prompts you (default
-   *No*)**. Only on a *yes* does it install — package-manager first, with a
-   direct-download fallback, and it **waits for the install to finish**:
-   - macOS: `brew install --cask obsidian`, else the official `.dmg`.
-   - Linux: `flatpak install flathub md.obsidian.Obsidian`, else the official
-     `.AppImage` (with a `.desktop` launcher); `snap` as a last resort.
-   - Windows: `winget install Obsidian.Obsidian`, else the official `.exe`.
-   - **Decline and it stops** (Obsidian is required) with the manual download
-     link: <https://obsidian.md/download>.
-4. **Opens a folder picker** (native dialog — Finder dialog / `zenity` /
-   `kdialog` / WinForms, with a text-prompt fallback). You choose a **parent
-   folder** and a **vault name** (default `sauce-crm-vault`); it creates
-   `<parent>/<name>`. It **refuses to clobber a non-empty existing folder**.
-5. **Stages the plugin** into `<vault>/.obsidian/plugins/sauce-crm/`,
-   downloading `main.js`, `manifest.json`, `styles.css` from the **0.4.3**
-   release plus `versions.json`, and **integrity-checks each** (non-empty;
-   `manifest.json` must parse and have `id == "sauce-crm"`).
-6. **Pre-enables the plugin** by writing
-   `community-plugins.json = ["sauce-crm"]`, and **registers the vault** in
-   Obsidian's global vault list (`obsidian.json`) so it shows up — *merging*
-   into the existing file, never corrupting it.
-7. **Stops at the honest one click.** On first open, Obsidian shows a one-time
-   **"Turn off Restricted Mode → Trust author and enable plugins"** prompt.
-   That is a security boundary the installer **does not and cannot bypass** —
-   you click it once. The script offers to **open the vault now**
-   (`obsidian://open?path=…`).
-8. **Prints a summary:** Obsidian status, vault path, plugin version, the one
-   click remaining, and how to install the optional daemon
-   (see [Optional — the local daemon](#optional--the-local-daemon-04x-lightweight-runtime)).
-
-### Consent & safety summary
-
-- **Two consent points, both default-safe:** installing Obsidian (only if
-  absent, default *No*) and opening the vault at the end. No `sudo` is used
-  unless genuinely unavoidable, and only with explicit consent.
-- **Idempotent:** re-running detects an existing Obsidian install and an
-  existing vault and skips that work.
-- **Non-destructive:** it never overwrites `obsidian.json` or
-  `community-plugins.json` blindly — it parse-merges, and refuses an
-  occupied vault folder.
-- **The one thing it can't do for you:** click the Restricted-Mode trust
-  prompt. That is by design.
-
-If you'd rather do it by hand, the manual options below do the same staging
-work yourself.
-
----
-
-## Option A — install a pre-built release (fastest, no toolchain)
-
-1. Open the release: <https://github.com/Diatonic-OS/sauce-crm/releases/tag/0.4.3>
+1. Open the latest release:
+   <https://github.com/Diatonic-OS/sauce-crm/releases/tag/0.5.0>
 2. Download the three plugin assets: **`main.js`**, **`manifest.json`**, **`styles.css`**.
-   (Ignore `sauce-crm-daemon.cjs` unless you want the optional daemon — see below.)
 3. Create the plugin folder in your vault and drop the files in:
 
    ```bash
@@ -139,36 +52,41 @@ work yourself.
    ```
 
 4. In Obsidian: **Settings → Community plugins** → toggle **Restricted mode OFF**
-   if it isn't already → **Reload plugins** (or restart Obsidian) → enable **Sauce CRM**.
+   if it isn't already → **Reload plugins** (or restart Obsidian) → enable
+   **SauceOM**.
 
 ---
 
-## Option B — build from source (what you want if you're hacking on it)
+## Option B — Build from source
+
+Use this if you want to hack on the plugin, verify the build yourself, or track
+the development tip.
 
 ### Prerequisites
-- **Node.js ≥ 18** (tested on 22). `node -v` to check.
-- **git**.
-- Obsidian ≥ 1.5.0 (desktop — Windows, macOS, or Linux).
+
+- **Node.js ≥ 18** (tested on 22). Run `node -v` to check.
+- **git**
+- Obsidian ≥ 1.5.0 (desktop only)
 
 ### Steps
 
 ```bash
-# 1. clone the newest stable tag
-git clone --branch 0.4.3 --depth 1 https://github.com/Diatonic-OS/sauce-crm.git
+# 1. Clone the stable tag
+git clone --branch 0.5.0 --depth 1 https://github.com/Diatonic-OS/sauce-crm.git
 cd sauce-crm
 
-# 2. install dev dependencies (build-time only; nothing ships to the vault)
+# 2. Install dev dependencies (build-time only; nothing ships to the vault)
 npm install
 
-# 3. produce the production bundle
+# 3. Produce the production bundle
 npm run build
 ```
 
-`npm run build` runs `tsc -noEmit -skipLibCheck` then the esbuild production
-bundle. It emits four files in the repo root:
+`npm run build` runs `tsc -noEmit` for type-checking and then the esbuild
+production bundle. It emits four files in the repo root:
 
 ```
-main.js          ← the bundled plugin (~600 KB)
+main.js          ← bundled plugin
 manifest.json
 styles.css
 versions.json
@@ -182,13 +100,8 @@ mkdir -p "$DEST"
 cp main.js manifest.json styles.css versions.json "$DEST"/
 ```
 
-Then enable it: **Settings → Community plugins → Sauce CRM** (reload plugins or
+Then enable it: **Settings → Community plugins → SauceOM** (reload plugins or
 restart Obsidian first so it sees the new folder).
-
-> **Auto-deploy shortcut:** `npm run build` (and `npm run dev`) also copy the
-> artifacts into any vault that already has a `…/.obsidian/plugins/sauce-crm/`
-> folder, for the maintainer's own vaults. If your vault path isn't one of the
-> built-in targets, use the manual `cp` above — it always works.
 
 ### Live-iterate (watch mode)
 
@@ -196,39 +109,83 @@ restart Obsidian first so it sees the new folder).
 npm run dev     # esbuild watch — rebuilds main.js on every save
 ```
 
-With the plugin folder in place, toggle Sauce CRM off/on in Settings (or
+With the plugin folder in place, toggle SauceOM off/on in Settings (or
 `Cmd/Ctrl+R` → "Reload app without saving") to pick up each rebuild. If the
 [Hot Reload](https://github.com/pjeby/hot-reload) community plugin is installed,
 it reloads automatically.
 
 ---
 
-## First run
+## Requirements
 
-1. Enable the plugin in **Settings → Community plugins**.
-2. Open the command palette (`Cmd/Ctrl+P`) and run **`Sauce CRM: Onboarding Wizard`**
-   — it scaffolds the vault, sets up the encrypted KeyVault, and configures your
-   AI provider. Or, for a bare scaffold, run **`Sauce CRM: Initialize Vault`**
-   (idempotent — it diffs `CLAUDE.md` and offers an addendum rather than
-   overwriting).
-3. Multi-vault federation (optional): run **`Sauce CRM: Initialize Parent Vault`**
-   at the parent folder, then **`Sauce CRM: Register SubVault`** per child vault.
-4. Curious about load time? **`Sauce CRM: Show boot timing`** reports the
-   per-segment startup breakdown.
+| Requirement | Minimum |
+|---|---|
+| Obsidian | 1.5.0 |
+| Platform | Desktop only (Windows, macOS, Linux) |
+| Node.js (build from source only) | 18 |
 
-All AI/network features are **off by default**; nothing leaves your machine until
-you enable a feature and supply your own credentials. Keys are stored in your OS
-keychain or the encrypted KeyVault — never in `data.json`.
+Mobile is **not supported** (`isDesktopOnly: true`).
 
 ---
 
-## Optional — the local daemon (0.4.x lightweight runtime)
+## First run
+
+1. Enable the plugin in **Settings → Community plugins**.
+2. **Sauce Brain auto-builds in the background** on first startup (triggered on
+   `onLayoutReady`). It builds a lexicon, taxonomy, fractal folder lattice, and
+   symmetric relationship matrix from your vault, then persists the result to
+   `_brain/` inside your vault. Nothing is sent off-device during this step.
+3. Open the command palette (`Cmd/Ctrl+P`) and run
+   **`SauceOM: Onboarding Wizard`** — it scaffolds the vault, sets up the
+   encrypted KeyVault, and guides you through picking an AI provider.
+   Alternatively, run **`SauceOM: Initialize Vault`** for a bare scaffold
+   (idempotent — it diffs existing config and offers an addendum rather than
+   overwriting).
+
+### Picking an AI provider
+
+All AI/network features are **off by default**. To enable SauceBot:
+
+- **Local (recommended default):** start [LM Studio](https://lmstudio.ai/) or
+  [Ollama](https://ollama.com/) on your machine, then select it in
+  **Settings → SauceOM → Copilot → Provider**. Zero cloud calls; everything
+  runs on localhost.
+- **Cloud:** open Settings → SauceOM → Copilot, choose Anthropic, OpenAI, or
+  NVIDIA NIM, and add your API key. Keys are stored in your OS keychain or the
+  encrypted KeyVault — **never** in `data.json` or any plaintext file.
+
+Credentials can also be managed from inside the SauceBot chat view via the
+icon control panel (provider and model pickers as icon buttons → floating
+dropdowns).
+
+### Multi-vault federation (optional)
+
+Run **`SauceOM: Initialize Parent Vault`** at the parent folder, then
+**`SauceOM: Register SubVault`** for each child vault.
+
+---
+
+## What each sub-feature does
+
+| Sub-feature | What it provides |
+|---|---|
+| **Sauce CRM** | People and organization notes, touch logs, and addendum records with a tamper-evident HMAC-chained audit trail |
+| **Sauce RG** | Relationship Graph — interactive graph and map views across your vault entities |
+| **SauceBot** | AI copilot chat with local-first LM Studio/Ollama support and optional cloud providers; rich model picker showing context size, quantization, load status, tool capability, and vision support |
+| **Sauce Brain** | Deterministic "snowflake matrix" built from the vault — lexicon, taxonomy, folder lattice, path/relationship matrix, and per-entity crystal digests; rebuilds incrementally on edits; persists under `_brain/` |
+
+---
+
+## Optional — the local daemon (lightweight background runtime)
 
 The plugin works fully standalone. For larger vaults you can run the optional
-**`sauce-crm-daemon`**, which moves the vector store, indexing, and compaction
-out of Obsidian's UI process (the renderer becomes a thin, HMAC-authenticated
-localhost client). It is a **separate, self-hosted artifact** — never installed
-by the plugin, never part of the community-directory submission.
+**`sauce-crm-daemon`**, which moves vector store operations, indexing, and
+compaction out of Obsidian's UI process. The renderer then acts as a thin,
+HMAC-authenticated localhost client.
+
+The daemon is a **separate, self-hosted artifact** — it is never installed
+automatically by the plugin and is not part of the community directory
+submission.
 
 Build it from the same checkout:
 
@@ -236,30 +193,29 @@ Build it from the same checkout:
 npm run daemon:build          # → daemon/dist/sauce-crm-daemon.cjs
 ```
 
-Then install it as a background service for your OS (each script is opt-in, needs
-no `sudo` on Linux/macOS, and downloads nothing):
+Then install it as a background service for your OS (each script is opt-in,
+requires no `sudo` on Linux/macOS, and downloads nothing external):
 
 | OS | Installer |
-|----|-----------|
+|---|---|
 | Linux (systemd user unit) | `daemon/packaging/linux/install.sh` |
 | macOS (launchd LaunchAgent) | `daemon/packaging/macos/install.sh` |
 | Windows (Scheduled Task) | `daemon/packaging/windows/install.ps1` |
 | Windows + WSL2 | `daemon/packaging/windows-wsl2/install-wsl.ps1` |
 
 Each packaging folder has its own `README.md`. Once the daemon is running
-(`curl http://127.0.0.1:8788/health`), enable it in **Settings → Sauce CRM →
-Local daemon** and pair it. Security details and the capability-by-capability
-guard map live in [`docs/REVIEWER-NOTES.md`](docs/REVIEWER-NOTES.md).
+(`curl http://127.0.0.1:8788/health`), enable it in
+**Settings → SauceOM → Local daemon** and pair it.
 
 ---
 
 ## Verify your build
 
 ```bash
-npm run typecheck     # tsc -noEmit, should print nothing
-npm test              # vitest — full suite should pass
+npm run typecheck     # tsc -noEmit — should print nothing
+npm test              # vitest full suite
 npm run build         # esbuild production bundle
-ls -lh main.js        # ~600 KB
+ls -lh main.js        # bundled output
 ```
 
 ---
@@ -269,8 +225,8 @@ ls -lh main.js        # ~600 KB
 ```bash
 cd sauce-crm
 git fetch --tags
-git checkout <new-tag>     # e.g. 0.4.3, or `git checkout main` for the tip
-npm install               # in case deps changed
+git checkout <new-tag>     # e.g. 0.5.0, or `git checkout main` for the tip
+npm install                # in case dependencies changed
 npm run build
 cp main.js manifest.json styles.css versions.json "<your-vault>/.obsidian/plugins/sauce-crm"/
 ```
@@ -287,20 +243,19 @@ Delete the plugin folder:
 rm -rf "<your-vault>/.obsidian/plugins/sauce-crm"
 ```
 
-Your notes are untouched — every person, org, touch, and addendum is a plain
-Obsidian Markdown file in your vault. If you ran the daemon, stop/remove it with
-the `uninstall` script in the matching `daemon/packaging/<os>/` folder.
+Your notes are untouched — every person, org, touch log, and addendum is a
+plain Obsidian Markdown file in your vault. If you ran the daemon, stop and
+remove it with the `uninstall` script in the matching
+`daemon/packaging/<os>/` folder.
 
 ---
 
 ## Troubleshooting
 
-- **Plugin doesn't appear in the list** → the folder name must be exactly
-  `sauce-crm` and must contain `main.js` + `manifest.json`. Reload plugins.
-- **"Could not resolve node:…" during build** → you're on a stale checkout;
-  `git pull` to 0.4.3+ (a build-hygiene fix for the renderer bundle landed there).
-- **`npm install` is slow / pulls native modules** → expected; the vector
-  backend (`@lancedb/lancedb`) is an optional native dep used only on desktop.
-  The plugin runs with lexical + graph search if it's absent.
-- **Mobile** → not supported (`isDesktopOnly: true`); the vector backend and the
-  daemon are native/desktop-only.
+| Symptom | Fix |
+|---|---|
+| Plugin does not appear in the list | The folder name must be exactly `sauce-crm` and must contain `main.js` + `manifest.json`. Reload plugins. |
+| `npm install` is slow or pulls native modules | Expected — the vector backend (`@lancedb/lancedb`) is an optional native dependency used only on desktop. The plugin runs with lexical and graph search if it is absent. |
+| Sauce Brain did not build | Open the command palette and run **`SauceOM: Initialize Vault`** to trigger a manual rebuild. Check that `_brain/` exists in your vault afterward. |
+| SauceBot shows no models | Confirm LM Studio (or Ollama) is running and its API server is enabled. The model picker queries the LM Studio `/api/v0` endpoint; if the endpoint is unreachable the list will be empty. |
+| Mobile | Not supported (`isDesktopOnly: true`). The vector backend and daemon are native/desktop-only. |
