@@ -3033,6 +3033,7 @@ export default class SauceGraphPlugin extends Plugin {
    *  Best-effort; failures degrade to local-only and surface a Notice. */
   private async syncBrainToSauceDb(manifest: unknown): Promise<void> {
     if (!this.sauceDb) return;
+    const act = activity.start("SauceDB: syncing brain to hosted edge…");
     let digests: Record<string, unknown> | undefined;
     try {
       const p = `${this.settings.brainFolder ?? "_brain"}/brain-crystal.json`;
@@ -3046,11 +3047,8 @@ export default class SauceGraphPlugin extends Plugin {
       manifest,
       ...(digests ? { digests } : {}),
     });
-    new Notice(
-      r.ok
-        ? "SauceDB: brain synced to your hosted edge."
-        : "SauceDB: " + r.detail,
-    );
+    if (r.ok) act.succeed("SauceDB: brain synced to your hosted edge.");
+    else act.fail("SauceDB: " + r.detail);
   }
 
   /** Build a BrainFile view of a note from the metadata cache. */
@@ -3469,14 +3467,24 @@ export default class SauceGraphPlugin extends Plugin {
       {}) as Record<string, unknown>;
     const type = String(fm["type"] ?? "");
     if (!type) return;
-    const raw = await this.app.vault.cachedRead(file);
-    const input: EnrichmentInput = {
-      path: file.path,
-      type,
-      frontmatter: fm,
-      body: raw.replace(/^---\n[\s\S]*?\n---\n?/, ""),
-    };
-    await this.enrichment.enrich(input);
+    // Realtime alert: enrichment is a background AI task on the note's content.
+    const act = activity.start(`SauceBot: enriching ${file.basename}…`);
+    try {
+      const raw = await this.app.vault.cachedRead(file);
+      const input: EnrichmentInput = {
+        path: file.path,
+        type,
+        frontmatter: fm,
+        body: raw.replace(/^---\n[\s\S]*?\n---\n?/, ""),
+      };
+      await this.enrichment.enrich(input);
+      act.succeed(`Enriched ${file.basename}`, 2500);
+    } catch (e) {
+      act.fail(
+        "Enrichment failed: " +
+          (e instanceof Error ? e.message : String(e)).slice(0, 100),
+      );
+    }
   }
 
   /** Harvest a file into the RAG document store (T7): extract → chunk → embed
