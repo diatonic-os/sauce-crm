@@ -2,7 +2,7 @@
 // Svelte, collect vault rows, unmount on close) so we factor them here
 // to keep main.ts's view registrations small.
 
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import { mount, unmount } from "svelte";
 import TasksDashboard from "../../svelte/TasksDashboard.svelte";
 import InboxDashboard from "../../svelte/InboxDashboard.svelte";
@@ -30,10 +30,19 @@ abstract class SvelteDashboardView extends ItemView {
       this.svelteApp = undefined;
     }
   }
-  protected open(path: string): void {
-    this.plugin.app.workspace.openLinkText(path, "", false).catch(() => {
-      /* ignore */
-    });
+  /** Resolve a vault `path` to a real `TFile` and open it. Named `openPath`
+   *  (NOT `open`) deliberately: `open` is reserved by Obsidian's `View` base
+   *  class — defining it here shadows the internal `View.open(eState)` that the
+   *  workspace calls during leaf activation, which fed a state object into
+   *  `openLinkText` and crashed (`e.toLowerCase is not a function`), leaving the
+   *  dashboard blank. Mirrors CalendarView.openPath's resolve-and-guard pattern:
+   *  a missing/stale path resolves to nothing rather than a phantom tab. */
+  protected openPath(path: string): void {
+    const f = this.plugin.app.vault.getAbstractFileByPath(path);
+    if (f instanceof TFile) {
+      void this.plugin.app.workspace.getLeaf(false).openFile(f);
+    }
+    // else: path no longer resolves to a file — nothing to open.
   }
 }
 
@@ -61,7 +70,7 @@ export class TasksView extends SvelteDashboardView {
       target: this.contentEl,
       props: {
         rows: this.collectTaskRows(),
-        onOpenPath: (p: string) => this.open(p),
+        onOpenPath: (p: string) => this.openPath(p),
         onMarkDone: async (p: string) => {
           const f = this.plugin.app.vault.getAbstractFileByPath(p);
           if (f && "extension" in f && f.extension === "md") {
@@ -129,7 +138,7 @@ export class InboxView extends SvelteDashboardView {
       target: this.contentEl,
       props: {
         rows: this.collectInboxRows(),
-        onOpenPath: (p: string) => this.open(p),
+        onOpenPath: (p: string) => this.openPath(p),
       },
     });
   }
@@ -200,7 +209,7 @@ export class LedgerView extends SvelteDashboardView {
       target: this.contentEl,
       props: {
         rows: this.collectLedgerRows(),
-        onOpenPath: (p: string) => this.open(p),
+        onOpenPath: (p: string) => this.openPath(p),
       },
     });
   }
