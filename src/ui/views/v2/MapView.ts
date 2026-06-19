@@ -4,6 +4,7 @@
 import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_MAP: ViewTypeId = asViewTypeId("sauce-map");
 
@@ -19,6 +20,7 @@ interface Plot {
 export class MapView extends ItemView {
   private canvas!: HTMLCanvasElement;
   private plots: Plot[] = [];
+  private help!: SauceViewHelp;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -41,12 +43,23 @@ export class MapView extends ItemView {
     root.empty();
     root.addClass("sauce-view");
     root.addClass("sauce-map");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Map",
+      icon: "map",
+      subtitle: "Geo-coded people and orgs on a map",
+    });
     root.createEl("h2", { text: "Map" });
     const note = root.createEl("p", { cls: "sauce-view-desc" });
 
     this.canvas = root.createEl("canvas", {
       cls: "sauce-map-canvas",
     }) as HTMLCanvasElement;
+    this.help.register(
+      this.canvas,
+      "Map canvas",
+      "Each dot is a person or organization with coordinates; click one to open its note.",
+    );
     this.canvas.width = this.canvas.offsetWidth || 800;
     this.canvas.height = 500;
     this.canvas.onclick = (ev) => {

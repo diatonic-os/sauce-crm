@@ -2,6 +2,7 @@
 import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_AUDIT_LOG: ViewTypeId = asViewTypeId("sauce-audit-log");
 
@@ -9,6 +10,7 @@ const PAGE_SIZE = 50;
 
 export class AuditLogView extends ItemView {
   private page = 0;
+  private help!: SauceViewHelp;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -39,7 +41,12 @@ export class AuditLogView extends ItemView {
     root.empty();
     root.addClass("sauce-view");
     root.addClass("sauce-audit-log");
-    root.createEl("h2", { text: "Audit Log" });
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Audit Log",
+      icon: "shield",
+      subtitle: "Tamper-evident log of every change",
+    });
 
     const audit = this.plugin.v2?.auditLog ?? null;
     if (!audit) {
@@ -57,11 +64,21 @@ export class AuditLogView extends ItemView {
     refreshBtn.onclick = () => {
       void this.render();
     };
+    this.help.register(
+      refreshBtn,
+      "Refresh",
+      "Reload the audit log to show the most recent entries.",
+    );
 
     const verifyBtn = toolbar.createEl("button", {
       cls: "sauce-button sauce-button-secondary",
       text: "Verify Chain",
     });
+    this.help.register(
+      verifyBtn,
+      "Verify Chain",
+      "Check that no audit entries have been altered or removed since they were written.",
+    );
     verifyBtn.onclick = async () => {
       try {
         const fn = (

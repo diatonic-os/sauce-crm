@@ -3,6 +3,7 @@ import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import type { Change } from "../../../sync";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_SYNC_STATUS: ViewTypeId = asViewTypeId("sauce-sync-status");
 
@@ -12,6 +13,7 @@ export class SyncStatusView extends ItemView {
   private refreshTimer: number | null = null;
   private ring: Change[] = [];
   private unsubscribe: (() => void) | null = null;
+  private help!: SauceViewHelp;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -59,7 +61,12 @@ export class SyncStatusView extends ItemView {
     root.empty();
     root.addClass("sauce-view");
     root.addClass("sauce-sync-status");
-    root.createEl("h2", { text: "Sync Status" });
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Sync Status",
+      icon: "refresh-cw",
+      subtitle: "Monitor sync jobs and recent changes",
+    });
 
     const engine = this.plugin.v2?.sync ?? null;
     if (!engine) {
@@ -68,26 +75,46 @@ export class SyncStatusView extends ItemView {
     }
 
     const toolbar = root.createDiv({ cls: "sauce-sync-toolbar" });
-    toolbar.createEl("button", { cls: "sauce-button", text: "Start" }).onclick =
-      () => {
-        engine.start();
-        new Notice("Sync engine started");
-      };
-    toolbar.createEl("button", {
+    const startBtn = toolbar.createEl("button", {
+      cls: "sauce-button",
+      text: "Start",
+    });
+    startBtn.onclick = () => {
+      engine.start();
+      new Notice("Sync engine started");
+    };
+    const stopBtn = toolbar.createEl("button", {
       cls: "sauce-button sauce-button-secondary",
       text: "Stop",
-    }).onclick = () => {
+    });
+    stopBtn.onclick = () => {
       engine.stop();
       new Notice("Sync engine stopped");
     };
-    toolbar.createEl("button", {
+    const syncAllBtn = toolbar.createEl("button", {
       cls: "sauce-button sauce-button-secondary",
       text: "Sync All Now",
-    }).onclick = async () => {
+    });
+    syncAllBtn.onclick = async () => {
       if (!this.plugin.integrations) return;
       const r = await this.plugin.integrations.syncAll();
       new Notice(`Manual sync: ${r.reduce((s, x) => s + x.pulled, 0)} pulled`);
     };
+    this.help.register(
+      startBtn,
+      "Start",
+      "Turns on the background sync engine so your accounts stay up to date automatically.",
+    );
+    this.help.register(
+      stopBtn,
+      "Stop",
+      "Pauses the background sync engine so nothing syncs until you start it again.",
+    );
+    this.help.register(
+      syncAllBtn,
+      "Sync All Now",
+      "Immediately pulls the latest data from every connected account once.",
+    );
 
     root.createEl("h3", { text: "Jobs" });
     const tbl = root.createEl("table", { cls: "sauce-sync-jobs" });

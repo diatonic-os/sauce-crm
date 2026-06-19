@@ -5,6 +5,7 @@
 import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_MEETINGS: ViewTypeId = asViewTypeId("sauce-crm-meetings");
 export const VIEW_LANES: ViewTypeId = asViewTypeId("sauce-crm-lanes");
@@ -19,6 +20,8 @@ interface IndexColumn {
 
 /** Shared list-over-a-folder view. Subclasses declare the folder + columns. */
 abstract class FolderIndexView extends ItemView {
+  private help!: SauceViewHelp;
+
   constructor(
     leaf: WorkspaceLeaf,
     public plugin: SauceGraphPlugin,
@@ -41,10 +44,25 @@ abstract class FolderIndexView extends ItemView {
     this.render();
   }
 
+  /** Plain-English description shown under the title in the Sauce header. */
+  protected subtitle(): string {
+    return "Notes indexed from a vault folder";
+  }
+
   private render(): void {
     const root = this.contentEl;
     root.empty();
-    root.createEl("h3", { text: this.getDisplayText() });
+
+    const title = this.getDisplayText()
+      .replace(/^Sauce CRM\s*[—-]\s*/, "")
+      .replace(/^Sauce:\s*/, "")
+      .replace(/^Sauce\s+/, "");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title,
+      icon: this.getIcon(),
+      subtitle: this.subtitle(),
+    });
 
     const rows = this.collectRows();
     if (rows.length === 0) {
@@ -135,6 +153,9 @@ export class MeetingsView extends FolderIndexView {
   override getIcon(): string {
     return "calendar-clock";
   }
+  protected override subtitle(): string {
+    return "Your logged meetings, newest first";
+  }
   protected folder(): string {
     return this.plugin.entityService.paths.meetings;
   }
@@ -156,6 +177,9 @@ export class LanesView extends FolderIndexView {
   }
   override getIcon(): string {
     return "rows-3";
+  }
+  protected override subtitle(): string {
+    return "Your work lanes, grouped by status";
   }
   protected folder(): string {
     return this.plugin.entityService.paths.lanes;
@@ -180,6 +204,9 @@ export class WeeklyView extends FolderIndexView {
   }
   override getIcon(): string {
     return "calendar-range";
+  }
+  protected override subtitle(): string {
+    return "Your weekly briefing notes, newest first";
   }
   protected folder(): string {
     return this.plugin.entityService.paths.weekly;

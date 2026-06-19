@@ -117,9 +117,9 @@ body.is-mobile .sauce-modal .sauce-modal-footer {
 
 /* --- Copilot view: stacked model picker, big composer above the home bar --- */
 body.is-mobile .sauce-copilot-bar { flex-direction: column; align-items: stretch; gap: var(--sg-gap-5); }
-body.is-mobile .sauce-cp-models { flex-direction: column; align-items: stretch; }
-body.is-mobile .sauce-cp-field { width: 100%; }
-body.is-mobile .sauce-cp-select { max-width: none; }
+/* The icon control panel wraps to fit narrow screens (replaces the old
+   .sauce-cp-models/.sauce-cp-field select bars removed in the redesign). */
+body.is-mobile .sauce-cp-config { flex-wrap: wrap; }
 body.is-mobile .sauce-copilot-actions { justify-content: space-between; }
 body.is-mobile .sauce-copilot-input {
   flex-direction: row;

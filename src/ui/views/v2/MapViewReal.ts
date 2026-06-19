@@ -4,10 +4,12 @@
 
 import { ItemView, type Plugin, WorkspaceLeaf } from "obsidian";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_MAP_REAL: ViewTypeId = asViewTypeId("sauce-crm-map");
 
 export class MapViewReal extends ItemView {
+  private help!: SauceViewHelp;
   constructor(leaf: WorkspaceLeaf, _plugin: Plugin) {
     super(leaf);
   }
@@ -22,6 +24,12 @@ export class MapViewReal extends ItemView {
   }
   override async onOpen(): Promise<void> {
     this.contentEl.empty();
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(this.contentEl, {
+      title: "Map",
+      icon: "map",
+      subtitle: "Geographic view of your relationships",
+    });
     this.contentEl.createEl("h3", { text: "Sauce CRM Map" });
     this.contentEl.createEl("p", {
       text: "Map view — implementation pending.",

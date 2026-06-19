@@ -878,17 +878,47 @@
   gap: var(--sg-gap-8);
   box-sizing: border-box;
 }
-/* Toolbar styled as a card to match the global design language. */
+/* Slim icon control panel — a thin, low-profile row under the branded header.
+   Config icons on the left, action icons on the right; responses + the message
+   bar stay the focal points. */
 .sauce-copilot-bar {
+  flex: 0 0 auto;
+}
+.sauce-cp-panel {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sg-gap-8);
   flex-wrap: wrap;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--sg-radius-lg);
-  padding: var(--sg-gap-8) var(--sg-gap-13);
+  padding: var(--sg-gap-2) var(--sg-gap-3);
+}
+.sauce-cp-config {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-gap-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+/* Backing <select>s are kept in the DOM (state + onchange) but visually
+   removed — the floating dropdowns drive them. */
+.sauce-cp-backing {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+  margin: -1px;
+}
+/* A faint vertical rule between the chat-model and embedding-model groups. */
+.sauce-cp-divider {
+  width: 1px;
+  align-self: stretch;
+  margin-inline: var(--sg-gap-3);
+  background: var(--background-modifier-border);
 }
 .sauce-copilot-titlewrap {
   display: flex;
@@ -920,32 +950,6 @@
   align-items: center;
 }
 
-/* Inline model picker (provider → model + embeddings). */
-.sauce-cp-models {
-  display: flex;
-  gap: var(--sg-gap-8);
-  flex-wrap: wrap;
-  align-items: flex-end;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.sauce-cp-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sg-gap-1);
-  min-width: 0;
-}
-.sauce-cp-field-label {
-  font-size: 0.7em;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-}
-.sauce-cp-select {
-  font-size: 0.85em;
-  max-width: var(--sg-w-233);
-}
-
 /* Icon-only toolbar buttons. */
 .sauce-cp-icon {
   display: inline-flex;
@@ -959,10 +963,96 @@
   cursor: pointer;
 }
 .sauce-cp-icon:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+/* Slim control-panel config icons are a touch smaller than action icons. */
+.sauce-cp-panel-icon {
+  width: 30px;
+  height: 30px;
+}
+.sauce-cp-panel-icon svg { width: 16px; height: 16px; }
 .sauce-cp-send { color: var(--interactive-accent); }
 .sauce-copilot-mic.is-listening {
   color: var(--text-on-accent);
   background: var(--interactive-accent);
+}
+
+/* ---------- Borderless floating dropdown (icon-driven selectors) ---------- */
+.sauce-fd {
+  position: fixed;
+  z-index: var(--layer-menu, 100);
+  min-width: var(--sg-w-233);
+  max-width: min(var(--sg-w-377), calc(100vw - var(--sg-gap-21)));
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--sg-gap-5);
+  border-radius: var(--sg-radius-lg);
+  background: var(--background-primary);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.18),
+    0 8px 28px rgba(0, 0, 0, 0.28);
+  /* Borderless: a hairline ring only for separation on light themes. */
+  outline: 1px solid var(--background-modifier-border-hover, rgba(128, 128, 128, 0.12));
+  outline-offset: -1px;
+  opacity: 0;
+  transform: scale(0.96) translateY(-4px);
+  transform-origin: top left;
+  transition: opacity 120ms ease, transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sauce-fd.is-open { opacity: 1; transform: scale(1) translateY(0); }
+.sauce-fd-title {
+  font-size: 0.68em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--sauce-purple);
+  padding: var(--sg-gap-3) var(--sg-gap-8) var(--sg-gap-5);
+}
+.sauce-fd-list { display: flex; flex-direction: column; gap: 1px; }
+.sauce-fd-empty {
+  color: var(--text-faint);
+  font-size: 0.85em;
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+}
+.sauce-fd-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-gap-8);
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+  border-radius: var(--sg-radius-md);
+  cursor: pointer;
+  transition: background 90ms ease;
+}
+.sauce-fd-row:hover { background: var(--background-modifier-hover); }
+.sauce-fd-row.is-active {
+  background: var(--sauce-purple-soft);
+}
+.sauce-fd-row.is-active .sauce-fd-label { color: var(--sauce-purple); font-weight: 600; }
+.sauce-fd-row.is-header {
+  cursor: default;
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  padding-block: var(--sg-gap-3);
+}
+.sauce-fd-row.is-header:hover { background: transparent; }
+.sauce-fd-badge {
+  flex: 0 0 auto;
+  color: var(--text-success, #3aa55d);
+  font-size: 0.7em;
+}
+.sauce-fd-main { min-width: 0; flex: 1 1 auto; }
+.sauce-fd-label {
+  font-size: 0.9em;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+.sauce-fd-detail {
+  font-size: 0.76em;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sauce-fd { transition: none; transform: none; }
 }
 
 /* Suggestions area (Relevant Notes + Suggested Skills) — shown when empty. */
@@ -1003,6 +1093,39 @@
   margin-bottom: var(--sg-gap-8);
   overflow-wrap: anywhere;
 }
+/* Assistant header row: role label + copy button (revealed on hover/content). */
+.sauce-copilot-msg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sg-gap-5);
+}
+.sauce-copilot-copy {
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+  height: 22px;
+  width: 22px;
+}
+.sauce-copilot-assistant:hover .sauce-copilot-copy { opacity: 0.7; }
+.sauce-copilot-copy:hover { opacity: 1 !important; }
+.sauce-copilot-copy.is-copied { color: var(--sauce-purple); opacity: 1 !important; }
+/* Realtime model-load indicator next to the model picker. */
+.sauce-cp-model-status {
+  font-size: 0.75em;
+  margin-left: var(--sg-gap-5);
+  white-space: nowrap;
+}
+.sauce-cp-model-status.is-loading {
+  color: var(--text-accent, var(--interactive-accent));
+}
+.sauce-cp-model-status.is-loading::before {
+  content: "◐ ";
+  display: inline-block;
+  animation: sauce-spin 0.9s linear infinite;
+}
+.sauce-cp-model-status.is-ok { color: var(--text-success, #3aa55d); }
+.sauce-cp-model-status.is-error { color: var(--text-error, #d33); }
+@keyframes sauce-spin { to { transform: rotate(360deg); } }
 .sauce-copilot-msg strong {
   display: block;
   font-size: 0.75em;
@@ -1025,25 +1148,119 @@
   border-left: 2px solid var(--interactive-accent);
   white-space: pre-wrap;
 }
-.sauce-copilot-input {
+/* Ephemeral provider/model status line shown above an in-flight answer
+   (connecting / loading model / retrying). Removed once content arrives. */
+.sauce-copilot-status {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: var(--sg-gap-2);
   display: flex;
+  align-items: center;
   gap: var(--sg-gap-5);
-  align-items: stretch;
-  flex-wrap: wrap;
 }
-.sauce-copilot-textarea {
-  flex: 1 1 var(--sg-w-233);
-  min-height: var(--sg-h-55);
-  resize: vertical;
-  font-family: var(--font-text);
-  padding: var(--sg-gap-8);
-  border: 1px solid var(--background-modifier-border);
+.sauce-copilot-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-accent, var(--interactive-accent));
+  animation: sauce-status-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sauce-status-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+/* Collapsible chain-of-thought from reasoning models (LM Studio qwen3 / r1). */
+.sauce-copilot-reasoning {
+  margin-bottom: var(--sg-gap-2);
+  font-size: 0.85em;
+  color: var(--text-muted);
+  border-left: 2px solid var(--background-modifier-border);
+  padding-left: var(--sg-gap-8);
+}
+.sauce-copilot-reasoning > summary {
+  cursor: pointer;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+}
+/* While streaming (open), give the live thinking a subtle pulsing marker. */
+.sauce-copilot-reasoning[open] > summary {
+  color: var(--text-accent, var(--interactive-accent));
+}
+.sauce-copilot-reasoning[open] > summary::after {
+  content: " ▊";
+  animation: sauce-status-pulse 1s ease-in-out infinite;
+}
+.sauce-copilot-reasoning-body {
+  white-space: pre-wrap;
+  margin-top: var(--sg-gap-2);
+  opacity: 0.85;
+}
+/* Inline, visible error surfaced on a failed/empty answer. */
+.sauce-copilot-error {
+  margin-top: var(--sg-gap-5);
+  padding: var(--sg-gap-5) var(--sg-gap-8);
   border-radius: var(--sg-radius-sm);
+  background: var(--background-modifier-error, rgba(220, 60, 60, 0.12));
+  color: var(--text-error, #d33);
+  font-size: 0.9em;
+  white-space: pre-wrap;
+}
+/* Send button switches to a Stop affordance while a response streams. */
+.sauce-cp-send.is-streaming {
+  background: var(--background-modifier-error, rgba(220, 60, 60, 0.15));
+  color: var(--text-error, #d33);
+}
+/* Content-aware message bar: one rounded container with the textarea flanked
+   by tiny embedded icons. The textarea auto-grows (JS sets height); the bar
+   scales with it up to a max. */
+.sauce-copilot-input {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sg-gap-3);
+  padding: var(--sg-gap-3) var(--sg-gap-5);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-lg);
   background: var(--background-primary);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.sauce-copilot-input:focus-within {
+  border-color: var(--sauce-purple);
+  box-shadow: 0 0 0 2px var(--sauce-purple-soft);
+}
+/* Embedded tool clusters sit flush at the bottom of the (growing) bar. */
+.sauce-cp-bar-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-gap-1);
+  flex: 0 0 auto;
+  padding-bottom: var(--sg-gap-2);
+}
+.sauce-cp-bar-tools .sauce-cp-icon {
+  width: 32px;
+  height: 32px;
+}
+.sauce-cp-bar-tools .sauce-cp-icon svg { width: 17px; height: 17px; }
+.sauce-copilot-textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  min-height: var(--sg-h-34);
+  max-height: var(--sg-h-144);
+  resize: none;
+  overflow-y: auto;
+  font-family: var(--font-text);
+  line-height: 1.4;
+  padding: var(--sg-gap-8) var(--sg-gap-5);
+  border: none;
+  background: transparent;
   color: var(--text-normal);
 }
+.sauce-copilot-textarea:focus { outline: none; box-shadow: none; }
 .sauce-copilot-mic {
-  min-width: var(--sg-tap-min);
   font-size: 1.1em;
 }
 .sauce-copilot-mic.is-listening {
@@ -1057,6 +1274,140 @@
 }
 .sauce-clickable { cursor: pointer; }
 
+/* ---------- Sauce view header + branding (all views) ---------- */
+:root {
+  --sauce-purple: #a855f7;
+  --sauce-purple-soft: rgba(168, 85, 247, 0.14);
+}
+.sauce-view-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-gap-8);
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: var(--sg-gap-8);
+}
+.sauce-view-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-gap-8);
+  min-width: 0;
+}
+.sauce-view-brand-icon {
+  display: inline-flex;
+  color: var(--sauce-purple);
+}
+.sauce-view-titles { min-width: 0; }
+.sauce-view-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sg-gap-5);
+}
+.sauce-view-title {
+  font-weight: 700;
+  font-size: 1.02em;
+  color: var(--text-normal);
+}
+/* The persistent "Sauce" mark so every view reads as a Sauce component. */
+.sauce-view-mark {
+  font-size: 0.62em;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--sauce-purple);
+  border: 1px solid var(--sauce-purple);
+  border-radius: var(--sg-radius-sm);
+  padding: 1px 5px;
+}
+.sauce-view-subtitle {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+/* Help "?" toggle — top-left; white when off, Sauce purple when on. */
+.sauce-help-toggle {
+  flex: 0 0 auto;
+  color: var(--text-normal);
+  --icon-color: var(--text-normal);
+  transition: color 120ms ease, background 120ms ease;
+}
+/* On: Sauce purple. Override Obsidian's --icon-color (which drives the glyph)
+   and the svg currentColor with !important to win over .clickable-icon. */
+.sauce-help-toggle.is-on,
+.sauce-help-toggle.is-on svg {
+  color: var(--sauce-purple) !important;
+  --icon-color: var(--sauce-purple);
+  background: var(--sauce-purple-soft);
+}
+/* Per-field / per-setting helper callout, injected on toggle. */
+.sauce-help-callout {
+  flex-basis: 100%;
+  display: flex;
+  gap: var(--sg-gap-5);
+  align-items: flex-start;
+  margin: var(--sg-gap-2) 0 var(--sg-gap-8);
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+  border-left: 2px solid var(--sauce-purple);
+  background: var(--sauce-purple-soft);
+  border-radius: var(--sg-radius-sm);
+  font-size: 0.85em;
+  animation: sauce-help-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--sauce-help-delay, 0ms);
+}
+.sauce-help-q {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sauce-purple);
+  color: #fff;
+  font-size: 0.7em;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.sauce-help-text strong {
+  display: block;
+  color: var(--text-normal);
+  margin-bottom: 1px;
+}
+.sauce-help-body { color: var(--text-muted); }
+@keyframes sauce-help-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sauce-help-callout { animation: none; }
+}
+
+/* ---------- Sauce Brain dashboard (BrainView) ---------- */
+.sauce-brain {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.sauce-brain-bar {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.sauce-brain-tenant {
+  max-width: 240px;
+}
+.sauce-brain-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  background: #0a0a09;
+}
+.sauce-brain-empty {
+  padding: 2em;
+  color: var(--text-muted);
+}
+
 /* ---------- Mobile breakpoint (< 640px) ---------- */
 
 @media (max-width: 640px) {
@@ -1067,8 +1418,10 @@
   .sauce-button, .sauce-button-secondary, .sauce-button-danger {
     flex: 1 1 var(--sg-w-89);
   }
-  .sauce-copilot-input { flex-direction: column; }
-  .sauce-copilot-textarea { width: 100%; }
+  /* The message bar stays a single row even on phones — icons just hug the
+     edges of the growing textarea. */
+  .sauce-cp-panel { gap: var(--sg-gap-3); }
+  .sauce-fd { max-width: calc(100vw - var(--sg-gap-21)); }
   .sauce-table { font-size: 0.85em; }
 }
 

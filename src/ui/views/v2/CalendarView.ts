@@ -8,11 +8,13 @@ import Calendar from "../../svelte/Calendar.svelte";
 import type { CalendarEvent } from "../../svelte/CalendarTypes";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_CALENDAR: ViewTypeId = asViewTypeId("sauce-crm-calendar");
 
 export class CalendarView extends ItemView {
   private svelteApp: ReturnType<typeof mount> | undefined;
+  private help!: SauceViewHelp;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -34,6 +36,12 @@ export class CalendarView extends ItemView {
   override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(this.contentEl, {
+      title: "Calendar",
+      icon: "sauce-touch",
+      subtitle: "Touches, tasks, and followups by date",
+    });
     const events = this.collectEvents();
     this.svelteApp = mount(Calendar, {
       target: this.contentEl,

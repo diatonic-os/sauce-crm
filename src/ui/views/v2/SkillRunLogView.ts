@@ -2,6 +2,7 @@
 import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_SKILL_RUN_LOG: ViewTypeId = asViewTypeId(
   "sauce-skill-run-log",
@@ -34,6 +35,7 @@ class SkillRunRing {
 export const skillRunRing = SkillRunRing.instance;
 
 export class SkillRunLogView extends ItemView {
+  private help!: SauceViewHelp;
   constructor(
     leaf: WorkspaceLeaf,
     public plugin: SauceGraphPlugin,
@@ -63,6 +65,12 @@ export class SkillRunLogView extends ItemView {
     root.empty();
     root.addClass("sauce-view");
     root.addClass("sauce-skill-run-log");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Skill Run Log",
+      icon: "play",
+      subtitle: "Recent skill runs and their outcomes",
+    });
     root.createEl("h2", { text: "Skill Run Log" });
 
     const toolbar = root.createDiv({ cls: "sauce-skill-run-toolbar" });
@@ -73,11 +81,21 @@ export class SkillRunLogView extends ItemView {
     refreshBtn.onclick = () => {
       this.render();
     };
+    this.help.register(
+      refreshBtn,
+      "Refresh",
+      "Reload the list to show the latest skill runs.",
+    );
 
     const clearBtn = toolbar.createEl("button", {
       cls: "sauce-button sauce-button-secondary",
       text: "Clear",
     });
+    this.help.register(
+      clearBtn,
+      "Clear",
+      "Empty the run log, removing all recorded skill runs.",
+    );
     clearBtn.onclick = () => {
       try {
         skillRunRing.clear();

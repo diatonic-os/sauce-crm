@@ -62,6 +62,64 @@ export class ToolUseAdapter {
     }));
   }
 
+  /**
+   * Build a plain-text description of the available tools for INJECTION into a
+   * local model's system prompt. Cloud models (Anthropic/OpenAI) are reliably
+   * driven by the structured `tools` array alone, but small local models
+   * (qwen3 / llama-3 via LM Studio) follow tool schemas far better when the
+   * schema is ALSO spelled out in prose with an explicit one-shot example and a
+   * hard rule ("emit ONLY the tool call"). This closes a large slice of the
+   * local-vs-cloud tool-use gap. Returns "" when no tools are registered.
+   */
+  localToolPrompt(): string {
+    const tools = this.asTools();
+    if (tools.length === 0) return "";
+    const lines: string[] = [
+      "## Tools available",
+      "You can call the following tools. To call a tool, emit a function/tool",
+      "call (the host parses it) — do NOT describe the call in prose, and do",
+      "NOT wrap it in a Markdown code fence. When you decide to call a tool,",
+      "your reply for that turn MUST contain ONLY the tool call and no other",
+      "text. After the tool result comes back, continue normally.",
+      "",
+    ];
+    for (const t of tools) {
+      const schema = t.inputSchema as {
+        properties?: Record<string, { type?: string; description?: string }>;
+        required?: string[];
+      };
+      const props = schema.properties ?? {};
+      const required = new Set(schema.required ?? []);
+      const args = Object.entries(props)
+        .map(([name, p]) => {
+          const req = required.has(name) ? " (required)" : "";
+          const desc = p.description ? ` — ${p.description}` : "";
+          return `    - ${name}: ${p.type ?? "string"}${req}${desc}`;
+        })
+        .join("\n");
+      lines.push(`- \`${t.name}\`: ${t.description}`);
+      if (args) lines.push(args);
+    }
+    // One-shot example grounds the expected JSON-args shape for weak models.
+    const first = tools[0];
+    if (first) {
+      const props =
+        (first.inputSchema as { properties?: Record<string, unknown> })
+          .properties ?? {};
+      const exampleArgs = Object.fromEntries(
+        Object.keys(props)
+          .slice(0, 2)
+          .map((k) => [k, "…"]),
+      );
+      lines.push(
+        "",
+        "Example — to call a tool, emit a call equivalent to:",
+        `  ${first.name}(${JSON.stringify(exampleArgs)})`,
+      );
+    }
+    return lines.join("\n");
+  }
+
   async dispatch(name: string, input: unknown, ctx: unknown): Promise<unknown> {
     const skill = this.skills.get(name);
     if (!skill) throw new Error(`unknown tool: ${name}`);

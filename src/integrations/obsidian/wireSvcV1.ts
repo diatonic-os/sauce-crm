@@ -11,7 +11,7 @@
 // returning fabricated data.
 
 import type { App } from "obsidian";
-import { TFile } from "obsidian";
+import { TFile, requestUrl } from "obsidian";
 
 import { ObsidianPluginRegistry } from "./ObsidianPluginRegistry";
 import {
@@ -307,7 +307,6 @@ function contentHost(app: App): ContentHost {
     },
     present: () => Promise.reject(NOT_AVAILABLE("Slides presentation")),
     fetchWeb: async (url) => {
-      const { requestUrl } = await import("obsidian");
       const r = await requestUrl({ url });
       return r.text;
     },

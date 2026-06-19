@@ -73,6 +73,26 @@ describe("OpenAICompatibleProvider — batch path", () => {
     expect((events[2] as { reason: string }).reason).toBe("end_turn");
   });
 
+  it("emits reasoning_content (batch) so reasoning-only replies are not blank", async () => {
+    const host = new ProviderHostMock();
+    host.route("/chat/completions", {
+      status: 200,
+      body: JSON.stringify({
+        choices: [
+          { message: { content: "", reasoning_content: "thinking…" }, finish_reason: "stop" },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }),
+    });
+    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1" });
+    const events = await collect(
+      p.complete({ model: "deepseek-r1", messages: [{ role: "user", content: "hi" }] }),
+    );
+    const reasoning = events.find((e) => e.type === "reasoning") as { delta: string } | undefined;
+    expect(reasoning?.delta).toBe("thinking…");
+    expect(events.some((e) => e.type === "text")).toBe(false);
+  });
+
   it("maps req.messages with a tool_call_id key and prepends the system prompt", async () => {
     const host = new ProviderHostMock();
     host.route("/chat/completions", {
@@ -147,6 +167,55 @@ describe("OpenAICompatibleProvider — SSE streaming", () => {
     expect(tu.name).toBe("log_touch");
     expect(tu.input).toEqual({ contact: "alice" });
     expect((events.find((e) => e.type === "done") as { reason: string }).reason).toBe("tool_use");
+  });
+
+  it("surfaces reasoning_content as a `reasoning` event, distinct from text", async () => {
+    // Reasoning models (LM Studio qwen3 / deepseek-r1) stream their thinking in
+    // delta.reasoning_content. Without this, a model that puts its whole reply
+    // there (empty content) renders blank — the "can't send messages" symptom.
+    const host = new ProviderHostMock();
+    const lines = [
+      `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: "Let me think" }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: " about it." }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "PONG" }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 4 } })}\n\n`,
+      `data: [DONE]\n\n`,
+    ];
+    host.routeStream("/chat/completions", { status: 200, chunks: lines });
+    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1" });
+    const events = await collect(
+      p.complete({ model: "qwen3.5-9b", messages: [{ role: "user", content: "hi" }], stream: true }),
+    );
+    const reasoning = events.filter((e) => e.type === "reasoning") as Array<{ delta: string }>;
+    const texts = events.filter((e) => e.type === "text") as Array<{ delta: string }>;
+    expect(reasoning.map((r) => r.delta)).toEqual(["Let me think", " about it."]);
+    expect(texts.map((t) => t.delta)).toEqual(["PONG"]);
+  });
+
+  it("falls back to the batch (requestUrl) path when streaming fetch throws (CORS)", async () => {
+    // Inside Obsidian, native fetch() from app://obsidian.md to a local http
+    // endpoint is CORS-blocked → "Failed to fetch". The batch path (requestUrl)
+    // bypasses CORS, so a thrown stream must degrade to batch, not error.
+    const host = new ProviderHostMock();
+    host.routeStream("/chat/completions", () => {
+      throw new TypeError("Failed to fetch");
+    });
+    host.route("/chat/completions", {
+      status: 200,
+      body: JSON.stringify({
+        choices: [{ message: { content: "PONG" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }),
+    });
+    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://127.0.0.1:1234/v1" });
+    const events = await collect(
+      p.complete({ model: "m", messages: [{ role: "user", content: "hi" }], stream: true }),
+    );
+    const texts = events.filter((e) => e.type === "text") as Array<{ delta: string }>;
+    expect(texts.map((t) => t.delta)).toEqual(["PONG"]);
+    // The batch request must NOT carry stream:true (it was deleted on fallback).
+    expect(JSON.parse(host.lastRequestTo("/chat/completions")!.body!).stream).toBeUndefined();
+    expect((events.find((e) => e.type === "done") as { reason: string }).reason).toBe("end_turn");
   });
 
   it("yields done:error on HTTP 5xx in stream branch (does NOT throw)", async () => {

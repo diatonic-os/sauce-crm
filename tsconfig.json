@@ -6,7 +6,10 @@
     "module": "ESNext",
     "target": "ES2020",
     "allowJs": true,
-    "moduleResolution": "node",
+    // "bundler" (vs legacy "node") resolves modern dependency `exports` maps
+    // (vitest/vite) so the FULL lib check passes without skipLibCheck. Correct
+    // for this project since esbuild does the actual bundling.
+    "moduleResolution": "bundler",
     "importHelpers": true,
     "isolatedModules": true,
     "strict": true,
@@ -15,7 +18,6 @@
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
     "lib": ["DOM", "ES5", "ES6", "ES7", "ES2020"],
     "paths": {
       "@/*": ["src/*"]

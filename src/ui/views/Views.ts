@@ -14,6 +14,7 @@ import {
   type GraphNode,
   type GraphEdge,
 } from "../../services/GraphAtlasService";
+import { SauceViewHelp } from "../components/v2/SauceViewHelp";
 
 export const VIEW_DASHBOARD: ViewTypeId = asViewTypeId("sauce-dashboard");
 export const VIEW_PIPELINE: ViewTypeId = asViewTypeId("sauce-pipeline");
@@ -51,6 +52,7 @@ abstract class BaseView extends ItemView {
 }
 
 export class DashboardView extends BaseView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_DASHBOARD;
   }
@@ -61,6 +63,12 @@ export class DashboardView extends BaseView {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Dashboard",
+      icon: "network",
+      subtitle: "CRM command center overview",
+    });
     root.createEl("h2", { text: "Sauce CRM Command Center" });
     const people = this.plugin.entityService.allPeople();
     const orgs = this.plugin.entityService.allOrgs();
@@ -265,6 +273,7 @@ export class DashboardView extends BaseView {
 }
 
 export class PipelineKanbanView extends BaseView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_PIPELINE;
   }
@@ -275,6 +284,12 @@ export class PipelineKanbanView extends BaseView {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Pipeline",
+      icon: "network",
+      subtitle: "Deals on a stage-based kanban board",
+    });
     root.createEl("h2", { text: "Pipeline" });
     const lanes = [
       "prospect",
@@ -316,6 +331,7 @@ export class PipelineKanbanView extends BaseView {
 }
 
 export class TypedEdgeGraphView extends BaseView {
+  private help!: SauceViewHelp;
   private shell: HTMLDivElement | null = null;
   private edgeCanvas: HTMLCanvasElement | null = null;
   private nodeLayer: HTMLDivElement | null = null;
@@ -335,6 +351,12 @@ export class TypedEdgeGraphView extends BaseView {
     root.empty();
     root.addClass("sauce-view");
     root.addClass("sauce-graph-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Relationship Atlas",
+      icon: "network",
+      subtitle: "Live force graph of your relationships",
+    });
     root.createEl("h2", { text: "Relationship Atlas" });
     root.createEl("p", {
       cls: "sauce-view-desc",
@@ -534,6 +556,7 @@ export class TypedEdgeGraphView extends BaseView {
 }
 
 export class CompatibilityMatrixView extends BaseView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_COMPAT;
   }
@@ -544,6 +567,12 @@ export class CompatibilityMatrixView extends BaseView {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Compatibility Matrix",
+      icon: "network",
+      subtitle: "Pairwise compatibility scores between people",
+    });
     root.createEl("h2", { text: "Compatibility Matrix (top 20)" });
     const people = this.plugin.entityService.allPeople().slice(0, 20);
     const cfg = this.plugin.settings.compat_config;
@@ -580,6 +609,7 @@ export class CompatibilityMatrixView extends BaseView {
 }
 
 export class TouchHeatmapView extends BaseView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_HEATMAP;
   }
@@ -590,6 +620,12 @@ export class TouchHeatmapView extends BaseView {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Touch Heatmap",
+      icon: "network",
+      subtitle: "Daily touch activity over the past year",
+    });
     root.createEl("h2", { text: "Touch Heatmap (52 weeks)" });
     const counts = new Map<string, number>();
     for (const t of this.plugin.entityService.allTouches()) {
@@ -614,6 +650,7 @@ export class TouchHeatmapView extends BaseView {
 }
 
 export class HierarchyTreeView extends BaseView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_HIERARCHY;
   }
@@ -624,6 +661,12 @@ export class HierarchyTreeView extends BaseView {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Hierarchy",
+      icon: "network",
+      subtitle: "Parent-child tree of your organizations",
+    });
     root.createEl("h2", { text: "Org Hierarchy" });
     const orgs = this.plugin.entityService
       .allOrgs()
@@ -645,6 +688,7 @@ export class HierarchyTreeView extends BaseView {
 }
 
 export class OverdueQueueView extends BaseView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_OVERDUE;
   }
@@ -655,6 +699,12 @@ export class OverdueQueueView extends BaseView {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Overdue Queue",
+      icon: "network",
+      subtitle: "People you are overdue to follow up with",
+    });
     root.createEl("h2", { text: "Overdue Queue" });
     const today = new Date();
     const people = this.plugin.entityService
@@ -682,6 +732,7 @@ export class OverdueQueueView extends BaseView {
 }
 
 export class ParentDashboardView extends BaseView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_PARENT;
   }
@@ -692,6 +743,12 @@ export class ParentDashboardView extends BaseView {
     const root = this.contentEl;
     root.empty();
     root.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Parent Vault Dashboard",
+      icon: "network",
+      subtitle: "Federated parent and sub-vault overview",
+    });
     root.createEl("h2", { text: "ParentVault Dashboard" });
     const pv = this.plugin.registry.loadParentVault();
     if (!pv) {

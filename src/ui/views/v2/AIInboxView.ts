@@ -8,6 +8,7 @@ import type { TouchRecord } from "../../../inference/EdgeInferrer";
 import { wrapWikilink, parseWikilink } from "../../../util/Wikilink";
 import { uniq } from "../../../util/Yaml";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_AI_INBOX: ViewTypeId = asViewTypeId("sauce-ai-inbox");
 
@@ -39,6 +40,7 @@ export class AIInboxView extends ItemView {
   private engine = new InferenceEngine();
   private rows: Row[] = [];
   private selected = new Set<number>();
+  private help!: SauceViewHelp;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -61,6 +63,12 @@ export class AIInboxView extends ItemView {
     root.empty();
     root.addClass("sauce-view");
     root.addClass("sauce-ai-inbox");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "AI Inbox",
+      icon: "inbox",
+      subtitle: "Review proposed inferences",
+    });
     root.createEl("h2", { text: "AI Inbox — Proposed Inferences" });
 
     const proposals = this.gatherProposals();
@@ -82,6 +90,22 @@ export class AIInboxView extends ItemView {
       cls: "sauce-button sauce-button-secondary",
       text: "Reject selected",
     });
+
+    this.help.register(
+      selectAll,
+      "Select all",
+      "Selects every proposal in the list so you can act on them together.",
+    );
+    this.help.register(
+      acceptSel,
+      "Accept selected",
+      "Applies every checked proposal to your notes at once.",
+    );
+    this.help.register(
+      rejectSel,
+      "Reject selected",
+      "Dismisses every checked proposal without changing your notes.",
+    );
 
     const list = root.createDiv({ cls: "sauce-inbox-list" });
 

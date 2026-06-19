@@ -23,6 +23,9 @@ export interface ChatMessage {
       }>;
   name?: string;
   toolCallId?: string;
+  /** Stable per-message id (msg_…) + creation time, for trace/replay. */
+  id?: string;
+  ts?: number;
 }
 
 export interface ToolDef {
@@ -43,8 +46,21 @@ export interface CompletionRequest {
 
 export type CompletionEvent =
   | { type: "text"; delta: string }
+  // Chain-of-thought / "thinking" stream emitted by reasoning models (LM Studio
+  // qwen3 / deepseek-r1, etc.) in `reasoning_content`. Kept distinct from `text`
+  // so UIs can render it collapsed/muted; consumers that don't care ignore it.
+  // Without surfacing this, reasoning models that put their whole reply in
+  // `reasoning_content` (empty `content`) render as a blank answer.
+  | { type: "reasoning"; delta: string }
   | { type: "tool_use"; id: string; name: string; input: unknown }
   | { type: "usage"; inputTokens: number; outputTokens: number }
+  // Transient lifecycle signal for the UI (provider reachability, cold model
+  // load, retry-in-progress). Non-content; safe for any consumer to ignore.
+  | {
+      type: "status";
+      state: "connecting" | "loading" | "retrying" | "ok";
+      detail?: string;
+    }
   | {
       type: "done";
       reason: "end_turn" | "tool_use" | "max_tokens" | "stop" | "error";

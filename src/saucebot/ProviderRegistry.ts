@@ -260,6 +260,25 @@ export interface BuildProviderOpts {
 }
 
 /**
+ * When a saved/override endpoint carries no API path (just scheme://host:port),
+ * restore the path from the spec default. LM Studio's autodetect stores
+ * "http://127.0.0.1:1234" with no "/v1", which otherwise makes chat hit
+ * ".../chat/completions" → 404. A non-empty override path is left untouched
+ * (e.g. a user proxy), and non-URL strings pass through unchanged.
+ */
+export function restoreSpecPath(override: string, specDefault: string): string {
+  try {
+    const o = new URL(override);
+    if (o.pathname && o.pathname !== "/") return override.replace(/\/+$/, "");
+    const s = new URL(specDefault);
+    const path = s.pathname === "/" ? "" : s.pathname.replace(/\/+$/, "");
+    return o.origin + path;
+  } catch {
+    return override;
+  }
+}
+
+/**
  * Harness factory — maps a provider id to a concrete ISauceBotProvider via its
  * registry spec. Synchronous (the apiKey getter is resolved lazily at request
  * time inside each provider).
@@ -301,7 +320,10 @@ export function buildProvider(
           : (spec.authHeader as "bearer" | "none" | undefined);
       return new OpenAICompatibleProvider(host, {
         name: id,
-        baseUrl,
+        // A saved endpoint override often drops the API path (e.g. LM Studio's
+        // autodetect stores "http://127.0.0.1:1234" with no "/v1"), which makes
+        // chat hit ".../chat/completions" → 404. Restore the spec path here.
+        baseUrl: restoreSpecPath(baseUrl, spec.baseUrl ?? baseUrl),
         ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),
         ...(authHeader !== undefined ? { authHeader } : {}),
         ...(opts.defaultModel !== undefined
