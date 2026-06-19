@@ -24,6 +24,7 @@ import type {
 } from "./ISauceBotProvider";
 import { parseSse } from "./StreamParsers";
 import { parseToolArgs, extractTextToolCalls } from "./LocalToolParse";
+import { classifyLoadFailure } from "./ModelManager";
 
 export interface OpenAICompatSpec {
   /** Provider id (matches the registry id), surfaced as `name`. */
@@ -48,6 +49,30 @@ export interface OpenAICompatSpec {
 export class OpenAICompatibleProvider implements ISauceBotProvider {
   readonly name: string;
   models: ModelDescriptor[];
+
+  /**
+   * Optional pre-flight hook set by SauceBotRuntime: ensure the embedding model
+   * is actually loaded before embed() POSTs. Without it the embed lane silently
+   * fails (the model never JIT-loads) and the chat falls back to lexical search.
+   */
+  _ensureEmbedModel?: (
+    model: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+
+  /** Build a classified `done`/error event from a raw load-failure string. */
+  protected errorDone(
+    model: string,
+    raw: string,
+  ): Extract<CompletionEvent, { type: "done" }> {
+    const c = classifyLoadFailure(model, raw);
+    return {
+      type: "done",
+      reason: "error",
+      error: c.raw,
+      kind: c.kind,
+      userMessage: c.userMessage,
+    };
+  }
 
   constructor(
     protected readonly host: ProviderHost,
@@ -148,11 +173,7 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
             err += c;
             if (err.length > 4096) break;
           }
-          yield {
-            type: "done",
-            reason: "error",
-            error: err || `HTTP ${resp.status}`,
-          };
+          yield this.errorDone(this.modelOf(req), err || `HTTP ${resp.status}`);
           return;
         }
         type Delta = {
@@ -213,11 +234,10 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
             if (choice.finish_reason) finishReason = choice.finish_reason;
           }
         } catch (e) {
-          yield {
-            type: "done",
-            reason: "error",
-            error: e instanceof Error ? e.message : String(e),
-          };
+          yield this.errorDone(
+            this.modelOf(req),
+            e instanceof Error ? e.message : String(e),
+          );
           return;
         }
         let emittedToolCall = false;
@@ -282,7 +302,10 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
       body: JSON.stringify(body),
     });
     if (resp.status >= 400) {
-      yield { type: "done", reason: "error", error: resp.body };
+      yield this.errorDone(
+        this.modelOf(req),
+        resp.body || `HTTP ${resp.status}`,
+      );
       return;
     }
     type R = {
@@ -373,6 +396,13 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
   async embed(text: string, model: string): Promise<Float32Array> {
     if (!this.supportsEmbeddings())
       throw new Error(`${this.name} does not provide an embeddings endpoint.`);
+    // Ensure the embed model is actually loaded on its lane before POSTing —
+    // otherwise a not-loaded embedding model 4xx's and the lane goes dark.
+    if (this._ensureEmbedModel) {
+      const r = await this._ensureEmbedModel(model);
+      if (!r.ok)
+        throw new Error(r.error ?? `embed model ${model} could not be loaded`);
+    }
     const resp = await this.host.fetch(`${this.base()}/embeddings`, {
       method: "POST",
       headers: await this.headers(),

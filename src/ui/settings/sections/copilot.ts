@@ -380,10 +380,107 @@ export function renderCopilot(
   renderLocalTuning(containerEl, plugin);
   // Context distillation (TOON compaction).
   renderDistill(containerEl, plugin);
+  // Model loading/unloading management + blocked-model recovery.
+  renderModelManagement(containerEl, plugin);
   // Sauce Brain dashboard folder.
   renderBrain(containerEl, plugin);
   // Brain tier + SauceDB (hosted LanceDB edge) upgrade.
   renderSauceDb(containerEl, plugin);
+}
+
+/** Model management — keep-warm (defeat LM Studio's idle-TTL cold reloads), the
+ *  realtime embeddings lane's preferred model, and recovery of models that were
+ *  auto-blocked after a permanent load failure (unsupported arch / OOM / not
+ *  installed). The blocklist is what stops the "pick a model → fails → pick the
+ *  next doomed one" churn seen with incompatible GGUFs. */
+function renderModelManagement(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
+  containerEl.createEl("h3", {
+    text: "Model management",
+    cls: "sauce-settings-section-title",
+  });
+  const cfg = plugin.settings.copilot;
+  const save = async (): Promise<void> => {
+    await plugin.saveSettings();
+    pushCopilotUpdate(plugin);
+  };
+
+  new Setting(containerEl)
+    .setName("Keep model warm")
+    .setDesc(
+      "Periodically re-warm the active model so LM Studio's idle timeout doesn't unload it (avoids slow cold reloads). Uses a little GPU while idle.",
+    )
+    .addToggle((t) =>
+      t.setValue(cfg.keepModelWarm ?? false).onChange(async (v) => {
+        cfg.keepModelWarm = v;
+        await save();
+        plugin.copilot?.setKeepWarm(v, cfg.modelTtlSeconds ?? 240);
+      }),
+    );
+
+  new Setting(containerEl)
+    .setName("Keep-warm interval (seconds)")
+    .setDesc("How often to re-warm when 'Keep model warm' is on. Min 30.")
+    .addText((tx) =>
+      tx.setValue(String(cfg.modelTtlSeconds ?? 240)).onChange(async (v) => {
+        const n = Number(v);
+        if (Number.isFinite(n) && n >= 30) {
+          cfg.modelTtlSeconds = Math.floor(n);
+          await save();
+          if (cfg.keepModelWarm)
+            plugin.copilot?.setKeepWarm(true, cfg.modelTtlSeconds);
+        }
+      }),
+    );
+
+  new Setting(containerEl)
+    .setName("Preferred embedding model")
+    .setDesc(
+      "Model id for the realtime embeddings lane. Blank = use the RAG embed model, then the chat model.",
+    )
+    .addText((tx) =>
+      tx
+        .setPlaceholder("text-embedding-…")
+        .setValue(cfg.preferredEmbeddingModel ?? "")
+        .onChange(async (v) => {
+          const val = v.trim();
+          if (val) cfg.preferredEmbeddingModel = val;
+          else delete cfg.preferredEmbeddingModel;
+          await save();
+        }),
+    );
+
+  // Blocked models — those that permanently failed to load. Each is unblockable
+  // (e.g. after freeing GPU memory, or installing a compatible runtime build).
+  const blockWrap = containerEl.createDiv();
+  const renderBlocked = (): void => {
+    blockWrap.empty();
+    const list = cfg.disabledModels ?? [];
+    if (!list.length) {
+      blockWrap.createEl("p", {
+        text: "No blocked models. Models that fail to load (unsupported architecture, out of memory, or not installed) are auto-listed here so you can re-enable them after fixing the cause.",
+        cls: "setting-item-description",
+      });
+      return;
+    }
+    for (const id of list) {
+      new Setting(blockWrap)
+        .setName(id)
+        .setDesc("Auto-blocked after a failed load.")
+        .addButton((b) =>
+          b.setButtonText("Unblock").onClick(async () => {
+            cfg.disabledModels = (cfg.disabledModels ?? []).filter(
+              (x) => x !== id,
+            );
+            await save();
+            renderBlocked();
+          }),
+        );
+    }
+  };
+  renderBlocked();
 }
 
 /** Brain tier — Free (local JSON brain) vs SauceDB (paid hosted LanceDB edge).

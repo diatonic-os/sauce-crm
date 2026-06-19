@@ -439,13 +439,18 @@ export class SauceBotChatView extends ItemView {
       this.modelSel.createEl("option", { text: "— no models —" }).value = "";
       return;
     }
-    for (const m of models)
+    for (const m of models) {
+      // Mark models that previously failed to load (unsupported arch / OOM /
+      // missing) so the user stops re-picking a doomed model.
+      const blocked =
+        this.plugin.copilot?.modelManager?.isBlocked(m.id) ?? false;
       this.option(
         this.modelSel,
         m.id,
-        `${formatModelLabel(m)}${hint}`,
+        `${formatModelLabel(m)}${hint}${blocked ? "  · ⚠ blocked (load failed)" : ""}`,
         m.id === cur?.model,
       );
+    }
     if (!models.some((m) => m.id === cur?.model)) {
       this.modelSel.value = models[0]!.id; // models.length > 0 confirmed by early-return above
       // Persist the auto-selected model so a fresh local-first install (empty
@@ -527,7 +532,13 @@ export class SauceBotChatView extends ItemView {
       }, 4000);
     } else {
       el.addClass("is-error");
-      el.setText(`failed: ${(r?.error ?? "unreachable").slice(0, 60)}`);
+      // Prefer the classified, human-readable reason over the raw loader string;
+      // suggest the known-good fallback model when the failure is permanent.
+      const msg = r?.userMessage ?? r?.error ?? "unreachable";
+      const suffix = r?.fallback
+        ? ` — try: ${r.fallback.split("/").pop()}`
+        : "";
+      el.setText(`failed: ${msg.slice(0, 70)}${suffix}`);
     }
   }
   private async onEmbedProviderChange(): Promise<void> {

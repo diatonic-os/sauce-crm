@@ -1,5 +1,7 @@
 // SPEC §19.1 — Provider abstraction. Same surface for Anthropic / OpenAI / Ollama / OpenAI-compat.
 
+import type { LoadFailureKind } from "./ModelManager";
+
 export interface ModelDescriptor {
   id: string;
   label: string;
@@ -65,6 +67,13 @@ export type CompletionEvent =
       type: "done";
       reason: "end_turn" | "tool_use" | "max_tokens" | "stop" | "error";
       error?: string;
+      // Set on reason:"error" when a model LOAD failure is classified (see
+      // ModelManager.classifyLoadFailure). `userMessage` is a short non-developer
+      // explanation; `kind` lets UIs distinguish permanent (arch/oom/not-found)
+      // from transient; `fallback` names a known-good model to switch to.
+      kind?: LoadFailureKind;
+      userMessage?: string;
+      fallback?: string | null;
     };
 
 export interface ISauceBotProvider {

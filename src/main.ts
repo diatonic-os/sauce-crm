@@ -844,6 +844,9 @@ export default class SauceGraphPlugin extends Plugin {
       this.settings.copilot ?? COPILOT_DEFAULTS,
       this.v2?.lance?.vectors ?? null,
     );
+    // Persist immediately when the runtime discovers a model to blocklist (a
+    // permanent load failure), so the picker reflects it across reloads.
+    this.copilot.setOnSettingsChanged(() => void this.saveSettings());
     // Point the crystallized-brain digest cache at the configured brain folder.
     this.copilot.setBrainFolder(this.settings.brainFolder ?? "_brain");
     // Deterministic brain builder (lexicon/taxonomy/path-lattice). The Obsidian
@@ -3798,6 +3801,8 @@ export default class SauceGraphPlugin extends Plugin {
   override async onunload(): Promise<void> {
     // PLC-04: stop realtime handlers before any teardown begins.
     this.unloaded = true;
+    // Release the copilot keep-warm interval so a disabled plugin stops pinging.
+    this.copilot?.dispose();
     // S8: terminate any whisper child still running so a disabled plugin never
     // leaves an orphaned transcription process behind.
     try {

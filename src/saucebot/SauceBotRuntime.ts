@@ -40,6 +40,14 @@ import {
   pickBestLocalModel,
   type DistillChunk,
 } from "./Distiller";
+import {
+  ModelManager,
+  type BlocklistStore,
+  type CatalogModel as MMCatalogModel,
+  type LoadFailureKind,
+} from "./ModelManager";
+import { EmbeddingsLane } from "./EmbeddingsLane";
+import { sharedModelCatalog } from "./ModelCatalog";
 
 export interface SauceBotSettings {
   /** Provider id — derived from the ProviderRegistry (S1). Older saved
@@ -75,6 +83,18 @@ export interface SauceBotSettings {
    *  before. Auto-enabled for local providers (lmstudio/ollama) unless the
    *  caller forces it via `localTuning.enabled`. */
   localTuning?: LocalTuningSettings;
+  /** Models that permanently failed to load (unsupported arch / OOM / missing).
+   *  ModelManager appends here on a permanent failure so the picker can mark +
+   *  skip them instead of re-attempting a doomed load. User-clearable. */
+  disabledModels?: string[];
+  /** When on, periodically warm the active model so LM Studio's idle TTL doesn't
+   *  unload it (kills the cold-reload latency). Off by default. */
+  keepModelWarm?: boolean;
+  /** Re-warm cadence (seconds) when keepModelWarm is on. Default 240. */
+  modelTtlSeconds?: number;
+  /** Override the embedding model id for the realtime embeddings lane; falls
+   *  back to embedModel, then the chat model. */
+  preferredEmbeddingModel?: string;
 }
 
 /** Knobs for closing the local-vs-cloud quality gap. Cloud providers ignore
@@ -152,6 +172,9 @@ export const COPILOT_DEFAULTS: SauceBotSettings = {
     toolRepairReask: true,
     emptyAnswerRetry: true,
   },
+  disabledModels: [],
+  keepModelWarm: false,
+  modelTtlSeconds: 240,
 };
 
 export class SauceBotRuntime {
@@ -159,6 +182,16 @@ export class SauceBotRuntime {
   conversations: ConversationStore;
   toolUse: ToolUseAdapter;
   private providerHost = new ObsidianProviderHost();
+  /** Classifies load failures, blocklists doomed models, picks a safe fallback.
+   *  Public so the chat picker can mark blocked models. */
+  modelManager!: ModelManager;
+  /** Realtime embeddings "second lane": ensure-load + cache + visible failures. */
+  embeddingsLane!: EmbeddingsLane;
+  /** Persist hook (wired by the plugin) so a runtime-discovered blocklist entry
+   *  is saved immediately rather than only on the next settings edit. */
+  private onSettingsChanged?: () => void;
+  private lastEmbedModel = "";
+  private keepWarmTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private app: App,
@@ -184,6 +217,121 @@ export class SauceBotRuntime {
       new ObsidianConversationHost(app),
     );
     this.toolUse = new ToolUseAdapter();
+
+    // ── Model management + realtime embeddings lane ──────────────────────────
+    const blocklist: BlocklistStore = {
+      get: () => this.settings.disabledModels ?? [],
+      add: (mid) => {
+        const cur = this.settings.disabledModels ?? [];
+        if (!cur.includes(mid)) {
+          this.settings.disabledModels = [...cur, mid];
+          this.onSettingsChanged?.();
+        }
+      },
+      remove: (mid) => {
+        this.settings.disabledModels = (
+          this.settings.disabledModels ?? []
+        ).filter((x) => x !== mid);
+        this.onSettingsChanged?.();
+      },
+    };
+    this.modelManager = new ModelManager(
+      { listModels: () => this.listModelsForManager() },
+      blocklist,
+    );
+    this.embeddingsLane = new EmbeddingsLane(
+      {
+        ensureModel: (mid) => this.ensureEmbedModelLoaded(mid),
+        embed: (t, m) => this.rawEmbed(t, m),
+      },
+      { model: "", enabled: true },
+    );
+    if (this.settings.keepModelWarm) {
+      this.setKeepWarm(true, this.settings.modelTtlSeconds ?? 240);
+    }
+  }
+
+  /** Plugin wires this to saveSettings() so blocklist changes persist at once. */
+  setOnSettingsChanged(fn: () => void): void {
+    this.onSettingsChanged = fn;
+  }
+
+  /** Catalog source for ModelManager — only local providers have a real load
+   *  lifecycle; cloud models never "fail to load", so return []. Maps the shared
+   *  ModelCatalog (LM Studio /api/v0 cards) to the manager's CatalogModel. */
+  private async listModelsForManager(): Promise<MMCatalogModel[]> {
+    const id = this.settings.provider;
+    const catProvider =
+      id === "lmstudio" || id === "lmstudio-sdk"
+        ? "lmstudio"
+        : id === "ollama"
+          ? "ollama"
+          : null;
+    if (!catProvider) return [];
+    try {
+      const ctx = {
+        provider: catProvider as "lmstudio" | "ollama",
+        ...(this.settings.baseUrl ? { endpoint: this.settings.baseUrl } : {}),
+      };
+      const models = await sharedModelCatalog().list(ctx);
+      return models.map((m) => {
+        const out: MMCatalogModel = {
+          id: m.id,
+          loaded: m.loaded ?? false,
+          kind: m.kind ?? "unknown",
+        };
+        if (m.contextTokens !== undefined) out.contextLength = m.contextTokens;
+        if (m.sizeBytes !== undefined) out.sizeBytes = m.sizeBytes;
+        return out;
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /** Embeddings-lane seam: confirm the embed model isn't blocklisted and the
+   *  catalog/provider is reachable (the /embeddings POST JIT-loads it). */
+  private async ensureEmbedModelLoaded(
+    model: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (this.modelManager.isBlocked(model))
+      return { ok: false, error: `${model} is blocked (a prior load failed).` };
+    const r = await this.modelManager.ensureLoaded(model);
+    if (r.error) return { ok: false, error: r.error.userMessage };
+    return { ok: true };
+  }
+
+  /** Embeddings-lane seam: POST one embedding via the active embed provider. */
+  private async rawEmbed(
+    text: string,
+    model: string,
+  ): Promise<Float32Array | null> {
+    const c = this.embedConfig;
+    const prov = c ? this.embedProvider(c) : this.provider();
+    try {
+      return await prov.embed(text, model);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Start/stop a periodic re-warm so the active model survives LM Studio's idle
+   *  TTL unload. Self-managed single timer; cleared on dispose() / disable. */
+  setKeepWarm(enabled: boolean, seconds = 240): void {
+    if (this.keepWarmTimer) {
+      clearInterval(this.keepWarmTimer);
+      this.keepWarmTimer = null;
+    }
+    if (!enabled) return;
+    const ms = Math.max(30, seconds) * 1000;
+    this.keepWarmTimer = setInterval(() => {
+      void this.warmup().catch(() => {});
+    }, ms);
+  }
+
+  /** Release the keep-warm timer (plugin onunload). */
+  dispose(): void {
+    this.setKeepWarm(false);
   }
 
   /** The RAG host (kept so the link provider + S9 remote-semantic fallback can
@@ -784,17 +932,29 @@ export class SauceBotRuntime {
   async embed(text: string): Promise<number[] | null> {
     const c = this.embedConfig;
     if (c && !c.enabled) return null; // RAG master switch off
-    try {
-      if (c) {
-        const vec = await this.embedProvider(c).embed(text, c.model);
-        return Array.from(vec);
-      }
-      const model = this.settings.embedModel ?? this.settings.model;
-      const vec = await this.provider().embed(text, model);
-      return Array.from(vec);
-    } catch {
-      return null;
+    const model =
+      c?.model ||
+      this.settings.preferredEmbeddingModel ||
+      this.settings.embedModel ||
+      this.settings.model;
+    if (!model) return null;
+    // Route through the EmbeddingsLane so the embed model is actually ensured-
+    // loaded (was silently never JIT-loaded before), query vectors are cached,
+    // and failures are VISIBLE (traced) instead of a silent lexical fallback.
+    if (model !== this.lastEmbedModel) {
+      this.embeddingsLane.setConfig({ model, enabled: true });
+      this.lastEmbedModel = model;
     }
+    const r = await this.embeddingsLane.embedQuery(text);
+    if (r.vec) return Array.from(r.vec);
+    if (r.status === "failed") {
+      void this.traceSink
+        ?.record("embed", "copilot", "embed", model, {
+          meta: { status: r.status, reason: r.reason ?? "" },
+        })
+        .catch(() => {});
+    }
+    return null;
   }
 
   /** Build the embedding provider from its config (independent of chat). */
@@ -877,11 +1037,23 @@ export class SauceBotRuntime {
    * realtime "loading → ready/failed" indicator on model switch. Goes through
    * completeResilient so an unreachable server is reported cleanly.
    */
-  async warmup(): Promise<{ ok: boolean; ms: number; error?: string }> {
+  async warmup(): Promise<{
+    ok: boolean;
+    ms: number;
+    error?: string;
+    kind?: LoadFailureKind;
+    userMessage?: string;
+    fallback?: string | null;
+  }> {
     const t0 = Date.now();
     let ok = false;
     let error: string | undefined;
+    let kind: LoadFailureKind | undefined;
+    let userMessage: string | undefined;
+    let fallback: string | null | undefined;
     try {
+      // completeResilient classifies + blocklists the failure and attaches
+      // kind/userMessage/fallback to its done/error event — we just surface them.
       for await (const ev of this.completeResilient(this.provider(), {
         model: this.settings.model,
         messages: [{ role: "user", content: "hi" }],
@@ -891,16 +1063,28 @@ export class SauceBotRuntime {
       })) {
         if (ev.type === "text" || ev.type === "reasoning") ok = true;
         else if (ev.type === "done") {
-          if (ev.reason === "error") error = ev.error;
-          else ok = true;
+          if (ev.reason === "error") {
+            error = ev.error;
+            kind = ev.kind;
+            userMessage = ev.userMessage;
+            fallback = ev.fallback;
+          } else ok = true;
         }
       }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
-    return error
-      ? { ok: false, ms: Date.now() - t0, error }
-      : { ok, ms: Date.now() - t0 };
+    if (error) {
+      return {
+        ok: false,
+        ms: Date.now() - t0,
+        error,
+        ...(kind !== undefined ? { kind } : {}),
+        ...(userMessage !== undefined ? { userMessage } : {}),
+        ...(fallback !== undefined ? { fallback } : {}),
+      };
+    }
+    return { ok, ms: Date.now() - t0 };
   }
 
   /**
@@ -1119,10 +1303,23 @@ export class SauceBotRuntime {
         await this.backoff(attempt);
         continue;
       }
+      // Classify the failure (arch-unsupported / oom / not-found → permanent),
+      // blocklist a permanently-doomed model, and suggest a known-good fallback
+      // so the UI can offer a one-click switch instead of a dead end.
+      const classified = this.modelManager.recordFailure(
+        req.model,
+        lastError ?? "request failed",
+      );
+      const fallback = classified.permanent
+        ? await this.modelManager.fallbackChatModel()
+        : null;
       yield {
         type: "done",
         reason: "error",
         error: lastError ?? "request failed",
+        kind: classified.kind,
+        userMessage: classified.userMessage,
+        fallback,
       };
       return;
     }
