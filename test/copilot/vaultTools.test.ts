@@ -5,11 +5,17 @@
 import { describe, expect, it } from "vitest";
 import { makeReadNoteTool } from "../../src/saucebot/tools/ReadNoteTool";
 import { makeSearchVaultTool } from "../../src/saucebot/tools/SearchVaultTool";
-import { makeProposeEditTool, makeApplyEditTool } from "../../src/saucebot/tools/EditNoteTool";
+import {
+  makeProposeEditTool,
+  makeApplyEditTool,
+} from "../../src/saucebot/tools/EditNoteTool";
 import { makeCreateNoteTool } from "../../src/saucebot/tools/CreateNoteTool";
 import { makeWebResearchTool } from "../../src/saucebot/tools/WebResearchTool";
 import { DiffEditor } from "../../src/saucebot/tools/DiffEditor";
-import { createUnifiedDiff, formatUnifiedDiff } from "../../src/saucebot/tools/diff";
+import {
+  createUnifiedDiff,
+  formatUnifiedDiff,
+} from "../../src/saucebot/tools/diff";
 import type { SkillLike } from "../../src/saucebot/ToolUseAdapter";
 import type { FilesService } from "../../src/services/core/FilesService";
 
@@ -34,7 +40,10 @@ class FakeVault {
   getAbstractFileByPath(path: string): { path: string } | null {
     return this.store.has(path) ? { path } : null;
   }
-  async process(file: { path: string }, fn: (d: string) => string): Promise<string> {
+  async process(
+    file: { path: string },
+    fn: (d: string) => string,
+  ): Promise<string> {
     const prev = this.store.get(file.path) ?? "";
     const next = fn(prev);
     this.store.set(file.path, next);
@@ -45,7 +54,9 @@ class FakeVault {
     this.store.set(path, content);
     return { path };
   }
-  read(path: string) { return this.store.get(path); }
+  read(path: string) {
+    return this.store.get(path);
+  }
 }
 
 function makeFakeFiles(vault: FakeVault): FilesService {
@@ -53,7 +64,9 @@ function makeFakeFiles(vault: FakeVault): FilesService {
     async updateViaContract(path: string, mutator: (prev: string) => string) {
       await vault.process({ path }, mutator);
     },
-    async create(p: string, c: string) { await vault.create(p, c); },
+    async create(p: string, c: string) {
+      await vault.create(p, c);
+    },
   } as unknown as FilesService;
 }
 
@@ -104,7 +117,10 @@ describe("ReadNoteTool schema + execute", () => {
 describe("SearchVaultTool schema + execute", () => {
   const host = {
     search: async (query: string, limit: number) =>
-      [{ path: "contacts/Alice.md", score: 0.9, snippet: query }].slice(0, limit),
+      [{ path: "contacts/Alice.md", score: 0.9, snippet: query }].slice(
+        0,
+        limit,
+      ),
   };
   const tool = makeSearchVaultTool(host);
 
@@ -145,11 +161,8 @@ describe("ProposeEditTool schema + execute", () => {
   const host = {
     read: async (path: string) =>
       path === "note.md" ? "line1\nold\nline3\n" : null,
-    generateEdit: async (
-      _path: string,
-      _orig: string,
-      _instructions: string,
-    ) => "line1\nnew\nline3\n",
+    generateEdit: async (_path: string, _orig: string, _instructions: string) =>
+      "line1\nnew\nline3\n",
     diff: (orig: string, upd: string, label: string) => {
       const d = createUnifiedDiff(orig, upd, `a/${label}`, `b/${label}`);
       return d ? formatUnifiedDiff(d) : null;
@@ -162,14 +175,20 @@ describe("ProposeEditTool schema + execute", () => {
   it("risk is 'medium'", () => expect(tool.risk).toBe("medium"));
 
   it("returns a diff string", async () => {
-    const r = await tool.execute({ path: "note.md", instructions: "replace old with new" }, null);
+    const r = await tool.execute(
+      { path: "note.md", instructions: "replace old with new" },
+      null,
+    );
     expect((r as any).diff).toContain("@@");
     expect((r as any).diff).toContain("-old");
     expect((r as any).diff).toContain("+new");
   });
 
   it("returns error when note not found", async () => {
-    const r = await tool.execute({ path: "missing.md", instructions: "foo" }, null);
+    const r = await tool.execute(
+      { path: "missing.md", instructions: "foo" },
+      null,
+    );
     expect((r as any).error).toMatch(/not found/i);
   });
 
@@ -324,9 +343,14 @@ describe("WebResearchTool schema + execute", () => {
 
   it("returns error on network failure", async () => {
     const tool = makeWebResearchTool({
-      fetch: async () => { throw new Error("ECONNREFUSED"); },
+      fetch: async () => {
+        throw new Error("ECONNREFUSED");
+      },
     });
-    const r = await tool.execute({ url_or_query: "https://down.example.com" }, null);
+    const r = await tool.execute(
+      { url_or_query: "https://down.example.com" },
+      null,
+    );
     expect((r as any).error).toMatch(/network/i);
   });
 

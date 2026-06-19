@@ -34,7 +34,10 @@ describe("WhisperEngine — binary-path validation", () => {
 
   it("refuses to spawn when the binary does not exist", async () => {
     const run = vi.fn(okRun);
-    const missing: PathProbe = { isFile: () => false, isExecutable: () => true };
+    const missing: PathProbe = {
+      isFile: () => false,
+      isExecutable: () => true,
+    };
     const engine = new WhisperEngine({
       run,
       readText: async () => "x",

@@ -20,7 +20,14 @@ function fakeSS(available = true): SafeStorageLike {
 }
 function memIO(): SecretsIO & { store: Record<string, string> } {
   const store: Record<string, string> = {};
-  return { store, read: () => ({ ...store }), write: (m) => { for (const k of Object.keys(store)) delete store[k]; Object.assign(store, m); } };
+  return {
+    store,
+    read: () => ({ ...store }),
+    write: (m) => {
+      for (const k of Object.keys(store)) delete store[k];
+      Object.assign(store, m);
+    },
+  };
 }
 
 describe("SafeStorageCredentialSource", () => {

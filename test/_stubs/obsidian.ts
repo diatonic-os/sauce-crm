@@ -21,7 +21,10 @@ export function base64ToArrayBuffer(b64: string): ArrayBuffer {
 }
 
 export function normalizePath(p: string): string {
-  return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
+  return p
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/")
+    .replace(/^\/+|\/+$/g, "");
 }
 
 function stringifyYamlPair(key: string, value: unknown, depth: number): string {
@@ -37,7 +40,9 @@ function stringifyYamlPair(key: string, value: unknown, depth: number): string {
   if (value && typeof value === "object") {
     return [
       `${pad}${key}:`,
-      ...Object.entries(value as Record<string, unknown>).map(([k, v]) => stringifyYamlPair(k, v, depth + 1)),
+      ...Object.entries(value as Record<string, unknown>).map(([k, v]) =>
+        stringifyYamlPair(k, v, depth + 1),
+      ),
     ].join("\n");
   }
   return `${pad}${key}: ${formatYamlScalar(value)}`;
@@ -45,7 +50,8 @@ function stringifyYamlPair(key: string, value: unknown, depth: number): string {
 
 function formatYamlScalar(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (typeof value === "boolean" || typeof value === "number") return String(value);
+  if (typeof value === "boolean" || typeof value === "number")
+    return String(value);
   const s = String(value);
   if (
     s === "" ||
@@ -59,7 +65,10 @@ function formatYamlScalar(value: unknown): string {
 }
 
 export class TAbstractFile {
-  constructor(public path: string, public parent: TFolder | null) {}
+  constructor(
+    public path: string,
+    public parent: TFolder | null,
+  ) {}
   get name(): string {
     const ix = this.path.lastIndexOf("/");
     return ix < 0 ? this.path : this.path.slice(ix + 1);
@@ -89,8 +98,8 @@ export class Vault {
   adapter = {
     getBasePath: () => "/test/vault",
     exists: async (p: string) => this.files.has(p) || this.folders.has(p),
-    read:   async (p: string) => this.files.get(p)?.contents ?? "",
-    write:  async (p: string, c: string) => {
+    read: async (p: string) => this.files.get(p)?.contents ?? "",
+    write: async (p: string, c: string) => {
       const f = this.files.get(p);
       if (f) f.contents = c;
     },
@@ -169,7 +178,10 @@ export class App {
   // under test. We round-trip a YAML-ish frontmatter block by parsing the
   // file body, calling the mutator, and re-serializing.
   fileManager = {
-    processFrontMatter: async (file: TFile, mutator: (fm: Record<string, unknown>) => void) => {
+    processFrontMatter: async (
+      file: TFile,
+      mutator: (fm: Record<string, unknown>) => void,
+    ) => {
       const text = file.contents;
       const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
       const fm: Record<string, unknown> = {};
@@ -183,7 +195,11 @@ export class App {
           // Naive JSON-ish parse for arrays/numbers/booleans; fall back to string.
           let value: unknown = raw;
           if (raw.startsWith("[")) {
-            try { value = JSON.parse(raw); } catch { /* keep string */ }
+            try {
+              value = JSON.parse(raw);
+            } catch {
+              /* keep string */
+            }
           } else if (raw === "true" || raw === "false") {
             value = raw === "true";
           } else if (!Number.isNaN(Number(raw)) && raw !== "") {
@@ -210,7 +226,11 @@ export class Plugin {
   addCommand(cmd: unknown): unknown {
     return cmd;
   }
-  addRibbonIcon(_n: string, _t: string, _cb: (e: MouseEvent) => void): HTMLElement {
+  addRibbonIcon(
+    _n: string,
+    _t: string,
+    _cb: (e: MouseEvent) => void,
+  ): HTMLElement {
     return document.createElement("div");
   }
   registerView(_t: string, _f: unknown): void {}
@@ -218,20 +238,38 @@ export class Plugin {
     return id;
   }
   addSettingTab(_t: unknown): void {}
-  async loadData(): Promise<unknown> { return {}; }
+  async loadData(): Promise<unknown> {
+    return {};
+  }
   async saveData(_d: unknown): Promise<void> {}
 }
 
 export class Setting {
   constructor(public containerEl: HTMLElement) {}
-  setName(_s: string): this { return this; }
-  setDesc(_s: string): this { return this; }
-  setHeading(): this { return this; }
-  addText(_cb: (t: unknown) => void): this { return this; }
-  addToggle(_cb: (t: unknown) => void): this { return this; }
-  addDropdown(_cb: (d: unknown) => void): this { return this; }
-  addButton(_cb: (b: unknown) => void): this { return this; }
-  addSlider(_cb: (s: unknown) => void): this { return this; }
+  setName(_s: string): this {
+    return this;
+  }
+  setDesc(_s: string): this {
+    return this;
+  }
+  setHeading(): this {
+    return this;
+  }
+  addText(_cb: (t: unknown) => void): this {
+    return this;
+  }
+  addToggle(_cb: (t: unknown) => void): this {
+    return this;
+  }
+  addDropdown(_cb: (d: unknown) => void): this {
+    return this;
+  }
+  addButton(_cb: (b: unknown) => void): this {
+    return this;
+  }
+  addSlider(_cb: (s: unknown) => void): this {
+    return this;
+  }
 }
 
 export class Modal {
@@ -239,7 +277,9 @@ export class Modal {
   containerEl: HTMLElement = document.createElement("div");
   contentEl: HTMLElement = document.createElement("div");
   titleEl: HTMLElement = document.createElement("h2");
-  constructor(app: App) { this.app = app; }
+  constructor(app: App) {
+    this.app = app;
+  }
   open(): void {}
   close(): void {}
 }
@@ -250,9 +290,15 @@ export class ItemView {
   constructor(public leaf: unknown) {
     this.app = new App();
   }
-  getViewType(): string { return "stub"; }
-  getDisplayText(): string { return "stub"; }
-  getIcon(): string { return ""; }
+  getViewType(): string {
+    return "stub";
+  }
+  getDisplayText(): string {
+    return "stub";
+  }
+  getIcon(): string {
+    return "";
+  }
 }
 
 export class MarkdownRenderer {
@@ -287,17 +333,28 @@ export class MarkdownView extends ItemView {
 export class Menu {
   items: Array<{ title: string; cb: () => void }> = [];
   addItem(cb: (i: unknown) => unknown): this {
-    const captured: { title: string; cb: () => void } = { title: "", cb: () => {} };
+    const captured: { title: string; cb: () => void } = {
+      title: "",
+      cb: () => {},
+    };
     const item = {
-      setTitle: (s: string) => { captured.title = s; return item; },
-      setIcon:  (_s: string) => item,
-      onClick:  (cb: () => void) => { captured.cb = cb; return item; },
+      setTitle: (s: string) => {
+        captured.title = s;
+        return item;
+      },
+      setIcon: (_s: string) => item,
+      onClick: (cb: () => void) => {
+        captured.cb = cb;
+        return item;
+      },
     };
     cb(item);
     this.items.push(captured);
     return this;
   }
-  addSeparator(): this { return this; }
+  addSeparator(): this {
+    return this;
+  }
   showAtMouseEvent(_e: MouseEvent): void {}
   showAtPosition(_p: { x: number; y: number }): void {}
 }
@@ -320,12 +377,24 @@ export const Platform = {
   isSafari: false,
   resourcePathPrefix: "",
 };
-export async function requestUrl(
-  init: unknown,
-): Promise<{ status: number; text: string; json: unknown; headers: Record<string, string> }> {
-  const url = typeof init === "string" ? init : ((init as { url?: string })?.url ?? "");
-  const method = typeof init === "object" && init ? ((init as { method?: string }).method ?? "GET") : "GET";
+export async function requestUrl(init: unknown): Promise<{
+  status: number;
+  text: string;
+  json: unknown;
+  headers: Record<string, string>;
+}> {
+  const url =
+    typeof init === "string" ? init : ((init as { url?: string })?.url ?? "");
+  const method =
+    typeof init === "object" && init
+      ? ((init as { method?: string }).method ?? "GET")
+      : "GET";
   // Echo into headers (back-compat: status/text/json unchanged) so wrappers can
   // assert request pass-through in tests.
-  return { status: 200, text: "", json: {}, headers: { "x-echo-url": url, "x-echo-method": method } };
+  return {
+    status: 200,
+    text: "",
+    json: {},
+    headers: { "x-echo-url": url, "x-echo-method": method },
+  };
 }

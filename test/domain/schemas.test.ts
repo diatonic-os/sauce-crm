@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  PersonSchema, OrgSchema, TouchSchema, AddendumSchema,
-  TaskSchema, FollowupSchema, IdeaSchema, LedgerEntrySchema, RollupSchema,
+  PersonSchema,
+  OrgSchema,
+  TouchSchema,
+  AddendumSchema,
+  TaskSchema,
+  FollowupSchema,
+  IdeaSchema,
+  LedgerEntrySchema,
+  RollupSchema,
   validateEntity,
 } from "../../src/domain/schemas";
 
@@ -17,10 +24,16 @@ describe("PersonSchema", () => {
     expect(r.errors[0].field).toBe("type");
   });
   it("rejects empty name", () => {
-    expect(PersonSchema.validate({ type: "warm-contact", name: "" }).passed).toBe(false);
+    expect(
+      PersonSchema.validate({ type: "warm-contact", name: "" }).passed,
+    ).toBe(false);
   });
   it("warns on bad last_touch shape", () => {
-    const r = PersonSchema.validate({ type: "warm-contact", name: "x", last_touch: "yesterday" });
+    const r = PersonSchema.validate({
+      type: "warm-contact",
+      name: "x",
+      last_touch: "yesterday",
+    });
     expect(r.passed).toBe(true);
     expect(r.errors.some((e) => e.severity === "warn")).toBe(true);
   });
@@ -28,9 +41,17 @@ describe("PersonSchema", () => {
 
 describe("TouchSchema", () => {
   it("requires contact + ISO date", () => {
-    const ok = TouchSchema.validate({ type: "touch", contact: "[[Alice]]", date: "2026-05-23" });
+    const ok = TouchSchema.validate({
+      type: "touch",
+      contact: "[[Alice]]",
+      date: "2026-05-23",
+    });
     expect(ok.passed).toBe(true);
-    const bad = TouchSchema.validate({ type: "touch", contact: "[[Alice]]", date: "5/23/2026" });
+    const bad = TouchSchema.validate({
+      type: "touch",
+      contact: "[[Alice]]",
+      date: "5/23/2026",
+    });
     expect(bad.passed).toBe(false);
   });
 });
@@ -38,11 +59,15 @@ describe("TouchSchema", () => {
 describe("TaskSchema", () => {
   it("accepts known statuses", () => {
     for (const s of ["todo", "in_progress", "blocked", "done", "cancelled"]) {
-      expect(TaskSchema.validate({ type: "task", title: "x", status: s }).passed).toBe(true);
+      expect(
+        TaskSchema.validate({ type: "task", title: "x", status: s }).passed,
+      ).toBe(true);
     }
   });
   it("rejects unknown status", () => {
-    expect(TaskSchema.validate({ type: "task", title: "x", status: "ish" }).passed).toBe(false);
+    expect(
+      TaskSchema.validate({ type: "task", title: "x", status: "ish" }).passed,
+    ).toBe(false);
   });
 });
 
@@ -75,8 +100,12 @@ describe("LedgerEntrySchema", () => {
 
 describe("validateEntity dispatch", () => {
   it("dispatches by type field", () => {
-    expect(validateEntity({ type: "warm-contact", name: "X" })?.passed).toBe(true);
-    expect(validateEntity({ type: "rollup", period: "2026-05" })?.passed).toBe(true);
+    expect(validateEntity({ type: "warm-contact", name: "X" })?.passed).toBe(
+      true,
+    );
+    expect(validateEntity({ type: "rollup", period: "2026-05" })?.passed).toBe(
+      true,
+    );
     expect(validateEntity({ type: "unknown-thing" })).toBeNull();
     expect(validateEntity({ not: "an entity" })).toBeNull();
   });
@@ -85,8 +114,15 @@ describe("validateEntity dispatch", () => {
 describe("default frontmatter", () => {
   it("every schema's default frontmatter validates itself", () => {
     const schemas = [
-      PersonSchema, OrgSchema, TouchSchema, AddendumSchema,
-      TaskSchema, FollowupSchema, IdeaSchema, LedgerEntrySchema, RollupSchema,
+      PersonSchema,
+      OrgSchema,
+      TouchSchema,
+      AddendumSchema,
+      TaskSchema,
+      FollowupSchema,
+      IdeaSchema,
+      LedgerEntrySchema,
+      RollupSchema,
     ];
     for (const s of schemas) {
       const r = s.validate(s.defaultFrontmatter() as Record<string, unknown>);

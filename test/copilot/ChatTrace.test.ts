@@ -18,7 +18,16 @@ describe("buildTurnTrace", () => {
       ctx,
       "who do we know in ranking?",
       "Alice (people/alice.md:3).",
-      { provider: "lmstudio", model: "qwen3.5-9b", inputTokens: 120, outputTokens: 18, latencyMs: 4200, reason: "end_turn", distilled: true, toolCalls: 1 },
+      {
+        provider: "lmstudio",
+        model: "qwen3.5-9b",
+        inputTokens: 120,
+        outputTokens: 18,
+        latencyMs: 4200,
+        reason: "end_turn",
+        distilled: true,
+        toolCalls: 1,
+      },
       1700,
     );
     // Fresh, well-formed turn + response ids.
@@ -40,8 +49,20 @@ describe("buildTurnTrace", () => {
   });
 
   it("gives distinct turn ids to successive turns", async () => {
-    const a = await buildTurnTrace(ctx, "q1", "a1", { provider: "p", model: "m", inputTokens: 1, outputTokens: 1, latencyMs: 1 });
-    const b = await buildTurnTrace(ctx, "q2", "a2", { provider: "p", model: "m", inputTokens: 1, outputTokens: 1, latencyMs: 1 });
+    const a = await buildTurnTrace(ctx, "q1", "a1", {
+      provider: "p",
+      model: "m",
+      inputTokens: 1,
+      outputTokens: 1,
+      latencyMs: 1,
+    });
+    const b = await buildTurnTrace(ctx, "q2", "a2", {
+      provider: "p",
+      model: "m",
+      inputTokens: 1,
+      outputTokens: 1,
+      latencyMs: 1,
+    });
     expect(a.turnId).not.toBe(b.turnId);
     expect(a.responseId).not.toBe(b.responseId);
   });

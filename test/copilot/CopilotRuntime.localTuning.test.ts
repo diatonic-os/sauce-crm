@@ -89,7 +89,10 @@ function makeRuntime(
   rt.toolUse.register({
     id: "echo",
     description: "echo a message back",
-    contract: { inputs: [{ name: "msg", type: "string", required: true }], level: "safe" },
+    contract: {
+      inputs: [{ name: "msg", type: "string", required: true }],
+      level: "safe",
+    },
     execute: async (args) => ({ echoed: (args as { msg?: string }).msg }),
   });
   return rt;
@@ -108,7 +111,12 @@ async function run(
 describe("SauceBotRuntime — local tool prompting", () => {
   it("injects a prose tool prompt for local providers", async () => {
     const provider = new ScriptedProvider([
-      { events: [{ type: "text", delta: "done." }, { type: "done", reason: "end_turn" }] },
+      {
+        events: [
+          { type: "text", delta: "done." },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider, "lmstudio");
     await run(rt);
@@ -120,7 +128,12 @@ describe("SauceBotRuntime — local tool prompting", () => {
 
   it("does NOT inject the prose tool prompt for cloud providers", async () => {
     const provider = new ScriptedProvider([
-      { events: [{ type: "text", delta: "done." }, { type: "done", reason: "end_turn" }] },
+      {
+        events: [
+          { type: "text", delta: "done." },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider, "anthropic");
     await run(rt);
@@ -135,12 +148,22 @@ describe("SauceBotRuntime — malformed tool-call repair", () => {
       // Turn 1: a malformed tool call (provider sentinel).
       {
         events: [
-          { type: "tool_use", id: "c1", name: "echo", input: { _raw: "msg: hi" } },
+          {
+            type: "tool_use",
+            id: "c1",
+            name: "echo",
+            input: { _raw: "msg: hi" },
+          },
           { type: "done", reason: "tool_use" },
         ],
       },
       // Turn 2: terminal.
-      { events: [{ type: "text", delta: "ok." }, { type: "done", reason: "end_turn" }] },
+      {
+        events: [
+          { type: "text", delta: "ok." },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider, "lmstudio");
     // The repair pass goes through completeOnce → provider.complete; stub it to
@@ -172,16 +195,25 @@ describe("SauceBotRuntime — empty/truncated answer self-correction", () => {
     (rt as any).completeOnce = async () =>
       "Alice works at Acme and she is the ranking lead.";
     const events = await run(rt, "who is alice");
-    const texts = events.filter((e) => e.type === "text") as Array<{ delta: string }>;
+    const texts = events.filter((e) => e.type === "text") as Array<{
+      delta: string;
+    }>;
     const joined = texts.map((t) => t.delta).join("");
     expect(joined).toContain("ranking lead.");
     // No duplication of the streamed prefix.
-    expect(joined.indexOf("Alice works at Acme")).toBe(joined.lastIndexOf("Alice works at Acme"));
+    expect(joined.indexOf("Alice works at Acme")).toBe(
+      joined.lastIndexOf("Alice works at Acme"),
+    );
   });
 
   it("does NOT self-correct a complete answer", async () => {
     const provider = new ScriptedProvider([
-      { events: [{ type: "text", delta: "Alice is the ranking lead at Acme." }, { type: "done", reason: "end_turn" }] },
+      {
+        events: [
+          { type: "text", delta: "Alice is the ranking lead at Acme." },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider, "lmstudio");
     let retried = false;
@@ -196,7 +228,15 @@ describe("SauceBotRuntime — empty/truncated answer self-correction", () => {
 
   it("does NOT self-correct for cloud providers", async () => {
     const provider = new ScriptedProvider([
-      { events: [{ type: "text", delta: "truncated answer that keeps going on and on without end" }, { type: "done", reason: "end_turn" }] },
+      {
+        events: [
+          {
+            type: "text",
+            delta: "truncated answer that keeps going on and on without end",
+          },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider, "anthropic");
     let retried = false;
@@ -213,7 +253,12 @@ describe("SauceBotRuntime — empty/truncated answer self-correction", () => {
 describe("SauceBotRuntime — multi-turn compaction", () => {
   it("summarizes older turns when prior history exceeds the budget, keeping the last turn verbatim", async () => {
     const provider = new ScriptedProvider([
-      { events: [{ type: "text", delta: "ok." }, { type: "done", reason: "end_turn" }] },
+      {
+        events: [
+          { type: "text", delta: "ok." },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider, "lmstudio", {
       historyTokenBudget: 50, // tiny so any real history trips it
@@ -244,7 +289,12 @@ describe("SauceBotRuntime — multi-turn compaction", () => {
 
   it("leaves small prior history untouched", async () => {
     const provider = new ScriptedProvider([
-      { events: [{ type: "text", delta: "ok." }, { type: "done", reason: "end_turn" }] },
+      {
+        events: [
+          { type: "text", delta: "ok." },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider, "lmstudio");
     let summarized = false;
@@ -278,22 +328,35 @@ describe("SauceBotRuntime — recency-of-attention ordering", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (rt as any).ensureCrystal = async () => ({ dirty: false });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (rt as any).digestFor = async (path: string) => ({ digest: `DIGEST_${path}`, fresh: false });
+    (rt as any).digestFor = async (path: string) => ({
+      digest: `DIGEST_${path}`,
+      fresh: false,
+    });
     return rt;
   }
 
   it("places the most-relevant digest LAST for local providers", async () => {
     const rt = rtWithDigests("lmstudio");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const out: string = await (rt as any).inlineEntityContent(["best.md", "second.md", "third.md"], "q");
-    expect(out.indexOf("DIGEST_best.md")).toBeGreaterThan(out.indexOf("DIGEST_third.md"));
+    const out: string = await (rt as any).inlineEntityContent(
+      ["best.md", "second.md", "third.md"],
+      "q",
+    );
+    expect(out.indexOf("DIGEST_best.md")).toBeGreaterThan(
+      out.indexOf("DIGEST_third.md"),
+    );
   });
 
   it("keeps best-first ordering for cloud providers", async () => {
     const rt = rtWithDigests("anthropic");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const out: string = await (rt as any).inlineEntityContent(["best.md", "second.md", "third.md"], "q");
-    expect(out.indexOf("DIGEST_best.md")).toBeLessThan(out.indexOf("DIGEST_third.md"));
+    const out: string = await (rt as any).inlineEntityContent(
+      ["best.md", "second.md", "third.md"],
+      "q",
+    );
+    expect(out.indexOf("DIGEST_best.md")).toBeLessThan(
+      out.indexOf("DIGEST_third.md"),
+    );
   });
 });
 
@@ -306,7 +369,12 @@ describe("SauceBotRuntime — self-context-filtering of tool results", () => {
           { type: "done", reason: "tool_use" },
         ],
       },
-      { events: [{ type: "text", delta: "done." }, { type: "done", reason: "end_turn" }] },
+      {
+        events: [
+          { type: "text", delta: "done." },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider, "lmstudio");
     // Make the tool produce a huge result so it exceeds the filter threshold.

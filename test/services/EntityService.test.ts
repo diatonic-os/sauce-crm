@@ -42,7 +42,12 @@ describe("EntityService — entity creation + frontmatter round-trip", () => {
 
   it("createEntity writes a file with serialized frontmatter + body", async () => {
     const fm = { type: "warm-contact", name: "Alice", roles: ["co-founder"] };
-    const file = await svc.createEntity("people", "Alice", fm, "## Notes\n\nFirst met at ETHDenver.");
+    const file = await svc.createEntity(
+      "people",
+      "Alice",
+      fm,
+      "## Notes\n\nFirst met at ETHDenver.",
+    );
     expect(file).toBeInstanceOf(TFile);
     expect(file.path).toBe("people/Alice.md");
     const content = await app.vault.cachedRead(file);
@@ -59,12 +64,17 @@ describe("EntityService — entity creation + frontmatter round-trip", () => {
       next_action: undefined,
       tags: ["idea", "pricing"],
     });
-    const file = await svc.createEntity("ideas", "Pricing", {
-      ...fm,
-      unsafe_undefined: undefined,
-      unsafe_date: new Date("2026-05-23T12:00:00.000Z"),
-      unsafe_nan: Number.NaN,
-    }, "body");
+    const file = await svc.createEntity(
+      "ideas",
+      "Pricing",
+      {
+        ...fm,
+        unsafe_undefined: undefined,
+        unsafe_date: new Date("2026-05-23T12:00:00.000Z"),
+        unsafe_nan: Number.NaN,
+      },
+      "body",
+    );
 
     const content = await app.vault.cachedRead(file);
     expect(content).toContain('title: "Pricing: enterprise #1"');
@@ -73,17 +83,34 @@ describe("EntityService — entity creation + frontmatter round-trip", () => {
     expect(content).toContain("unsafe_nan:");
     expect(content).not.toContain("unsafe_undefined");
     expect(content).not.toContain("undefined");
-    expect(content).toContain('  - "stage_enum: stage in [seed, shaping, planned, active, shipped, archived]"');
+    expect(content).toContain(
+      '  - "stage_enum: stage in [seed, shaping, planned, active, shipped, archived]"',
+    );
   });
 
   it("createEntity creates parent folder if missing", async () => {
-    await svc.createEntity("people", "Bob", { type: "warm-contact", name: "Bob" }, "");
+    await svc.createEntity(
+      "people",
+      "Bob",
+      { type: "warm-contact", name: "Bob" },
+      "",
+    );
     expect(app.vault.getAbstractFileByPath("people")).toBeInstanceOf(TFolder);
   });
 
   it("createEntity updates an existing file rather than failing", async () => {
-    const f1 = await svc.createEntity("people", "Carol", { type: "warm-contact", name: "Carol", age: 30 }, "");
-    const f2 = await svc.createEntity("people", "Carol", { type: "warm-contact", name: "Carol", age: 31 }, "");
+    const f1 = await svc.createEntity(
+      "people",
+      "Carol",
+      { type: "warm-contact", name: "Carol", age: 30 },
+      "",
+    );
+    const f2 = await svc.createEntity(
+      "people",
+      "Carol",
+      { type: "warm-contact", name: "Carol", age: 31 },
+      "",
+    );
     // Same file path → same TFile reference.
     expect(f1.path).toBe(f2.path);
   });
@@ -99,7 +126,8 @@ describe("EntityService — frontmatter mutation", () => {
 
   it("updateFrontmatter applies the mutator and persists", async () => {
     const file = await svc.createEntity(
-      "people", "Dana",
+      "people",
+      "Dana",
       { type: "warm-contact", name: "Dana", last_touch: "2026-01-15" },
       "",
     );
@@ -114,12 +142,15 @@ describe("EntityService — frontmatter mutation", () => {
 
   it("updateFrontmatter mutator returning a new object replaces the frontmatter", async () => {
     const file = await svc.createEntity(
-      "people", "Eve",
+      "people",
+      "Eve",
       { type: "warm-contact", name: "Eve", old: "stale" },
       "",
     );
     await svc.updateFrontmatter(file, () => ({
-      type: "warm-contact", name: "Eve", refreshed: true,
+      type: "warm-contact",
+      name: "Eve",
+      refreshed: true,
     }));
     const content = await app.vault.cachedRead(file);
     expect(content).toContain("refreshed: true");
@@ -127,7 +158,12 @@ describe("EntityService — frontmatter mutation", () => {
   });
 
   it("normalizes processFrontMatter mutations before Obsidian writes them", async () => {
-    const file = await svc.createEntity("people", "Grace", { type: "warm-contact", name: "Grace" }, "");
+    const file = await svc.createEntity(
+      "people",
+      "Grace",
+      { type: "warm-contact", name: "Grace" },
+      "",
+    );
     await svc.updateFrontmatter(file, (fm) => {
       fm.keep = "yes";
       fm.drop = undefined;
@@ -151,7 +187,12 @@ describe("EntityService — file lookup", () => {
   });
 
   it("getFile returns the file for an existing path", async () => {
-    const created = await svc.createEntity("people", "Frank", { type: "warm-contact", name: "Frank" }, "");
+    const created = await svc.createEntity(
+      "people",
+      "Frank",
+      { type: "warm-contact", name: "Frank" },
+      "",
+    );
     const found = svc.getFile("people/Frank.md");
     expect(found).toBe(created);
   });

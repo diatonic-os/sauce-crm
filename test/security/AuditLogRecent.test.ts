@@ -54,7 +54,11 @@ describe("AuditLog.recent", () => {
   });
 
   it("returns an empty array for an empty store", async () => {
-    const log = new AuditLog(fakeStore([]), host, async () => new Uint8Array([1]));
+    const log = new AuditLog(
+      fakeStore([]),
+      host,
+      async () => new Uint8Array([1]),
+    );
     expect(await log.recent(5)).toEqual([]);
   });
 });
@@ -116,7 +120,8 @@ describe("AuditLog.append — auto-filled agent id + timestamp", () => {
     const realHost: AuditHost = {
       hmacHex: async (_k, msg) => {
         let h = 0;
-        for (let i = 0; i < msg.length; i++) h = (h * 31 + msg.charCodeAt(i)) >>> 0;
+        for (let i = 0; i < msg.length; i++)
+          h = (h * 31 + msg.charCodeAt(i)) >>> 0;
         return h.toString(16);
       },
     };

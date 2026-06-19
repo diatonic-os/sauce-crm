@@ -1,6 +1,9 @@
 // T6 — prompt composition + session management on SauceBotRuntime.
 import { describe, expect, it } from "vitest";
-import { SauceBotRuntime, type SauceBotSettings } from "../../src/saucebot/SauceBotRuntime";
+import {
+  SauceBotRuntime,
+  type SauceBotSettings,
+} from "../../src/saucebot/SauceBotRuntime";
 
 function stubs() {
   const app = { vault: {}, metadataCache: {} } as never;
@@ -11,7 +14,11 @@ function stubs() {
 
 function rt(): SauceBotRuntime {
   const settings: SauceBotSettings = {
-    provider: "lmstudio", model: "m", apiKey: "", temperature: 0.3, maxTokens: 100,
+    provider: "lmstudio",
+    model: "m",
+    apiKey: "",
+    temperature: 0.3,
+    maxTokens: 100,
     systemPrompt: "BASE PROMPT",
   };
   const { app, entities, search } = stubs();
@@ -25,13 +32,19 @@ describe("SauceBotRuntime — prompt composition (T6)", () => {
 
   it("prepends the global prompt ahead of the base", () => {
     const r = rt();
-    r.setPromptConfig({ globalSystemPrompt: "GLOBAL", sessionAutoNaming: true });
+    r.setPromptConfig({
+      globalSystemPrompt: "GLOBAL",
+      sessionAutoNaming: true,
+    });
     expect(r.composeSystemPrompt()).toBe("GLOBAL\n\nBASE PROMPT");
   });
 
   it("a per-session prompt overrides the base (global still prepended)", () => {
     const r = rt();
-    r.setPromptConfig({ globalSystemPrompt: "GLOBAL", sessionAutoNaming: true });
+    r.setPromptConfig({
+      globalSystemPrompt: "GLOBAL",
+      sessionAutoNaming: true,
+    });
     r.setSessionPrompt("SESSION");
     expect(r.composeSystemPrompt()).toBe("GLOBAL\n\nSESSION");
   });
@@ -49,7 +62,9 @@ describe("SauceBotRuntime — session autonaming (T6)", () => {
   it("derives a title from the first message line when enabled", () => {
     const r = rt();
     r.setPromptConfig({ globalSystemPrompt: "", sessionAutoNaming: true });
-    expect(r.sessionTitle("How do I reach Bob?\nmore text")).toBe("How do I reach Bob?");
+    expect(r.sessionTitle("How do I reach Bob?\nmore text")).toBe(
+      "How do I reach Bob?",
+    );
   });
 
   it("truncates long first lines", () => {

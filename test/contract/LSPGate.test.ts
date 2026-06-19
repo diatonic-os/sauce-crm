@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { LSPGate } from "../../src/contract/LSPGate";
-import { LockState, type LSPContract, type MethodContract } from "../../src/contract/types";
+import {
+  LockState,
+  type LSPContract,
+  type MethodContract,
+} from "../../src/contract/types";
 
 interface Person {
   greet(name: string): string;
@@ -99,7 +103,9 @@ describe("LSPGate", () => {
     g.registerContract(personContract, personMethods);
     g.lock("test.person", "alice", "demo");
     // queue a waiter
-    void g.respect("test.person", () => 1, { timeoutMs: 5_000 }).catch(() => {});
+    void g
+      .respect("test.person", () => 1, { timeoutMs: 5_000 })
+      .catch(() => {});
     const snap = g.snapshot();
     expect(snap.contracts[0]).toMatchObject({
       id: "test.person",

@@ -12,7 +12,10 @@ import {
 const INPUT: DistillInput = {
   query: "who do we know in ranking?",
   chunks: [
-    { path: "people/alice.md", text: "Staff ML eng at Acme, ranking lead, opt_in true" },
+    {
+      path: "people/alice.md",
+      text: "Staff ML eng at Acme, ranking lead, opt_in true",
+    },
     { path: "people/bob.md", text: "PM at Globex, unrelated" },
   ],
 };
@@ -29,9 +32,16 @@ describe("Distiller", () => {
   });
 
   it("runs an inference pass when over the token gate and accepts a smaller result", async () => {
-    const fn = vi.fn(async () => "query: ranking\nsources[1]{path,gist}:\n  people/alice.md,ranking lead");
+    const fn = vi.fn(
+      async () =>
+        "query: ranking\nsources[1]{path,gist}:\n  people/alice.md,ranking lead",
+    );
     const d = new Distiller(fn);
-    const r = await d.distill(INPUT, { useLlm: true, tokenGate: 1, maxPasses: 2 });
+    const r = await d.distill(INPUT, {
+      useLlm: true,
+      tokenGate: 1,
+      maxPasses: 2,
+    });
     expect(fn).toHaveBeenCalled();
     expect(r.distilled).toBe(true);
     expect(r.passes).toBeGreaterThanOrEqual(1);
@@ -41,7 +51,11 @@ describe("Distiller", () => {
   it("does NOT accept an LLM result that fails to shrink the context", async () => {
     const bloat = vi.fn(async () => "x".repeat(100000));
     const d = new Distiller(bloat);
-    const r = await d.distill(INPUT, { useLlm: true, tokenGate: 1, maxPasses: 3 });
+    const r = await d.distill(INPUT, {
+      useLlm: true,
+      tokenGate: 1,
+      maxPasses: 3,
+    });
     expect(r.distilled).toBe(false); // rejected the bigger output
     expect(r.passes).toBe(0);
   });
@@ -49,7 +63,11 @@ describe("Distiller", () => {
   it("strips code fences the model may wrap output in", async () => {
     const fenced = vi.fn(async () => "```toon\nquery: q\nsources[0]:\n```");
     const d = new Distiller(fenced);
-    const r = await d.distill(INPUT, { useLlm: true, tokenGate: 1, maxPasses: 1 });
+    const r = await d.distill(INPUT, {
+      useLlm: true,
+      tokenGate: 1,
+      maxPasses: 1,
+    });
     expect(r.toon).not.toContain("```");
     expect(r.toon).toContain("query: q");
   });
@@ -57,9 +75,17 @@ describe("Distiller", () => {
   it("caches by input+model: a second identical distill is a free cache hit", async () => {
     const fn = vi.fn(async () => "query: q\nsources[0]:");
     const d = new Distiller(fn);
-    const a = await d.distill(INPUT, { useLlm: true, tokenGate: 1, modelTag: "m1" });
+    const a = await d.distill(INPUT, {
+      useLlm: true,
+      tokenGate: 1,
+      modelTag: "m1",
+    });
     const callsAfterFirst = fn.mock.calls.length;
-    const b = await d.distill(INPUT, { useLlm: true, tokenGate: 1, modelTag: "m1" });
+    const b = await d.distill(INPUT, {
+      useLlm: true,
+      tokenGate: 1,
+      modelTag: "m1",
+    });
     expect(b.cached).toBe(true);
     expect(fn.mock.calls.length).toBe(callsAfterFirst); // no new model calls
     expect(b.toon).toBe(a.toon);
@@ -69,7 +95,11 @@ describe("Distiller", () => {
     const fn = vi.fn(async () => "query: q\nsources[0]:");
     const d = new Distiller(fn);
     await d.distill(INPUT, { useLlm: true, tokenGate: 1, modelTag: "m1" });
-    const r = await d.distill(INPUT, { useLlm: true, tokenGate: 1, modelTag: "m2" });
+    const r = await d.distill(INPUT, {
+      useLlm: true,
+      tokenGate: 1,
+      modelTag: "m2",
+    });
     expect(r.cached).toBe(false);
   });
 });
@@ -86,7 +116,9 @@ describe("pickBestLocalModel", () => {
   });
 
   it("returns null when only embedding models are available", () => {
-    expect(pickBestLocalModel(["text-embedding-qwen3-embedding-8b"])).toBeNull();
+    expect(
+      pickBestLocalModel(["text-embedding-qwen3-embedding-8b"]),
+    ).toBeNull();
   });
 
   it("falls back to a stable choice when no param sizes parse", () => {

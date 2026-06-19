@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import { VaultContextProvider } from "../../src/saucebot/VaultContextProvider";
 import type { MetadataCacheHost } from "../../src/saucebot/VaultContextProvider";
 
-function makeCache(links: Record<string, Record<string, number>>): MetadataCacheHost {
+function makeCache(
+  links: Record<string, Record<string, number>>,
+): MetadataCacheHost {
   return { resolvedLinks: links };
 }
 

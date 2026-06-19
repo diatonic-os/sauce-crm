@@ -3,7 +3,10 @@
 // configured centerTop.
 
 import { describe, expect, it } from "vitest";
-import { RagAssembler, type RagAssemblerHost } from "../../src/saucebot/RagAssembler";
+import {
+  RagAssembler,
+  type RagAssemblerHost,
+} from "../../src/saucebot/RagAssembler";
 
 function makeHost(over: Partial<RagAssemblerHost> = {}): RagAssemblerHost {
   const base: RagAssemblerHost = {
@@ -43,7 +46,9 @@ describe("RagAssembler centering", () => {
     // Alice: 0.5 * 2.0 (pinned) * 1.0 = 1.0
     // Bob:   0.9 * 1.0 * 1.0 = 0.9
     // Carol: 0.7 * 1.0 * ~2.0 (touched yesterday) ≈ 1.4
-    expect(s.get("people/Carol.md")!).toBeGreaterThan(s.get("people/Alice.md")!);
+    expect(s.get("people/Carol.md")!).toBeGreaterThan(
+      s.get("people/Alice.md")!,
+    );
     expect(s.get("people/Alice.md")!).toBeGreaterThan(s.get("people/Bob.md")!);
     // Centered order matches score order.
     expect(ctx.centered[0]).toBe("people/Carol.md");
@@ -52,7 +57,10 @@ describe("RagAssembler centering", () => {
   });
 
   it("caps centered output at 12 paths", async () => {
-    const hits = Array.from({ length: 30 }, (_, i) => ({ path: `n/${i}.md`, score: 1 - i * 0.01 }));
+    const hits = Array.from({ length: 30 }, (_, i) => ({
+      path: `n/${i}.md`,
+      score: 1 - i * 0.01,
+    }));
     const host = makeHost({ semantic: async () => hits });
     const rag = new RagAssembler(host, { topK: 30 });
     const ctx = await rag.assemble("q");
@@ -68,6 +76,8 @@ describe("RagAssembler centering", () => {
     });
     const rag = new RagAssembler(host);
     const ctx = await rag.assemble("q", "people/A.md");
-    expect(ctx.scores!.get("people/A.md")!).toBeGreaterThan(ctx.scores!.get("people/B.md")!);
+    expect(ctx.scores!.get("people/A.md")!).toBeGreaterThan(
+      ctx.scores!.get("people/B.md")!,
+    );
   });
 });

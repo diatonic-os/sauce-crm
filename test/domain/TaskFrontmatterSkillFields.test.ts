@@ -1,6 +1,9 @@
 // Round-trip tests for the new skill/schedule fields added to TaskFrontmatter (F3).
 import { describe, expect, it } from "vitest";
-import { TaskSchema, type TaskFrontmatter } from "../../src/domain/schemas/index";
+import {
+  TaskSchema,
+  type TaskFrontmatter,
+} from "../../src/domain/schemas/index";
 
 function validBase(): TaskFrontmatter {
   return { type: "task", title: "Do thing", status: "todo" };
@@ -53,6 +56,9 @@ describe("TaskFrontmatter — skill/schedule fields", () => {
       skill_args: { format: "json", options: { pretty: true } },
     };
     const parsed = TaskSchema.parse(fm);
-    expect(parsed!.skill_args).toEqual({ format: "json", options: { pretty: true } });
+    expect(parsed!.skill_args).toEqual({
+      format: "json",
+      options: { pretty: true },
+    });
   });
 });

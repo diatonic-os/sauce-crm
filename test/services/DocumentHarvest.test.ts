@@ -11,7 +11,8 @@ import {
 
 const DIM = 4;
 // Deterministic fake embedder: chunks mentioning "alpha" point one way.
-const embed = async (text: string) => (/alpha/i.test(text) ? [1, 0, 0, 0] : [0, 1, 0, 0]);
+const embed = async (text: string) =>
+  /alpha/i.test(text) ? [1, 0, 0, 0] : [0, 1, 0, 0];
 
 describe("chunkText", () => {
   it("returns a single chunk for short text", () => {
@@ -37,14 +38,32 @@ describe("DocumentHarvestService", () => {
 
   async function svc(prov: HarvestProvenance | null = null) {
     h = await tmpLance();
-    const store = new LanceDocChunkStore(await h.table(TABLES.docChunks, DIM), DIM);
-    return { store, harvester: new DocumentHarvestService(store, embed, { dim: DIM, chunkSize: 40, overlap: 5 }, prov) };
+    const store = new LanceDocChunkStore(
+      await h.table(TABLES.docChunks, DIM),
+      DIM,
+    );
+    return {
+      store,
+      harvester: new DocumentHarvestService(
+        store,
+        embed,
+        { dim: DIM, chunkSize: 40, overlap: 5 },
+        prov,
+      ),
+    };
   }
 
   it("harvests a txt document into searchable chunks", async () => {
     const { harvester } = await svc();
-    const text = "alpha section about founders. " + "beta section about something else entirely here.";
-    const r = await harvester.harvest({ id: "doc:notes", name: "notes.txt", format: "txt", text });
+    const text =
+      "alpha section about founders. " +
+      "beta section about something else entirely here.";
+    const r = await harvester.harvest({
+      id: "doc:notes",
+      name: "notes.txt",
+      format: "txt",
+      text,
+    });
     expect(r.chunks).toBeGreaterThan(0);
 
     const hits = await harvester.search([1, 0, 0, 0], 1);
@@ -54,9 +73,19 @@ describe("DocumentHarvestService", () => {
 
   it("re-harvesting replaces a document's chunks", async () => {
     const { store, harvester } = await svc();
-    await harvester.harvest({ id: "doc:x", name: "x", format: "md", text: "alpha one alpha two alpha three" });
+    await harvester.harvest({
+      id: "doc:x",
+      name: "x",
+      format: "md",
+      text: "alpha one alpha two alpha three",
+    });
     const first = (await store.listDocs())[0].chunks;
-    await harvester.harvest({ id: "doc:x", name: "x", format: "md", text: "alpha solo" });
+    await harvester.harvest({
+      id: "doc:x",
+      name: "x",
+      format: "md",
+      text: "alpha solo",
+    });
     const docs = await store.listDocs();
     expect(docs).toHaveLength(1);
     expect(docs[0].chunks).toBeLessThanOrEqual(first); // replaced, not appended
@@ -66,11 +95,19 @@ describe("DocumentHarvestService", () => {
   it("throws on an unsupported format", async () => {
     const { harvester } = await svc();
     // @ts-expect-error testing an invalid format at runtime
-    await expect(harvester.harvest({ id: "d", name: "d", format: "xlsx", text: "x" })).rejects.toThrow(/Unsupported/);
+    await expect(
+      harvester.harvest({ id: "d", name: "d", format: "xlsx", text: "x" }),
+    ).rejects.toThrow(/Unsupported/);
   });
 
   it("records provenance lineage: chunk parentFp === document fp", async () => {
-    const calls: { op: string; subject: string; kind: string; parentFp?: string; fp: string }[] = [];
+    const calls: {
+      op: string;
+      subject: string;
+      kind: string;
+      parentFp?: string;
+      fp: string;
+    }[] = [];
     let n = 0;
     const prov: HarvestProvenance = {
       async record(op, subject, kind, _content, opts) {
@@ -80,7 +117,12 @@ describe("DocumentHarvestService", () => {
       },
     };
     const { harvester } = await svc(prov);
-    await harvester.harvest({ id: "doc:p", name: "p", format: "txt", text: "alpha chunk content here for embedding" });
+    await harvester.harvest({
+      id: "doc:p",
+      name: "p",
+      format: "txt",
+      text: "alpha chunk content here for embedding",
+    });
 
     const doc = calls.find((c) => c.kind === "document")!;
     const chunks = calls.filter((c) => c.kind === "chunk");
@@ -91,10 +133,21 @@ describe("DocumentHarvestService", () => {
 
   it("skips chunks whose embedding dimension mismatches", async () => {
     h = await tmpLance();
-    const store = new LanceDocChunkStore(await h.table(TABLES.docChunks, DIM), DIM);
+    const store = new LanceDocChunkStore(
+      await h.table(TABLES.docChunks, DIM),
+      DIM,
+    );
     const badEmbed = async () => [1, 2, 3]; // dim 3 != 4
-    const harvester = new DocumentHarvestService(store, badEmbed, { dim: DIM, chunkSize: 40 });
-    const r = await harvester.harvest({ id: "doc:bad", name: "bad", format: "txt", text: "alpha beta gamma delta epsilon" });
+    const harvester = new DocumentHarvestService(store, badEmbed, {
+      dim: DIM,
+      chunkSize: 40,
+    });
+    const r = await harvester.harvest({
+      id: "doc:bad",
+      name: "bad",
+      format: "txt",
+      text: "alpha beta gamma delta epsilon",
+    });
     expect(r.chunks).toBe(0);
     expect(r.skippedChunks).toBeGreaterThan(0);
   });

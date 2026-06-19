@@ -42,7 +42,9 @@ describe("WhisperEngine", () => {
     const run = async () =>
       ({ code: 1, stdout: "", stderr: "model not found" }) as ExecResult;
     const engine = engineWith(run, async () => null);
-    await expect(engine.transcribe("/a.m4a")).rejects.toThrow(/model not found/);
+    await expect(engine.transcribe("/a.m4a")).rejects.toThrow(
+      /model not found/,
+    );
   });
 
   it("throws when the binary is unavailable (code null)", async () => {

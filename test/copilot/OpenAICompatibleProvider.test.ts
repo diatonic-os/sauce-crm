@@ -67,7 +67,10 @@ describe("OpenAICompatibleProvider — batch path", () => {
       apiKey: async () => "sk-test",
     });
     const events = await collect(
-      p.complete({ model: "gpt-4o-mini", messages: [{ role: "user", content: "hi" }] }),
+      p.complete({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "hi" }],
+      }),
     );
     expect(events.map((e) => e.type)).toEqual(["text", "usage", "done"]);
     expect((events[2] as { reason: string }).reason).toBe("end_turn");
@@ -79,16 +82,27 @@ describe("OpenAICompatibleProvider — batch path", () => {
       status: 200,
       body: JSON.stringify({
         choices: [
-          { message: { content: "", reasoning_content: "thinking…" }, finish_reason: "stop" },
+          {
+            message: { content: "", reasoning_content: "thinking…" },
+            finish_reason: "stop",
+          },
         ],
         usage: { prompt_tokens: 1, completion_tokens: 1 },
       }),
     });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1" });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://x/v1",
+    });
     const events = await collect(
-      p.complete({ model: "deepseek-r1", messages: [{ role: "user", content: "hi" }] }),
+      p.complete({
+        model: "deepseek-r1",
+        messages: [{ role: "user", content: "hi" }],
+      }),
     );
-    const reasoning = events.find((e) => e.type === "reasoning") as { delta: string } | undefined;
+    const reasoning = events.find((e) => e.type === "reasoning") as
+      | { delta: string }
+      | undefined;
     expect(reasoning?.delta).toBe("thinking…");
     expect(events.some((e) => e.type === "text")).toBe(false);
   });
@@ -115,15 +129,30 @@ describe("OpenAICompatibleProvider — batch path", () => {
     );
     const body = JSON.parse(host.lastRequestTo("/chat/completions")!.body!);
     expect(body.model).toBe("qwen3-14b");
-    expect(body.messages[0]).toEqual({ role: "system", content: "you are a tester" });
-    expect(body.messages[1]).toEqual({ role: "user", content: "ping", tool_call_id: undefined });
+    expect(body.messages[0]).toEqual({
+      role: "system",
+      content: "you are a tester",
+    });
+    expect(body.messages[1]).toEqual({
+      role: "user",
+      content: "ping",
+      tool_call_id: undefined,
+    });
   });
 
   it("surfaces non-2xx as a done:error event (does NOT throw)", async () => {
     const host = new ProviderHostMock();
-    host.route("/chat/completions", { status: 500, body: JSON.stringify({ error: "internal" }) });
-    const p = new OpenAICompatibleProvider(host, { name: "openai", baseUrl: "http://x/v1" });
-    const events = await collect(p.complete({ model: "x", messages: [{ role: "user", content: "hi" }] }));
+    host.route("/chat/completions", {
+      status: 500,
+      body: JSON.stringify({ error: "internal" }),
+    });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "openai",
+      baseUrl: "http://x/v1",
+    });
+    const events = await collect(
+      p.complete({ model: "x", messages: [{ role: "user", content: "hi" }] }),
+    );
     expect(events).toHaveLength(1);
     expect((events[0] as { reason: string }).reason).toBe("error");
   });
@@ -133,14 +162,28 @@ describe("OpenAICompatibleProvider — SSE streaming", () => {
   it("yields token-by-token deltas, then usage + done", async () => {
     const host = new ProviderHostMock();
     host.routeStream("/chat/completions", { status: 200, chunks: sseFrames() });
-    const p = new OpenAICompatibleProvider(host, { name: "openai", baseUrl: "http://x/v1", apiKey: async () => "k" });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "openai",
+      baseUrl: "http://x/v1",
+      apiKey: async () => "k",
+    });
     const events = await collect(
-      p.complete({ model: "gpt-4o-mini", messages: [{ role: "user", content: "hi" }], stream: true }),
+      p.complete({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
     );
-    const texts = events.filter((e) => e.type === "text") as Array<{ delta: string }>;
+    const texts = events.filter((e) => e.type === "text") as Array<{
+      delta: string;
+    }>;
     expect(texts.map((t) => t.delta)).toEqual(["Foo", " bar"]);
-    expect((events.find((e) => e.type === "done") as { reason: string }).reason).toBe("end_turn");
-    expect(JSON.parse(host.lastRequestTo("/chat/completions")!.body!).stream).toBe(true);
+    expect(
+      (events.find((e) => e.type === "done") as { reason: string }).reason,
+    ).toBe("end_turn");
+    expect(
+      JSON.parse(host.lastRequestTo("/chat/completions")!.body!).stream,
+    ).toBe(true);
   });
 
   it("assembles split tool_calls and emits a parsed tool_use event", async () => {
@@ -153,7 +196,10 @@ describe("OpenAICompatibleProvider — SSE streaming", () => {
       `data: [DONE]\n\n`,
     ];
     host.routeStream("/chat/completions", { status: 200, chunks: lines });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1" });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://x/v1",
+    });
     const events = await collect(
       p.complete({
         model: "x",
@@ -162,11 +208,17 @@ describe("OpenAICompatibleProvider — SSE streaming", () => {
         tools: [{ name: "log_touch", description: "", inputSchema: {} }],
       }),
     );
-    const tu = events.find((e) => e.type === "tool_use") as { id: string; name: string; input: { contact: string } };
+    const tu = events.find((e) => e.type === "tool_use") as {
+      id: string;
+      name: string;
+      input: { contact: string };
+    };
     expect(tu.id).toBe("call_1");
     expect(tu.name).toBe("log_touch");
     expect(tu.input).toEqual({ contact: "alice" });
-    expect((events.find((e) => e.type === "done") as { reason: string }).reason).toBe("tool_use");
+    expect(
+      (events.find((e) => e.type === "done") as { reason: string }).reason,
+    ).toBe("tool_use");
   });
 
   it("surfaces reasoning_content as a `reasoning` event, distinct from text", async () => {
@@ -182,13 +234,27 @@ describe("OpenAICompatibleProvider — SSE streaming", () => {
       `data: [DONE]\n\n`,
     ];
     host.routeStream("/chat/completions", { status: 200, chunks: lines });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1" });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://x/v1",
+    });
     const events = await collect(
-      p.complete({ model: "qwen3.5-9b", messages: [{ role: "user", content: "hi" }], stream: true }),
+      p.complete({
+        model: "qwen3.5-9b",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
     );
-    const reasoning = events.filter((e) => e.type === "reasoning") as Array<{ delta: string }>;
-    const texts = events.filter((e) => e.type === "text") as Array<{ delta: string }>;
-    expect(reasoning.map((r) => r.delta)).toEqual(["Let me think", " about it."]);
+    const reasoning = events.filter((e) => e.type === "reasoning") as Array<{
+      delta: string;
+    }>;
+    const texts = events.filter((e) => e.type === "text") as Array<{
+      delta: string;
+    }>;
+    expect(reasoning.map((r) => r.delta)).toEqual([
+      "Let me think",
+      " about it.",
+    ]);
     expect(texts.map((t) => t.delta)).toEqual(["PONG"]);
   });
 
@@ -207,22 +273,47 @@ describe("OpenAICompatibleProvider — SSE streaming", () => {
         usage: { prompt_tokens: 1, completion_tokens: 1 },
       }),
     });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://127.0.0.1:1234/v1" });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://127.0.0.1:1234/v1",
+    });
     const events = await collect(
-      p.complete({ model: "m", messages: [{ role: "user", content: "hi" }], stream: true }),
+      p.complete({
+        model: "m",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
     );
-    const texts = events.filter((e) => e.type === "text") as Array<{ delta: string }>;
+    const texts = events.filter((e) => e.type === "text") as Array<{
+      delta: string;
+    }>;
     expect(texts.map((t) => t.delta)).toEqual(["PONG"]);
     // The batch request must NOT carry stream:true (it was deleted on fallback).
-    expect(JSON.parse(host.lastRequestTo("/chat/completions")!.body!).stream).toBeUndefined();
-    expect((events.find((e) => e.type === "done") as { reason: string }).reason).toBe("end_turn");
+    expect(
+      JSON.parse(host.lastRequestTo("/chat/completions")!.body!).stream,
+    ).toBeUndefined();
+    expect(
+      (events.find((e) => e.type === "done") as { reason: string }).reason,
+    ).toBe("end_turn");
   });
 
   it("yields done:error on HTTP 5xx in stream branch (does NOT throw)", async () => {
     const host = new ProviderHostMock();
-    host.routeStream("/chat/completions", { status: 500, chunks: [JSON.stringify({ error: "boom" })] });
-    const p = new OpenAICompatibleProvider(host, { name: "openai", baseUrl: "http://x/v1" });
-    const events = await collect(p.complete({ model: "x", messages: [{ role: "user", content: "x" }], stream: true }));
+    host.routeStream("/chat/completions", {
+      status: 500,
+      chunks: [JSON.stringify({ error: "boom" })],
+    });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "openai",
+      baseUrl: "http://x/v1",
+    });
+    const events = await collect(
+      p.complete({
+        model: "x",
+        messages: [{ role: "user", content: "x" }],
+        stream: true,
+      }),
+    );
     expect(events).toHaveLength(1);
     expect((events[0] as { reason: string }).reason).toBe("error");
   });
@@ -233,35 +324,70 @@ describe("OpenAICompatibleProvider — auth header + tool gate knobs", () => {
     const host = new ProviderHostMock();
     host.route("/chat/completions", {
       status: 200,
-      body: JSON.stringify({ choices: [{ message: { content: "x" }, finish_reason: "stop" }], usage: {} }),
+      body: JSON.stringify({
+        choices: [{ message: { content: "x" }, finish_reason: "stop" }],
+        usage: {},
+      }),
     });
-    const p = new OpenAICompatibleProvider(host, { name: "openai", baseUrl: "http://x/v1", apiKey: async () => "sk-secret" });
-    await collect(p.complete({ model: "m", messages: [{ role: "user", content: "hi" }] }));
-    expect(host.lastRequestTo("/chat/completions")!.headers.authorization).toBe("Bearer sk-secret");
+    const p = new OpenAICompatibleProvider(host, {
+      name: "openai",
+      baseUrl: "http://x/v1",
+      apiKey: async () => "sk-secret",
+    });
+    await collect(
+      p.complete({ model: "m", messages: [{ role: "user", content: "hi" }] }),
+    );
+    expect(host.lastRequestTo("/chat/completions")!.headers.authorization).toBe(
+      "Bearer sk-secret",
+    );
   });
 
   it("omits the auth header when authHeader is 'none' (local LM Studio default)", async () => {
     const host = new ProviderHostMock();
     host.route("/chat/completions", {
       status: 200,
-      body: JSON.stringify({ choices: [{ message: { content: "x" }, finish_reason: "stop" }], usage: {} }),
+      body: JSON.stringify({
+        choices: [{ message: { content: "x" }, finish_reason: "stop" }],
+        usage: {},
+      }),
     });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1", authHeader: "none" });
-    await collect(p.complete({ model: "m", messages: [{ role: "user", content: "hi" }] }));
-    expect(host.lastRequestTo("/chat/completions")!.headers.authorization).toBeUndefined();
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://x/v1",
+      authHeader: "none",
+    });
+    await collect(
+      p.complete({ model: "m", messages: [{ role: "user", content: "hi" }] }),
+    );
+    expect(
+      host.lastRequestTo("/chat/completions")!.headers.authorization,
+    ).toBeUndefined();
   });
 
   it("does NOT send tools in the body when supportsToolUse is false", async () => {
     const host = new ProviderHostMock();
     host.route("/chat/completions", {
       status: 200,
-      body: JSON.stringify({ choices: [{ message: { content: "x" }, finish_reason: "stop" }], usage: {} }),
+      body: JSON.stringify({
+        choices: [{ message: { content: "x" }, finish_reason: "stop" }],
+        usage: {},
+      }),
     });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1", supportsToolUse: false });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://x/v1",
+      supportsToolUse: false,
+    });
     await collect(
-      p.complete({ model: "m", messages: [{ role: "user", content: "hi" }], tools: [{ name: "t", description: "", inputSchema: {} }] }),
+      p.complete({
+        model: "m",
+        messages: [{ role: "user", content: "hi" }],
+        tools: [{ name: "t", description: "", inputSchema: {} }],
+      }),
     );
-    expect(JSON.parse(host.lastRequestTo("/chat/completions")!.body!).tools).toBeUndefined();
+    expect(
+      JSON.parse(host.lastRequestTo("/chat/completions")!.body!).tools,
+    ).toBeUndefined();
     expect(p.capabilities().toolUse).toBe(false);
   });
 });
@@ -269,8 +395,15 @@ describe("OpenAICompatibleProvider — auth header + tool gate knobs", () => {
 describe("OpenAICompatibleProvider — embeddings", () => {
   it("posts {model,input} to /embeddings and returns a Float32Array", async () => {
     const host = new ProviderHostMock();
-    host.route("/embeddings", { status: 200, body: JSON.stringify({ data: [{ embedding: [0.1, 0.2, 0.3] }] }) });
-    const p = new OpenAICompatibleProvider(host, { name: "openai", baseUrl: "http://x/v1", apiKey: async () => "k" });
+    host.route("/embeddings", {
+      status: 200,
+      body: JSON.stringify({ data: [{ embedding: [0.1, 0.2, 0.3] }] }),
+    });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "openai",
+      baseUrl: "http://x/v1",
+      apiKey: async () => "k",
+    });
     const vec = await p.embed("hello", "text-embedding-3-small");
     expect(vec).toBeInstanceOf(Float32Array);
     expect(Array.from(vec)).toHaveLength(3);
@@ -280,7 +413,11 @@ describe("OpenAICompatibleProvider — embeddings", () => {
 
   it("throws on embeddings when supportsEmbeddings is false", async () => {
     const host = new ProviderHostMock();
-    const p = new OpenAICompatibleProvider(host, { name: "groq", baseUrl: "http://x/v1", supportsEmbeddings: false });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "groq",
+      baseUrl: "http://x/v1",
+      supportsEmbeddings: false,
+    });
     await expect(p.embed("hi", "m")).rejects.toThrow();
   });
 });

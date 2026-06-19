@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { App, TFile } from "obsidian";
 import { tmpLance, type TmpLance } from "./_lance-tmp";
 import { TABLES } from "../../src/backend/lance/LanceSchema";
-import { LanceEntityMirror, type MirrorTables } from "../../src/backend/lance/LanceEntityMirror";
+import {
+  LanceEntityMirror,
+  type MirrorTables,
+} from "../../src/backend/lance/LanceEntityMirror";
 import { LanceVectorIndex } from "../../src/backend/lance/LanceVectorIndex";
 import { MirrorSync } from "../../src/services/MirrorSync";
 
@@ -16,7 +19,12 @@ function fakeApp(opts: {
   links?: Record<string, string>; // linkpath -> dest path
 }): App {
   const files: TFile[] = Object.keys(opts.content).map(
-    (path) => ({ path, extension: "md", stat: { mtime: 1, ctime: 1 } }) as unknown as TFile,
+    (path) =>
+      ({
+        path,
+        extension: "md",
+        stat: { mtime: 1, ctime: 1 },
+      }) as unknown as TFile,
   );
   return {
     vault: {
@@ -26,12 +34,15 @@ function fakeApp(opts: {
     metadataCache: {
       getFileCache: (f: TFile) => ({ frontmatter: opts.frontmatter[f.path] }),
       getFirstLinkpathDest: (link: string) =>
-        opts.links?.[link] ? ({ path: opts.links[link] } as unknown as TFile) : null,
+        opts.links?.[link]
+          ? ({ path: opts.links[link] } as unknown as TFile)
+          : null,
     },
   } as unknown as App;
 }
 
-const tfile = (path: string) => ({ path, extension: "md", stat: { mtime: 1, ctime: 1 } }) as unknown as TFile;
+const tfile = (path: string) =>
+  ({ path, extension: "md", stat: { mtime: 1, ctime: 1 } }) as unknown as TFile;
 
 async function tables(h: TmpLance): Promise<MirrorTables> {
   return {
@@ -54,13 +65,23 @@ describe("MirrorSync", () => {
     const vectors = new LanceVectorIndex(t.embeddings, DIM);
     const app = fakeApp({
       frontmatter: {
-        "people/Alice.md": { type: "person", tags: ["vip"], knows: ["[[Bob]]"] },
+        "people/Alice.md": {
+          type: "person",
+          tags: ["vip"],
+          knows: ["[[Bob]]"],
+        },
       },
       content: { "people/Alice.md": "---\ntype: person\n---\nAlice bio text" },
       links: { Bob: "people/Bob.md" },
     });
     const embed = async () => [1, 0, 0, 0];
-    const sync = new MirrorSync(app, mirror, vectors, ["knows", "worked_with"], embed);
+    const sync = new MirrorSync(
+      app,
+      mirror,
+      vectors,
+      ["knows", "worked_with"],
+      embed,
+    );
 
     await expect(sync.syncFile(tfile("people/Alice.md"))).resolves.toBe(true);
 
@@ -241,7 +262,9 @@ describe("MirrorSync", () => {
       expect(ticks[i]!.done).toBeGreaterThanOrEqual(ticks[i - 1]!.done);
     }
     // Indexing phase reaches done === total; a reconciling + done phase follow.
-    expect(ticks.some((p) => p.phase === "indexing" && p.done === 3)).toBe(true);
+    expect(ticks.some((p) => p.phase === "indexing" && p.done === 3)).toBe(
+      true,
+    );
     expect(ticks.some((p) => p.phase === "reconciling")).toBe(true);
     expect(ticks.at(-1)?.phase).toBe("done");
   });
@@ -337,9 +360,17 @@ describe("MirrorSync", () => {
       frontmatter: { "people/A.md": { type: "person" } },
       content: { "people/A.md": "body" },
     });
-    const sync = new MirrorSync(app, mirror, vectors, [], async () => [1, 0, 0, 0], null, {
-      realtimeEmbeddings: () => false,
-    });
+    const sync = new MirrorSync(
+      app,
+      mirror,
+      vectors,
+      [],
+      async () => [1, 0, 0, 0],
+      null,
+      {
+        realtimeEmbeddings: () => false,
+      },
+    );
 
     expect(await sync.syncFile(tfile("people/A.md"))).toBe(true);
     expect(await vectors.isEmpty()).toBe(true);

@@ -3,8 +3,18 @@
 // max-turn cap fires when a provider keeps emitting tool_use forever.
 
 import { describe, expect, it, vi } from "vitest";
-import { SauceBotRuntime, type SauceBotSettings } from "../../src/saucebot/SauceBotRuntime";
-import type { ChatMessage, CompletionEvent, CompletionRequest, ISauceBotProvider, ModelDescriptor, ProviderCapabilities } from "../../src/saucebot/ISauceBotProvider";
+import {
+  SauceBotRuntime,
+  type SauceBotSettings,
+} from "../../src/saucebot/SauceBotRuntime";
+import type {
+  ChatMessage,
+  CompletionEvent,
+  CompletionRequest,
+  ISauceBotProvider,
+  ModelDescriptor,
+  ProviderCapabilities,
+} from "../../src/saucebot/ISauceBotProvider";
 
 interface Round {
   events: CompletionEvent[];
@@ -16,11 +26,18 @@ class ScriptedProvider implements ISauceBotProvider {
   public seen: ChatMessage[][] = [];
   private idx = 0;
   constructor(private rounds: Round[] | ((round: number) => Round)) {}
-  capabilities(): ProviderCapabilities { return { toolUse: true, streaming: true, vision: false, maxContext: 8000 }; }
-  async embed(): Promise<Float32Array> { return new Float32Array(); }
+  capabilities(): ProviderCapabilities {
+    return { toolUse: true, streaming: true, vision: false, maxContext: 8000 };
+  }
+  async embed(): Promise<Float32Array> {
+    return new Float32Array();
+  }
   async *complete(req: CompletionRequest): AsyncIterable<CompletionEvent> {
     this.seen.push(req.messages.map((m) => ({ ...m })));
-    const round = typeof this.rounds === "function" ? this.rounds(this.idx) : this.rounds[Math.min(this.idx, this.rounds.length - 1)];
+    const round =
+      typeof this.rounds === "function"
+        ? this.rounds(this.idx)
+        : this.rounds[Math.min(this.idx, this.rounds.length - 1)];
     this.idx++;
     for (const ev of round.events) yield ev;
   }
@@ -28,8 +45,12 @@ class ScriptedProvider implements ISauceBotProvider {
 
 function makeRuntime(provider: ISauceBotProvider) {
   const settings: SauceBotSettings = {
-    provider: "anthropic", model: "m", apiKey: "k",
-    temperature: 0, maxTokens: 100, systemPrompt: "sys",
+    provider: "anthropic",
+    model: "m",
+    apiKey: "k",
+    temperature: 0,
+    maxTokens: 100,
+    systemPrompt: "sys",
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const app = { vault: {}, metadataCache: {} } as any;
@@ -42,10 +63,17 @@ function makeRuntime(provider: ISauceBotProvider) {
   rt.rag = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     assemble: async () => ({
-      pinned: [], focus: null, graph: [], semantic: [], recentTouches: [],
-      addenda: {}, estimatedTokens: 0, trimmed: false, centered: [],
+      pinned: [],
+      focus: null,
+      graph: [],
+      semantic: [],
+      recentTouches: [],
+      addenda: {},
+      estimatedTokens: 0,
+      trimmed: false,
+      centered: [],
     }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
   // Force provider() to return our scripted instance.
   rt.provider = () => provider;
@@ -62,14 +90,23 @@ function makeRuntime(provider: ISauceBotProvider) {
 describe("SauceBotRuntime.ask — multi-turn tool loop", () => {
   it("feeds tool result back as a new message and completes on end_turn", async () => {
     const provider = new ScriptedProvider([
-      { events: [
-        { type: "tool_use", id: "call_1", name: "echo", input: { msg: "hi" } },
-        { type: "done", reason: "tool_use" },
-      ] },
-      { events: [
-        { type: "text", delta: "done" },
-        { type: "done", reason: "end_turn" },
-      ] },
+      {
+        events: [
+          {
+            type: "tool_use",
+            id: "call_1",
+            name: "echo",
+            input: { msg: "hi" },
+          },
+          { type: "done", reason: "tool_use" },
+        ],
+      },
+      {
+        events: [
+          { type: "text", delta: "done" },
+          { type: "done", reason: "end_turn" },
+        ],
+      },
     ]);
     const rt = makeRuntime(provider);
     const events: CompletionEvent[] = [];
@@ -81,16 +118,29 @@ describe("SauceBotRuntime.ask — multi-turn tool loop", () => {
     const round2 = provider.seen[1];
     const assistant = round2.find((m) => m.role === "assistant");
     expect(assistant).toBeDefined();
-    const blocks = assistant!.content as Array<{ type: string; id?: string; name?: string }>;
-    expect(blocks.some((b) => b.type === "tool_use" && b.id === "call_1" && b.name === "echo")).toBe(true);
+    const blocks = assistant!.content as Array<{
+      type: string;
+      id?: string;
+      name?: string;
+    }>;
+    expect(
+      blocks.some(
+        (b) => b.type === "tool_use" && b.id === "call_1" && b.name === "echo",
+      ),
+    ).toBe(true);
     const toolMsg = round2.find((m) => m.role === "tool");
     expect(toolMsg).toBeDefined();
     expect(toolMsg!.toolCallId).toBe("call_1");
-    expect(typeof toolMsg!.content === "string" && (toolMsg!.content as string).includes("echoed")).toBe(true);
+    expect(
+      typeof toolMsg!.content === "string" &&
+        (toolMsg!.content as string).includes("echoed"),
+    ).toBe(true);
 
     // Consumer saw both the tool_use and the final text + done(end_turn).
     expect(events.some((e) => e.type === "tool_use")).toBe(true);
-    expect(events.some((e) => e.type === "text" && e.delta === "done")).toBe(true);
+    expect(events.some((e) => e.type === "text" && e.delta === "done")).toBe(
+      true,
+    );
     const last = events[events.length - 1];
     expect(last.type).toBe("done");
     if (last.type === "done") expect(last.reason).toBe("end_turn");
@@ -100,10 +150,12 @@ describe("SauceBotRuntime.ask — multi-turn tool loop", () => {
     let calls = 0;
     const provider = new ScriptedProvider(() => {
       const id = `call_${calls++}`;
-      return { events: [
-        { type: "tool_use", id, name: "echo", input: { msg: id } },
-        { type: "done", reason: "tool_use" },
-      ] };
+      return {
+        events: [
+          { type: "tool_use", id, name: "echo", input: { msg: id } },
+          { type: "done", reason: "tool_use" },
+        ],
+      };
     });
     const rt = makeRuntime(provider);
     const events: CompletionEvent[] = [];
@@ -121,11 +173,13 @@ describe("SauceBotRuntime.ask — multi-turn tool loop", () => {
 
   it("unknown tool yields a tool result with { error: 'unknown tool' }", async () => {
     const provider = new ScriptedProvider([
-      { events: [
-        { type: "tool_use", id: "x", name: "no_such_tool", input: {} },
-        { type: "done", reason: "tool_use" },
-      ] },
-      { events: [ { type: "done", reason: "end_turn" } ] },
+      {
+        events: [
+          { type: "tool_use", id: "x", name: "no_such_tool", input: {} },
+          { type: "done", reason: "tool_use" },
+        ],
+      },
+      { events: [{ type: "done", reason: "end_turn" }] },
     ]);
     const rt = makeRuntime(provider);
     const events: CompletionEvent[] = [];
@@ -133,7 +187,7 @@ describe("SauceBotRuntime.ask — multi-turn tool loop", () => {
     const round2 = provider.seen[1];
     const toolMsg = round2.find((m) => m.role === "tool");
     expect(toolMsg).toBeDefined();
-    expect((toolMsg!.content as string)).toContain("unknown tool");
+    expect(toolMsg!.content as string).toContain("unknown tool");
   });
 });
 

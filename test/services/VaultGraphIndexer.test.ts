@@ -60,8 +60,12 @@ describe("VaultGraphIndexer — node/edge build", () => {
     await indexer.rebuild();
 
     // Both directions should be reachable (GraphService materialises bidi edges)
-    const fromA = graph.neighbors("a.md").filter((e) => e.dst === "b.md" && e.kind === "wikilink");
-    const fromB = graph.neighbors("b.md").filter((e) => e.dst === "a.md" && e.kind === "wikilink");
+    const fromA = graph
+      .neighbors("a.md")
+      .filter((e) => e.dst === "b.md" && e.kind === "wikilink");
+    const fromB = graph
+      .neighbors("b.md")
+      .filter((e) => e.dst === "a.md" && e.kind === "wikilink");
     expect(fromA.length).toBeGreaterThan(0);
     expect(fromB.length).toBeGreaterThan(0);
   });
@@ -142,7 +146,9 @@ describe("VaultGraphIndexer — node/edge build", () => {
     expect(storedNodes).toContain("a.md");
     expect(storedNodes).toContain("b.md");
     // Bidirectional: both directions should be stored
-    expect(storedEdges.some((e) => e.startsWith("a.md->b.md:wikilink"))).toBe(true);
+    expect(storedEdges.some((e) => e.startsWith("a.md->b.md:wikilink"))).toBe(
+      true,
+    );
   });
 
   it("handles empty vault gracefully", async () => {

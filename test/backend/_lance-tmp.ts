@@ -3,8 +3,15 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openLance, ensureTable, type LanceConnection } from "../../src/backend/lance/LanceConnection";
-import { DEFAULT_EMBEDDING_DIM, type TableName } from "../../src/backend/lance/LanceSchema";
+import {
+  openLance,
+  ensureTable,
+  type LanceConnection,
+} from "../../src/backend/lance/LanceConnection";
+import {
+  DEFAULT_EMBEDDING_DIM,
+  type TableName,
+} from "../../src/backend/lance/LanceSchema";
 
 export interface TmpLance {
   db: LanceConnection;
@@ -19,7 +26,8 @@ export async function tmpLance(): Promise<TmpLance> {
   return {
     db,
     dir,
-    table: (name: TableName, dim = DEFAULT_EMBEDDING_DIM) => ensureTable(db, name, dim),
+    table: (name: TableName, dim = DEFAULT_EMBEDDING_DIM) =>
+      ensureTable(db, name, dim),
     // Close the native connection before removing the dir — leaked LanceDB
     // handles across parallel vitest workers can trigger a Rust panic.
     cleanup: () => {

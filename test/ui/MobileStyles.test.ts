@@ -25,11 +25,15 @@ describe("MobileStyles — CSS contract", () => {
   it("pins a safe-area-aware modal footer with a divider", () => {
     expect(MOBILE_CSS).toContain(".sauce-modal .sauce-modal-footer");
     expect(MOBILE_CSS).toContain("var(--sg-mobile-bottom)");
-    expect(MOBILE_CSS).toContain("border-top: 1px solid var(--background-modifier-border)");
+    expect(MOBILE_CSS).toContain(
+      "border-top: 1px solid var(--background-modifier-border)",
+    );
   });
 
   it("derives the safe-area bottom token from env(safe-area-inset-bottom)", () => {
-    expect(MOBILE_CSS).toContain("--sg-mobile-bottom: env(safe-area-inset-bottom, 0px)");
+    expect(MOBILE_CSS).toContain(
+      "--sg-mobile-bottom: env(safe-area-inset-bottom, 0px)",
+    );
   });
 
   it("keeps the settings scroll surface clear of the home indicator", () => {

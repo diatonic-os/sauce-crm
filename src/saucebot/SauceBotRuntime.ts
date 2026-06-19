@@ -87,6 +87,9 @@ export interface SauceBotSettings {
    *  ModelManager appends here on a permanent failure so the picker can mark +
    *  skip them instead of re-attempting a doomed load. User-clearable. */
   disabledModels?: string[];
+  /** Models that have successfully warmed up — used so an auto-fallback only ever
+   *  suggests a model known to actually load on this machine. */
+  knownGoodModels?: string[];
   /** When on, periodically warm the active model so LM Studio's idle TTL doesn't
    *  unload it (kills the cold-reload latency). Off by default. */
   keepModelWarm?: boolean;
@@ -173,6 +176,7 @@ export const COPILOT_DEFAULTS: SauceBotSettings = {
     emptyAnswerRetry: true,
   },
   disabledModels: [],
+  knownGoodModels: [],
   keepModelWarm: false,
   modelTtlSeconds: 240,
 };
@@ -235,9 +239,26 @@ export class SauceBotRuntime {
         this.onSettingsChanged?.();
       },
     };
+    const knownGood: BlocklistStore = {
+      get: () => this.settings.knownGoodModels ?? [],
+      add: (mid) => {
+        const cur = this.settings.knownGoodModels ?? [];
+        if (!cur.includes(mid)) {
+          this.settings.knownGoodModels = [...cur, mid];
+          this.onSettingsChanged?.();
+        }
+      },
+      remove: (mid) => {
+        this.settings.knownGoodModels = (
+          this.settings.knownGoodModels ?? []
+        ).filter((x) => x !== mid);
+        this.onSettingsChanged?.();
+      },
+    };
     this.modelManager = new ModelManager(
       { listModels: () => this.listModelsForManager() },
       blocklist,
+      knownGood,
     );
     this.embeddingsLane = new EmbeddingsLane(
       {
@@ -997,7 +1018,12 @@ export class SauceBotRuntime {
   }
 
   updateSettings(s: Partial<SauceBotSettings>): void {
-    this.settings = { ...this.settings, ...s };
+    // Mutate IN PLACE — `this.settings` is the same object reference the plugin
+    // persists (plugin.settings.copilot). Replacing it would detach the runtime
+    // copy, so runtime-side writes (blocklist / known-good models recorded on
+    // load failure/success) would never reach the saved settings after the first
+    // model switch. Object.assign keeps the shared reference intact.
+    Object.assign(this.settings, s);
     this.providerCache.clear(); // endpoint/provider may have changed
   }
 
@@ -1278,6 +1304,9 @@ export class SauceBotRuntime {
             lastError = ev.error;
             break;
           }
+          // The model loaded + answered → mark it known-good so fallbacks only
+          // ever suggest models that actually work on this machine.
+          this.modelManager.recordSuccess(req.model);
           yield ev;
           return;
         }

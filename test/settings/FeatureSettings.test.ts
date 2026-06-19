@@ -24,7 +24,9 @@ describe("mergeFeatureSettings", () => {
       rag: { providers: { openai: { model: "text-embedding-3-large" } } },
     } as never);
     expect(merged.rag.providers.openai.model).toBe("text-embedding-3-large");
-    expect(merged.rag.providers.openai.endpoint).toBe("https://api.openai.com/v1");
+    expect(merged.rag.providers.openai.endpoint).toBe(
+      "https://api.openai.com/v1",
+    );
     expect(merged.rag.providers.lmstudio.enabled).toBe(true);
   });
 });
@@ -37,14 +39,22 @@ describe("activeEmbeddingProvider", () => {
 
   it("is null when the selected provider has no model", () => {
     const f = mergeFeatureSettings({
-      rag: { enabled: true, provider: "lmstudio", providers: { lmstudio: { enabled: true, model: "" } } },
+      rag: {
+        enabled: true,
+        provider: "lmstudio",
+        providers: { lmstudio: { enabled: true, model: "" } },
+      },
     } as never);
     expect(activeEmbeddingProvider(f)).toBeNull();
   });
 
   it("resolves the selected provider when enabled with a model", () => {
     const f = mergeFeatureSettings({
-      rag: { enabled: true, provider: "ollama", providers: { ollama: { enabled: true, model: "nomic-embed-text" } } },
+      rag: {
+        enabled: true,
+        provider: "ollama",
+        providers: { ollama: { enabled: true, model: "nomic-embed-text" } },
+      },
     } as never);
     const active = activeEmbeddingProvider(f);
     expect(active?.provider).toBe("ollama");
@@ -53,7 +63,11 @@ describe("activeEmbeddingProvider", () => {
 
   it("is null when the selected provider is disabled", () => {
     const f = mergeFeatureSettings({
-      rag: { enabled: true, provider: "openai", providers: { openai: { enabled: false, model: "x" } } },
+      rag: {
+        enabled: true,
+        provider: "openai",
+        providers: { openai: { enabled: false, model: "x" } },
+      },
     } as never);
     expect(activeEmbeddingProvider(f)).toBeNull();
   });
@@ -67,7 +81,9 @@ describe("mergeFeatureSettings — localLLM", () => {
   });
 
   it("deep-merges one local provider without dropping the other", () => {
-    const m = mergeFeatureSettings({ localLLM: { ollama: { model: "llama3.1:8b" } } } as never);
+    const m = mergeFeatureSettings({
+      localLLM: { ollama: { model: "llama3.1:8b" } },
+    } as never);
     expect(m.localLLM.ollama.model).toBe("llama3.1:8b");
     expect(m.localLLM.ollama.endpoint).toBe("http://localhost:11434"); // default kept
     expect(m.localLLM.lmstudio.endpoint).toBe("http://localhost:1234/v1"); // sibling kept

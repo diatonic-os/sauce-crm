@@ -14,7 +14,14 @@ import {
 describe("formatModelLabel", () => {
   it("shows a ● when loaded, plus context + quant", () => {
     expect(
-      formatModelLabel({ id: "qwen/q9b", label: "qwen/q9b", loaded: true, contextTokens: 32768, quantization: "Q4_K_M", kind: "llm" }),
+      formatModelLabel({
+        id: "qwen/q9b",
+        label: "qwen/q9b",
+        loaded: true,
+        contextTokens: 32768,
+        quantization: "Q4_K_M",
+        kind: "llm",
+      }),
     ).toBe("● qwen/q9b  ·  33k · Q4_K_M");
   });
   it("falls back to the bare id when no metadata", () => {
@@ -29,7 +36,8 @@ describe("formatModelLabel", () => {
 // Legacy stub: only /v1/models responds (no native /api/v0) — older LM Studio.
 function stubFetch(ids: string[]) {
   return async (url: string) => {
-    if (url.includes("/api/v0/models")) return { ok: false, status: 404 } as unknown as Response;
+    if (url.includes("/api/v0/models"))
+      return { ok: false, status: 404 } as unknown as Response;
     return {
       ok: true,
       status: 200,
@@ -89,11 +97,30 @@ describe("ModelCatalog — LM Studio chat/embedding kind narrowing", () => {
   it("uses native /api/v0 model cards: kind, context, quant, loaded, publisher", async () => {
     const cat = new ModelCatalog(
       nativeStub([
-        { id: "qwen/qwen3.5-9b", type: "llm", arch: "qwen3", state: "loaded", max_context_length: 32768, quantization: "Q4_K_M", publisher: "Qwen" },
-        { id: "text-embedding-bge-m3", type: "embeddings", arch: "bert", state: "not-loaded", max_context_length: 8192, publisher: "lm-kit" },
+        {
+          id: "qwen/qwen3.5-9b",
+          type: "llm",
+          arch: "qwen3",
+          state: "loaded",
+          max_context_length: 32768,
+          quantization: "Q4_K_M",
+          publisher: "Qwen",
+        },
+        {
+          id: "text-embedding-bge-m3",
+          type: "embeddings",
+          arch: "bert",
+          state: "not-loaded",
+          max_context_length: 8192,
+          publisher: "lm-kit",
+        },
       ]),
     );
-    const chat = await cat.list({ provider: "lmstudio", endpoint: "http://localhost:1234", kind: "chat" });
+    const chat = await cat.list({
+      provider: "lmstudio",
+      endpoint: "http://localhost:1234",
+      kind: "chat",
+    });
     expect(chat.map((m) => m.id)).toEqual(["qwen/qwen3.5-9b"]); // embeddings excluded by TYPE
     const m = chat[0];
     expect(m.kind).toBe("llm");
@@ -110,15 +137,29 @@ describe("ModelCatalog — LM Studio chat/embedding kind narrowing", () => {
         { id: "chat-model-x", type: "llm", state: "loaded" },
       ]),
     );
-    const emb = await cat.list({ provider: "lmstudio", endpoint: "http://x", kind: "embedding" });
+    const emb = await cat.list({
+      provider: "lmstudio",
+      endpoint: "http://x",
+      kind: "embedding",
+    });
     expect(emb.map((m) => m.id)).toEqual(["some-weird-name-v2"]);
-    const chat = await cat.list({ provider: "lmstudio", endpoint: "http://x", kind: "chat" });
+    const chat = await cat.list({
+      provider: "lmstudio",
+      endpoint: "http://x",
+      kind: "chat",
+    });
     expect(chat.map((m) => m.id)).toEqual(["chat-model-x"]);
   });
 
   it("falls back to /v1/models when the native API is unavailable", async () => {
-    const cat = new ModelCatalog(stubFetch(["qwen/qwen3.5-9b", "text-embedding-bge-m3"]));
-    const chat = await cat.list({ provider: "lmstudio", endpoint: "http://x", kind: "chat" });
+    const cat = new ModelCatalog(
+      stubFetch(["qwen/qwen3.5-9b", "text-embedding-bge-m3"]),
+    );
+    const chat = await cat.list({
+      provider: "lmstudio",
+      endpoint: "http://x",
+      kind: "chat",
+    });
     expect(chat.map((m) => m.id)).toContain("qwen/qwen3.5-9b");
     expect(chat.some((m) => m.id.includes("embedding"))).toBe(false);
   });

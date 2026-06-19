@@ -9,7 +9,12 @@ import type { LanceVectorIndex } from "../../src/backend/lance";
 /** Minimal App stub with the surface SearchService.fuzzy() uses. */
 function fakeApp(paths: string[]): App {
   const files = paths.map(
-    (p) => ({ path: p, basename: p.split("/").pop()?.replace(/\.md$/, "") ?? p, extension: "md" }) as unknown as TFile,
+    (p) =>
+      ({
+        path: p,
+        basename: p.split("/").pop()?.replace(/\.md$/, "") ?? p,
+        extension: "md",
+      }) as unknown as TFile,
   );
   return {
     vault: { getMarkdownFiles: () => files },
@@ -91,7 +96,10 @@ describe("SearchService — semantic path", () => {
 
   it("setSemanticBackend(null, null) clears the backend and falls back to lexical", async () => {
     const svc = new SearchService(fakeApp(["notes/alice.md"]), fakeEntities);
-    const index = fakeIndex({ dim: 4, hits: [{ id: "notes/alice.md", distance: 0 }] });
+    const index = fakeIndex({
+      dim: 4,
+      hits: [{ id: "notes/alice.md", distance: 0 }],
+    });
     svc.setSemanticBackend(index, async () => [1, 0, 0, 0]);
     // Clear
     svc.setSemanticBackend(null, null);

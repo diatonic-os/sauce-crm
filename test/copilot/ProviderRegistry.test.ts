@@ -73,7 +73,9 @@ describe("buildProvider — harness factory", () => {
 
   it("routes harness=anthropic to AnthropicProvider", () => {
     const host = new ProviderHostMock();
-    expect(buildProvider("anthropic", host, {})).toBeInstanceOf(AnthropicProvider);
+    expect(buildProvider("anthropic", host, {})).toBeInstanceOf(
+      AnthropicProvider,
+    );
   });
 
   it("routes harness=ollama to OllamaProvider", () => {
@@ -83,13 +85,24 @@ describe("buildProvider — harness factory", () => {
 
   it("routes harness=lmstudio-sdk to LMStudioSdkProvider", () => {
     const host = new ProviderHostMock();
-    expect(buildProvider("lmstudio-sdk", host, {})).toBeInstanceOf(LMStudioSdkProvider);
+    expect(buildProvider("lmstudio-sdk", host, {})).toBeInstanceOf(
+      LMStudioSdkProvider,
+    );
   });
 
   it("routes openai-compat ids to an OpenAICompatibleProvider", () => {
     const host = new ProviderHostMock();
-    for (const id of ["openai", "lmstudio", "nim", "openrouter", "groq", "gemini"] as ProviderId[]) {
-      expect(buildProvider(id, host, { apiKey: async () => "k" })).toBeInstanceOf(OpenAICompatibleProvider);
+    for (const id of [
+      "openai",
+      "lmstudio",
+      "nim",
+      "openrouter",
+      "groq",
+      "gemini",
+    ] as ProviderId[]) {
+      expect(
+        buildProvider(id, host, { apiKey: async () => "k" }),
+      ).toBeInstanceOf(OpenAICompatibleProvider);
     }
   });
 });
@@ -111,16 +124,32 @@ describe("buildProvider — openai & lmstudio share the harness request shape", 
     const lmHost = new ProviderHostMock();
     batchRoute(lmHost);
 
-    const openai = buildProvider("openai", openaiHost, { apiKey: async () => "sk" });
-    const lm = buildProvider("lmstudio", lmHost, { baseUrl: "http://localhost:1234/v1" });
+    const openai = buildProvider("openai", openaiHost, {
+      apiKey: async () => "sk",
+    });
+    const lm = buildProvider("lmstudio", lmHost, {
+      baseUrl: "http://localhost:1234/v1",
+    });
 
-    const oEvents = await collect(openai.complete({ model: "gpt-4o-mini", messages: [{ role: "user", content: "hi" }] }));
-    const lEvents = await collect(lm.complete({ model: "qwen3-14b", messages: [{ role: "user", content: "hi" }] }));
+    const oEvents = await collect(
+      openai.complete({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    );
+    const lEvents = await collect(
+      lm.complete({
+        model: "qwen3-14b",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    );
 
     expect(oEvents.map((e) => e.type)).toEqual(["text", "usage", "done"]);
     expect(lEvents.map((e) => e.type)).toEqual(["text", "usage", "done"]);
 
-    const oBody = JSON.parse(openaiHost.lastRequestTo("/chat/completions")!.body!);
+    const oBody = JSON.parse(
+      openaiHost.lastRequestTo("/chat/completions")!.body!,
+    );
     const lBody = JSON.parse(lmHost.lastRequestTo("/chat/completions")!.body!);
     expect(Object.keys(oBody).sort()).toEqual(Object.keys(lBody).sort());
   });
@@ -130,28 +159,43 @@ describe("buildProvider — openai & lmstudio share the harness request shape", 
     batchRoute(openaiHost);
     const lmHost = new ProviderHostMock();
     batchRoute(lmHost);
-    const openai = buildProvider("openai", openaiHost, { apiKey: async () => "sk-live" });
-    const lm = buildProvider("lmstudio", lmHost, { baseUrl: "http://localhost:1234/v1" });
-    await collect(openai.complete({ model: "m", messages: [{ role: "user", content: "x" }] }));
-    await collect(lm.complete({ model: "m", messages: [{ role: "user", content: "x" }] }));
-    expect(openaiHost.lastRequestTo("/chat/completions")!.headers.authorization).toBe("Bearer sk-live");
-    expect(lmHost.lastRequestTo("/chat/completions")!.headers.authorization).toBeUndefined();
+    const openai = buildProvider("openai", openaiHost, {
+      apiKey: async () => "sk-live",
+    });
+    const lm = buildProvider("lmstudio", lmHost, {
+      baseUrl: "http://localhost:1234/v1",
+    });
+    await collect(
+      openai.complete({
+        model: "m",
+        messages: [{ role: "user", content: "x" }],
+      }),
+    );
+    await collect(
+      lm.complete({ model: "m", messages: [{ role: "user", content: "x" }] }),
+    );
+    expect(
+      openaiHost.lastRequestTo("/chat/completions")!.headers.authorization,
+    ).toBe("Bearer sk-live");
+    expect(
+      lmHost.lastRequestTo("/chat/completions")!.headers.authorization,
+    ).toBeUndefined();
   });
 });
 
 describe("restoreSpecPath — endpoint /v1 normalization", () => {
   it("restores the spec path when an override drops it (LM Studio autodetect)", () => {
-    expect(restoreSpecPath("http://127.0.0.1:1234", "http://localhost:1234/v1")).toBe(
-      "http://127.0.0.1:1234/v1",
-    );
+    expect(
+      restoreSpecPath("http://127.0.0.1:1234", "http://localhost:1234/v1"),
+    ).toBe("http://127.0.0.1:1234/v1");
   });
   it("leaves an override that already has a path untouched", () => {
-    expect(restoreSpecPath("http://127.0.0.1:1234/v1", "http://localhost:1234/v1")).toBe(
-      "http://127.0.0.1:1234/v1",
-    );
-    expect(restoreSpecPath("http://proxy/custom/path", "http://localhost:1234/v1")).toBe(
-      "http://proxy/custom/path",
-    );
+    expect(
+      restoreSpecPath("http://127.0.0.1:1234/v1", "http://localhost:1234/v1"),
+    ).toBe("http://127.0.0.1:1234/v1");
+    expect(
+      restoreSpecPath("http://proxy/custom/path", "http://localhost:1234/v1"),
+    ).toBe("http://proxy/custom/path");
   });
   it("restores multi-segment spec paths (e.g. gemini's /v1beta/openai)", () => {
     expect(restoreSpecPath("https://host", "https://x/v1beta/openai")).toBe(
@@ -161,7 +205,11 @@ describe("restoreSpecPath — endpoint /v1 normalization", () => {
   it("builds the lmstudio provider with /v1 even from a path-less override", async () => {
     const { ProviderHostMock } = await import("../_stubs/ProviderHostMock");
     const host = new ProviderHostMock();
-    const p = buildProvider("lmstudio", host, { baseUrl: "http://127.0.0.1:1234" });
-    expect((p as OpenAICompatibleProvider).endpoint).toBe("http://127.0.0.1:1234/v1");
+    const p = buildProvider("lmstudio", host, {
+      baseUrl: "http://127.0.0.1:1234",
+    });
+    expect((p as OpenAICompatibleProvider).endpoint).toBe(
+      "http://127.0.0.1:1234/v1",
+    );
   });
 });

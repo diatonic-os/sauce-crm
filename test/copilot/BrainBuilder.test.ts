@@ -26,13 +26,25 @@ class FakeStore implements BrainPersistence {
   }
 }
 
-function file(path: string, body: string, fm: Record<string, unknown> = {}, tags: string[] = []): BrainFile {
+function file(
+  path: string,
+  body: string,
+  fm: Record<string, unknown> = {},
+  tags: string[] = [],
+): BrainFile {
   return { path, mtime: 1, read: async () => body, frontmatter: fm, tags };
 }
 
 const FILES: BrainFile[] = [
-  file("people/alice.md", "---\ntype: person\n---\n# Alice\nranking lead, links [[Bob]]", { type: "person", title: "Alice" }, ["#warm"]),
-  file("people/bob.md", "# Bob\nworks on ranking", { type: "person" }, ["#warm"]),
+  file(
+    "people/alice.md",
+    "---\ntype: person\n---\n# Alice\nranking lead, links [[Bob]]",
+    { type: "person", title: "Alice" },
+    ["#warm"],
+  ),
+  file("people/bob.md", "# Bob\nworks on ranking", { type: "person" }, [
+    "#warm",
+  ]),
   file("orgs/acme.md", "# Acme\nan org", { type: "org" }, []),
 ];
 
@@ -71,7 +83,9 @@ describe("BrainBuilder incremental", () => {
     await b.buildAll(FILES);
     expect(JSON.parse(store.files.get("_brain/brain.json")!).stale).toBe(false);
 
-    await b.updateFile(file("people/carol.md", "# Carol\nnew person", { type: "person" }, []));
+    await b.updateFile(
+      file("people/carol.md", "# Carol\nnew person", { type: "person" }, []),
+    );
     const paths = JSON.parse(store.files.get("_brain/brain-paths.json")!).paths;
     expect(paths["people/carol.md"]).toBeDefined();
     expect(paths["people/carol.md"].title).toBe("Carol");

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { CodeReviewerVoter, scanDiff } from "../../src/contract/voters/CodeReviewerVoter";
+import {
+  CodeReviewerVoter,
+  scanDiff,
+} from "../../src/contract/voters/CodeReviewerVoter";
 import type { RoundtableProposal } from "../../src/contract/types";
 
 const proposal: RoundtableProposal = {
@@ -10,7 +13,7 @@ const proposal: RoundtableProposal = {
 
 describe("CodeReviewerVoter scanDiff", () => {
   it("flags `: any` typing on added lines", () => {
-    const diff = ['+function f(x: any) { return x; }'].join("\n");
+    const diff = ["+function f(x: any) { return x; }"].join("\n");
     const findings = scanDiff(diff);
     expect(findings.some((f) => f.rule === "any-type")).toBe(true);
   });

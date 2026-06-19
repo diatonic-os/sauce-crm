@@ -133,11 +133,21 @@ export class ModelManager {
   constructor(
     private readonly host: ModelManagerHost,
     private readonly blocklist: BlocklistStore,
+    /** Optional store of models that have successfully warmed up. When present,
+     *  fallbackChatModel prefers these — so we never suggest an untested-but-
+     *  doomed model (e.g. another incompatible arch that just hasn't failed
+     *  yet). Backward compatible: omitted ⇒ prior prefer>loaded>smallest order. */
+    private readonly knownGood?: BlocklistStore,
   ) {}
 
   /** Returns true when `id` is on the permanent-failure blocklist. */
   isBlocked(id: string): boolean {
     return this.blocklist.get().includes(id);
+  }
+
+  /** Returns true when `id` has previously loaded successfully. */
+  isKnownGood(id: string): boolean {
+    return this.knownGood?.get().includes(id) ?? false;
   }
 
   /**
@@ -150,6 +160,17 @@ export class ModelManager {
       this.blocklist.add(model);
     }
     return err;
+  }
+
+  /**
+   * Record that `model` loaded + answered successfully: add it to the known-good
+   * set and clear any stale blocklist entry (a model that now works was either
+   * never broken or has been fixed). Makes fallback suggestions trustworthy.
+   */
+  recordSuccess(model: string): void {
+    if (!model) return;
+    this.knownGood?.add(model);
+    if (this.isBlocked(model)) this.blocklist.remove(model);
   }
 
   /**
@@ -217,7 +238,17 @@ export class ModelManager {
       if (found) return found.id;
     }
 
-    // 2. Prefer an already-loaded model.
+    // 2. Prefer a KNOWN-GOOD model (loaded first) — one that has actually warmed
+    //    up before, so we never suggest an untested model that may also be
+    //    incompatible. No-op when no known-good store is wired.
+    const goodLoaded = chatModels.find(
+      (m) => m.loaded && this.isKnownGood(m.id),
+    );
+    if (goodLoaded) return goodLoaded.id;
+    const good = chatModels.find((m) => this.isKnownGood(m.id));
+    if (good) return good.id;
+
+    // 3. Prefer an already-loaded model.
     const loaded = chatModels.find((m) => m.loaded);
     if (loaded) return loaded.id;
 

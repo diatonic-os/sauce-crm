@@ -67,9 +67,7 @@ describe("extractTextToolCalls", () => {
       '```json\n{"tool":"log_touch","arguments":{"contact":"bob"}}\n```',
       known,
     );
-    expect(calls).toEqual([
-      { name: "log_touch", input: { contact: "bob" } },
-    ]);
+    expect(calls).toEqual([{ name: "log_touch", input: { contact: "bob" } }]);
   });
 
   it("recovers {name, parameters} envelope shape", () => {

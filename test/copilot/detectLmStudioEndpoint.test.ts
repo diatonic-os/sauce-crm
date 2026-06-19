@@ -77,7 +77,10 @@ describe("subnetHostsFromIPs", () => {
   });
 
   it("dedupes subnets and caps the host count", () => {
-    const hosts = subnetHostsFromIPs(["10.0.0.4", "10.0.0.9", "172.16.5.2"], 300);
+    const hosts = subnetHostsFromIPs(
+      ["10.0.0.4", "10.0.0.9", "172.16.5.2"],
+      300,
+    );
     // two distinct /24s (10.0.0 and 172.16.5), capped at 300
     expect(hosts.length).toBe(300);
     expect(hosts).toContain("10.0.0.1");

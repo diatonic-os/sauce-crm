@@ -280,7 +280,10 @@ describe("EmbeddingsLane — setConfig model change", () => {
 
   it("does NOT reset modelReady or clear cache when only cacheSize changes", async () => {
     const host = makeHost();
-    const lane = new EmbeddingsLane(host, makeCfg({ model: "model-X", cacheSize: 10 }));
+    const lane = new EmbeddingsLane(
+      host,
+      makeCfg({ model: "model-X", cacheSize: 10 }),
+    );
 
     await lane.embedQuery("foo");
     expect(host.ensureModel).toHaveBeenCalledTimes(1);
@@ -327,7 +330,7 @@ describe("EmbeddingsLane — stats()", () => {
     const embedMock = vi
       .fn()
       .mockResolvedValueOnce(makeVec(384)) // success
-      .mockResolvedValueOnce(null);         // failure
+      .mockResolvedValueOnce(null); // failure
 
     const host = makeHost({ embed: embedMock });
     const lane = new EmbeddingsLane(host, makeCfg());

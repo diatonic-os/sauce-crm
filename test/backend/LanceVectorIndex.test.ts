@@ -13,13 +13,19 @@ describe("LanceVectorIndex", () => {
 
   it("returns [] when empty", async () => {
     h = await tmpLance();
-    const idx = new LanceVectorIndex(await h.table(TABLES.embeddings, DIM), DIM);
+    const idx = new LanceVectorIndex(
+      await h.table(TABLES.embeddings, DIM),
+      DIM,
+    );
     expect(await idx.query(vec(1, 0, 0, 0), 5)).toEqual([]);
   });
 
   it("finds nearest neighbours ascending by distance", async () => {
     h = await tmpLance();
-    const idx = new LanceVectorIndex(await h.table(TABLES.embeddings, DIM), DIM);
+    const idx = new LanceVectorIndex(
+      await h.table(TABLES.embeddings, DIM),
+      DIM,
+    );
     await idx.store("a", vec(1, 0, 0, 0), "m", "ha");
     await idx.store("b", vec(0, 1, 0, 0), "m", "hb");
     await idx.store("c", vec(0.9, 0.1, 0, 0), "m", "hc");
@@ -42,7 +48,10 @@ describe("LanceVectorIndex", () => {
 
   it("deletes by entity_id", async () => {
     h = await tmpLance();
-    const idx = new LanceVectorIndex(await h.table(TABLES.embeddings, DIM), DIM);
+    const idx = new LanceVectorIndex(
+      await h.table(TABLES.embeddings, DIM),
+      DIM,
+    );
     await idx.store("a", vec(1, 0, 0, 0), "m", "h");
     await idx.delete("a");
     expect(await idx.query(vec(1, 0, 0, 0), 5)).toEqual([]);
@@ -50,7 +59,10 @@ describe("LanceVectorIndex", () => {
 
   it("rejects dimension mismatch", async () => {
     h = await tmpLance();
-    const idx = new LanceVectorIndex(await h.table(TABLES.embeddings, DIM), DIM);
+    const idx = new LanceVectorIndex(
+      await h.table(TABLES.embeddings, DIM),
+      DIM,
+    );
     await expect(idx.store("a", vec(1, 2, 3), "m", "h")).rejects.toThrow(/dim/);
   });
 });

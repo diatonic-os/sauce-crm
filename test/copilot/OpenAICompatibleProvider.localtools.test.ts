@@ -9,7 +9,9 @@ import { OpenAICompatibleProvider } from "../../src/saucebot/OpenAICompatiblePro
 import { ProviderHostMock } from "../_stubs/ProviderHostMock";
 import type { CompletionEvent } from "../../src/saucebot/ISauceBotProvider";
 
-async function collect(it: AsyncIterable<CompletionEvent>): Promise<CompletionEvent[]> {
+async function collect(
+  it: AsyncIterable<CompletionEvent>,
+): Promise<CompletionEvent[]> {
   const out: CompletionEvent[] = [];
   for await (const v of it) out.push(v);
   return out;
@@ -26,7 +28,13 @@ describe("OpenAICompatibleProvider — local tool robustness (batch)", () => {
             message: {
               content: "",
               tool_calls: [
-                { id: "c1", function: { name: "read_note", arguments: '{"path":"a.md",}' } },
+                {
+                  id: "c1",
+                  function: {
+                    name: "read_note",
+                    arguments: '{"path":"a.md",}',
+                  },
+                },
               ],
             },
             finish_reason: "tool_calls",
@@ -35,7 +43,10 @@ describe("OpenAICompatibleProvider — local tool robustness (batch)", () => {
         usage: {},
       }),
     });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1" });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://x/v1",
+    });
     const events = await collect(
       p.complete({
         model: "qwen3-14b",
@@ -61,7 +72,10 @@ describe("OpenAICompatibleProvider — local tool robustness (batch)", () => {
         usage: {},
       }),
     });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1" });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://x/v1",
+    });
     const events = await collect(
       p.complete({
         model: "qwen3-14b",
@@ -69,7 +83,10 @@ describe("OpenAICompatibleProvider — local tool robustness (batch)", () => {
         tools: [{ name: "read_note", description: "", inputSchema: {} }],
       }),
     );
-    const tu = events.find((e) => e.type === "tool_use") as { name: string; input: unknown };
+    const tu = events.find((e) => e.type === "tool_use") as {
+      name: string;
+      input: unknown;
+    };
     expect(tu).toBeDefined();
     expect(tu.name).toBe("read_note");
     expect(tu.input).toEqual({ path: "people/alice.md" });
@@ -83,11 +100,19 @@ describe("OpenAICompatibleProvider — local tool robustness (batch)", () => {
     host.route("/chat/completions", {
       status: 200,
       body: JSON.stringify({
-        choices: [{ message: { content: "Alice is a ranking lead at Acme." }, finish_reason: "stop" }],
+        choices: [
+          {
+            message: { content: "Alice is a ranking lead at Acme." },
+            finish_reason: "stop",
+          },
+        ],
         usage: {},
       }),
     });
-    const p = new OpenAICompatibleProvider(host, { name: "lmstudio", baseUrl: "http://x/v1" });
+    const p = new OpenAICompatibleProvider(host, {
+      name: "lmstudio",
+      baseUrl: "http://x/v1",
+    });
     const events = await collect(
       p.complete({
         model: "qwen3-14b",

@@ -30,8 +30,14 @@ describe("parseBrainAnswer", () => {
   });
 
   it("extracts JSON wrapped in a ```json fence", () => {
-    const raw = "Here you go:\n```json\n" +
-      JSON.stringify({ lead: "x", who: [], what: [], citations: ["notes/x.md:1"] }) +
+    const raw =
+      "Here you go:\n```json\n" +
+      JSON.stringify({
+        lead: "x",
+        who: [],
+        what: [],
+        citations: ["notes/x.md:1"],
+      }) +
       "\n```\nhope that helps";
     const a = parseBrainAnswer(raw);
     expect(a.lead).toBe("x");
@@ -40,7 +46,7 @@ describe("parseBrainAnswer", () => {
 
   it("extracts a bare {...} block embedded in prose", () => {
     const raw =
-      'Thinking... ' +
+      "Thinking... " +
       JSON.stringify({ lead: "y", who: [], what: [], citations: ["a.md:2"] }) +
       " done";
     expect(parseBrainAnswer(raw).lead).toBe("y");

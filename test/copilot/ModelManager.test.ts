@@ -41,7 +41,9 @@ function makeHost(
   return {
     listModels: vi.fn().mockResolvedValue(models),
     ...(opts.loadModel !== undefined ? { loadModel: opts.loadModel } : {}),
-    ...(opts.unloadModel !== undefined ? { unloadModel: opts.unloadModel } : {}),
+    ...(opts.unloadModel !== undefined
+      ? { unloadModel: opts.unloadModel }
+      : {}),
   };
 }
 
@@ -51,7 +53,10 @@ function makeHost(
 
 describe("classifyLoadFailure — arch-unsupported (permanent)", () => {
   it("classifies 'unknown model architecture: zamba2'", () => {
-    const err = classifyLoadFailure("zamba2", "unknown model architecture: 'zamba2'");
+    const err = classifyLoadFailure(
+      "zamba2",
+      "unknown model architecture: 'zamba2'",
+    );
     expect(err.kind).toBe("arch-unsupported");
     expect(err.permanent).toBe(true);
     expect(err.model).toBe("zamba2");
@@ -82,14 +87,20 @@ describe("classifyLoadFailure — arch-unsupported (permanent)", () => {
 
 describe("classifyLoadFailure — oom (permanent-at-this-size)", () => {
   it("classifies 'cudaMalloc failed: out of memory'", () => {
-    const err = classifyLoadFailure("big-model", "cudaMalloc failed: out of memory");
+    const err = classifyLoadFailure(
+      "big-model",
+      "cudaMalloc failed: out of memory",
+    );
     expect(err.kind).toBe("oom");
     expect(err.permanent).toBe(true);
     expect(err.userMessage).toContain("GPU memory");
   });
 
   it("classifies 'alloc_tensor_range: failed to allocate'", () => {
-    const err = classifyLoadFailure("big-model", "alloc_tensor_range: failed to allocate");
+    const err = classifyLoadFailure(
+      "big-model",
+      "alloc_tensor_range: failed to allocate",
+    );
     expect(err.kind).toBe("oom");
     expect(err.permanent).toBe(true);
   });
@@ -124,7 +135,10 @@ describe("classifyLoadFailure — not-found (permanent)", () => {
 
 describe("classifyLoadFailure — transient (NOT permanent)", () => {
   it("classifies 'No models loaded. Please load a model'", () => {
-    const err = classifyLoadFailure("any-model", "No models loaded. Please load a model");
+    const err = classifyLoadFailure(
+      "any-model",
+      "No models loaded. Please load a model",
+    );
     expect(err.kind).toBe("transient");
     expect(err.permanent).toBe(false);
     expect(err.userMessage).toContain("retrying");
@@ -163,7 +177,10 @@ describe("classifyLoadFailure — transient (NOT permanent)", () => {
 
 describe("classifyLoadFailure — unknown (NOT permanent)", () => {
   it("classifies unrecognised error string as unknown", () => {
-    const err = classifyLoadFailure("my-model", "some truly baffling error we never saw before");
+    const err = classifyLoadFailure(
+      "my-model",
+      "some truly baffling error we never saw before",
+    );
     expect(err.kind).toBe("unknown");
     expect(err.permanent).toBe(false);
   });
@@ -189,7 +206,10 @@ describe("classifyLoadFailure — priority ordering", () => {
   });
 
   it("oom wins over not-found when combined", () => {
-    const err = classifyLoadFailure("m", "cudaMalloc failed: out of memory — not found");
+    const err = classifyLoadFailure(
+      "m",
+      "cudaMalloc failed: out of memory — not found",
+    );
     expect(err.kind).toBe("oom");
   });
 });
@@ -202,7 +222,10 @@ describe("ModelManager.recordFailure", () => {
   it("adds to blocklist for permanent failures", () => {
     const bl = makeBlocklist();
     const mgr = new ModelManager(makeHost([]), bl);
-    const err = mgr.recordFailure("arch-bad", "unknown model architecture: 'zamba2'");
+    const err = mgr.recordFailure(
+      "arch-bad",
+      "unknown model architecture: 'zamba2'",
+    );
     expect(err.permanent).toBe(true);
     expect(bl.get()).toContain("arch-bad");
   });
@@ -247,7 +270,9 @@ describe("ModelManager.ensureLoaded", () => {
     expect(result.status).toBe("blocked");
     expect(result.error).toBeUndefined();
     // loadModel should never have been called
-    expect((host.loadModel as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+    expect(
+      (host.loadModel as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(0);
   });
 
   it("returns 'already' when catalog reports the model is loaded", async () => {
@@ -258,15 +283,16 @@ describe("ModelManager.ensureLoaded", () => {
     const result = await mgr.ensureLoaded("good-model");
     expect(result.status).toBe("already");
     expect(result.error).toBeUndefined();
-    expect((host.loadModel as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+    expect(
+      (host.loadModel as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(0);
   });
 
   it("returns 'loaded' when host.loadModel succeeds", async () => {
     const loadModel = vi.fn().mockResolvedValue(undefined);
-    const host = makeHost(
-      [{ id: "fresh-model", loaded: false, kind: "llm" }],
-      { loadModel },
-    );
+    const host = makeHost([{ id: "fresh-model", loaded: false, kind: "llm" }], {
+      loadModel,
+    });
     const mgr = new ModelManager(host, makeBlocklist());
     const result = await mgr.ensureLoaded("fresh-model");
     expect(result.status).toBe("loaded");
@@ -275,13 +301,12 @@ describe("ModelManager.ensureLoaded", () => {
   });
 
   it("returns 'loaded' with error (and adds to blocklist) when host.loadModel fails permanently", async () => {
-    const loadModel = vi.fn().mockRejectedValue(
-      new Error("cudaMalloc failed: out of memory"),
-    );
-    const host = makeHost(
-      [{ id: "oom-model", loaded: false, kind: "llm" }],
-      { loadModel },
-    );
+    const loadModel = vi
+      .fn()
+      .mockRejectedValue(new Error("cudaMalloc failed: out of memory"));
+    const host = makeHost([{ id: "oom-model", loaded: false, kind: "llm" }], {
+      loadModel,
+    });
     const bl = makeBlocklist();
     const mgr = new ModelManager(host, bl);
     const result = await mgr.ensureLoaded("oom-model");
@@ -294,10 +319,9 @@ describe("ModelManager.ensureLoaded", () => {
 
   it("returns 'loaded' with error but does NOT blocklist on transient failure", async () => {
     const loadModel = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
-    const host = makeHost(
-      [{ id: "maybe-model", loaded: false, kind: "llm" }],
-      { loadModel },
-    );
+    const host = makeHost([{ id: "maybe-model", loaded: false, kind: "llm" }], {
+      loadModel,
+    });
     const bl = makeBlocklist();
     const mgr = new ModelManager(host, bl);
     const result = await mgr.ensureLoaded("maybe-model");
@@ -330,11 +354,35 @@ describe("ModelManager.ensureLoaded", () => {
 
 describe("ModelManager.fallbackChatModel", () => {
   const MODELS: CatalogModel[] = [
-    { id: "embed-model",   loaded: false, kind: "embeddings", sizeBytes: 100 },
-    { id: "small-llm",    loaded: false, kind: "llm",         sizeBytes: 500,  contextLength: 4096  },
-    { id: "medium-llm",   loaded: false, kind: "llm",         sizeBytes: 2000, contextLength: 8192  },
-    { id: "loaded-vlm",   loaded: true,  kind: "vlm",         sizeBytes: 3000, contextLength: 16384 },
-    { id: "loaded-llm",   loaded: true,  kind: "llm",         sizeBytes: 4000, contextLength: 32768 },
+    { id: "embed-model", loaded: false, kind: "embeddings", sizeBytes: 100 },
+    {
+      id: "small-llm",
+      loaded: false,
+      kind: "llm",
+      sizeBytes: 500,
+      contextLength: 4096,
+    },
+    {
+      id: "medium-llm",
+      loaded: false,
+      kind: "llm",
+      sizeBytes: 2000,
+      contextLength: 8192,
+    },
+    {
+      id: "loaded-vlm",
+      loaded: true,
+      kind: "vlm",
+      sizeBytes: 3000,
+      contextLength: 16384,
+    },
+    {
+      id: "loaded-llm",
+      loaded: true,
+      kind: "llm",
+      sizeBytes: 4000,
+      contextLength: 32768,
+    },
   ];
 
   it("returns the preferred model when present and not blocked", async () => {
@@ -365,9 +413,9 @@ describe("ModelManager.fallbackChatModel", () => {
 
   it("returns smallest model by sizeBytes when none loaded and no prefer", async () => {
     const models: CatalogModel[] = [
-      { id: "big",    loaded: false, kind: "llm", sizeBytes: 9000 },
+      { id: "big", loaded: false, kind: "llm", sizeBytes: 9000 },
       { id: "medium", loaded: false, kind: "llm", sizeBytes: 5000 },
-      { id: "small",  loaded: false, kind: "llm", sizeBytes: 1000 },
+      { id: "small", loaded: false, kind: "llm", sizeBytes: 1000 },
     ];
     const mgr = new ModelManager(makeHost(models), makeBlocklist());
     expect(await mgr.fallbackChatModel()).toBe("small");
@@ -375,9 +423,27 @@ describe("ModelManager.fallbackChatModel", () => {
 
   it("breaks sizeBytes ties by contextLength (smaller wins)", async () => {
     const models: CatalogModel[] = [
-      { id: "a", loaded: false, kind: "llm", sizeBytes: 1000, contextLength: 8192  },
-      { id: "b", loaded: false, kind: "llm", sizeBytes: 1000, contextLength: 4096  },
-      { id: "c", loaded: false, kind: "llm", sizeBytes: 1000, contextLength: 32768 },
+      {
+        id: "a",
+        loaded: false,
+        kind: "llm",
+        sizeBytes: 1000,
+        contextLength: 8192,
+      },
+      {
+        id: "b",
+        loaded: false,
+        kind: "llm",
+        sizeBytes: 1000,
+        contextLength: 4096,
+      },
+      {
+        id: "c",
+        loaded: false,
+        kind: "llm",
+        sizeBytes: 1000,
+        contextLength: 32768,
+      },
     ];
     const mgr = new ModelManager(makeHost(models), makeBlocklist());
     expect(await mgr.fallbackChatModel()).toBe("b");
@@ -386,7 +452,7 @@ describe("ModelManager.fallbackChatModel", () => {
   it("skips blocked models entirely when picking fallback", async () => {
     const models: CatalogModel[] = [
       { id: "blocked-small", loaded: false, kind: "llm", sizeBytes: 100 },
-      { id: "ok-larger",     loaded: false, kind: "llm", sizeBytes: 500 },
+      { id: "ok-larger", loaded: false, kind: "llm", sizeBytes: 500 },
     ];
     const bl = makeBlocklist(["blocked-small"]);
     const mgr = new ModelManager(makeHost(models), bl);
@@ -395,8 +461,8 @@ describe("ModelManager.fallbackChatModel", () => {
 
   it("skips embeddings models — only llm and vlm are eligible", async () => {
     const models: CatalogModel[] = [
-      { id: "embed",   loaded: true, kind: "embeddings", sizeBytes: 50  },
-      { id: "chat-ok", loaded: false, kind: "llm",       sizeBytes: 800 },
+      { id: "embed", loaded: true, kind: "embeddings", sizeBytes: 50 },
+      { id: "chat-ok", loaded: false, kind: "llm", sizeBytes: 800 },
     ];
     const mgr = new ModelManager(makeHost(models), makeBlocklist());
     expect(await mgr.fallbackChatModel()).toBe("chat-ok");
@@ -405,7 +471,7 @@ describe("ModelManager.fallbackChatModel", () => {
   it("returns null when all models are blocked", async () => {
     const models: CatalogModel[] = [
       { id: "a", loaded: false, kind: "llm" },
-      { id: "b", loaded: true,  kind: "vlm" },
+      { id: "b", loaded: true, kind: "vlm" },
     ];
     const bl = makeBlocklist(["a", "b"]);
     const mgr = new ModelManager(makeHost(models), bl);
@@ -419,8 +485,8 @@ describe("ModelManager.fallbackChatModel", () => {
 
   it("models without sizeBytes sort after those with sizeBytes", async () => {
     const models: CatalogModel[] = [
-      { id: "no-size",    loaded: false, kind: "llm" },
-      { id: "has-size",   loaded: false, kind: "llm", sizeBytes: 500 },
+      { id: "no-size", loaded: false, kind: "llm" },
+      { id: "has-size", loaded: false, kind: "llm", sizeBytes: 500 },
     ];
     const mgr = new ModelManager(makeHost(models), makeBlocklist());
     expect(await mgr.fallbackChatModel()).toBe("has-size");
@@ -429,10 +495,12 @@ describe("ModelManager.fallbackChatModel", () => {
   it("prefer takes priority over a loaded model", async () => {
     const models: CatalogModel[] = [
       { id: "unloaded-preferred", loaded: false, kind: "llm", sizeBytes: 9000 },
-      { id: "loaded-other",       loaded: true,  kind: "llm", sizeBytes: 100  },
+      { id: "loaded-other", loaded: true, kind: "llm", sizeBytes: 100 },
     ];
     const mgr = new ModelManager(makeHost(models), makeBlocklist());
-    expect(await mgr.fallbackChatModel("unloaded-preferred")).toBe("unloaded-preferred");
+    expect(await mgr.fallbackChatModel("unloaded-preferred")).toBe(
+      "unloaded-preferred",
+    );
   });
 });
 
@@ -449,5 +517,41 @@ describe("ModelManager.isBlocked", () => {
   it("returns true for models in the blocklist", () => {
     const mgr = new ModelManager(makeHost([]), makeBlocklist(["bad-model"]));
     expect(mgr.isBlocked("bad-model")).toBe(true);
+  });
+});
+
+describe("ModelManager — known-good fallback", () => {
+  const catalog: CatalogModel[] = [
+    { id: "tiny-untested", loaded: false, kind: "llm", sizeBytes: 1_000 },
+    { id: "big-good", loaded: false, kind: "llm", sizeBytes: 9_000 },
+    { id: "loaded-good", loaded: true, kind: "llm", sizeBytes: 5_000 },
+  ];
+
+  it("recordSuccess adds to known-good and clears a stale blocklist entry", () => {
+    const block = makeBlocklist(["m1"]);
+    const good = makeBlocklist();
+    const mgr = new ModelManager(makeHost([]), block, good);
+    mgr.recordSuccess("m1");
+    expect(mgr.isKnownGood("m1")).toBe(true);
+    expect(mgr.isBlocked("m1")).toBe(false); // a model that now works is unblocked
+  });
+
+  it("fallback prefers a known-good model over the smallest untested one", async () => {
+    const good = makeBlocklist(["big-good"]);
+    const mgr = new ModelManager(makeHost(catalog), makeBlocklist(), good);
+    // Without known-good, the smallest (tiny-untested) would win; here big-good
+    // is known-good so it's chosen instead of the untested tiny model.
+    expect(await mgr.fallbackChatModel()).toBe("big-good");
+  });
+
+  it("fallback prefers a known-good AND loaded model first", async () => {
+    const good = makeBlocklist(["big-good", "loaded-good"]);
+    const mgr = new ModelManager(makeHost(catalog), makeBlocklist(), good);
+    expect(await mgr.fallbackChatModel()).toBe("loaded-good");
+  });
+
+  it("with no known-good store, ordering is unchanged (loaded wins over smallest)", async () => {
+    const mgr = new ModelManager(makeHost(catalog), makeBlocklist());
+    expect(await mgr.fallbackChatModel()).toBe("loaded-good");
   });
 });

@@ -152,7 +152,9 @@ describe("nextAfter", () => {
   });
 
   it("throws on invalid cron expression", () => {
-    expect(() => nextAfter("bad expr", utc(2026, 1, 1))).toThrow(CronParseError);
+    expect(() => nextAfter("bad expr", utc(2026, 1, 1))).toThrow(
+      CronParseError,
+    );
   });
 
   it("comma list — picks the nearest matching value", () => {

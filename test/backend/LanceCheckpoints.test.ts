@@ -2,7 +2,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { tmpLance, type TmpLance } from "./_lance-tmp";
 import { TABLES } from "../../src/backend/lance/LanceSchema";
-import { LanceEntityMirror, type MirrorTables } from "../../src/backend/lance/LanceEntityMirror";
+import {
+  LanceEntityMirror,
+  type MirrorTables,
+} from "../../src/backend/lance/LanceEntityMirror";
 import { LanceCheckpoints } from "../../src/backend/lance/LanceCheckpoints";
 
 async function mirrorTables(h: TmpLance): Promise<MirrorTables> {
@@ -16,8 +19,15 @@ async function mirrorTables(h: TmpLance): Promise<MirrorTables> {
 }
 
 const file = (path: string, hash: string) => ({
-  path, type: "person", frontmatter: { name: path }, body: path, bodyHash: hash,
-  mtime: 1, ctime: 1, tags: [], edges: [],
+  path,
+  type: "person",
+  frontmatter: { name: path },
+  body: path,
+  bodyHash: hash,
+  mtime: 1,
+  ctime: 1,
+  tags: [],
+  edges: [],
 });
 
 describe("LanceCheckpoints", () => {

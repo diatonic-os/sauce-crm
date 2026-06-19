@@ -16,7 +16,12 @@ describe("ToolUseAdapter.localToolPrompt", () => {
       description: "Read a vault note by path",
       contract: {
         inputs: [
-          { name: "path", type: "string", description: "vault path", required: true },
+          {
+            name: "path",
+            type: "string",
+            description: "vault path",
+            required: true,
+          },
           { name: "limit", type: "number", description: "max lines" },
         ],
         level: "safe",

@@ -92,12 +92,18 @@ export class BudgetGuard {
         : new CircuitOpenError(msg);
     }
     if (this.spent >= this.o.capUsd) {
-      this.trip(`budget cap $${this.o.capUsd} reached (spent ~$${this.spent.toFixed(4)})`);
-      throw new BudgetExceededError(`[${this.o.platform}] ${this.trippedReason}`);
+      this.trip(
+        `budget cap $${this.o.capUsd} reached (spent ~$${this.spent.toFixed(4)})`,
+      );
+      throw new BudgetExceededError(
+        `[${this.o.platform}] ${this.trippedReason}`,
+      );
     }
     if (this.o.maxCalls !== undefined && this.calls >= this.o.maxCalls) {
       this.trip(`max calls ${this.o.maxCalls} reached`);
-      throw new BudgetExceededError(`[${this.o.platform}] ${this.trippedReason}`);
+      throw new BudgetExceededError(
+        `[${this.o.platform}] ${this.trippedReason}`,
+      );
     }
   }
 
@@ -115,7 +121,9 @@ export class BudgetGuard {
       }
     }
     if (this.spent >= this.o.capUsd) {
-      this.trip(`budget cap $${this.o.capUsd} reached (spent ~$${this.spent.toFixed(4)})`);
+      this.trip(
+        `budget cap $${this.o.capUsd} reached (spent ~$${this.spent.toFixed(4)})`,
+      );
     }
   }
 

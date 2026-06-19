@@ -78,9 +78,12 @@ export interface SauceFeatureSettings {
 
 export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
   rag: {
-    enabled: false,
+    // On by default so the realtime embeddings lane actually grounds chat (the
+    // lane JIT-loads the embed model at query time and degrades to lexical if
+    // the embed endpoint is unreachable, so this is safe on a fresh install).
+    enabled: true,
     provider: "lmstudio",
-    realtimeEmbeddings: false,
+    realtimeEmbeddings: true,
     fullVaultIndex: false,
     excludeGlobs: [],
     embeddingDim: null,
@@ -88,7 +91,9 @@ export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
       lmstudio: {
         enabled: true,
         endpoint: "http://localhost:1234/v1",
-        model: "",
+        // A small, fast, broadly-compatible local embed model (validated to
+        // JIT-load in ~1.3s and return 768-dim vectors).
+        model: "text-embedding-nomic-embed-text-v1.5",
       },
       openai: {
         enabled: false,

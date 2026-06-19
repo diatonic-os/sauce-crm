@@ -108,7 +108,10 @@ describe("ApprovalGate — sticky decisions", () => {
 
 describe("ApprovalGate — convenience UIs for tests", () => {
   it("AutoApproveUI never blocks", async () => {
-    const gate = new ApprovalGate(new MemoryApprovalStore(), new AutoApproveUI());
+    const gate = new ApprovalGate(
+      new MemoryApprovalStore(),
+      new AutoApproveUI(),
+    );
     expect((await gate.ask(REQ_EDIT)).approved).toBe(true);
   });
 

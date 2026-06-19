@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { createLogger, LogLevel, TelemetrySink, parseLogLevel } from "../src/telemetry";
+import {
+  createLogger,
+  LogLevel,
+  TelemetrySink,
+  parseLogLevel,
+} from "../src/telemetry";
 
-function makeSettings(level: "trace" | "debug" | "info" | "warn" | "error" = "info") {
+function makeSettings(
+  level: "trace" | "debug" | "info" | "warn" | "error" = "info",
+) {
   return { telemetry: { level } };
 }
 
@@ -15,8 +22,12 @@ describe("TelemetrySink", () => {
     logger.warn("w");
     logger.error("e");
     const events = sink.drain();
-    expect(events.map(e => (e as { levelName: string }).levelName)).toEqual([
-      "trace", "debug", "info", "warn", "error",
+    expect(events.map((e) => (e as { levelName: string }).levelName)).toEqual([
+      "trace",
+      "debug",
+      "info",
+      "warn",
+      "error",
     ]);
   });
 
@@ -28,7 +39,9 @@ describe("TelemetrySink", () => {
     logger.info("i");
     logger.warn("w");
     logger.error("e");
-    const names = sink.drain().map(e => (e as { levelName: string }).levelName);
+    const names = sink
+      .drain()
+      .map((e) => (e as { levelName: string }).levelName);
     expect(names).toEqual(["warn", "error"]);
   });
 
@@ -38,7 +51,12 @@ describe("TelemetrySink", () => {
     logger.event("custom.metric", { value: 42 });
     const events = sink.drain();
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ kind: "telemetry", source: "test", event: "custom.metric", data: { value: 42 } });
+    expect(events[0]).toMatchObject({
+      kind: "telemetry",
+      source: "test",
+      event: "custom.metric",
+      data: { value: 42 },
+    });
   });
 
   it("child logger inherits sink and adds suffix to source", () => {

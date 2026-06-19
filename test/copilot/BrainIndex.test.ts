@@ -18,7 +18,9 @@ function rec(links: string[], type = "person"): PathRecord {
 
 describe("tokenize", () => {
   it("lowercases, drops stopwords and short tokens, keeps domain terms", () => {
-    const toks = tokenize("Alice is a Staff ML Engineer at Acme, leads ranking.");
+    const toks = tokenize(
+      "Alice is a Staff ML Engineer at Acme, leads ranking.",
+    );
     expect(toks).toContain("alice");
     expect(toks).toContain("staff");
     expect(toks).toContain("engineer");
@@ -53,7 +55,9 @@ describe("Lexicon", () => {
 describe("Taxonomy", () => {
   it("counts folders, types, frontmatter keys, and tags", () => {
     const tax = new Taxonomy();
-    tax.addDocument("people/alice.md", { type: "person", title: "x" }, ["#warm"]);
+    tax.addDocument("people/alice.md", { type: "person", title: "x" }, [
+      "#warm",
+    ]);
     tax.addDocument("people/bob.md", { type: "person" }, ["warm", "lead"]);
     tax.addDocument("orgs/acme.md", { type: "org" }, []);
     const c = tax.counts();
@@ -68,10 +72,9 @@ describe("Taxonomy", () => {
 
 describe("pathRecord + extractLinks", () => {
   it("extracts unique wikilink targets, stripping alias/heading", () => {
-    expect(extractLinks("see [[Bob Lee|Bob]] and [[Acme#team]] and [[Bob Lee]]")).toEqual([
-      "Bob Lee",
-      "Acme",
-    ]);
+    expect(
+      extractLinks("see [[Bob Lee|Bob]] and [[Acme#team]] and [[Bob Lee]]"),
+    ).toEqual(["Bob Lee", "Acme"]);
   });
 
   it("builds a record with type, title (frontmatter > heading), links, tags", () => {

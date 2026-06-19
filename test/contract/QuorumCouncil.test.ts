@@ -1,8 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { LSPGate } from "../../src/contract/LSPGate";
 import { QuorumCouncil } from "../../src/contract/QuorumCouncil";
-import { LockState, type LSPContract, type RoundtableProposal, type Vote, type Voter } from "../../src/contract/types";
-import type { VoterAgent, VoterContext, VoterDecision } from "../../src/contract/voters/types";
+import {
+  LockState,
+  type LSPContract,
+  type RoundtableProposal,
+  type Vote,
+  type Voter,
+} from "../../src/contract/types";
+import type {
+  VoterAgent,
+  VoterContext,
+  VoterDecision,
+} from "../../src/contract/voters/types";
 
 const contract: LSPContract<unknown> = { id: "test.ct", interface: {} };
 
@@ -26,7 +36,12 @@ class StubVoter implements VoterAgent {
   }
   async vote(_p: RoundtableProposal, _c: VoterContext): Promise<VoterDecision> {
     if (this.delay) await new Promise((r) => setTimeout(r, this.delay));
-    return { voter: this.voter, vote: this.v, rationale: `stub:${this.v}`, latencyMs: this.delay };
+    return {
+      voter: this.voter,
+      vote: this.v,
+      rationale: `stub:${this.v}`,
+      latencyMs: this.delay,
+    };
   }
 }
 
@@ -111,10 +126,7 @@ describe("QuorumCouncil", () => {
   it("treats per-voter timeout as abstain", async () => {
     const g = setupGate();
     const council = new QuorumCouncil(g, {
-      voters: [
-        new StubVoter("a", 2, "aye"),
-        new HangingVoter(),
-      ],
+      voters: [new StubVoter("a", 2, "aye"), new HangingVoter()],
       quorum: 2,
       perVoterTimeoutMs: 30,
       contractId: contract.id,

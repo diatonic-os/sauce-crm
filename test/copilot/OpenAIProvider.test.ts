@@ -21,9 +21,12 @@ describe("OpenAIProvider — batch path", () => {
       }),
     });
     const p = new OpenAIProvider(host, async () => "sk-test");
-    const events = await collect(p.complete({
-      model: "gpt-4o-mini", messages: [{ role: "user", content: "hi" }],
-    }));
+    const events = await collect(
+      p.complete({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    );
     expect(events.map((e) => e.type)).toEqual(["text", "usage", "done"]);
   });
 });
@@ -44,12 +47,22 @@ describe("OpenAIProvider — SSE streaming", () => {
     const host = new ProviderHostMock();
     host.routeStream("/chat/completions", { status: 200, chunks: frames() });
     const p = new OpenAIProvider(host, async () => "sk-test");
-    const events = await collect(p.complete({
-      model: "gpt-4o-mini", messages: [{ role: "user", content: "hi" }], stream: true,
-    }));
-    const texts = events.filter((e) => e.type === "text") as Array<{ type: "text"; delta: string }>;
+    const events = await collect(
+      p.complete({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
+    );
+    const texts = events.filter((e) => e.type === "text") as Array<{
+      type: "text";
+      delta: string;
+    }>;
     expect(texts.map((t) => t.delta)).toEqual(["Foo", " bar"]);
-    const done = events.find((e) => e.type === "done") as { type: "done"; reason: string };
+    const done = events.find((e) => e.type === "done") as {
+      type: "done";
+      reason: string;
+    };
     expect(done.reason).toBe("end_turn");
   });
 
@@ -57,21 +70,34 @@ describe("OpenAIProvider — SSE streaming", () => {
     const host = new ProviderHostMock();
     host.routeStream("/chat/completions", { status: 200, chunks: frames() });
     const p = new OpenAIProvider(host, async () => "sk-test");
-    await collect(p.complete({
-      model: "gpt-4o-mini", messages: [{ role: "user", content: "hi" }], stream: true,
-    }));
+    await collect(
+      p.complete({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
+    );
     const req = host.lastRequestTo("/chat/completions");
     expect(JSON.parse(req!.body!).stream).toBe(true);
   });
 
   it("surfaces 4xx as done:error without throwing", async () => {
     const host = new ProviderHostMock();
-    host.routeStream("/chat/completions", { status: 401, chunks: [JSON.stringify({ error: "bad key" })] });
+    host.routeStream("/chat/completions", {
+      status: 401,
+      chunks: [JSON.stringify({ error: "bad key" })],
+    });
     const p = new OpenAIProvider(host, async () => "sk-test");
-    const events = await collect(p.complete({
-      model: "gpt-4o-mini", messages: [{ role: "user", content: "hi" }], stream: true,
-    }));
+    const events = await collect(
+      p.complete({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
+    );
     expect(events).toHaveLength(1);
-    expect((events[0] as { type: "done"; reason: string }).reason).toBe("error");
+    expect((events[0] as { type: "done"; reason: string }).reason).toBe(
+      "error",
+    );
   });
 });

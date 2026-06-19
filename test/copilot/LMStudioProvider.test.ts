@@ -38,7 +38,9 @@ describe("LMStudioProvider — happy path", () => {
         usage: { prompt_tokens: 9, completion_tokens: 12 },
       }),
     });
-    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
+    const provider = new LMStudioProvider(host, {
+      endpoint: "http://localhost:1234/v1",
+    });
     const events = await collect(
       provider.complete({
         model: "falcon3-mamba-7b-instruct",
@@ -49,7 +51,10 @@ describe("LMStudioProvider — happy path", () => {
     );
     const types = events.map((e) => e.type);
     expect(types).toEqual(["text", "usage", "done"]);
-    const textEv = events.find((e) => e.type === "text") as { type: "text"; delta: string };
+    const textEv = events.find((e) => e.type === "text") as {
+      type: "text";
+      delta: string;
+    };
     expect(textEv.delta).toBe("Hello! How can I assist you today?");
   });
 
@@ -58,23 +63,36 @@ describe("LMStudioProvider — happy path", () => {
     host.route("/chat/completions", {
       status: 200,
       body: JSON.stringify({
-        choices: [{ message: { content: "ok", tool_calls: [] }, finish_reason: "stop" }],
+        choices: [
+          { message: { content: "ok", tool_calls: [] }, finish_reason: "stop" },
+        ],
         usage: { prompt_tokens: 1, completion_tokens: 1 },
       }),
     });
-    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
-    await collect(provider.complete({
-      model: "qwen3-14b",
-      systemPrompt: "you are a tester",
-      messages: [{ role: "user", content: "ping" }],
-    }));
+    const provider = new LMStudioProvider(host, {
+      endpoint: "http://localhost:1234/v1",
+    });
+    await collect(
+      provider.complete({
+        model: "qwen3-14b",
+        systemPrompt: "you are a tester",
+        messages: [{ role: "user", content: "ping" }],
+      }),
+    );
     const req = host.lastRequestTo("/chat/completions");
     expect(req).toBeDefined();
     expect(req!.method).toBe("POST");
     const body = JSON.parse(req!.body!);
     expect(body.model).toBe("qwen3-14b");
-    expect(body.messages[0]).toEqual({ role: "system", content: "you are a tester" });
-    expect(body.messages[1]).toEqual({ role: "user", content: "ping", tool_call_id: undefined });
+    expect(body.messages[0]).toEqual({
+      role: "system",
+      content: "you are a tester",
+    });
+    expect(body.messages[1]).toEqual({
+      role: "user",
+      content: "ping",
+      tool_call_id: undefined,
+    });
   });
 
   it("surfaces non-2xx as a done:error event (does NOT throw)", async () => {
@@ -83,13 +101,20 @@ describe("LMStudioProvider — happy path", () => {
       status: 500,
       body: JSON.stringify({ error: "internal" }),
     });
-    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
-    const events = await collect(provider.complete({
-      model: "x", messages: [{ role: "user", content: "hi" }],
-    }));
+    const provider = new LMStudioProvider(host, {
+      endpoint: "http://localhost:1234/v1",
+    });
+    const events = await collect(
+      provider.complete({
+        model: "x",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    );
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("done");
-    expect((events[0] as { type: "done"; reason: string }).reason).toBe("error");
+    expect((events[0] as { type: "done"; reason: string }).reason).toBe(
+      "error",
+    );
   });
 });
 
@@ -102,7 +127,9 @@ describe("LMStudioProvider — REGRESSION: LM Studio response must NOT be parsed
   // choices[0].message, NOT on the root.
   it("LM Studio response shape has no root.content (content is at choices[0].message.content)", () => {
     const lmStudioResponse = {
-      choices: [{ message: { content: "hi", tool_calls: [] }, finish_reason: "stop" }],
+      choices: [
+        { message: { content: "hi", tool_calls: [] }, finish_reason: "stop" },
+      ],
       usage: { prompt_tokens: 1, completion_tokens: 1 },
     };
     expect((lmStudioResponse as { content?: unknown }).content).toBeUndefined();
@@ -117,7 +144,9 @@ describe("LMStudioProvider — REGRESSION: LM Studio response must NOT be parsed
     try {
       // Simulate AnthropicProvider's `for (const c of json.content)` line.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const _c of lmStudioResponse.content as any) { /* unreachable */ }
+      for (const _c of lmStudioResponse.content as any) {
+        /* unreachable */
+      }
     } catch (e) {
       caught = e;
     }
@@ -143,35 +172,56 @@ describe("LMStudioProvider — SSE streaming", () => {
     const joined = lines.join("");
     const chunks: string[] = [];
     const step = 17; // arbitrary, smaller than any single SSE event
-    for (let i = 0; i < joined.length; i += step) chunks.push(joined.slice(i, i + step));
+    for (let i = 0; i < joined.length; i += step)
+      chunks.push(joined.slice(i, i + step));
     return chunks;
   }
 
   it("yields token-by-token text deltas, then usage + done", async () => {
     const host = new ProviderHostMock();
     host.routeStream("/chat/completions", { status: 200, chunks: sseFrames() });
-    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
-    const events = await collect(provider.complete({
-      model: "qwen3-14b",
-      messages: [{ role: "user", content: "hi" }],
-      stream: true,
-    }));
-    const texts = events.filter((e) => e.type === "text") as Array<{ type: "text"; delta: string }>;
+    const provider = new LMStudioProvider(host, {
+      endpoint: "http://localhost:1234/v1",
+    });
+    const events = await collect(
+      provider.complete({
+        model: "qwen3-14b",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
+    );
+    const texts = events.filter((e) => e.type === "text") as Array<{
+      type: "text";
+      delta: string;
+    }>;
     expect(texts.map((t) => t.delta)).toEqual(["Hel", "lo ", "world"]);
-    const usage = events.find((e) => e.type === "usage") as { type: "usage"; inputTokens: number; outputTokens: number };
+    const usage = events.find((e) => e.type === "usage") as {
+      type: "usage";
+      inputTokens: number;
+      outputTokens: number;
+    };
     expect(usage.inputTokens).toBe(3);
     expect(usage.outputTokens).toBe(5);
-    const done = events.find((e) => e.type === "done") as { type: "done"; reason: string };
+    const done = events.find((e) => e.type === "done") as {
+      type: "done";
+      reason: string;
+    };
     expect(done.reason).toBe("end_turn");
   });
 
   it("sets stream:true on the request body when stream=true", async () => {
     const host = new ProviderHostMock();
     host.routeStream("/chat/completions", { status: 200, chunks: sseFrames() });
-    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
-    await collect(provider.complete({
-      model: "qwen3-14b", messages: [{ role: "user", content: "hi" }], stream: true,
-    }));
+    const provider = new LMStudioProvider(host, {
+      endpoint: "http://localhost:1234/v1",
+    });
+    await collect(
+      provider.complete({
+        model: "qwen3-14b",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
+    );
     const req = host.lastRequestTo("/chat/completions");
     expect(req).toBeDefined();
     const body = JSON.parse(req!.body!);
@@ -188,26 +238,50 @@ describe("LMStudioProvider — SSE streaming", () => {
       `data: [DONE]\n\n`,
     ];
     host.routeStream("/chat/completions", { status: 200, chunks: lines });
-    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1", toolUse: true });
-    const events = await collect(provider.complete({
-      model: "x", messages: [{ role: "user", content: "go" }], stream: true,
-      tools: [{ name: "log_touch", description: "", inputSchema: {} }],
-    }));
-    const tu = events.find((e) => e.type === "tool_use") as { type: "tool_use"; id: string; name: string; input: { contact: string } };
+    const provider = new LMStudioProvider(host, {
+      endpoint: "http://localhost:1234/v1",
+      toolUse: true,
+    });
+    const events = await collect(
+      provider.complete({
+        model: "x",
+        messages: [{ role: "user", content: "go" }],
+        stream: true,
+        tools: [{ name: "log_touch", description: "", inputSchema: {} }],
+      }),
+    );
+    const tu = events.find((e) => e.type === "tool_use") as {
+      type: "tool_use";
+      id: string;
+      name: string;
+      input: { contact: string };
+    };
     expect(tu.id).toBe("call_1");
     expect(tu.name).toBe("log_touch");
     expect(tu.input).toEqual({ contact: "alice" });
-    const done = events.find((e) => e.type === "done") as { type: "done"; reason: string };
+    const done = events.find((e) => e.type === "done") as {
+      type: "done";
+      reason: string;
+    };
     expect(done.reason).toBe("tool_use");
   });
 
   it("yields done:error on HTTP 5xx in stream branch (does NOT throw)", async () => {
     const host = new ProviderHostMock();
-    host.routeStream("/chat/completions", { status: 500, chunks: [JSON.stringify({ error: "boom" })] });
-    const provider = new LMStudioProvider(host, { endpoint: "http://localhost:1234/v1" });
-    const events = await collect(provider.complete({
-      model: "x", messages: [{ role: "user", content: "x" }], stream: true,
-    }));
+    host.routeStream("/chat/completions", {
+      status: 500,
+      chunks: [JSON.stringify({ error: "boom" })],
+    });
+    const provider = new LMStudioProvider(host, {
+      endpoint: "http://localhost:1234/v1",
+    });
+    const events = await collect(
+      provider.complete({
+        model: "x",
+        messages: [{ role: "user", content: "x" }],
+        stream: true,
+      }),
+    );
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("done");
     expect((events[0] as { reason: string }).reason).toBe("error");
@@ -220,34 +294,53 @@ describe("LMStudioProvider — tool-call passthrough", () => {
     host.route("/chat/completions", {
       status: 200,
       body: JSON.stringify({
-        choices: [{
-          message: {
-            content: null,
-            tool_calls: [{
-              id: "call_1",
-              function: { name: "log_touch", arguments: '{"contact":"alice"}' },
-            }],
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [
+                {
+                  id: "call_1",
+                  function: {
+                    name: "log_touch",
+                    arguments: '{"contact":"alice"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: "tool_calls",
           },
-          finish_reason: "tool_calls",
-        }],
+        ],
         usage: { prompt_tokens: 5, completion_tokens: 7 },
       }),
     });
     const provider = new LMStudioProvider(host, {
-      endpoint: "http://localhost:1234/v1", toolUse: true,
+      endpoint: "http://localhost:1234/v1",
+      toolUse: true,
     });
-    const events = await collect(provider.complete({
-      model: "x",
-      messages: [{ role: "user", content: "log a touch with alice" }],
-      tools: [{ name: "log_touch", description: "log a touch", inputSchema: {} }],
-    }));
-    const toolEv = events.find((e) => e.type === "tool_use") as
-      { type: "tool_use"; id: string; name: string; input: { contact: string } };
+    const events = await collect(
+      provider.complete({
+        model: "x",
+        messages: [{ role: "user", content: "log a touch with alice" }],
+        tools: [
+          { name: "log_touch", description: "log a touch", inputSchema: {} },
+        ],
+      }),
+    );
+    const toolEv = events.find((e) => e.type === "tool_use") as {
+      type: "tool_use";
+      id: string;
+      name: string;
+      input: { contact: string };
+    };
     expect(toolEv).toBeDefined();
     expect(toolEv.id).toBe("call_1");
     expect(toolEv.name).toBe("log_touch");
     expect(toolEv.input).toEqual({ contact: "alice" });
-    const doneEv = events.find((e) => e.type === "done") as { type: "done"; reason: string };
+    const doneEv = events.find((e) => e.type === "done") as {
+      type: "done";
+      reason: string;
+    };
     expect(doneEv.reason).toBe("tool_use");
   });
 
@@ -256,25 +349,34 @@ describe("LMStudioProvider — tool-call passthrough", () => {
     host.route("/chat/completions", {
       status: 200,
       body: JSON.stringify({
-        choices: [{
-          message: {
-            tool_calls: [{ id: "x", function: { name: "f", arguments: "{not json" } }],
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                { id: "x", function: { name: "f", arguments: "{not json" } },
+              ],
+            },
+            finish_reason: "tool_calls",
           },
-          finish_reason: "tool_calls",
-        }],
+        ],
         usage: { prompt_tokens: 0, completion_tokens: 0 },
       }),
     });
     const provider = new LMStudioProvider(host, {
-      endpoint: "http://localhost:1234/v1", toolUse: true,
+      endpoint: "http://localhost:1234/v1",
+      toolUse: true,
     });
-    const events = await collect(provider.complete({
-      model: "x",
-      messages: [{ role: "user", content: "x" }],
-      tools: [{ name: "f", description: "", inputSchema: {} }],
-    }));
-    const toolEv = events.find((e) => e.type === "tool_use") as
-      { type: "tool_use"; input: { _raw?: string } };
+    const events = await collect(
+      provider.complete({
+        model: "x",
+        messages: [{ role: "user", content: "x" }],
+        tools: [{ name: "f", description: "", inputSchema: {} }],
+      }),
+    );
+    const toolEv = events.find((e) => e.type === "tool_use") as {
+      type: "tool_use";
+      input: { _raw?: string };
+    };
     expect(toolEv.input._raw).toBe("{not json");
   });
 });

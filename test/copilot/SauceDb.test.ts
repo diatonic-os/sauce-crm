@@ -23,14 +23,24 @@ describe("license gate", () => {
     const key = mintLicense("AB12CD34");
     expect(isSauceDbEntitled({ tier: "saucedb", license: key })).toBe(true);
     expect(isSauceDbEntitled({ tier: "local", license: key })).toBe(false);
-    expect(isSauceDbEntitled({ tier: "saucedb", license: "bogus" })).toBe(false);
+    expect(isSauceDbEntitled({ tier: "saucedb", license: "bogus" })).toBe(
+      false,
+    );
   });
 
   it("canSync also requires sync flag + endpoint + tenant", () => {
-    const base: SauceDbConfig = { tier: "saucedb", license: mintLicense("AB12CD34") };
+    const base: SauceDbConfig = {
+      tier: "saucedb",
+      license: mintLicense("AB12CD34"),
+    };
     expect(canSyncSauceDb(base)).toBe(false); // no endpoint/tenant/sync
     expect(
-      canSyncSauceDb({ ...base, sync: true, endpoint: "https://x", tenantId: "t1" }),
+      canSyncSauceDb({
+        ...base,
+        sync: true,
+        endpoint: "https://x",
+        tenantId: "t1",
+      }),
     ).toBe(true);
   });
 });

@@ -27,7 +27,9 @@ function stubs() {
   return { app, entities, search };
 }
 
-function makeSettings(provider: SauceBotSettings["provider"]): SauceBotSettings {
+function makeSettings(
+  provider: SauceBotSettings["provider"],
+): SauceBotSettings {
   return {
     provider,
     model: "test-model",
@@ -41,7 +43,12 @@ function makeSettings(provider: SauceBotSettings["provider"]): SauceBotSettings 
 describe("SauceBotRuntime.provider() — registry-derived wiring", () => {
   it("provider=lmstudio builds the shared OpenAI-compat harness named 'lmstudio'", () => {
     const { app, entities, search } = stubs();
-    const rt = new SauceBotRuntime(app, entities, search, makeSettings("lmstudio"));
+    const rt = new SauceBotRuntime(
+      app,
+      entities,
+      search,
+      makeSettings("lmstudio"),
+    );
     const p = rt.provider();
     expect(p).toBeInstanceOf(OpenAICompatibleProvider);
     expect(p.name).toBe("lmstudio");
@@ -49,13 +56,23 @@ describe("SauceBotRuntime.provider() — registry-derived wiring", () => {
 
   it("provider=anthropic builds AnthropicProvider (distinct event taxonomy)", () => {
     const { app, entities, search } = stubs();
-    const rt = new SauceBotRuntime(app, entities, search, makeSettings("anthropic"));
+    const rt = new SauceBotRuntime(
+      app,
+      entities,
+      search,
+      makeSettings("anthropic"),
+    );
     expect(rt.provider()).toBeInstanceOf(AnthropicProvider);
   });
 
   it("provider=openai builds the shared harness named 'openai'", () => {
     const { app, entities, search } = stubs();
-    const rt = new SauceBotRuntime(app, entities, search, makeSettings("openai"));
+    const rt = new SauceBotRuntime(
+      app,
+      entities,
+      search,
+      makeSettings("openai"),
+    );
     const p = rt.provider();
     expect(p).toBeInstanceOf(OpenAICompatibleProvider);
     expect(p.name).toBe("openai");
@@ -63,7 +80,12 @@ describe("SauceBotRuntime.provider() — registry-derived wiring", () => {
 
   it("provider=ollama builds OllamaProvider", () => {
     const { app, entities, search } = stubs();
-    const rt = new SauceBotRuntime(app, entities, search, makeSettings("ollama"));
+    const rt = new SauceBotRuntime(
+      app,
+      entities,
+      search,
+      makeSettings("ollama"),
+    );
     expect(rt.provider()).toBeInstanceOf(OllamaProvider);
   });
 
@@ -85,13 +107,23 @@ describe("SauceBotRuntime.provider() — registry-derived wiring", () => {
 
   it("memoizes the provider instance across calls (no re-new per ask)", () => {
     const { app, entities, search } = stubs();
-    const rt = new SauceBotRuntime(app, entities, search, makeSettings("openai"));
+    const rt = new SauceBotRuntime(
+      app,
+      entities,
+      search,
+      makeSettings("openai"),
+    );
     expect(rt.provider()).toBe(rt.provider());
   });
 
   it("invalidates the cached instance after updateSettings", () => {
     const { app, entities, search } = stubs();
-    const rt = new SauceBotRuntime(app, entities, search, makeSettings("openai"));
+    const rt = new SauceBotRuntime(
+      app,
+      entities,
+      search,
+      makeSettings("openai"),
+    );
     const first = rt.provider();
     rt.updateSettings({ provider: "anthropic" });
     const second = rt.provider();
@@ -103,14 +135,22 @@ describe("SauceBotRuntime.provider() — registry-derived wiring", () => {
 describe("SauceBotRuntime.provider() — endpoint hydration", () => {
   it("lmstudio default endpoint is http://localhost:1234/v1 when baseUrl unset", () => {
     const { app, entities, search } = stubs();
-    const rt = new SauceBotRuntime(app, entities, search, makeSettings("lmstudio"));
+    const rt = new SauceBotRuntime(
+      app,
+      entities,
+      search,
+      makeSettings("lmstudio"),
+    );
     const p = rt.provider() as OpenAICompatibleProvider;
     expect(p.endpoint).toBe("http://localhost:1234/v1");
   });
 
   it("lmstudio honors operator-overridden baseUrl", () => {
     const { app, entities, search } = stubs();
-    const s = { ...makeSettings("lmstudio"), baseUrl: "http://10.0.0.5:9999/v1" };
+    const s = {
+      ...makeSettings("lmstudio"),
+      baseUrl: "http://10.0.0.5:9999/v1",
+    };
     const rt = new SauceBotRuntime(app, entities, search, s);
     const p = rt.provider() as OpenAICompatibleProvider;
     expect(p.endpoint).toBe("http://10.0.0.5:9999/v1");

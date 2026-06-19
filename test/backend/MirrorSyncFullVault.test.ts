@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { App, TFile } from "obsidian";
 import { tmpLance, type TmpLance } from "./_lance-tmp";
 import { TABLES } from "../../src/backend/lance/LanceSchema";
-import { LanceEntityMirror, type MirrorTables } from "../../src/backend/lance/LanceEntityMirror";
+import {
+  LanceEntityMirror,
+  type MirrorTables,
+} from "../../src/backend/lance/LanceEntityMirror";
 import { MirrorSync } from "../../src/services/MirrorSync";
 
 const DIM = 4;
@@ -15,7 +18,12 @@ function fakeApp(opts: {
   content: Record<string, string>;
 }): App {
   const files: TFile[] = Object.keys(opts.content).map(
-    (path) => ({ path, extension: "md", stat: { mtime: 1, ctime: 1 } }) as unknown as TFile,
+    (path) =>
+      ({
+        path,
+        extension: "md",
+        stat: { mtime: 1, ctime: 1 },
+      }) as unknown as TFile,
   );
   return {
     vault: {

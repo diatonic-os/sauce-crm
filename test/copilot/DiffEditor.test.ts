@@ -3,7 +3,10 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { DiffEditor } from "../../src/saucebot/tools/DiffEditor";
-import { createUnifiedDiff, formatUnifiedDiff } from "../../src/saucebot/tools/diff";
+import {
+  createUnifiedDiff,
+  formatUnifiedDiff,
+} from "../../src/saucebot/tools/diff";
 import type { VaultProcessHost } from "../../src/saucebot/tools/DiffEditor";
 import type { FilesService } from "../../src/services/core/FilesService";
 
@@ -43,9 +46,15 @@ class FakeVault implements VaultProcessHost {
  * Minimal fake FilesService that calls the mutator directly on the in-memory
  * store (non-canonized path).  Tracks whether updateViaContract was called.
  */
-function makeFakeFiles(vault: FakeVault, canonized: Set<string> = new Set()): FilesService {
+function makeFakeFiles(
+  vault: FakeVault,
+  canonized: Set<string> = new Set(),
+): FilesService {
   return {
-    async updateViaContract(path: string, mutator: (prev: string) => string): Promise<void> {
+    async updateViaContract(
+      path: string,
+      mutator: (prev: string) => string,
+    ): Promise<void> {
       if (canonized.has(path)) {
         // Simulate CanonGuard refusal.
         throw new Error(`CanonGuard: cannot modify canonized file: ${path}`);
@@ -56,7 +65,9 @@ function makeFakeFiles(vault: FakeVault, canonized: Set<string> = new Set()): Fi
     // Unused methods stubbed:
     exists: () => false,
     read: async () => "",
-    create: async (p, c) => { await vault.create(p, c); },
+    create: async (p, c) => {
+      await vault.create(p, c);
+    },
     move: async () => {},
     rename: async () => {},
     delete: async () => {},
@@ -90,7 +101,10 @@ describe("DiffEditor.applyDiff — fake Vault.process", () => {
     const files = makeFakeFiles(vault);
     const editor = new DiffEditor(vault, files);
 
-    const result = await editor.applyDiff("note.md", makeDiff(original, updated));
+    const result = await editor.applyDiff(
+      "note.md",
+      makeDiff(original, updated),
+    );
     expect(result.ok).toBe(true);
     expect(vault.read("note.md")).toBe(updated);
   });
@@ -160,7 +174,10 @@ describe("DiffEditor.applyDiff — CanonGuard", () => {
     const files = makeFakeFiles(vault, new Set(["canon.md"]));
     const editor = new DiffEditor(vault, files);
 
-    const result = await editor.applyDiff("canon.md", makeDiff(original, updated));
+    const result = await editor.applyDiff(
+      "canon.md",
+      makeDiff(original, updated),
+    );
     expect(result.ok).toBe(false);
   });
 });

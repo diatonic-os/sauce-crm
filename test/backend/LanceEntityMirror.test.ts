@@ -2,7 +2,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { tmpLance, type TmpLance } from "./_lance-tmp";
 import { TABLES } from "../../src/backend/lance/LanceSchema";
-import { LanceEntityMirror, type MirrorFile, type MirrorTables } from "../../src/backend/lance/LanceEntityMirror";
+import {
+  LanceEntityMirror,
+  type MirrorFile,
+  type MirrorTables,
+} from "../../src/backend/lance/LanceEntityMirror";
 
 async function tables(h: TmpLance): Promise<MirrorTables> {
   return {
@@ -16,9 +20,17 @@ async function tables(h: TmpLance): Promise<MirrorTables> {
 
 function file(path: string, over: Partial<MirrorFile> = {}): MirrorFile {
   return {
-    path, type: "person", primaryType: "warm_contact",
-    frontmatter: { name: path }, body: `body of ${path}`, bodyHash: `hash-${path}`,
-    mtime: 1, ctime: 1, tags: ["vip"], edges: [], ...over,
+    path,
+    type: "person",
+    primaryType: "warm_contact",
+    frontmatter: { name: path },
+    body: `body of ${path}`,
+    bodyHash: `hash-${path}`,
+    mtime: 1,
+    ctime: 1,
+    tags: ["vip"],
+    edges: [],
+    ...over,
   };
 }
 
@@ -30,10 +42,12 @@ describe("LanceEntityMirror", () => {
     h = await tmpLance();
     const t = await tables(h);
     const m = new LanceEntityMirror(t);
-    await m.onCreate(file("people/Alice.md", {
-      tags: ["vip", "founder"],
-      edges: [{ to: "orgs/Acme.md", edgeType: "works_at", directed: true }],
-    }));
+    await m.onCreate(
+      file("people/Alice.md", {
+        tags: ["vip", "founder"],
+        edges: [{ to: "orgs/Acme.md", edgeType: "works_at", directed: true }],
+      }),
+    );
 
     const e = await m.getEntity("people/Alice.md");
     expect(e?.type).toBe("person");
@@ -56,9 +70,12 @@ describe("LanceEntityMirror", () => {
     h = await tmpLance();
     const t = await tables(h);
     const m = new LanceEntityMirror(t);
-    await m.onCreate(file("people/Carol.md", {
-      tags: ["x"], edges: [{ to: "orgs/Z.md", edgeType: "knows", directed: false }],
-    }));
+    await m.onCreate(
+      file("people/Carol.md", {
+        tags: ["x"],
+        edges: [{ to: "orgs/Z.md", edgeType: "knows", directed: false }],
+      }),
+    );
     await m.onDelete("people/Carol.md");
     expect(await m.getEntity("people/Carol.md")).toBeNull();
     expect(await t.tags.countRows()).toBe(0);
@@ -69,9 +86,11 @@ describe("LanceEntityMirror", () => {
     h = await tmpLance();
     const t = await tables(h);
     const m = new LanceEntityMirror(t);
-    await m.onCreate(file("people/Old.md", {
-      edges: [{ to: "orgs/Z.md", edgeType: "knows", directed: true }],
-    }));
+    await m.onCreate(
+      file("people/Old.md", {
+        edges: [{ to: "orgs/Z.md", edgeType: "knows", directed: true }],
+      }),
+    );
     await m.onRename("people/Old.md", "people/New.md");
 
     expect(await m.getEntity("people/Old.md")).toBeNull();

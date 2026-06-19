@@ -87,7 +87,12 @@ describe("SkillTaskScheduler", () => {
     const runMock = vi.fn().mockResolvedValue({ ok: true, mutated: [] });
     const runtime = { run: runMock } as any;
 
-    const scheduler = new SkillTaskScheduler(runtime, source, persister, () => now);
+    const scheduler = new SkillTaskScheduler(
+      runtime,
+      source,
+      persister,
+      () => now,
+    );
     await scheduler.tick();
 
     expect(runMock).toHaveBeenCalledOnce();
@@ -213,7 +218,9 @@ describe("SkillTaskScheduler", () => {
 
     // Should NOT run on first setup tick, but should persist next_run.
     expect(runMock).not.toHaveBeenCalled();
-    const setupCalls = persister.calls.filter((c) => c.patch.next_run && !c.patch.last_run);
+    const setupCalls = persister.calls.filter(
+      (c) => c.patch.next_run && !c.patch.last_run,
+    );
     expect(setupCalls.length).toBeGreaterThan(0);
   });
 

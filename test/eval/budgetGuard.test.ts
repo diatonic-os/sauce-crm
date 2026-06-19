@@ -34,9 +34,16 @@ describe("hard $ cap", () => {
 
 describe("call cap", () => {
   it("trips after maxCalls regardless of cost", () => {
-    const g = new BudgetGuard({ platform: "x", capUsd: 1000, maxCalls: 2, prices });
-    g.preflight(); g.record("m", 0, 0, true);
-    g.preflight(); g.record("m", 0, 0, true);
+    const g = new BudgetGuard({
+      platform: "x",
+      capUsd: 1000,
+      maxCalls: 2,
+      prices,
+    });
+    g.preflight();
+    g.record("m", 0, 0, true);
+    g.preflight();
+    g.record("m", 0, 0, true);
     expect(() => g.preflight()).toThrow(BudgetExceededError);
     expect(g.callCount).toBe(2);
   });
@@ -44,7 +51,12 @@ describe("call cap", () => {
 
 describe("circuit breaker", () => {
   it("trips after N consecutive failures and blocks further calls", () => {
-    const g = new BudgetGuard({ platform: "x", capUsd: 1000, breakerThreshold: 3, prices });
+    const g = new BudgetGuard({
+      platform: "x",
+      capUsd: 1000,
+      breakerThreshold: 3,
+      prices,
+    });
     for (let i = 0; i < 3; i++) {
       g.preflight();
       g.record("m", 10, 10, false);
@@ -53,7 +65,12 @@ describe("circuit breaker", () => {
     expect(() => g.preflight()).toThrow(CircuitOpenError);
   });
   it("resets the failure streak on a success", () => {
-    const g = new BudgetGuard({ platform: "x", capUsd: 1000, breakerThreshold: 3, prices });
+    const g = new BudgetGuard({
+      platform: "x",
+      capUsd: 1000,
+      breakerThreshold: 3,
+      prices,
+    });
     g.record("m", 1, 1, false);
     g.record("m", 1, 1, false);
     g.record("m", 1, 1, true); // reset
@@ -77,7 +94,12 @@ describe("kill-file", () => {
   it("trips when the kill-file appears", () => {
     const dir = mkdtempSync(join(tmpdir(), "kill-"));
     const killFile = join(dir, "STOP");
-    const g = new BudgetGuard({ platform: "x", capUsd: 1000, prices, killFile });
+    const g = new BudgetGuard({
+      platform: "x",
+      capUsd: 1000,
+      prices,
+      killFile,
+    });
     g.preflight(); // file absent → ok
     writeFileSync(killFile, "");
     expect(() => g.preflight()).toThrow(CircuitOpenError);

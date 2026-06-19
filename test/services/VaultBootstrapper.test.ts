@@ -15,22 +15,24 @@ describe("VaultBootstrapper", () => {
   it("creates the canonical user folders and bootstrap notes", async () => {
     const result = await bootstrapper.ensure();
 
-    expect(result.created).toEqual(expect.arrayContaining([
-      "people",
-      "orgs",
-      "touches",
-      "_addenda",
-      "notes",
-      "ideas",
-      "observations",
-      "tasks",
-      "events",
-      "ledger",
-      "pipeline",
-      "_templates",
-      "_playbooks",
-      "$user",
-    ]));
+    expect(result.created).toEqual(
+      expect.arrayContaining([
+        "people",
+        "orgs",
+        "touches",
+        "_addenda",
+        "notes",
+        "ideas",
+        "observations",
+        "tasks",
+        "events",
+        "ledger",
+        "pipeline",
+        "_templates",
+        "_playbooks",
+        "$user",
+      ]),
+    );
 
     for (const path of [
       "CLAUDE.md",

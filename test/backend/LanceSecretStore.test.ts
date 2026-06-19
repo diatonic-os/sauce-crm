@@ -5,7 +5,11 @@ import { TABLES } from "../../src/backend/lance/LanceSchema";
 import { LanceSecretStore } from "../../src/backend/lance/LanceSecretStore";
 import type { EncryptedSecret } from "../../src/security/KeyVault";
 
-function secret(service: string, byte: number, rotated: number | null = null): EncryptedSecret {
+function secret(
+  service: string,
+  byte: number,
+  rotated: number | null = null,
+): EncryptedSecret {
   return {
     service,
     ciphertext: new Uint8Array([byte, byte + 1, byte + 2, 0, 255]),

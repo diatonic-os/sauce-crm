@@ -81,7 +81,9 @@ describe("createUnifiedDiff", () => {
   });
 
   it("includes context lines around changes", () => {
-    const original = Array.from({ length: 10 }, (_, i) => `line${i}`).join("\n");
+    const original = Array.from({ length: 10 }, (_, i) => `line${i}`).join(
+      "\n",
+    );
     const updated = original.replace("line5", "changed5");
     const d = createUnifiedDiff(original, updated);
     expect(d).not.toBeNull();
@@ -192,6 +194,8 @@ describe("applyDiffString", () => {
   });
 
   it("throws DiffParseError on garbage input", () => {
-    expect(() => applyDiffString("original", "not a diff at all")).toThrow(DiffParseError);
+    expect(() => applyDiffString("original", "not a diff at all")).toThrow(
+      DiffParseError,
+    );
   });
 });

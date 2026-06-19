@@ -23,13 +23,20 @@ export interface CannedStreamResponse {
   chunks: string[];
 }
 
-export type Responder = (req: RecordedRequest) => CannedResponse | Promise<CannedResponse>;
-export type StreamResponder = (req: RecordedRequest) => CannedStreamResponse | Promise<CannedStreamResponse>;
+export type Responder = (
+  req: RecordedRequest,
+) => CannedResponse | Promise<CannedResponse>;
+export type StreamResponder = (
+  req: RecordedRequest,
+) => CannedStreamResponse | Promise<CannedStreamResponse>;
 
 export class ProviderHostMock implements ProviderHost {
   readonly requests: RecordedRequest[] = [];
   private routes = new Map<string, Responder | CannedResponse>();
-  private streamRoutes = new Map<string, StreamResponder | CannedStreamResponse>();
+  private streamRoutes = new Map<
+    string,
+    StreamResponder | CannedStreamResponse
+  >();
   private defaultResponse: CannedResponse = {
     status: 404,
     body: JSON.stringify({ error: "no route registered for URL" }),
@@ -42,7 +49,10 @@ export class ProviderHostMock implements ProviderHost {
   }
 
   /** Register a canned streaming response (chunks). Consumed by fetchStream(). */
-  routeStream(urlSubstring: string, response: CannedStreamResponse | StreamResponder): this {
+  routeStream(
+    urlSubstring: string,
+    response: CannedStreamResponse | StreamResponder,
+  ): this {
     this.streamRoutes.set(urlSubstring, response);
     return this;
   }
@@ -56,7 +66,11 @@ export class ProviderHostMock implements ProviderHost {
   async fetch(
     url: string,
     init: { method: string; headers: Record<string, string>; body?: string },
-  ): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+  ): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    body: string;
+  }> {
     const req: RecordedRequest = {
       url,
       method: init.method,
@@ -80,18 +94,31 @@ export class ProviderHostMock implements ProviderHost {
   async fetchStream(
     url: string,
     init: { method: string; headers: Record<string, string>; body?: string },
-  ): Promise<{ status: number; headers: Record<string, string>; iter: AsyncIterable<string> }> {
-    const req: RecordedRequest = { url, method: init.method, headers: init.headers, body: init.body };
+  ): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    iter: AsyncIterable<string>;
+  }> {
+    const req: RecordedRequest = {
+      url,
+      method: init.method,
+      headers: init.headers,
+      body: init.body,
+    };
     this.requests.push(req);
     for (const [needle, resp] of this.streamRoutes) {
       if (url.includes(needle)) {
         const r = typeof resp === "function" ? await resp(req) : resp;
         const chunks = r.chunks;
-        async function* gen(): AsyncIterable<string> { for (const c of chunks) yield c; }
+        async function* gen(): AsyncIterable<string> {
+          for (const c of chunks) yield c;
+        }
         return { status: r.status, headers: r.headers ?? {}, iter: gen() };
       }
     }
-    async function* empty(): AsyncIterable<string> { /* no chunks */ }
+    async function* empty(): AsyncIterable<string> {
+      /* no chunks */
+    }
     return { status: this.defaultResponse.status, headers: {}, iter: empty() };
   }
 

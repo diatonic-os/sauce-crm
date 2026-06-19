@@ -12,7 +12,8 @@ Object.defineProperty(globalThis, "crypto", {
   value: webcrypto,
 });
 afterAll(() => {
-  if (priorDescriptor) Object.defineProperty(globalThis, "crypto", priorDescriptor);
+  if (priorDescriptor)
+    Object.defineProperty(globalThis, "crypto", priorDescriptor);
 });
 
 // Pull the real CryptoBackend builder from v2-init. The function isn't
@@ -24,30 +25,65 @@ import { SGV2_MAGIC } from "../src/security/KeyVault";
 // out of v2-init (they aren't exported). This mirrors the contract — any
 // drift between the two would show up as test failure on the real backend
 // integration test we add below.
-async function sealAesGcm(key: Uint8Array, nonce: Uint8Array, msg: Uint8Array): Promise<Uint8Array> {
+async function sealAesGcm(
+  key: Uint8Array,
+  nonce: Uint8Array,
+  msg: Uint8Array,
+): Promise<Uint8Array> {
   const subtle = (globalThis as { crypto: Crypto }).crypto.subtle;
-  const k = await subtle.importKey("raw", key as BufferSource, "AES-GCM", false, ["encrypt"]);
-  const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource }, k, msg as BufferSource));
+  const k = await subtle.importKey(
+    "raw",
+    key as BufferSource,
+    "AES-GCM",
+    false,
+    ["encrypt"],
+  );
+  const ct = new Uint8Array(
+    await subtle.encrypt(
+      { name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource },
+      k,
+      msg as BufferSource,
+    ),
+  );
   const out = new Uint8Array(SGV2_MAGIC.length + ct.length);
   out.set(SGV2_MAGIC, 0);
   out.set(ct, SGV2_MAGIC.length);
   return out;
 }
 
-async function openAesGcm(key: Uint8Array, nonce: Uint8Array, enveloped: Uint8Array): Promise<Uint8Array | null> {
+async function openAesGcm(
+  key: Uint8Array,
+  nonce: Uint8Array,
+  enveloped: Uint8Array,
+): Promise<Uint8Array | null> {
   if (enveloped.length < SGV2_MAGIC.length) return null;
-  for (let i = 0; i < SGV2_MAGIC.length; i++) if (enveloped[i] !== SGV2_MAGIC[i]) return null;
+  for (let i = 0; i < SGV2_MAGIC.length; i++)
+    if (enveloped[i] !== SGV2_MAGIC[i]) return null;
   const ct = enveloped.slice(SGV2_MAGIC.length);
   const subtle = (globalThis as { crypto: Crypto }).crypto.subtle;
-  const k = await subtle.importKey("raw", key as BufferSource, "AES-GCM", false, ["decrypt"]);
+  const k = await subtle.importKey(
+    "raw",
+    key as BufferSource,
+    "AES-GCM",
+    false,
+    ["decrypt"],
+  );
   try {
-    return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource }, k, ct as BufferSource));
+    return new Uint8Array(
+      await subtle.decrypt(
+        { name: "AES-GCM", iv: nonce.slice(0, 12) as BufferSource },
+        k,
+        ct as BufferSource,
+      ),
+    );
   } catch {
     return null;
   }
 }
 
-function bytes(...nums: number[]): Uint8Array { return new Uint8Array(nums); }
+function bytes(...nums: number[]): Uint8Array {
+  return new Uint8Array(nums);
+}
 
 const KEY = new Uint8Array(32).map((_, i) => (i * 13 + 7) & 0xff);
 const NONCE = new Uint8Array(12).map((_, i) => (i * 31 + 5) & 0xff);
