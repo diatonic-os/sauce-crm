@@ -519,7 +519,9 @@ export class SauceBotChatView extends ItemView {
     el.removeClass("is-loading");
     if (r?.ok) {
       el.addClass("is-ok");
-      el.setText(`ready · ${(Math.round((r.ms / 1000) * 10) / 10).toString()}s`);
+      el.setText(
+        `ready · ${(Math.round((r.ms / 1000) * 10) / 10).toString()}s`,
+      );
       window.setTimeout(() => {
         if (el.hasClass("is-ok")) el.setText("");
       }, 4000);
@@ -681,11 +683,8 @@ export class SauceBotChatView extends ItemView {
 
     // Trailing send (primary; doubles as Stop while streaming).
     const tail = inputRow.createDiv({ cls: "sauce-cp-bar-tools is-tail" });
-    const send = this.iconButton(
-      tail,
-      "send",
-      "Send  ( ⌘/Ctrl + Enter )",
-      () => this.onSendOrStop(),
+    const send = this.iconButton(tail, "send", "Send  ( ⌘/Ctrl + Enter )", () =>
+      this.onSendOrStop(),
     );
     send.addClass("sauce-cp-send");
     this.sendBtn = send;
@@ -862,9 +861,11 @@ export class SauceBotChatView extends ItemView {
     // Local-model tuning (LM Studio / Ollama cloud-parity). Auto-on for local
     // providers; full controls live in plugin Settings → Copilot.
     c.createEl("h4", { text: "Local model tuning" });
-    const lt = (cfg as unknown as { localTuning?: Record<string, unknown> })
-      .localTuning ?? {};
-    (cfg as unknown as { localTuning: Record<string, unknown> }).localTuning = lt;
+    const lt =
+      (cfg as unknown as { localTuning?: Record<string, unknown> })
+        .localTuning ?? {};
+    (cfg as unknown as { localTuning: Record<string, unknown> }).localTuning =
+      lt;
     new Setting(c)
       .setName("Prose tool prompting")
       .setDesc("Helps small models call tools reliably.")
@@ -874,22 +875,18 @@ export class SauceBotChatView extends ItemView {
           await save();
         }),
       );
-    new Setting(c)
-      .setName("Repair malformed tool calls")
-      .addToggle((t) =>
-        t.setValue(lt.toolRepairReask !== false).onChange(async (v) => {
-          lt.toolRepairReask = v;
-          await save();
-        }),
-      );
-    new Setting(c)
-      .setName("Self-correct empty answers")
-      .addToggle((t) =>
-        t.setValue(lt.emptyAnswerRetry !== false).onChange(async (v) => {
-          lt.emptyAnswerRetry = v;
-          await save();
-        }),
-      );
+    new Setting(c).setName("Repair malformed tool calls").addToggle((t) =>
+      t.setValue(lt.toolRepairReask !== false).onChange(async (v) => {
+        lt.toolRepairReask = v;
+        await save();
+      }),
+    );
+    new Setting(c).setName("Self-correct empty answers").addToggle((t) =>
+      t.setValue(lt.emptyAnswerRetry !== false).onChange(async (v) => {
+        lt.emptyAnswerRetry = v;
+        await save();
+      }),
+    );
     c.createEl("p", {
       cls: "sauce-help-body",
       text: "More tuning (history compaction budget, force on/off) in Settings → Copilot → Local model tuning.",
@@ -1137,7 +1134,12 @@ export class SauceBotChatView extends ItemView {
     const a = this.appendAssistantMessage();
     // Persist the user turn to history BEFORE streaming so it is never lost on
     // an error or crash mid-response. Stamp a stable message id + timestamp.
-    this.history.push({ role: "user", content: q, id: newMessageId(), ts: Date.now() });
+    this.history.push({
+      role: "user",
+      content: q,
+      id: newMessageId(),
+      ts: Date.now(),
+    });
 
     this.streamAbort = false;
     this.setStreaming(true);
@@ -1151,9 +1153,14 @@ export class SauceBotChatView extends ItemView {
     let doneReason = "end_turn";
     try {
       const activePath = this.plugin.app.workspace.getActiveFile()?.path;
-      for await (const ev of copilot.ask(q, activePath, this.history.slice(0, -1), {
-        ...(forceSkill !== undefined ? { forceSkill } : {}),
-      })) {
+      for await (const ev of copilot.ask(
+        q,
+        activePath,
+        this.history.slice(0, -1),
+        {
+          ...(forceSkill !== undefined ? { forceSkill } : {}),
+        },
+      )) {
         if (this.streamAbort) {
           aborted = true;
           break;

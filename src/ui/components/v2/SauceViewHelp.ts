@@ -68,7 +68,11 @@ export class SauceViewHelp {
   }
 
   /** Register help for a component. Safe to call with a possibly-null anchor. */
-  register(anchor: HTMLElement | null | undefined, title: string, body: string): void {
+  register(
+    anchor: HTMLElement | null | undefined,
+    title: string,
+    body: string,
+  ): void {
     if (!anchor) return;
     this.entries.push({ anchor, title, body });
     if (this.on) this.renderOne(this.entries.length - 1);
@@ -89,7 +93,10 @@ export class SauceViewHelp {
     if (!e) return;
     const callout = createDiv({ cls: "sauce-help-callout" });
     // Staggered entrance so a view's helpers cascade in tastefully.
-    callout.style.setProperty("--sauce-help-delay", `${Math.min(i * 45, 270)}ms`);
+    callout.style.setProperty(
+      "--sauce-help-delay",
+      `${Math.min(i * 45, 270)}ms`,
+    );
     callout.createSpan({ cls: "sauce-help-q", text: "?" });
     const txt = callout.createDiv({ cls: "sauce-help-text" });
     txt.createEl("strong", { text: e.title });

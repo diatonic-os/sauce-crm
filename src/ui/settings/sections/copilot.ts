@@ -167,7 +167,8 @@ export function renderCopilot(
         keyStatus.pending("Checking stored key…");
         if (await plugin.hasCopilotKey())
           keyStatus.success("Key stored in vault for this provider.");
-        else keyStatus.error("No key stored in the vault for this provider yet.");
+        else
+          keyStatus.error("No key stored in the vault for this provider yet.");
       };
       keySetting.addText((t) => {
         t.inputEl.type = "password";
@@ -390,7 +391,10 @@ export function renderCopilot(
  *  matrix + embeddings) into Sauce's k8s/k3s edge for faster, higher-quality
  *  retrieval than a single machine. The license/endpoint/tenant unlock the
  *  hosted sync; the server is the real entitlement gate. */
-function renderSauceDb(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
+function renderSauceDb(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
   containerEl.createEl("h3", {
     text: "Brain tier — SauceDB",
     cls: "sauce-settings-section-title",
@@ -419,7 +423,9 @@ function renderSauceDb(containerEl: HTMLElement, plugin: SauceGraphPlugin): void
 
   new Setting(containerEl)
     .setName("Tier")
-    .setDesc("Free = local brain. SauceDB = hosted LanceDB edge (requires a license).")
+    .setDesc(
+      "Free = local brain. SauceDB = hosted LanceDB edge (requires a license).",
+    )
     .addDropdown((dd) =>
       dd
         .addOption("local", "Free (local)")
@@ -502,9 +508,11 @@ function renderLocalTuning(
     cls: "sauce-settings-section-title",
   });
   const cfg = plugin.settings.copilot as unknown as Record<string, unknown>;
-  const lt = (cfg.localTuning && typeof cfg.localTuning === "object"
-    ? cfg.localTuning
-    : {}) as Record<string, unknown>;
+  const lt = (
+    cfg.localTuning && typeof cfg.localTuning === "object"
+      ? cfg.localTuning
+      : {}
+  ) as Record<string, unknown>;
   cfg.localTuning = lt;
   const save = async (): Promise<void> => {
     await plugin.saveSettings();
@@ -524,7 +532,9 @@ function renderLocalTuning(
         .addOption("auto", "Auto (recommended)")
         .addOption("on", "Always on")
         .addOption("off", "Always off")
-        .setValue(lt.enabled === true ? "on" : lt.enabled === false ? "off" : "auto")
+        .setValue(
+          lt.enabled === true ? "on" : lt.enabled === false ? "off" : "auto",
+        )
         .onChange(async (v) => {
           if (v === "on") lt.enabled = true;
           else if (v === "off") lt.enabled = false;
@@ -535,7 +545,9 @@ function renderLocalTuning(
 
   new Setting(containerEl)
     .setName("Prose tool prompting")
-    .setDesc("Inject a plain-language tool schema + example so small models call tools reliably.")
+    .setDesc(
+      "Inject a plain-language tool schema + example so small models call tools reliably.",
+    )
     .addToggle((t) =>
       t.setValue(lt.toolPrompt !== false).onChange(async (v) => {
         lt.toolPrompt = v;
@@ -545,7 +557,9 @@ function renderLocalTuning(
 
   new Setting(containerEl)
     .setName("History compaction budget (tokens)")
-    .setDesc("Compact older turns once accumulated history exceeds this; the latest turn is kept verbatim.")
+    .setDesc(
+      "Compact older turns once accumulated history exceeds this; the latest turn is kept verbatim.",
+    )
     .addText((t) =>
       t
         .setPlaceholder("2000")
@@ -559,7 +573,9 @@ function renderLocalTuning(
 
   new Setting(containerEl)
     .setName("Repair malformed tool calls")
-    .setDesc("Re-ask once to coax valid tool JSON when a local model emits a malformed call.")
+    .setDesc(
+      "Re-ask once to coax valid tool JSON when a local model emits a malformed call.",
+    )
     .addToggle((t) =>
       t.setValue(lt.toolRepairReask !== false).onChange(async (v) => {
         lt.toolRepairReask = v;
@@ -582,7 +598,10 @@ function renderLocalTuning(
  *  model. By default the chat model does the compaction; the provider/model can
  *  be overridden to any active provider, and a token gate controls when the
  *  (cost-incurring) LLM pass actually fires. */
-function renderDistill(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
+function renderDistill(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
   containerEl.createEl("h3", {
     text: "Distillation (token compaction)",
     cls: "sauce-settings-section-title",

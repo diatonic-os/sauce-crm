@@ -10,7 +10,11 @@
 
 export interface BrainAnswer {
   lead: string;
-  who: { name: string; detail: string; status?: "cleared" | "confirm" | "early" }[];
+  who: {
+    name: string;
+    detail: string;
+    status?: "cleared" | "confirm" | "early";
+  }[];
   what: { title: string; detail: string; source: string }[];
   citations: string[];
 }
@@ -67,14 +71,17 @@ export function parseBrainAnswer(raw: string): BrainAnswer {
   if (candidate == null) {
     const start = raw.indexOf("{");
     const end = raw.lastIndexOf("}");
-    if (start !== -1 && end > start) candidate = tryParse(raw.slice(start, end + 1));
+    if (start !== -1 && end > start)
+      candidate = tryParse(raw.slice(start, end + 1));
   }
-  if (candidate == null || typeof candidate !== "object") return NO_CITED_ANSWER;
+  if (candidate == null || typeof candidate !== "object")
+    return NO_CITED_ANSWER;
 
   const c = candidate as Record<string, unknown>;
   if (typeof c.lead !== "string") return NO_CITED_ANSWER;
 
-  const arr = <T>(v: unknown, n: number): T[] => (Array.isArray(v) ? (v.slice(0, n) as T[]) : []);
+  const arr = <T>(v: unknown, n: number): T[] =>
+    Array.isArray(v) ? (v.slice(0, n) as T[]) : [];
   const citations = arr<unknown>(c.citations, 8)
     .map(String)
     .filter((s) => s.trim().length > 0);

@@ -89,7 +89,10 @@ export async function fingerprint(text: string): Promise<string> {
   const c = (globalThis as { crypto?: Crypto }).crypto;
   if (c?.subtle) {
     try {
-      const buf = await c.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      const buf = await c.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(text),
+      );
       return [...new Uint8Array(buf)]
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("")

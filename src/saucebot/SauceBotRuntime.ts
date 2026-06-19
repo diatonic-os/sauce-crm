@@ -33,11 +33,7 @@ import {
   brainSystemPrompt,
   parseBrainAnswer,
 } from "./BrainAsk";
-import {
-  BrainCrystalCache,
-  buildEntityDigest,
-  hashBody,
-} from "./BrainCrystal";
+import { BrainCrystalCache, buildEntityDigest, hashBody } from "./BrainCrystal";
 import {
   Distiller,
   DistillCache,
@@ -616,9 +612,7 @@ export class SauceBotRuntime {
     const transcript = older
       .map((m) => {
         const c =
-          typeof m.content === "string"
-            ? m.content
-            : JSON.stringify(m.content);
+          typeof m.content === "string" ? m.content : JSON.stringify(m.content);
         return `${m.role.toUpperCase()}: ${c}`;
       })
       .join("\n")
@@ -705,7 +699,10 @@ export class SauceBotRuntime {
     const threshold = gate * 4 * 2; // gate→tokens→chars, ×2 headroom
     for (const m of messages) {
       if (m.role !== "tool" || typeof m.content !== "string") continue;
-      if (m.content.length < threshold || (m as { _filtered?: boolean })._filtered)
+      if (
+        m.content.length < threshold ||
+        (m as { _filtered?: boolean })._filtered
+      )
         continue;
       try {
         const distiller = await this.distiller();
@@ -901,7 +898,9 @@ export class SauceBotRuntime {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
-    return error ? { ok: false, ms: Date.now() - t0, error } : { ok, ms: Date.now() - t0 };
+    return error
+      ? { ok: false, ms: Date.now() - t0, error }
+      : { ok, ms: Date.now() - t0 };
   }
 
   /**
@@ -920,8 +919,7 @@ export class SauceBotRuntime {
       "final answer (it ran out of output budget while thinking). Given that " +
       "reasoning, write ONLY the final answer for the user: concise, directly " +
       "responsive, no preamble, no chain-of-thought, no 'based on my reasoning'.";
-    const user =
-      `Question:\n${query}\n\nReasoning so far:\n${reasoning.slice(-6000)}\n\nFinal answer:`;
+    const user = `Question:\n${query}\n\nReasoning so far:\n${reasoning.slice(-6000)}\n\nFinal answer:`;
     const out = await this.completeOnce(system, user, {
       temperature: 0,
       maxTokens: Math.max(512, Math.min(this.settings.maxTokens, 1024)),
@@ -965,13 +963,10 @@ export class SauceBotRuntime {
       const centered =
         ctx.centered.length > 0
           ? ctx.centered
-          : [
-              ...new Set([
-                ...ctx.pinned,
-                ...ctx.graph,
-                ...ctx.semantic,
-              ]),
-            ].slice(0, 12);
+          : [...new Set([...ctx.pinned, ...ctx.graph, ...ctx.semantic])].slice(
+              0,
+              12,
+            );
       if (centered.length) {
         system +=
           "\n\n## Candidate vault paths (cite these by path:line)\n" +
@@ -1111,7 +1106,11 @@ export class SauceBotRuntime {
         yield ev;
       }
       if (!errored) return;
-      if (!emitted && attempt < maxAttempts && this.isTransientError(lastError)) {
+      if (
+        !emitted &&
+        attempt < maxAttempts &&
+        this.isTransientError(lastError)
+      ) {
         yield {
           type: "status",
           state: "retrying",
@@ -1120,7 +1119,11 @@ export class SauceBotRuntime {
         await this.backoff(attempt);
         continue;
       }
-      yield { type: "done", reason: "error", error: lastError ?? "request failed" };
+      yield {
+        type: "done",
+        reason: "error",
+        error: lastError ?? "request failed",
+      };
       return;
     }
   }
@@ -1299,9 +1302,17 @@ export class SauceBotRuntime {
           );
           // Emit only the remainder so we don't duplicate any text already
           // streamed (the retry returns the FULL answer; diff off the prefix).
-          if (retry && retry.length > answerSoFar.length && retry.startsWith(answerSoFar))
+          if (
+            retry &&
+            retry.length > answerSoFar.length &&
+            retry.startsWith(answerSoFar)
+          )
             yield { type: "text", delta: retry.slice(answerSoFar.length) };
-          else if (retry && retry !== answerSoFar && answerSoFar.trim().length === 0)
+          else if (
+            retry &&
+            retry !== answerSoFar &&
+            answerSoFar.trim().length === 0
+          )
             yield { type: "text", delta: retry };
         }
         yield {

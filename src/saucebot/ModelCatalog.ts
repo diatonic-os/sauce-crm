@@ -132,10 +132,10 @@ export class ModelCatalog {
   private cache = new Map<string, CacheEntry>();
 
   constructor(
-    private fetchImpl: (url: string, init?: RequestInit) => Promise<Response> = (
-      u,
-      i,
-    ) => fetch(u, i),
+    private fetchImpl: (
+      url: string,
+      init?: RequestInit,
+    ) => Promise<Response> = (u, i) => fetch(u, i),
     private readonly logger: Logger | null = null,
   ) {}
 
@@ -276,7 +276,10 @@ export class ModelCatalog {
     // publisher. This is what makes the picker show real metadata + lets us
     // classify embeddings exactly (by type) instead of guessing from the name.
     try {
-      const r = await fetch(`${base}/api/v0/models`, headers ? { headers } : {});
+      const r = await fetch(
+        `${base}/api/v0/models`,
+        headers ? { headers } : {},
+      );
       if (r.ok) {
         const body = (await r.json()) as {
           data?: Array<{
@@ -414,7 +417,9 @@ export function formatModelLabel(m: CatalogModel): string {
   if (m.kind === "vlm") meta.push("vision");
   if (m.toolUse && m.kind !== "embeddings") meta.push("tools");
   const dot = m.loaded ? "● " : "";
-  return meta.length ? `${dot}${m.label}  ·  ${meta.join(" · ")}` : `${dot}${m.label}`;
+  return meta.length
+    ? `${dot}${m.label}  ·  ${meta.join(" · ")}`
+    : `${dot}${m.label}`;
 }
 
 /** Singleton accessor — most callers want one shared cache across the plugin. */

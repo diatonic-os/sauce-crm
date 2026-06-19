@@ -144,7 +144,7 @@ export function extractTextToolCalls(
           (env.input as unknown) ??
           {};
         const input =
-          typeof args === "string" ? parseToolArgs(args) : args ?? {};
+          typeof args === "string" ? parseToolArgs(args) : (args ?? {});
         out.push({ name, input });
       }
     } catch {

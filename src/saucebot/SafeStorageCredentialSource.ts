@@ -85,7 +85,7 @@ export function makeSafeStorageCredentialSource(
   const electron = tryRequire<{ safeStorage?: SafeStorageLike }>("electron");
   const ss: SafeStorageLike | null = electron?.safeStorage ?? null;
   const fs = tryRequire<typeof import("fs")>("fs") ?? null;
-  const path = fs ? tryRequire<typeof import("path")>("path") ?? null : null;
+  const path = fs ? (tryRequire<typeof import("path")>("path") ?? null) : null;
   const io: SecretsIO = {
     read(): Record<string, string> {
       if (!fs) return {};

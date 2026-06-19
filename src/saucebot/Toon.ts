@@ -16,13 +16,7 @@
 // This is a faithful, dependency-free encoder for the subset we emit (objects,
 // scalar arrays, uniform-object arrays, and a list fallback for the rest).
 
-type Json =
-  | null
-  | string
-  | number
-  | boolean
-  | Json[]
-  | { [k: string]: Json };
+type Json = null | string | number | boolean | Json[] | { [k: string]: Json };
 
 const pad = (n: number): string => "  ".repeat(n);
 
@@ -87,7 +81,9 @@ function encodeArray(key: string, arr: Json[], level: number): string[] {
     const lines = [`${p}${key}[${arr.length}]{${keys.join(",")}}:`];
     for (const item of arr) {
       const obj = item as Record<string, Json>;
-      lines.push(`${pad(level + 1)}${keys.map((k) => formatScalar(obj[k] ?? null)).join(",")}`);
+      lines.push(
+        `${pad(level + 1)}${keys.map((k) => formatScalar(obj[k] ?? null)).join(",")}`,
+      );
     }
     return lines;
   }

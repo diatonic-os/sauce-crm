@@ -44,7 +44,12 @@ export interface BrainManifest {
   files: number;
   lexiconTerms: number;
   pathCount: number;
-  taxonomy: { folders: number; types: number; tags: number; frontmatterKeys: number };
+  taxonomy: {
+    folders: number;
+    types: number;
+    tags: number;
+    frontmatterKeys: number;
+  };
   /** True when incremental edits landed since the last full build, so the
    *  aggregate lexicon/taxonomy may be behind (path matrix is always current). */
   stale: boolean;
@@ -76,7 +81,9 @@ export class BrainBuilder {
   async load(): Promise<void> {
     try {
       if (await this.store.exists(this.file("brain-paths.json"))) {
-        const j = JSON.parse(await this.store.read(this.file("brain-paths.json"))) as {
+        const j = JSON.parse(
+          await this.store.read(this.file("brain-paths.json")),
+        ) as {
           paths?: Record<string, PathRecord>;
         };
         this.paths = new Map(Object.entries(j.paths ?? {}));
@@ -133,7 +140,8 @@ export class BrainBuilder {
   }
 
   private async ensureFolder(): Promise<void> {
-    if (!(await this.store.exists(this.folder))) await this.store.mkdir(this.folder);
+    if (!(await this.store.exists(this.folder)))
+      await this.store.mkdir(this.folder);
   }
 
   /** Full deterministic build: lexicon + taxonomy + path matrix + manifest. */
@@ -179,7 +187,10 @@ export class BrainBuilder {
       JSON.stringify({ version: 1, lattice: buildFolderLattice(this.paths) }),
     );
     await this.persistPaths();
-    await this.store.write(this.file("brain.json"), JSON.stringify(manifest, null, 2));
+    await this.store.write(
+      this.file("brain.json"),
+      JSON.stringify(manifest, null, 2),
+    );
     this.lastManifest = manifest;
     return manifest;
   }

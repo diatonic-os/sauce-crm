@@ -1728,7 +1728,8 @@ export default class SauceGraphPlugin extends Plugin {
           void this.runEnrichment(f).catch(() => {});
         }
         // Realtime brain: keep the path/relationship matrix current (debounced).
-        if (f instanceof TFile && f.extension === "md") this.scheduleBrainUpdate(f);
+        if (f instanceof TFile && f.extension === "md")
+          this.scheduleBrainUpdate(f);
         this.scheduleOpenViewRefresh();
       }),
     );
@@ -3019,8 +3020,7 @@ export default class SauceGraphPlugin extends Plugin {
    *  the active AI model so the audit shows which agent made a change. */
   currentAgentId(): string {
     const c = this.settings.copilot;
-    if (c?.provider && c?.model)
-      return `sauceom/${c.provider}:${c.model}`;
+    if (c?.provider && c?.model) return `sauceom/${c.provider}:${c.model}`;
     if (c?.provider) return `sauceom/${c.provider}`;
     return "sauceom/user";
   }
@@ -3052,7 +3052,8 @@ export default class SauceGraphPlugin extends Plugin {
   /** Build a BrainFile view of a note from the metadata cache. */
   private brainFileFor(f: TFile): BrainFile {
     const cache = this.app.metadataCache.getFileCache(f);
-    const fm = (cache?.frontmatter as Record<string, unknown> | undefined) ?? {};
+    const fm =
+      (cache?.frontmatter as Record<string, unknown> | undefined) ?? {};
     const tags = new Set<string>();
     for (const t of cache?.tags ?? []) tags.add(t.tag);
     const fmTags = fm.tags;
@@ -3137,8 +3138,12 @@ export default class SauceGraphPlugin extends Plugin {
    *  realtime updates don't write the path matrix on every keystroke. */
   private scheduleBrainUpdate(f: TFile): void {
     this.brainDirty.add(f.path);
-    if (this.brainFlushTimer !== null) window.clearTimeout(this.brainFlushTimer);
-    this.brainFlushTimer = window.setTimeout(() => void this.flushBrainUpdates(), 1500);
+    if (this.brainFlushTimer !== null)
+      window.clearTimeout(this.brainFlushTimer);
+    this.brainFlushTimer = window.setTimeout(
+      () => void this.flushBrainUpdates(),
+      1500,
+    );
   }
 
   private async flushBrainUpdates(): Promise<void> {
@@ -3147,7 +3152,8 @@ export default class SauceGraphPlugin extends Plugin {
     this.brainDirty.clear();
     for (const p of paths) {
       const f = this.app.vault.getAbstractFileByPath(p);
-      if (f instanceof TFile) await this.brainBuilder?.updateFile(this.brainFileFor(f));
+      if (f instanceof TFile)
+        await this.brainBuilder?.updateFile(this.brainFileFor(f));
     }
   }
 

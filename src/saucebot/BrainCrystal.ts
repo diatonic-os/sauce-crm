@@ -91,7 +91,8 @@ export function buildEntityDigest(
   const parts: string[] = [path];
 
   const fm = KEY_FRONTMATTER.filter(
-    (k) => frontmatter[k] != null && stringifyField(frontmatter[k]).trim() !== "",
+    (k) =>
+      frontmatter[k] != null && stringifyField(frontmatter[k]).trim() !== "",
   ).map((k) => `${k}: ${stringifyField(frontmatter[k])}`);
   if (fm.length) parts.push(fm.join(" · "));
 
@@ -103,12 +104,17 @@ export function buildEntityDigest(
   const lead = leadParagraph(body, 280);
   if (lead) parts.push(lead);
 
-  const links = [...new Set((body.match(/\[\[([^\]|#]+)/g) ?? []).map((l) => l.slice(2).trim()))]
-    .slice(0, 8);
+  const links = [
+    ...new Set(
+      (body.match(/\[\[([^\]|#]+)/g) ?? []).map((l) => l.slice(2).trim()),
+    ),
+  ].slice(0, 8);
   if (links.length) parts.push("links: " + links.join(", "));
 
   const digest = parts.join("\n");
-  return digest.length > maxChars ? digest.slice(0, maxChars).trimEnd() + "…" : digest;
+  return digest.length > maxChars
+    ? digest.slice(0, maxChars).trimEnd() + "…"
+    : digest;
 }
 
 /**

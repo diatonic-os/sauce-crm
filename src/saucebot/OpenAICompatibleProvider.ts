@@ -359,7 +359,8 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
           input: c.input,
         };
       }
-      if (emittedBatchCall && batchFinish === "stop") batchFinish = "tool_calls";
+      if (emittedBatchCall && batchFinish === "stop")
+        batchFinish = "tool_calls";
     }
     yield {
       type: "usage",

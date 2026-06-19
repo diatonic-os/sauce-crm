@@ -6,13 +6,14 @@
 /** A tiny English stoplist — enough to keep the lexicon signal-bearing without
  *  dragging in a dependency. Domain terms (names, orgs, jargon) survive. */
 const STOPWORDS = new Set(
-  ("a an and are as at be by for from has have he in is it its of on or that " +
+  (
+    "a an and are as at be by for from has have he in is it its of on or that " +
     "the to was were will with this these those they them his her our your my " +
     "not but if then else when which who whom whose how what why we you i do " +
     "does did done can could should would may might must shall into out up down " +
     "over under again further once here there all any both each few more most " +
-    "other some such no nor only own same so than too very s t just")
-    .split(" "),
+    "other some such no nor only own same so than too very s t just"
+  ).split(" "),
 );
 
 /** Split text into normalized word tokens: lowercased, ≥3 chars, non-stopword,
@@ -88,7 +89,9 @@ export class Taxonomy {
     frontmatter: Record<string, unknown>,
     tags: string[],
   ): void {
-    const folder = path.includes("/") ? path.slice(0, path.indexOf("/")) : "(root)";
+    const folder = path.includes("/")
+      ? path.slice(0, path.indexOf("/"))
+      : "(root)";
     Taxonomy.bump(this.folders, folder);
     const type = frontmatter.type ?? frontmatter.primary_type;
     if (type != null) Taxonomy.bump(this.types, String(type));
@@ -131,7 +134,9 @@ export interface PathRecord {
 /** Extract `[[wikilink]]` targets (sans alias/heading) from a body. */
 export function extractLinks(body: string): string[] {
   return [
-    ...new Set((body.match(/\[\[([^\]|#]+)/g) ?? []).map((l) => l.slice(2).trim())),
+    ...new Set(
+      (body.match(/\[\[([^\]|#]+)/g) ?? []).map((l) => l.slice(2).trim()),
+    ),
   ];
 }
 
@@ -181,7 +186,9 @@ export function resolveLinkSymmetry(records: Map<string, PathRecord>): void {
     for (const link of rec.links) {
       // Resolve a link that is already a vault path directly (keeps the pass
       // idempotent — a prior run normalizes names to paths), else by basename.
-      const target = records.has(link) ? link : byBasename.get(link.toLowerCase());
+      const target = records.has(link)
+        ? link
+        : byBasename.get(link.toLowerCase());
       if (target && target !== path) {
         resolved.add(target);
         const t = records.get(target)!;
@@ -226,7 +233,13 @@ export function buildFolderLattice(
       acc = acc ? `${acc}/${part}` : part;
       let child = node.subfolders.find((s) => s.folder === acc);
       if (!child) {
-        child = { folder: acc, files: 0, types: {}, topTerms: [], subfolders: [] };
+        child = {
+          folder: acc,
+          files: 0,
+          types: {},
+          topTerms: [],
+          subfolders: [],
+        };
         node.subfolders.push(child);
       }
       node = child;
@@ -248,7 +261,9 @@ export function buildFolderLattice(
     }
   }
   const sortNode = (n: FolderNode): void => {
-    n.subfolders.sort((a, b) => b.files - a.files || a.folder.localeCompare(b.folder));
+    n.subfolders.sort(
+      (a, b) => b.files - a.files || a.folder.localeCompare(b.folder),
+    );
     n.subfolders.forEach(sortNode);
   };
   sortNode(root);

@@ -102,7 +102,9 @@ export class BrainView extends ItemView {
     }
     const copilot = this.plugin.copilot;
     if (!copilot) {
-      fail("SauceBot runtime is not initialized — open settings and configure a provider.");
+      fail(
+        "SauceBot runtime is not initialized — open settings and configure a provider.",
+      );
       return;
     }
     if (this.inflight) {
