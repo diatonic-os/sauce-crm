@@ -29,6 +29,7 @@ import {
 } from "../../../saucebot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 import { SlashSuggest, type SlashItem } from "../../widgets/SlashSuggest";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 import type { DocFormat } from "../../../services/DocumentHarvest";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
@@ -83,6 +84,7 @@ export class SauceBotChatView extends ItemView {
   private slashSuggest: SlashSuggest | null = null;
   private pendingForceSkill: string | null = null;
   private isListening = false;
+  private help!: SauceViewHelp;
   // One-shot "brain still building" warning per view session.
   private brainWarned = false;
   // Streaming state: guards re-entrant sends and drives the send⇄stop toggle.
@@ -120,13 +122,64 @@ export class SauceBotChatView extends ItemView {
     root.addClass("sauce-view");
     root.addClass("sauce-copilot");
 
+    // Branded Sauce header + toggleable help (top-left "?").
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "SauceBot",
+      icon: "message-circle",
+      subtitle: "Chat grounded in your relationship graph + brain",
+    });
+
     this.buildHeader(root);
     this.transcriptEl = root.createDiv({ cls: "sauce-copilot-transcript" });
     this.suggestionsEl = this.transcriptEl.createDiv({
       cls: "sauce-cp-suggestions",
     });
     this.buildInput(root);
+    this.registerHelp();
     void this.renderSuggestions();
+  }
+
+  /** Per-field help, shown when the header "?" is toggled on. Detailed yet
+   *  simple — written for non-developers. */
+  private registerHelp(): void {
+    this.help.register(
+      this.providerSel,
+      "Provider",
+      "Which AI service answers. 'LM Studio' and 'Ollama' run free models on this computer; 'Anthropic' and 'OpenAI' are paid cloud services that need an API key (set in Settings).",
+    );
+    this.help.register(
+      this.modelSel,
+      "Model",
+      "The specific model that replies. The label shows its context size (e.g. 32k), quantization, and 'tools' if it can use your CRM tools. A ● means it's already loaded in LM Studio (faster first reply).",
+    );
+    this.help.register(
+      this.embedProviderSel,
+      "Embeddings provider",
+      "Embeddings turn your notes into vectors so SauceBot can find the most relevant people and notes. This picks which service creates them — a local one is free and private.",
+    );
+    this.help.register(
+      this.embedSel,
+      "Embedding model",
+      "The model used to index your vault for search. Smaller is faster; larger can be more accurate. Only embedding-type models are listed here.",
+    );
+    this.help.register(
+      this.inputEl,
+      "Message box",
+      "Ask anything about your relationships or notes. Type '/' to run a skill or command. Press ⌘/Ctrl+Enter to send. The Brain grounds answers in your vault, so it cites real people and notes.",
+    );
+    if (this.micButton)
+      this.help.register(
+        this.micButton,
+        "Voice dictation",
+        "Click to speak your message instead of typing (uses your browser's speech recognition).",
+      );
+    if (this.sendBtn)
+      this.help.register(
+        this.sendBtn,
+        "Send / Stop",
+        "Sends your message. While SauceBot is replying it becomes a Stop button — click to cancel a long answer.",
+      );
   }
 
   // ---------- Header: inline model picker + icon toolbar ----------

@@ -15,6 +15,7 @@
 import { ItemView, Notice, WorkspaceLeaf, normalizePath } from "obsidian";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import type SauceGraphPlugin from "../../../main";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_BRAIN: ViewTypeId = asViewTypeId("sauce-brain");
 
@@ -24,6 +25,7 @@ export class BrainView extends ItemView {
   current: string | null = null; // vault-relative path of the loaded build
   private iframe: HTMLIFrameElement | null = null;
   private inflight = false;
+  private help!: SauceViewHelp;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -160,11 +162,24 @@ export class BrainView extends ItemView {
     el.empty();
     el.addClass("sauce-brain");
 
+    // Branded Sauce header + toggleable help.
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(el, {
+      title: "Sauce Brain",
+      icon: "brain-circuit",
+      subtitle: "Read-only dashboard over your Enterprise Brain builds",
+    });
+
     const builds = await this.listBuilds();
     if (!builds.length) {
       const empty = el.createDiv({ cls: "sauce-brain-empty" });
       empty.setText(
         `No brain builds found in ${this.brainFolder}/ — produce a standalone *.html build and drop it there, then hit reload.`,
+      );
+      this.help.register(
+        empty,
+        "Brain builds",
+        "This view displays self-contained *.html brain builds from your vault's brain folder. The Ask box inside a build is answered by your configured SauceBot provider, with citations to your notes.",
       );
       return;
     }
@@ -174,6 +189,11 @@ export class BrainView extends ItemView {
     if (builds.length > 1) {
       const bar = el.createDiv({ cls: "sauce-brain-bar" });
       const select = bar.createEl("select", { cls: "sauce-brain-tenant" });
+      this.help.register(
+        select,
+        "Tenant / build picker",
+        "Switch between the different brain builds found in your brain folder (one per tenant or snapshot).",
+      );
       for (const b of builds) {
         const opt = select.createEl("option", { text: this.tenantLabel(b) });
         opt.value = b;
@@ -187,6 +207,11 @@ export class BrainView extends ItemView {
     }
 
     this.iframe = el.createEl("iframe", { cls: "sauce-brain-frame" });
+    this.help.register(
+      this.iframe,
+      "Brain dashboard",
+      "A self-contained, offline view of your Enterprise Brain. Ask questions inside it — answers come from your configured SauceBot provider and cite real people and notes. Use the reload action (top-right) after rebuilding.",
+    );
     // handshake: announce the bridge once the build loads (the UI also sends
     // hello on init — two directions so neither side can miss the race).
     this.iframe.addEventListener("load", () =>
