@@ -59,7 +59,8 @@ export class SauceViewHelp {
     const titles = brand.createDiv({ cls: "sauce-view-titles" });
     const titleRow = titles.createDiv({ cls: "sauce-view-title-row" });
     titleRow.createSpan({ cls: "sauce-view-title", text: cfg.title });
-    titleRow.createSpan({ cls: "sauce-view-mark", text: "Sauce" });
+    // Umbrella brand mark on every view (the global SauceOM identity).
+    titleRow.createSpan({ cls: "sauce-view-mark", text: "SauceOM" });
     if (cfg.subtitle)
       titles.createDiv({ cls: "sauce-view-subtitle", text: cfg.subtitle });
 

@@ -127,8 +127,11 @@ export interface EmbeddingRuntimeConfig {
 }
 
 export const COPILOT_DEFAULTS: SauceBotSettings = {
-  provider: "anthropic",
-  model: "claude-opus-4-7",
+  // Local-first: a fresh install runs entirely on-device (LM Studio) with NO
+  // cloud calls until the user configures a cloud provider + key. The model is
+  // empty so the chat picker auto-selects the first available local model.
+  provider: "lmstudio",
+  model: "",
   apiKey: "",
   temperature: 0.4,
   maxTokens: 4096,

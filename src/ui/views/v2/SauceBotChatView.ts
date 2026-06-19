@@ -446,8 +446,16 @@ export class SauceBotChatView extends ItemView {
         `${formatModelLabel(m)}${hint}`,
         m.id === cur?.model,
       );
-    if (!models.some((m) => m.id === cur?.model))
+    if (!models.some((m) => m.id === cur?.model)) {
       this.modelSel.value = models[0]!.id; // models.length > 0 confirmed by early-return above
+      // Persist the auto-selected model so a fresh local-first install (empty
+      // default model) has a valid model id without the user touching anything.
+      if (cur && cur.model !== models[0]!.id) {
+        this.plugin.settings.copilot.model = models[0]!.id;
+        await this.plugin.saveSettings();
+        this.plugin.copilot?.updateSettings?.({ model: models[0]!.id });
+      }
+    }
   }
 
   private async refreshEmbedOptions(): Promise<void> {

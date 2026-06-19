@@ -730,7 +730,7 @@ export default class SauceGraphPlugin extends Plugin {
     // surface a one-tap quick-capture ribbon for on-the-go recording.
     if (Platform.isMobile) {
       this.register(injectMobileStyles());
-      this.addRibbonIcon("plus-circle", "Sauce: Quick capture", () =>
+      this.addRibbonIcon("plus-circle", "SauceOM: Quick capture", () =>
         new QuickCaptureModal(this.app, this).open(),
       );
     }
@@ -1397,7 +1397,7 @@ export default class SauceGraphPlugin extends Plugin {
     });
     this.addRibbonIcon(
       "sauce-hierarchy",
-      "Sauce CRM — Graph & Views",
+      "Sauce RG — Graph & Views",
       (event) => {
         const m = new Menu();
         m.addItem((i) =>
@@ -1488,7 +1488,7 @@ export default class SauceGraphPlugin extends Plugin {
         m.showAtMouseEvent(event);
       },
     );
-    this.addRibbonIcon("bot", "Sauce CRM — SauceBot & AI", (event) => {
+    this.addRibbonIcon("bot", "SauceBot — AI & Chat", (event) => {
       const m = new Menu();
       m.addItem((i) =>
         i
@@ -1531,7 +1531,7 @@ export default class SauceGraphPlugin extends Plugin {
     });
     // Fourth ribbon — utilities, setup, and data ops. Keeps the People /
     // Graph / Copilot menus focused while ensuring nothing is unreachable.
-    this.addRibbonIcon("settings-2", "Sauce CRM — Setup & Data", (event) => {
+    this.addRibbonIcon("settings-2", "SauceOM — Setup & Data", (event) => {
       const m = new Menu();
       m.addItem((i) =>
         i
@@ -1792,7 +1792,7 @@ export default class SauceGraphPlugin extends Plugin {
     }
     const summary = BootTimer.format(r);
     const m = new Modal(this.app);
-    m.titleEl.setText("Sauce CRM — Boot timing");
+    m.titleEl.setText("SauceOM — Boot timing");
     m.contentEl.createEl("p", { text: `Total: ${r.totalMs} ms (${r.phase})` });
     const list = m.contentEl.createEl("ul");
     for (const s of r.segments)
@@ -3020,9 +3020,9 @@ export default class SauceGraphPlugin extends Plugin {
   currentAgentId(): string {
     const c = this.settings.copilot;
     if (c?.provider && c?.model)
-      return `sauce-crm/${c.provider}:${c.model}`;
-    if (c?.provider) return `sauce-crm/${c.provider}`;
-    return "sauce-crm/user";
+      return `sauceom/${c.provider}:${c.model}`;
+    if (c?.provider) return `sauceom/${c.provider}`;
+    return "sauceom/user";
   }
 
   /** Push the brain (manifest + crystal digests) to the hosted SauceDB edge.
