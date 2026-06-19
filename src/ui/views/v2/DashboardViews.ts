@@ -100,10 +100,20 @@ export class TasksView extends SvelteDashboardView {
       const _tags = Array.isArray(fm.tags)
         ? fm.tags.filter((t): t is string => typeof t === "string")
         : undefined;
+      // Normalize status so legacy / loosely-typed values (whitespace,
+      // casing, "in-progress" with a hyphen, "in progress" with a space)
+      // map onto the canonical enum the dashboard groups by. A missing or
+      // unrecognized value falls back to "todo" rather than vanishing.
       out.push({
         path: f.path,
         title: typeof fm.title === "string" ? fm.title : f.basename,
-        status: typeof fm.status === "string" ? fm.status : "todo",
+        status:
+          typeof fm.status === "string"
+            ? fm.status
+                .trim()
+                .toLowerCase()
+                .replace(/[\s-]+/g, "_") || "todo"
+            : "todo",
         ...(_due !== undefined ? { due: _due } : {}),
         ...(_priority !== undefined ? { priority: _priority } : {}),
         ...(_contact !== undefined ? { contact: _contact } : {}),

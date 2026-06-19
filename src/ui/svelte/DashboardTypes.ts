@@ -34,8 +34,10 @@ export interface LedgerRow {
   notes?: string;
 }
 
+/** Money rolled up by some grouping key (contact or category). */
 export interface LedgerRollup {
-  contact: string;
+  /** The grouping key value (a contact name or a category name). */
+  key: string;
   in: number;
   out: number;
   net: number;

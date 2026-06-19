@@ -111,6 +111,9 @@
     mode = "month";
   }
   const dayEvents = $derived(selectedDate ? evs(selectedDate) : []);
+
+  const KINDS: CalendarEvent["kind"][] = ["touch", "task", "followup", "event"];
+  let totalEvents = $derived(events.length);
 </script>
 
 <div class="sauce-cal">
@@ -125,6 +128,15 @@
     </div>
     <button class="sauce-cal-today" onclick={today}>Today</button>
   </header>
+
+  <div class="sauce-cal-legend" aria-label="Event kinds">
+    {#each KINDS as k}
+      <span class="sauce-cal-legend-item">
+        <span class="sauce-cal-dot" style:background={KIND_COLOR[k]}></span>{k}
+      </span>
+    {/each}
+    <span class="sauce-cal-legend-count">{totalEvents} event{totalEvents === 1 ? "" : "s"}</span>
+  </div>
 
   {#if mode === "month" || mode === "week"}
     <div class="sauce-cal-weekdays">
@@ -236,6 +248,13 @@
   .sauce-cal-modes { display: flex; gap: 2px; }
   .sauce-cal-mode { text-transform: capitalize; font-size: var(--font-ui-smaller); }
   .sauce-cal-mode.is-active { background: var(--interactive-accent); color: var(--text-on-accent); border-color: var(--interactive-accent); }
+  .sauce-cal-nav:focus-visible, .sauce-cal-today:focus-visible, .sauce-cal-mode:focus-visible, .sauce-cal-cell:focus-visible, .sauce-cal-mini:focus-visible, .sauce-cal-list-link:focus-visible {
+    outline: 2px solid var(--interactive-accent); outline-offset: 2px;
+  }
+
+  .sauce-cal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-4-2); flex: 0 0 auto; font-size: var(--font-ui-smaller); color: var(--text-muted); }
+  .sauce-cal-legend-item { display: inline-flex; align-items: center; gap: var(--size-2-1); text-transform: capitalize; }
+  .sauce-cal-legend-count { margin-inline-start: auto; }
 
   .sauce-cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; flex: 0 0 auto; }
   .sauce-cal-weekday { text-align: center; font-size: var(--font-ui-smaller); color: var(--text-muted); padding: var(--size-2-1) 0; text-transform: uppercase; letter-spacing: 0.04em; }

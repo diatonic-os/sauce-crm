@@ -1856,3 +1856,193 @@ select.sauce-input {
   min-height: var(--sg-tap-min);
   box-sizing: border-box;
 }
+
+/* =========================================================================
+   Dashboard UX/UI overhaul (feat/dashboard-ux-overhaul) — W2 + W3 additions.
+   Reconciled: a single .sauce-empty-state container; W2 uses
+   .sauce-empty-state-{icon,title,body}, W3 uses .sauce-empty-{title,body}.
+   ========================================================================= */
+
+/* ---- Reconciled empty state (shared by W2 log/index views + W3 analytics) ---- */
+.sauce-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sg-gap-8);
+  padding: var(--sg-gap-21);
+  margin: auto;
+  max-width: var(--sg-w-377);
+  color: var(--text-muted);
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: var(--sg-radius-md);
+  background: var(--background-secondary);
+}
+.sauce-empty-state-icon { display: flex; color: var(--text-faint); opacity: 0.7; }
+.sauce-empty-state-icon svg { width: var(--sg-w-34); height: var(--sg-w-34); }
+.sauce-empty-state-title { margin: 0; color: var(--text-normal); }
+.sauce-empty-state-body { margin: 0; line-height: 1.5; }
+.sauce-empty-title { font-weight: 600; color: var(--text-normal); }
+.sauce-empty-body { font-size: 0.85em; max-width: var(--sg-w-377); margin-inline: auto; }
+.sauce-empty-code {
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+  padding: 0.05em 0.4em;
+  border-radius: var(--sg-radius-sm);
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+/* ---- W2: KPI tile internals ---- */
+.sauce-kpi-value { font-size: 1.9em; font-weight: 700; line-height: 1; }
+.sauce-kpi-value--sm { font-size: 1.15em; font-weight: 600; }
+.sauce-kpi-label {
+  color: var(--text-muted); font-size: 0.8em; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-block-start: var(--sg-gap-3);
+}
+.sauce-kpi--sub { opacity: 0.92; }
+.sauce-kpi--ok::before    { background: var(--color-green); }
+.sauce-kpi--error::before { background: var(--color-red); }
+.sauce-fi-kpis, .sauce-audit-kpis, .sauce-skill-kpis, .sauce-inbox-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(var(--sg-w-89), 1fr));
+}
+
+/* ---- W2: filter / toolbar ---- */
+.sauce-fi-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sg-gap-13); }
+.sauce-fi-search, .sauce-fi-field {
+  display: flex; flex-direction: column; gap: var(--sg-field-gap);
+  flex: 1 1 var(--sg-w-233); min-width: 0; position: relative;
+}
+.sauce-fi-field { flex: 0 1 var(--sg-w-144); }
+.sauce-fi-search-label { font-size: 0.8em; color: var(--text-muted); font-weight: 500; }
+.sauce-fi-search-icon {
+  position: absolute; inset-block-start: calc(var(--sg-tap-min) / 2 + 0.7em);
+  inset-inline-start: var(--sg-gap-8); display: flex; color: var(--text-faint); pointer-events: none;
+}
+.sauce-fi-search-icon svg { width: 1em; height: 1em; }
+.sauce-fi-search-input { padding-inline-start: var(--sg-w-34); }
+.sauce-fi-select { min-width: var(--sg-w-144); }
+.sauce-fi-count { margin: 0; align-self: flex-end; color: var(--text-muted); font-size: 0.85em; flex: 1 1 100%; }
+
+/* ---- W2: sortable table headers ---- */
+.sauce-fi-th { padding: 0 !important; }
+.sauce-fi-sort {
+  all: unset; display: inline-flex; align-items: center; gap: var(--sg-gap-3);
+  width: 100%; box-sizing: border-box; padding: var(--sg-gap-5) var(--sg-gap-8);
+  cursor: pointer; font-weight: 600; color: var(--text-muted); user-select: none;
+}
+.sauce-fi-sort:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.sauce-fi-sort:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+.sauce-fi-th.is-sorted .sauce-fi-sort { color: var(--text-normal); }
+.sauce-fi-sort-arrow { display: inline-flex; }
+.sauce-fi-sort-arrow svg { width: 0.85em; height: 0.85em; }
+.sauce-fi-title-cell .sauce-link { cursor: pointer; }
+.sauce-fi-mtime { color: var(--text-muted); font-size: 0.9em; white-space: nowrap; }
+.sauce-fi-no-match { text-align: center; }
+.sauce-fi-badge {
+  background: hsl(var(--sauce-fi-badge-h, 220) 45% 45% / 0.18);
+  color: var(--text-normal);
+  border: 1px solid hsl(var(--sauce-fi-badge-h, 220) 45% 50% / 0.45);
+}
+.sauce-audit-sig { font-family: var(--font-monospace); font-size: 0.85em; color: var(--text-muted); }
+.sauce-skill-id { font-weight: 600; }
+.sauce-skill-reason { color: var(--text-muted); }
+
+/* ---- W2: AI Inbox grouped review ---- */
+.sauce-inbox-toolbar { display: flex; flex-wrap: wrap; gap: var(--sg-gap-8); align-items: center; }
+.sauce-inbox-groups { display: flex; flex-direction: column; gap: var(--sg-gap-13); }
+.sauce-inbox-group {
+  border: 1px solid var(--background-modifier-border); border-radius: var(--sg-radius-md);
+  background: var(--background-secondary); overflow: hidden;
+}
+.sauce-inbox-group-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sg-gap-8);
+  padding: var(--sg-gap-8) var(--sg-gap-13); cursor: pointer; list-style: none; font-weight: 600;
+}
+.sauce-inbox-group-head::-webkit-details-marker { display: none; }
+.sauce-inbox-group-head:hover { background: var(--background-modifier-hover); }
+.sauce-inbox-group-title { display: inline-flex; align-items: center; gap: var(--sg-gap-8); }
+.sauce-inbox-group-count { font-weight: 600; }
+.sauce-inbox-group-actions { display: inline-flex; gap: var(--sg-gap-5); }
+.sauce-inbox-group-btn { min-height: var(--sg-h-34); padding-block: var(--sg-gap-3); font-size: 0.85em; }
+.sauce-inbox-list { display: flex; flex-direction: column; gap: var(--sg-gap-8); padding: var(--sg-gap-13); padding-block-start: 0; }
+.sauce-inbox-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: var(--sg-gap-13);
+  padding: var(--sg-gap-8) var(--sg-gap-13); background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border); border-radius: var(--sg-radius-sm);
+}
+.sauce-inbox-cb { display: flex; padding-block-start: 0.15em; }
+.sauce-inbox-info { min-width: 0; display: flex; flex-direction: column; gap: var(--sg-gap-2); }
+.sauce-inbox-kind { display: inline-flex; align-items: center; gap: var(--sg-gap-5); margin-block-end: var(--sg-gap-2); }
+.sauce-inbox-kindname { font-size: 0.8em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.sauce-inbox-target { font-weight: 600; overflow-wrap: anywhere; }
+.sauce-inbox-value { font-family: var(--font-monospace); font-size: 0.85em; color: var(--text-muted); overflow-wrap: anywhere; }
+.sauce-inbox-sources { font-size: 0.8em; color: var(--text-faint); overflow-wrap: anywhere; }
+.sauce-inbox-row-actions { display: inline-flex; gap: var(--sg-gap-5); align-items: flex-start; }
+.sauce-inbox-row-actions .sauce-button { min-height: var(--sg-h-34); padding-block: var(--sg-gap-3); }
+.sauce-inbox-conf { font-weight: 700; }
+.sauce-inbox-conf--high { background: var(--color-green); color: var(--text-on-accent, #fff); }
+.sauce-inbox-conf--med  { background: var(--color-yellow); color: #000; }
+.sauce-inbox-conf--low  { background: var(--background-modifier-border); color: var(--text-muted); }
+@media (max-width: 480px) {
+  .sauce-inbox-row { grid-template-columns: auto 1fr; }
+  .sauce-inbox-row-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .sauce-fi-field, .sauce-fi-search { flex-basis: 100%; }
+}
+
+/* ---- W3: shared toolbar + metric tiles ---- */
+.sauce-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sg-gap-13); margin-block-end: var(--sg-gap-13); }
+.sauce-toolbar-metrics { display: flex; flex-wrap: wrap; gap: var(--sg-gap-8); margin-block-end: var(--sg-gap-13); }
+.sauce-metric-tile {
+  display: flex; flex-direction: column; gap: var(--sg-gap-2);
+  padding: var(--sg-gap-8) var(--sg-gap-13); border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-md); background: var(--background-secondary); min-width: var(--sg-w-89);
+}
+.sauce-metric-value { font-size: 1.4em; font-weight: 700; line-height: 1.1; }
+.sauce-metric-label { font-size: 0.72em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.sauce-toolbar-controls { display: flex; flex-wrap: wrap; gap: var(--sg-gap-8); align-items: flex-end; }
+.sauce-control-label { display: flex; flex-direction: column; gap: var(--sg-field-gap); font-size: 0.75em; color: var(--text-muted); }
+.sauce-select {
+  padding: var(--sg-gap-3) var(--sg-gap-8); border: 1px solid var(--background-modifier-border);
+  border-radius: var(--sg-radius-sm); background: var(--background-primary); color: var(--text-normal); font-size: 0.85em;
+}
+.sauce-select:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+.sauce-view-desc { font-size: 0.85em; color: var(--text-muted); margin: 0 0 var(--sg-gap-8) 0; max-width: var(--sg-w-610); }
+
+/* ---- W3: pipeline kanban ---- */
+.sauce-kanban-col-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sg-gap-8); }
+.sauce-kanban-col-head h3 { margin: 0; font-size: 0.95em; }
+.sauce-kanban-empty { font-size: 0.78em; color: var(--text-muted); padding: var(--sg-gap-8); text-align: center; }
+.sauce-card-sub { font-size: 0.75em; color: var(--text-muted); margin-block-start: var(--sg-gap-3); }
+.sauce-kanban-card .sauce-card-meta { display: flex; flex-wrap: wrap; gap: var(--sg-gap-5); align-items: center; margin-block-start: var(--sg-gap-5); }
+.sauce-kanban-card:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+
+/* ---- W3: compatibility matrix v2 ---- */
+.sauce-matrix-wrap { overflow: auto; border: 1px solid var(--background-modifier-border); border-radius: var(--sg-radius-md); }
+.sauce-matrix-detail { font-size: 0.82em; color: var(--text-muted); min-height: 1.4em; margin-block-end: var(--sg-gap-8); padding: var(--sg-gap-5) var(--sg-gap-8); background: var(--background-secondary); border-radius: var(--sg-radius-sm); }
+.sauce-matrix-detail-head { font-weight: 600; color: var(--text-normal); }
+.sauce-matrix-corner { background: var(--background-secondary); position: sticky; left: 0; z-index: 2; }
+.sauce-matrix-colhead { font-weight: 600; background: var(--background-secondary); }
+.sauce-matrix-rowhead { justify-content: flex-start !important; padding-inline: var(--sg-gap-8); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; background: var(--background-secondary); position: sticky; left: 0; z-index: 1; }
+.sauce-matrix-rowhead:hover { color: var(--interactive-accent); }
+.sauce-matrix-self { color: var(--text-faint); background: var(--background-secondary); }
+.sauce-matrix-data { background: var(--cell-fill, transparent); cursor: pointer; transition: outline 80ms ease; }
+.sauce-matrix-data:hover, .sauce-matrix-data:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+.sauce-matrix-strong { color: var(--text-on-accent, #fff); font-weight: 600; }
+
+/* ---- W3: touch heatmap v2 ---- */
+.sauce-heatmap-wrap { overflow-x: auto; padding-block: var(--sg-gap-5); }
+.sauce-heatmap-months { display: grid; gap: 2px; margin-block-end: var(--sg-gap-3); min-width: var(--sg-w-610); }
+.sauce-heatmap-month { font-size: 0.62em; color: var(--text-muted); white-space: nowrap; }
+.sauce-heatmap-col { display: grid; grid-template-rows: repeat(7, 1fr); gap: 2px; }
+.sauce-heatmap-cell.is-future { background: transparent; }
+.sauce-heatmap-cell.is-clickable { cursor: pointer; }
+.sauce-heatmap-cell.is-clickable:hover, .sauce-heatmap-cell:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+.sauce-heatmap-legend { display: flex; align-items: center; gap: var(--sg-gap-3); font-size: 0.72em; color: var(--text-muted); margin-block-start: var(--sg-gap-8); }
+
+/* ---- W3: hierarchy + federation + overdue rows ---- */
+.sauce-tree-node { display: flex; align-items: center; justify-content: space-between; gap: var(--sg-gap-8); }
+.sauce-tree-node:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+.sauce-tree-label { overflow-wrap: anywhere; }
+.sauce-fed-row-main { display: flex; flex-direction: column; gap: var(--sg-gap-2); min-width: 0; }
+.sauce-overdue-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
