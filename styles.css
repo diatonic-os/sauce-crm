@@ -1025,6 +1025,71 @@
   border-left: 2px solid var(--interactive-accent);
   white-space: pre-wrap;
 }
+/* Ephemeral provider/model status line shown above an in-flight answer
+   (connecting / loading model / retrying). Removed once content arrives. */
+.sauce-copilot-status {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: var(--sg-gap-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sg-gap-5);
+}
+.sauce-copilot-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-accent, var(--interactive-accent));
+  animation: sauce-status-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sauce-status-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+/* Collapsible chain-of-thought from reasoning models (LM Studio qwen3 / r1). */
+.sauce-copilot-reasoning {
+  margin-bottom: var(--sg-gap-2);
+  font-size: 0.85em;
+  color: var(--text-muted);
+  border-left: 2px solid var(--background-modifier-border);
+  padding-left: var(--sg-gap-8);
+}
+.sauce-copilot-reasoning > summary {
+  cursor: pointer;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+}
+/* While streaming (open), give the live thinking a subtle pulsing marker. */
+.sauce-copilot-reasoning[open] > summary {
+  color: var(--text-accent, var(--interactive-accent));
+}
+.sauce-copilot-reasoning[open] > summary::after {
+  content: " ▊";
+  animation: sauce-status-pulse 1s ease-in-out infinite;
+}
+.sauce-copilot-reasoning-body {
+  white-space: pre-wrap;
+  margin-top: var(--sg-gap-2);
+  opacity: 0.85;
+}
+/* Inline, visible error surfaced on a failed/empty answer. */
+.sauce-copilot-error {
+  margin-top: var(--sg-gap-5);
+  padding: var(--sg-gap-5) var(--sg-gap-8);
+  border-radius: var(--sg-radius-sm);
+  background: var(--background-modifier-error, rgba(220, 60, 60, 0.12));
+  color: var(--text-error, #d33);
+  font-size: 0.9em;
+  white-space: pre-wrap;
+}
+/* Send button switches to a Stop affordance while a response streams. */
+.sauce-cp-send.is-streaming {
+  background: var(--background-modifier-error, rgba(220, 60, 60, 0.15));
+  color: var(--text-error, #d33);
+}
 .sauce-copilot-input {
   display: flex;
   gap: var(--sg-gap-5);
@@ -1056,6 +1121,33 @@
   50%      { box-shadow: 0 0 0 6px rgba(220, 60, 60, 0); }
 }
 .sauce-clickable { cursor: pointer; }
+
+/* ---------- Sauce Brain dashboard (BrainView) ---------- */
+.sauce-brain {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.sauce-brain-bar {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.sauce-brain-tenant {
+  max-width: 240px;
+}
+.sauce-brain-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  background: #0a0a09;
+}
+.sauce-brain-empty {
+  padding: 2em;
+  color: var(--text-muted);
+}
 
 /* ---------- Mobile breakpoint (< 640px) ---------- */
 

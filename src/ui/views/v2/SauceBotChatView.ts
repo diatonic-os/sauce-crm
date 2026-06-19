@@ -24,6 +24,7 @@ import type { ChatMessage } from "../../../saucebot/ISauceBotProvider";
 import type { SauceBotSession } from "../../../saucebot/ConversationStore";
 import {
   sharedModelCatalog,
+  formatModelLabel,
   type CatalogModel,
 } from "../../../saucebot/ModelCatalog";
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
@@ -82,6 +83,12 @@ export class SauceBotChatView extends ItemView {
   private slashSuggest: SlashSuggest | null = null;
   private pendingForceSkill: string | null = null;
   private isListening = false;
+  // One-shot "brain still building" warning per view session.
+  private brainWarned = false;
+  // Streaming state: guards re-entrant sends and drives the send⇄stop toggle.
+  private streaming = false;
+  private streamAbort = false;
+  private sendBtn: HTMLButtonElement | null = null;
   private showRelevant = true;
   private showSuggested = true;
   // Session persistence — a session is saved to _addenda/_copilot on New chat
@@ -240,7 +247,7 @@ export class SauceBotChatView extends ItemView {
       this.option(
         this.modelSel,
         m.id,
-        `${m.label}${hint}`,
+        `${formatModelLabel(m)}${hint}`,
         m.id === cur?.model,
       );
     if (!models.some((m) => m.id === cur?.model))
@@ -273,7 +280,7 @@ export class SauceBotChatView extends ItemView {
       return;
     }
     for (const m of models)
-      this.option(this.embedSel, m.id, m.label, m.id === pc.model);
+      this.option(this.embedSel, m.id, formatModelLabel(m), m.id === pc.model);
     if (pc.model && !models.some((m) => m.id === pc.model))
       this.option(this.embedSel, pc.model, `${pc.model} (custom)`, true);
   }
@@ -439,13 +446,14 @@ export class SauceBotChatView extends ItemView {
       inputRow,
       "send",
       "Send  ( ⌘/Ctrl + Enter )",
-      () => void this.askNow(),
+      () => this.onSendOrStop(),
     );
     send.addClass("sauce-cp-send");
+    this.sendBtn = send;
     this.registerDomEvent(this.inputEl, "keydown", (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        void this.askNow();
+        this.onSendOrStop();
       }
     });
 
@@ -760,14 +768,62 @@ export class SauceBotChatView extends ItemView {
   }
 
   // ---------- Ask ----------
+  /** Send button doubles as a Stop control while a response is streaming. */
+  private onSendOrStop(): void {
+    if (this.streaming) {
+      this.streamAbort = true;
+      return;
+    }
+    void this.askNow();
+  }
+
+  private setStreaming(on: boolean): void {
+    this.streaming = on;
+    if (this.sendBtn) {
+      setIcon(this.sendBtn, on ? "square" : "send");
+      const tip = on ? "Stop" : "Send  ( ⌘/Ctrl + Enter )";
+      this.sendBtn.setAttribute("aria-label", tip);
+      this.sendBtn.title = tip;
+      this.sendBtn.toggleClass("is-streaming", on);
+    }
+  }
+
+  private humanStatus(
+    state: "connecting" | "loading" | "retrying" | "ok",
+    detail?: string,
+  ): string {
+    switch (state) {
+      case "connecting":
+        return `Connecting${detail ? ` to ${detail}` : ""}…`;
+      case "loading":
+        return `Loading model${detail ? ` ${detail}` : ""}… (first response can take a while)`;
+      case "retrying":
+        return `Connection issue — retrying${detail ? ` (${detail})` : ""}…`;
+      default:
+        return "";
+    }
+  }
+
   private async askNow(): Promise<void> {
     const copilot = this.plugin.copilot;
     if (!copilot) {
       new Notice("SauceBot not initialized");
       return;
     }
+    if (this.streaming) {
+      new Notice("SauceBot is still responding — press Stop first.");
+      return;
+    }
     const q = this.inputEl.value.trim();
     if (!q) return;
+    // Warn once if the snowflake-matrix brain is still building — messages still
+    // work, but grounding/token-efficiency improve once it's ready.
+    if (!this.brainWarned && this.plugin.brainState === "building") {
+      this.brainWarned = true;
+      new Notice(
+        "Sauce Brain is still forming — you can chat now, but answers will be sharper and cheaper once it's ready.",
+      );
+    }
     if (!this.firstUserMsg) this.firstUserMsg = q;
     this.inputEl.value = "";
     // Consume any armed slash-skill for this send, then reset the affordance.
@@ -779,34 +835,67 @@ export class SauceBotChatView extends ItemView {
     );
     this.suggestionsEl.hide();
     this.appendMessage("user", q);
-    const assistantEl = this.appendMessage("assistant", "");
+    const a = this.appendAssistantMessage();
+    // Persist the user turn to history BEFORE streaming so it is never lost on
+    // an error or crash mid-response (the old code pushed only after the loop).
+    this.history.push({ role: "user", content: q });
+
+    this.streamAbort = false;
+    this.setStreaming(true);
     let text = "";
+    let aborted = false;
     try {
       const activePath = this.plugin.app.workspace.getActiveFile()?.path;
-      for await (const ev of copilot.ask(q, activePath, this.history, {
+      for await (const ev of copilot.ask(q, activePath, this.history.slice(0, -1), {
         ...(forceSkill !== undefined ? { forceSkill } : {}),
       })) {
-        if (ev.type === "text") {
+        if (this.streamAbort) {
+          aborted = true;
+          break;
+        }
+        if (ev.type === "status") {
+          a.setStatus(this.humanStatus(ev.state, ev.detail));
+        } else if (ev.type === "reasoning") {
+          a.appendReasoning(ev.delta);
+        } else if (ev.type === "text") {
+          a.setStatus(null); // first content clears the connecting/loading line
+          if (!text) a.collapseReasoning(); // answer started → fold the thinking
           text += ev.delta;
-          // Stream as plain text for responsiveness (re-rendering markdown on
-          // every token is too costly); the final markdown render happens on
-          // the `done` event below.
-          assistantEl.setText(text);
+          // Stream plain text for responsiveness; markdown render on `done`.
+          a.body.setText(text);
           this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
         } else if (ev.type === "done") {
+          a.setStatus(null);
           if (ev.reason === "error") {
-            assistantEl.setText(text + `\n\n[error: ${ev.error ?? "unknown"}]`);
+            a.setError(ev.error ?? "unknown error");
+          } else if (text) {
+            await this.renderMarkdownInto(a.body, text);
+          } else if (a.hasReasoning()) {
+            // The model spent its whole budget reasoning and emitted no final
+            // content. Don't blank out — the reasoning is already visible
+            // (left expanded); flag that no clean answer was produced.
+            a.setError(
+              "No final answer was produced — the model's reasoning is shown above. Try again or raise the token limit.",
+            );
           } else {
-            await this.renderMarkdownInto(assistantEl, text);
+            a.setError("(no answer returned)");
           }
           this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
         }
       }
-      this.history.push({ role: "user", content: q });
-      this.history.push({ role: "assistant", content: text });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      assistantEl.setText(`[error: ${msg}]`);
+      a.setStatus(null);
+      a.setError(msg);
+    } finally {
+      this.setStreaming(false);
+      if (aborted) {
+        a.setStatus(null);
+        a.body.setText(text ? text + "\n\n[stopped]" : "[stopped]");
+      }
+      // Record the assistant turn even when it errored/stopped, so the
+      // conversation history (and persisted session) reflect what happened.
+      this.history.push({ role: "assistant", content: text });
     }
   }
 
@@ -819,6 +908,75 @@ export class SauceBotChatView extends ItemView {
     });
     wrap.createEl("strong", { text: role === "user" ? "you" : "saucebot" });
     return wrap.createDiv({ cls: "sauce-copilot-body", text });
+  }
+
+  /** Assistant bubble with handles for the ephemeral status line, a collapsible
+   *  reasoning block, the body, and an inline error. Kept in DOM order:
+   *  label → status → reasoning → body → error. */
+  private appendAssistantMessage(): {
+    body: HTMLDivElement;
+    setStatus: (txt: string | null) => void;
+    appendReasoning: (delta: string) => void;
+    collapseReasoning: () => void;
+    hasReasoning: () => boolean;
+    setError: (msg: string) => void;
+  } {
+    const wrap = this.transcriptEl.createDiv({
+      cls: "sauce-copilot-msg sauce-copilot-assistant",
+    });
+    wrap.createEl("strong", { text: "saucebot" });
+    const body = wrap.createDiv({ cls: "sauce-copilot-body" });
+    let statusEl: HTMLDivElement | null = null;
+    let reasoningEl: HTMLDetailsElement | null = null;
+    let reasoningSummary: HTMLElement | null = null;
+    let reasoningBody: HTMLDivElement | null = null;
+    let reasoningText = "";
+    let errorEl: HTMLDivElement | null = null;
+    return {
+      body,
+      setStatus: (txt) => {
+        if (txt == null || txt === "") {
+          statusEl?.remove();
+          statusEl = null;
+          return;
+        }
+        if (!statusEl) {
+          statusEl = createDiv({ cls: "sauce-copilot-status" });
+          wrap.insertBefore(statusEl, reasoningEl ?? body);
+        }
+        statusEl.setText(txt);
+      },
+      appendReasoning: (delta) => {
+        if (!reasoningEl) {
+          reasoningEl = createEl("details", { cls: "sauce-copilot-reasoning" });
+          // Open WHILE streaming so the thinking is visible live; auto-collapsed
+          // once the final answer starts (collapseReasoning).
+          reasoningEl.open = true;
+          reasoningSummary = reasoningEl.createEl("summary", {
+            text: "Reasoning…",
+          });
+          reasoningBody = reasoningEl.createDiv({
+            cls: "sauce-copilot-reasoning-body",
+          });
+          wrap.insertBefore(reasoningEl, body);
+        }
+        reasoningText += delta;
+        reasoningBody!.setText(reasoningText);
+        // Keep the streaming reasoning in view.
+        this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
+      },
+      collapseReasoning: () => {
+        if (reasoningEl) {
+          reasoningEl.open = false;
+          if (reasoningSummary) reasoningSummary.setText("Reasoning");
+        }
+      },
+      hasReasoning: () => reasoningText.trim().length > 0,
+      setError: (msg) => {
+        if (!errorEl) errorEl = wrap.createDiv({ cls: "sauce-copilot-error" });
+        errorEl.setText(`⚠ ${msg}`);
+      },
+    };
   }
 
   /** S7: handle a paperclip upload — audio is transcribed (transcript inserted

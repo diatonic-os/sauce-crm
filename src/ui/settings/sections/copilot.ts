@@ -15,6 +15,11 @@ import { renderEnrichment } from "./enrichment";
 import { renderDocuments } from "./documents";
 import { renderPrompts } from "./prompts";
 import { renderLocalLLM } from "./localllm";
+import {
+  isSauceDbEntitled,
+  isLicenseFormatValid,
+  type SauceDbConfig,
+} from "../../../saucebot/SauceDb";
 
 function markAdvanced(set: Setting): Setting {
   set.settingEl.addClass("sg-advanced");
@@ -149,18 +154,30 @@ export function renderCopilot(
     const isLocal =
       cfgStr("provider") === "ollama" || cfgStr("provider") === "lmstudio";
     if (!isLocal) {
-      new Setting(credHost)
+      const keySetting = new Setting(credHost)
         .setName("API key")
         .setDesc(
           "Stored in your OS keychain (or the encrypted KeyVault) — never written to the plugin's data.json. Set keys for multiple providers via the onboarding wizard.",
-        )
-        .addText((t) => {
-          t.inputEl.type = "password";
-          t.setValue(cfgStr("apiKey")).onChange(async (v) => {
-            await plugin.storeCopilotKey(v);
-            pushCopilotUpdate(plugin);
-          });
+        );
+      // Passive vault-credential indicator: shows whether a key is actually
+      // persisted in the encrypted store (KeyVault / OS keychain) for this
+      // provider — distinct from a session-only in-memory key.
+      const keyStatus = new InlineStatus(credHost);
+      const refreshKeyStatus = async (): Promise<void> => {
+        keyStatus.pending("Checking stored key…");
+        if (await plugin.hasCopilotKey())
+          keyStatus.success("Key stored in vault for this provider.");
+        else keyStatus.error("No key stored in the vault for this provider yet.");
+      };
+      keySetting.addText((t) => {
+        t.inputEl.type = "password";
+        t.setValue(cfgStr("apiKey")).onChange(async (v) => {
+          await plugin.storeCopilotKey(v);
+          pushCopilotUpdate(plugin);
+          void refreshKeyStatus();
         });
+      });
+      void refreshKeyStatus();
       return;
     }
     let epInput: HTMLInputElement | null = null;
@@ -358,4 +375,243 @@ export function renderCopilot(
   renderDocuments(containerEl, plugin);
   // Prompts & sessions (PLAN T6).
   renderPrompts(containerEl, plugin);
+  // Context distillation (TOON compaction).
+  renderDistill(containerEl, plugin);
+  // Sauce Brain dashboard folder.
+  renderBrain(containerEl, plugin);
+  // Brain tier + SauceDB (hosted LanceDB edge) upgrade.
+  renderSauceDb(containerEl, plugin);
+}
+
+/** Brain tier — Free (local JSON brain) vs SauceDB (paid hosted LanceDB edge).
+ *  The SauceDB tier mirrors this vault's brain (crystal digests + relationship
+ *  matrix + embeddings) into Sauce's k8s/k3s edge for faster, higher-quality
+ *  retrieval than a single machine. The license/endpoint/tenant unlock the
+ *  hosted sync; the server is the real entitlement gate. */
+function renderSauceDb(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
+  containerEl.createEl("h3", {
+    text: "Brain tier — SauceDB",
+    cls: "sauce-settings-section-title",
+  });
+  const sdb = (plugin.settings.sauceDb ?? { tier: "local" }) as SauceDbConfig;
+  plugin.settings.sauceDb = sdb;
+  const save = async (): Promise<void> => {
+    await plugin.saveSettings();
+    plugin.sauceDb?.setConfig(plugin.settings.sauceDb!);
+  };
+  const entitled = isSauceDbEntitled(sdb);
+
+  const status = containerEl.createDiv({ cls: "sauce-cp-suggestions" });
+  status.createEl("p", {
+    text: entitled
+      ? "✓ SauceDB active — your brain syncs to the hosted LanceDB edge for faster, sharper retrieval."
+      : "Free tier: your brain is built and stored locally. Upgrade to SauceDB to sync it to Sauce's hosted LanceDB edge (k8s/k3s) for speed + quality.",
+  });
+  if (!entitled) {
+    const cta = status.createEl("a", {
+      text: "Upgrade to SauceDB →",
+      href: "https://www.saucetech.io/saucedb",
+    });
+    cta.setAttr("target", "_blank");
+  }
+
+  new Setting(containerEl)
+    .setName("Tier")
+    .setDesc("Free = local brain. SauceDB = hosted LanceDB edge (requires a license).")
+    .addDropdown((dd) =>
+      dd
+        .addOption("local", "Free (local)")
+        .addOption("saucedb", "SauceDB (hosted edge)")
+        .setValue(sdb.tier)
+        .onChange(async (v) => {
+          sdb.tier = v === "saucedb" ? "saucedb" : "local";
+          await save();
+          // Endpoint/tenant/sync fields appear once entitled (reopen settings).
+        }),
+    );
+
+  new Setting(containerEl)
+    .setName("License key")
+    .setDesc(
+      sdb.license && !isLicenseFormatValid(sdb.license)
+        ? "⚠ That key isn't a valid SauceDB license format (SAUCE-XXXX-XXXX-CC)."
+        : "Your SauceDB license (SAUCE-XXXX-XXXX-CC). Get one from the upgrade page.",
+    )
+    .addText((t) => {
+      t.inputEl.type = "password";
+      t.setPlaceholder("SAUCE-XXXX-XXXX-CC")
+        .setValue(sdb.license ?? "")
+        .onChange(async (v) => {
+          if (v.trim()) sdb.license = v.trim().toUpperCase();
+          else delete sdb.license;
+          await save();
+        });
+    });
+
+  // Hosted config — only meaningful once entitled.
+  if (entitled) {
+    new Setting(containerEl)
+      .setName("SauceDB endpoint")
+      .setDesc("Your hosted SauceDB edge URL, e.g. https://brain.saucetech.io")
+      .addText((t) =>
+        t
+          .setPlaceholder("https://brain.saucetech.io")
+          .setValue(sdb.endpoint ?? "")
+          .onChange(async (v) => {
+            if (v.trim()) sdb.endpoint = v.trim();
+            else delete sdb.endpoint;
+            await save();
+          }),
+      );
+    new Setting(containerEl)
+      .setName("Tenant id")
+      .setDesc("Isolates your brain data in the hosted store.")
+      .addText((t) =>
+        t
+          .setPlaceholder("tenant-id")
+          .setValue(sdb.tenantId ?? "")
+          .onChange(async (v) => {
+            if (v.trim()) sdb.tenantId = v.trim();
+            else delete sdb.tenantId;
+            await save();
+          }),
+      );
+    new Setting(containerEl)
+      .setName("Sync brain to SauceDB")
+      .setDesc("Push the brain to your hosted edge after each build.")
+      .addToggle((t) =>
+        t.setValue(sdb.sync === true).onChange(async (v) => {
+          sdb.sync = v;
+          await save();
+        }),
+      );
+  }
+}
+
+/** Distillation — compact retrieved context to TOON before it is sent to the
+ *  model. By default the chat model does the compaction; the provider/model can
+ *  be overridden to any active provider, and a token gate controls when the
+ *  (cost-incurring) LLM pass actually fires. */
+function renderDistill(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
+  containerEl.createEl("h3", {
+    text: "Distillation (token compaction)",
+    cls: "sauce-settings-section-title",
+  });
+  const cfg = plugin.settings.copilot as unknown as Record<string, unknown>;
+  const distill = (
+    cfg.distill && typeof cfg.distill === "object" ? cfg.distill : {}
+  ) as Record<string, unknown>;
+  cfg.distill = distill;
+  const save = async (): Promise<void> => {
+    await plugin.saveSettings();
+    pushCopilotUpdate(plugin);
+  };
+
+  new Setting(containerEl)
+    .setName("Enable distillation")
+    .setDesc(
+      "Compact retrieved context to TOON before sending. The LLM pass only runs when context exceeds the token gate, so small contexts cost nothing extra. Results are 100% cached.",
+    )
+    .addToggle((t) =>
+      t.setValue(distill.enabled !== false).onChange(async (v) => {
+        distill.enabled = v;
+        await save();
+      }),
+    );
+
+  new Setting(containerEl)
+    .setName("Distillation provider")
+    .setDesc(
+      "Which provider compacts context. Default: the same model you chat with. Override to any other active provider.",
+    )
+    .addDropdown((dd) => {
+      dd.addOption("", "Same as chat");
+      for (const p of [
+        "anthropic",
+        "openai",
+        "ollama",
+        "lmstudio",
+        "nim",
+        "groq",
+        "openrouter",
+        "gemini",
+      ])
+        dd.addOption(p, p);
+      dd.setValue(typeof distill.provider === "string" ? distill.provider : "");
+      dd.onChange(async (v) => {
+        if (v) distill.provider = v as ProviderId;
+        else delete distill.provider;
+        await save();
+      });
+    });
+
+  new Setting(containerEl)
+    .setName("Distillation model")
+    .setDesc(
+      "Specific model id, or blank to auto-select the best available (largest local model) — falling back to the chat model.",
+    )
+    .addText((t) =>
+      t
+        .setPlaceholder("(auto — best available)")
+        .setValue(typeof distill.model === "string" ? distill.model : "")
+        .onChange(async (v) => {
+          if (v.trim()) distill.model = v.trim();
+          else delete distill.model;
+          await save();
+        }),
+    );
+
+  new Setting(containerEl)
+    .setName("Auto-select best local model")
+    .setDesc(
+      "When the model is blank and the distill provider is local, pick the largest non-embedding model automatically.",
+    )
+    .addToggle((t) =>
+      t.setValue(distill.autoSelectLocal !== false).onChange(async (v) => {
+        distill.autoSelectLocal = v;
+        await save();
+      }),
+    );
+
+  new Setting(containerEl)
+    .setName("Token gate")
+    .setDesc(
+      "Run the LLM compaction pass only when the assembled context exceeds this estimated token count (lower = compact more aggressively).",
+    )
+    .addText((t) =>
+      t
+        .setPlaceholder("700")
+        .setValue(String((distill.tokenGate as number) ?? 700))
+        .onChange(async (v) => {
+          const n = parseInt(v, 10);
+          distill.tokenGate = Number.isFinite(n) && n > 0 ? n : 700;
+          await save();
+        }),
+    );
+}
+
+/** Sauce Brain — the read-only dashboard view over standalone `*.html` builds.
+ *  The live "Ask" inside a build is answered by the copilot runtime above, so
+ *  the only knob here is which vault folder holds the builds. */
+function renderBrain(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
+  containerEl.createEl("h3", {
+    text: "Sauce Brain",
+    cls: "sauce-settings-section-title",
+  });
+  new Setting(containerEl)
+    .setName("Brain folder")
+    .setDesc(
+      "Vault folder the Sauce Brain dashboard reads standalone *.html builds from. " +
+        "The live Ask inside a build is answered by the SauceBot provider configured above.",
+    )
+    .addText((t) =>
+      t
+        .setPlaceholder("_brain")
+        .setValue(plugin.settings.brainFolder ?? "_brain")
+        .onChange(async (v) => {
+          plugin.settings.brainFolder = v.trim() || "_brain";
+          await plugin.saveSettings();
+          plugin.copilot?.setBrainFolder(plugin.settings.brainFolder);
+        }),
+    );
 }

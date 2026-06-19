@@ -170,6 +170,14 @@ import { ApprovalModalUI } from "./ui/modals/ApprovalModal";
 import { SkillRuntime } from "./skills/SkillRuntime";
 import { IntegrationRegistry } from "./integrations/IntegrationRegistry";
 import { MapViewReal, VIEW_MAP_REAL } from "./ui/views/v2/MapViewReal";
+import { BrainView, VIEW_BRAIN } from "./ui/views/v2/BrainView";
+import { BrainBuilder, type BrainFile } from "./saucebot/BrainBuilder";
+import { setSharedCatalogFetch } from "./saucebot/ModelCatalog";
+import {
+  SauceDbClient,
+  canSyncSauceDb,
+  type SauceDbConfig,
+} from "./saucebot/SauceDb";
 import { AIInboxView, VIEW_AI_INBOX } from "./ui/views/v2/AIInboxView";
 import {
   SyncStatusViewReal,
@@ -239,6 +247,12 @@ export interface SauceGraphSettings {
   };
   enums: Record<string, string[]>;
   copilot: SauceBotSettings;
+  /** Vault folder the Sauce Brain dashboard reads standalone `*.html` builds
+   *  from (BrainView). Defaults to `_brain`. */
+  brainFolder?: string;
+  /** Brain tier + SauceDB (hosted LanceDB edge) config. Free = local JSON
+   *  brain; SauceDB = paid hosted edge sync. See src/saucebot/SauceDb.ts. */
+  sauceDb?: SauceDbConfig;
   /** Feature program toggles: RAG/embeddings, enrichment, prompts, documents.
    *  See src/settings/FeatureSettings.ts. */
   features: SauceFeatureSettings;
@@ -407,6 +421,8 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
     ],
   },
   copilot: COPILOT_DEFAULTS,
+  brainFolder: "_brain",
+  sauceDb: { tier: "local" },
   features: DEFAULT_FEATURE_SETTINGS,
   activeTab: "TAB-BASIC",
   hasInitialized: false,
@@ -582,6 +598,16 @@ export default class SauceGraphPlugin extends Plugin {
     return this.v2?.proxy ?? null;
   }
   copilot: SauceBotRuntime | null = null;
+  // Deterministic "snowflake matrix" brain: lexicon + taxonomy + path lattice
+  // (BrainBuilder) plus the crystal digest matrix (in the runtime). Auto-built
+  // in the background once a provider is configured; chat works during the
+  // build but warns it is not yet optimized.
+  brainBuilder: BrainBuilder | null = null;
+  sauceDb: SauceDbClient | null = null;
+  brainState: "idle" | "building" | "ready" = "idle";
+  private brainBuildPromise: Promise<void> | null = null;
+  private brainDirty = new Set<string>();
+  private brainFlushTimer: number | null = null;
   mirrorSync: MirrorSync | null = null;
   /** In-flight full-vault resync controller — non-null only while a rebuild is
    *  running. Holds the abort handle (so a second invocation cancels the first)
@@ -784,6 +810,28 @@ export default class SauceGraphPlugin extends Plugin {
     // bootstrap / parentBootstrap / registry / fedValidator / contractValidator
     // are now lazy getters (constructed on first use) — see the field block.
 
+    // CORS fix: the model catalog (all model/embedding dropdowns) must fetch via
+    // Obsidian's requestUrl, NOT native fetch — native fetch from app://
+    // obsidian.md is blocked against local LM Studio / Ollama endpoints, which
+    // left every picker empty. requestUrl is a CORS-bypassing net request.
+    setSharedCatalogFetch(async (url, init) => {
+      const r = await requestUrl({
+        url,
+        method: (init?.method as string) ?? "GET",
+        ...(init?.headers
+          ? { headers: init.headers as Record<string, string> }
+          : {}),
+        ...(init?.body ? { body: init.body as string } : {}),
+        throw: false,
+      });
+      return {
+        ok: r.status >= 200 && r.status < 400,
+        status: r.status,
+        json: async () => JSON.parse(r.text),
+        text: async () => r.text,
+      } as Response;
+    });
+
     this.copilot = new SauceBotRuntime(
       this.app,
       this.entityService,
@@ -791,6 +839,31 @@ export default class SauceGraphPlugin extends Plugin {
       this.settings.copilot ?? COPILOT_DEFAULTS,
       this.v2?.lance?.vectors ?? null,
     );
+    // Point the crystallized-brain digest cache at the configured brain folder.
+    this.copilot.setBrainFolder(this.settings.brainFolder ?? "_brain");
+    // Deterministic brain builder (lexicon/taxonomy/path-lattice). The Obsidian
+    // vault adapter satisfies BrainPersistence (read/write/exists/mkdir).
+    this.brainBuilder = new BrainBuilder(
+      this.app.vault.adapter,
+      this.settings.brainFolder ?? "_brain",
+    );
+    // SauceDB hosted-edge sync client (paywalled). Uses Obsidian's requestUrl
+    // (CORS-bypassing) as the HTTP seam; gated by entitlement + config.
+    this.sauceDb = new SauceDbClient(
+      this.settings.sauceDb ?? { tier: "local" },
+      async (url, init) => {
+        const r = await requestUrl({
+          url,
+          method: init.method,
+          headers: init.headers,
+          body: init.body,
+          throw: false,
+        });
+        return { status: r.status, text: r.text };
+      },
+    );
+    // Defer the auto-build until the workspace is ready so startup isn't blocked.
+    this.app.workspace.onLayoutReady(() => void this.maybeAutoBuildBrain());
     // Secure credential sourcing. OS keychain (safeStorage) primary, encrypted
     // KeyVault fallback; first available source that has the key wins. The
     // cloud API key is NEVER persisted to data.json (SEC-01): saveSettings()
@@ -1253,6 +1326,7 @@ export default class SauceGraphPlugin extends Plugin {
       (l) => new SyncStatusViewReal(l, this),
     );
     this.registerView(VIEW_MAP_REAL, (l) => new MapViewReal(l, this));
+    this.registerView(VIEW_BRAIN, (l) => new BrainView(l, this));
     // CON-SAUCEBOT S7 — register the FUNCTIONAL inbox/audit/run-log views in
     // place of the dormant "Real" placeholder stubs. The functional
     // SkillRunLogView reads the same SkillRunRing singleton the SkillRuntime
@@ -1419,6 +1493,12 @@ export default class SauceGraphPlugin extends Plugin {
           .setTitle("AI Inbox")
           .setIcon("sauce-ai-inbox")
           .onClick(() => this.openView(VIEW_AI_INBOX)),
+      );
+      m.addItem((i) =>
+        i
+          .setTitle("Open Sauce Brain")
+          .setIcon("brain-circuit")
+          .onClick(() => this.openView(VIEW_BRAIN)),
       );
       m.addSeparator();
       m.addItem((i) =>
@@ -1639,6 +1719,8 @@ export default class SauceGraphPlugin extends Plugin {
         if (f instanceof TFile && this.settings.features.enrichment.autostart) {
           void this.runEnrichment(f).catch(() => {});
         }
+        // Realtime brain: keep the path/relationship matrix current (debounced).
+        if (f instanceof TFile && f.extension === "md") this.scheduleBrainUpdate(f);
         this.scheduleOpenViewRefresh();
       }),
     );
@@ -1647,6 +1729,7 @@ export default class SauceGraphPlugin extends Plugin {
         if (this.unloaded) return; // PLC-04
         if (f instanceof TFile)
           void this.mirrorSync?.deleteFile(f.path).catch(() => {});
+        if (f instanceof TFile) void this.brainBuilder?.removeFile(f.path);
         this.scheduleOpenViewRefresh();
       }),
     );
@@ -1655,6 +1738,8 @@ export default class SauceGraphPlugin extends Plugin {
         if (this.unloaded) return; // PLC-04
         if (f instanceof TFile)
           void this.mirrorSync?.renameFile(oldPath, f.path).catch(() => {});
+        if (f instanceof TFile && f.extension === "md")
+          void this.brainBuilder?.renameFile(oldPath, this.brainFileFor(f));
         this.scheduleOpenViewRefresh();
       }),
     );
@@ -1874,6 +1959,24 @@ export default class SauceGraphPlugin extends Plugin {
       id: "open-map",
       name: "Open Map",
       callback: () => this.openView(VIEW_MAP_REAL),
+    });
+    this.addCommand({
+      id: "open-brain",
+      name: "Open Sauce Brain",
+      callback: () => this.openView(VIEW_BRAIN),
+    });
+    this.addCommand({
+      id: "build-brain",
+      name: "Build Brain (full snowflake matrix: lexicon, taxonomy, lattice, crystal)",
+      callback: () => {
+        if (!this.copilot || !this.brainBuilder) {
+          new Notice("SauceBot runtime is not initialized.");
+          return;
+        }
+        // Force a fresh full build even if one already exists.
+        this.brainBuildPromise = null;
+        void this.buildBrainBackground();
+      },
     });
     this.addCommand({
       id: "open-ai-inbox",
@@ -2871,6 +2974,159 @@ export default class SauceGraphPlugin extends Plugin {
   /** Durably store the copilot API key in the encrypted credential chain
    *  (OS keychain → KeyVault). Keeps the session copy in memory for the
    *  embedding config; data.json never sees it. */
+  /** Whether an encrypted credential is actually persisted (vault KeyVault / OS
+   *  keychain) for the active copilot provider — distinct from the session-only
+   *  in-memory `settings.copilot.apiKey`. Drives the settings key-status line so
+   *  the operator can see a key really landed in the vault, not just this run. */
+  async hasCopilotKey(): Promise<boolean> {
+    try {
+      const v = await this.credentialChain?.get(this.copilotKeyService());
+      return typeof v === "string" && v.trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  // ── Brain build (snowflake matrix) ────────────────────────────────────────
+  /** A provider is "configured" when it can actually answer: local providers
+   *  need no key; cloud providers need a stored/session key. */
+  async isProviderConfigured(): Promise<boolean> {
+    const p = this.settings.copilot?.provider;
+    if (!p) return false;
+    if (p === "lmstudio" || p === "ollama" || p === "lmstudio-sdk") return true;
+    return !!this.settings.copilot?.apiKey || (await this.hasCopilotKey());
+  }
+
+  isBrainReady(): boolean {
+    return this.brainState === "ready";
+  }
+
+  /** Push the brain (manifest + crystal digests) to the hosted SauceDB edge.
+   *  Best-effort; failures degrade to local-only and surface a Notice. */
+  private async syncBrainToSauceDb(manifest: unknown): Promise<void> {
+    if (!this.sauceDb) return;
+    let digests: Record<string, unknown> | undefined;
+    try {
+      const p = `${this.settings.brainFolder ?? "_brain"}/brain-crystal.json`;
+      if (await this.app.vault.adapter.exists(p)) {
+        digests = JSON.parse(await this.app.vault.adapter.read(p)).entries;
+      }
+    } catch {
+      /* digests are optional in the payload */
+    }
+    const r = await this.sauceDb.syncBrain({
+      manifest,
+      ...(digests ? { digests } : {}),
+    });
+    new Notice(
+      r.ok
+        ? "SauceDB: brain synced to your hosted edge."
+        : "SauceDB: " + r.detail,
+    );
+  }
+
+  /** Build a BrainFile view of a note from the metadata cache. */
+  private brainFileFor(f: TFile): BrainFile {
+    const cache = this.app.metadataCache.getFileCache(f);
+    const fm = (cache?.frontmatter as Record<string, unknown> | undefined) ?? {};
+    const tags = new Set<string>();
+    for (const t of cache?.tags ?? []) tags.add(t.tag);
+    const fmTags = fm.tags;
+    if (Array.isArray(fmTags)) for (const t of fmTags) tags.add(String(t));
+    else if (typeof fmTags === "string") tags.add(fmTags);
+    return {
+      path: f.path,
+      mtime: f.stat.mtime,
+      read: () => this.app.vault.cachedRead(f),
+      frontmatter: fm,
+      tags: [...tags],
+    };
+  }
+
+  /** Load the persisted brain; auto-build once a provider is configured and no
+   *  brain exists yet. Already-built vaults skip the full rebuild (incremental
+   *  hooks keep them current). Non-blocking. */
+  async maybeAutoBuildBrain(): Promise<void> {
+    if (!this.brainBuilder) return;
+    await this.brainBuilder.load();
+    const intact = await this.brainBuilder.isIntact();
+    const manifest = this.brainBuilder.getManifest();
+    const vaultCount = this.app.vault.getMarkdownFiles().length;
+    // The vault can change while Obsidian is closed; if the indexed file count
+    // drifts materially from the live vault, the brain is stale → rebuild.
+    const drifted =
+      manifest != null &&
+      Math.abs(manifest.files - vaultCount) > Math.max(5, vaultCount * 0.1);
+    // Already complete and current → ready, skip the rebuild (fast launch).
+    if (intact && manifest && !drifted) {
+      this.brainState = "ready";
+      return;
+    }
+    // Wiped / partial / never-built / drifted → rebuild on launch. The
+    // deterministic build needs no provider (inference is layered at query
+    // time), so it runs regardless; chat works during the build.
+    void this.buildBrainBackground();
+  }
+
+  /** Full deterministic build of the snowflake matrix, in the background. The
+   *  path/lexicon/taxonomy lattice and the crystal digest matrix build
+   *  concurrently. Chat is usable throughout (with a not-yet-optimized warning).
+   *  Idempotent: a second call returns the in-flight build. */
+  async buildBrainBackground(): Promise<void> {
+    if (this.brainBuildPromise) return this.brainBuildPromise;
+    if (!this.brainBuilder || !this.copilot) return;
+    this.brainState = "building";
+    const run = (async () => {
+      try {
+        new Notice(
+          "Sauce Brain: forming the snowflake matrix… you can chat now; answers sharpen once it's ready.",
+        );
+        const files = this.app.vault.getMarkdownFiles();
+        const [manifest] = await Promise.all([
+          this.brainBuilder!.buildAll(files.map((f) => this.brainFileFor(f))),
+          this.copilot!.crystallizeAll(files.map((f) => f.path)),
+        ]);
+        this.brainState = "ready";
+        new Notice(
+          `Sauce Brain ready: ${manifest.pathCount} nodes · ${manifest.lexiconTerms} terms · ${manifest.taxonomy.types} types crystallized.`,
+        );
+        // SauceDB (paid): mirror the freshly-built brain to the hosted edge.
+        if (canSyncSauceDb(this.settings.sauceDb)) {
+          this.sauceDb?.setConfig(this.settings.sauceDb!);
+          void this.syncBrainToSauceDb(manifest);
+        }
+      } catch (e) {
+        this.brainState = "idle";
+        new Notice(
+          "Sauce Brain build failed: " +
+            (e instanceof Error ? e.message : String(e)).slice(0, 140),
+        );
+      } finally {
+        this.brainBuildPromise = null;
+      }
+    })();
+    this.brainBuildPromise = run;
+    return run;
+  }
+
+  /** Debounced incremental update: coalesce a burst of edits into one flush so
+   *  realtime updates don't write the path matrix on every keystroke. */
+  private scheduleBrainUpdate(f: TFile): void {
+    this.brainDirty.add(f.path);
+    if (this.brainFlushTimer !== null) window.clearTimeout(this.brainFlushTimer);
+    this.brainFlushTimer = window.setTimeout(() => void this.flushBrainUpdates(), 1500);
+  }
+
+  private async flushBrainUpdates(): Promise<void> {
+    this.brainFlushTimer = null;
+    const paths = [...this.brainDirty];
+    this.brainDirty.clear();
+    for (const p of paths) {
+      const f = this.app.vault.getAbstractFileByPath(p);
+      if (f instanceof TFile) await this.brainBuilder?.updateFile(this.brainFileFor(f));
+    }
+  }
+
   async storeCopilotKey(key: string): Promise<void> {
     this.settings.copilot.apiKey = key; // session-only (stripped on save)
     try {
