@@ -1,4 +1,17 @@
-import { ItemView, type Plugin, WorkspaceLeaf } from "obsidian";
+// SyncStatusViewReal (sauce-crm-sync-status) — the REGISTERED sync status view.
+// Wraps the v2 SyncEngine: lists scheduled jobs (frequency / next-run / running
+// / failures / last-error), exposes Start / Stop / Sync-All controls, and tails
+// a ring buffer of recent ChangeFeed events. Auto-refreshes on a 4s interval.
+//
+// NOTE: the older `SyncStatusView` (sauce-sync-status) carried this logic but
+// was never registered; this registered `*Real` class is the live view-type
+// wired into the ribbon + command palette. The implementation is consolidated
+// here so the wired surface renders real data instead of a placeholder. See
+// W4 nav-surface notes.
+
+import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
+import type SauceGraphPlugin from "../../../main";
+import type { Change } from "../../../sync";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
@@ -6,11 +19,21 @@ export const VIEW_SYNC_STATUS_REAL: ViewTypeId = asViewTypeId(
   "sauce-crm-sync-status",
 );
 
+const RING_MAX = 100;
+
 export class SyncStatusViewReal extends ItemView {
+  private refreshTimer: number | null = null;
+  private ring: Change[] = [];
+  private unsubscribe: (() => void) | null = null;
   private help!: SauceViewHelp;
-  constructor(leaf: WorkspaceLeaf, _plugin: Plugin) {
+
+  constructor(
+    leaf: WorkspaceLeaf,
+    public plugin: SauceGraphPlugin,
+  ) {
     super(leaf);
   }
+
   getViewType(): string {
     return VIEW_SYNC_STATUS_REAL;
   }
@@ -18,22 +41,152 @@ export class SyncStatusViewReal extends ItemView {
     return "Sauce CRM — Sync Status";
   }
   override getIcon(): string {
-    return "sync";
+    return "refresh-cw";
   }
+
   override async onOpen(): Promise<void> {
-    this.contentEl.empty();
-    this.help = new SauceViewHelp();
-    this.help.mountHeader(this.contentEl, {
-      title: "Sync Status",
-      icon: "sync",
-      subtitle: "Track CRM sync progress and state",
-    });
-    this.contentEl.createEl("h3", { text: "Sauce CRM Sync Status" });
-    this.contentEl.createEl("p", {
-      text: "Sync status — pending implementation.",
-    });
+    const engine = this.plugin.v2?.sync ?? null;
+    if (engine) {
+      this.unsubscribe = engine.changes.subscribe((c) => {
+        this.ring.push(c);
+        if (this.ring.length > RING_MAX) this.ring.shift();
+      });
+    }
+    this.render();
+    this.refreshTimer = this.registerInterval(
+      window.setInterval(() => this.render(), 4000),
+    );
   }
+
   override async onClose(): Promise<void> {
-    /* nothing to clean up */
+    if (this.refreshTimer) {
+      window.clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+  }
+
+  private render(): void {
+    const root = this.contentEl;
+    root.empty();
+    root.addClass("sauce-view");
+    root.addClass("sauce-sync-status");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(root, {
+      title: "Sync Status",
+      icon: "refresh-cw",
+      subtitle: "Monitor sync jobs and recent changes",
+    });
+
+    const engine = this.plugin.v2?.sync ?? null;
+    if (!engine) {
+      const empty = root.createDiv({ cls: "sauce-empty-state" });
+      empty.createEl("h4", {
+        cls: "sauce-empty-state-title",
+        text: "Sync engine not initialized",
+      });
+      empty.createEl("p", {
+        cls: "sauce-empty-state-body",
+        text:
+          "The background sync engine has not started yet. Connect an account " +
+          "in Settings → Integrations, then reopen this view.",
+      });
+      this.help.register(
+        empty,
+        "Sync Status",
+        "Once the sync engine is initialized this view lists scheduled jobs and a live feed of recent changes.",
+      );
+      return;
+    }
+
+    const toolbar = root.createDiv({ cls: "sauce-sync-toolbar" });
+    const startBtn = toolbar.createEl("button", {
+      cls: "sauce-button",
+      text: "Start",
+    });
+    startBtn.onclick = () => {
+      engine.start();
+      new Notice("Sync engine started");
+    };
+    const stopBtn = toolbar.createEl("button", {
+      cls: "sauce-button sauce-button-secondary",
+      text: "Stop",
+    });
+    stopBtn.onclick = () => {
+      engine.stop();
+      new Notice("Sync engine stopped");
+    };
+    const syncAllBtn = toolbar.createEl("button", {
+      cls: "sauce-button sauce-button-secondary",
+      text: "Sync All Now",
+    });
+    syncAllBtn.onclick = async () => {
+      if (!this.plugin.integrations) return;
+      const r = await this.plugin.integrations.syncAll();
+      new Notice(`Manual sync: ${r.reduce((s, x) => s + x.pulled, 0)} pulled`);
+    };
+    this.help.register(
+      startBtn,
+      "Start",
+      "Turns on the background sync engine so your accounts stay up to date automatically.",
+    );
+    this.help.register(
+      stopBtn,
+      "Stop",
+      "Pauses the background sync engine so nothing syncs until you start it again.",
+    );
+    this.help.register(
+      syncAllBtn,
+      "Sync All Now",
+      "Immediately pulls the latest data from every connected account once.",
+    );
+
+    root.createEl("h3", { text: "Jobs" });
+    const tbl = root.createEl("table", { cls: "sauce-sync-jobs" });
+    const head = tbl.createEl("thead").createEl("tr");
+    for (const h of [
+      "job",
+      "frequency",
+      "next-run",
+      "running",
+      "failures",
+      "last-error",
+    ])
+      head.createEl("th", { text: h });
+    const body = tbl.createEl("tbody");
+    const all = engine.scheduler.all();
+    if (all.length === 0) {
+      const tr = body.createEl("tr");
+      tr.createEl("td", { text: "(no jobs registered)" });
+    }
+    for (const { job, state } of all) {
+      const tr = body.createEl("tr");
+      tr.createEl("td", { text: job.id });
+      tr.createEl("td", { text: job.frequency });
+      tr.createEl("td", {
+        text: state.nextRun
+          ? new Date(state.nextRun).toLocaleTimeString()
+          : "—",
+      });
+      tr.createEl("td", { text: state.running ? "yes" : "no" });
+      tr.createEl("td", { text: String(state.failures) });
+      tr.createEl("td", { text: state.lastError ?? "" });
+    }
+
+    root.createEl("h3", {
+      text: `Recent changes (ring buffer, ${this.ring.length})`,
+    });
+    const ul = root.createEl("ul", { cls: "sauce-sync-changes" });
+    if (this.ring.length === 0) {
+      ul.createEl("li", { text: "(no changes observed this session yet)" });
+    }
+    for (const c of this.ring.slice(-25).reverse()) {
+      ul.createEl("li", {
+        text: `${new Date(c.ts).toLocaleTimeString()}  ${c.kind}  ${c.integration ?? ""}/${c.resource ?? ""}  ${c.entityId}`,
+      });
+    }
   }
 }

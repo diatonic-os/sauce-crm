@@ -15,6 +15,7 @@ import {
   type GraphEdge,
 } from "../../services/GraphAtlasService";
 import { SauceViewHelp } from "../components/v2/SauceViewHelp";
+import { RelationshipAnalytics } from "../../services/RelationshipAnalytics";
 
 export const VIEW_DASHBOARD: ViewTypeId = asViewTypeId("sauce-dashboard");
 export const VIEW_PIPELINE: ViewTypeId = asViewTypeId("sauce-pipeline");
@@ -110,6 +111,9 @@ export class DashboardView extends BaseView {
       k.createDiv({ cls: "label", text: String(label) });
       k.createDiv({ cls: "value", text: String(value) });
     }
+
+    // Analytics engine (W5): real, data-driven suggestions + correlation.
+    this.renderAttention(root);
 
     const top = root.createDiv({ cls: "sauce-dashboard-columns" });
     const morning = top.createDiv({ cls: "sauce-section" });
@@ -227,6 +231,66 @@ export class DashboardView extends BaseView {
         "No immediate relationship actions. Capture a note, touch, or idea to enrich the graph.",
       );
     return out;
+  }
+
+  /**
+   * W5 — surface the analytics engine's top suggestions ("What needs
+   * attention") plus the cadence-vs-closeness correlation stat. Additive:
+   * reuses sauce-* classes and the openModalFor link pattern.
+   */
+  private renderAttention(root: HTMLElement): void {
+    const analytics = new RelationshipAnalytics(
+      this.app,
+      this.plugin.entityService,
+    );
+    const report = analytics.report();
+
+    const section = root.createDiv({
+      cls: "sauce-section sauce-attention",
+    });
+    const head = section.createDiv({ cls: "sauce-attention-head" });
+    head.createEl("h3", { text: "What needs attention" });
+
+    // Correlation stat: do you touch your close contacts more?
+    const corr = report.cadenceVsCloseness;
+    const stat = head.createDiv({ cls: "sauce-attention-stat" });
+    const rTxt = corr.r == null ? "n/a" : corr.r.toFixed(2);
+    stat.createSpan({
+      cls: "sauce-attention-stat-value",
+      text: `cadence×closeness r=${rTxt}`,
+    });
+    stat.createSpan({
+      cls: "sauce-attention-stat-note",
+      text: corr.interpretation,
+    });
+
+    if (report.suggestions.length === 0) {
+      section.createEl("p", {
+        cls: "sauce-field-help",
+        text: "No attention items — relationships and pipeline are on cadence.",
+      });
+      return;
+    }
+
+    const list = section.createDiv({ cls: "sauce-attention-list" });
+    for (const s of report.suggestions) {
+      const row = list.createDiv({
+        cls: `sauce-attention-row sauce-attention-row--${s.severity}`,
+      });
+      const sev = row.createSpan({
+        cls: `sauce-badge sauce-attention-sev sauce-attention-sev--${s.severity}`,
+        text: s.severity,
+      });
+      void sev;
+      const body = row.createDiv({ cls: "sauce-attention-body" });
+      body.createDiv({ cls: "sauce-attention-title", text: s.title });
+      body.createDiv({ cls: "sauce-attention-rationale", text: s.rationale });
+      const file = analytics.fileForSuggestion(s);
+      if (file) {
+        row.addClass("sauce-attention-row--clickable");
+        row.onclick = () => this.openModalFor(file);
+      }
+    }
   }
 
   private renderMonthlyBars(parent: HTMLElement, dates: string[]): void {

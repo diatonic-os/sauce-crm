@@ -2046,3 +2046,37 @@ select.sauce-input {
 .sauce-tree-label { overflow-wrap: anywhere; }
 .sauce-fed-row-main { display: flex; flex-direction: column; gap: var(--sg-gap-2); min-width: 0; }
 .sauce-overdue-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+
+/* ---- W4: Map (sauce-crm-map) + Sync Status (sauce-crm-sync-status) ---- */
+.sauce-map-canvas { width: 100%; height: var(--sg-w-610, 500px); border: 1px solid var(--background-modifier-border); border-radius: var(--sg-radius-md, 8px); background: var(--background-secondary); }
+.sauce-map-legend { display: flex; gap: var(--sg-gap-13); align-items: center; font-size: 0.85em; color: var(--text-muted); }
+.sauce-map-legend-item { display: inline-flex; align-items: center; gap: var(--sg-gap-5); }
+.sauce-map-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.sauce-map-dot--person { background: rgba(80, 160, 220, 0.85); }
+.sauce-map-dot--org { background: rgba(220, 160, 80, 0.85); }
+.sauce-sync-toolbar { display: flex; gap: var(--sg-inline-gap, 8px); flex-wrap: wrap; }
+.sauce-sync-jobs { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+.sauce-sync-jobs th, .sauce-sync-jobs td { text-align: left; padding: var(--sg-gap-5) var(--sg-gap-8); border-bottom: 1px solid var(--background-modifier-border); }
+.sauce-sync-jobs th { color: var(--text-muted); font-weight: 600; }
+.sauce-sync-changes { margin: 0; padding-inline-start: var(--sg-gap-21); font-size: 0.8em; color: var(--text-muted); }
+.sauce-sync-changes li { font-variant-numeric: tabular-nums; }
+
+/* ---- W5: "What needs attention" analytics section (DashboardView) ---- */
+.sauce-attention-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sauce-attention-stat { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.sauce-attention-stat-value { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.85em; }
+.sauce-attention-stat-note { font-size: 0.75em; color: var(--text-muted); max-width: 360px; }
+.sauce-attention-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.sauce-attention-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 8px; border-left: 3px solid var(--background-modifier-border); background: var(--background-secondary); }
+.sauce-attention-row--clickable { cursor: pointer; }
+.sauce-attention-row--clickable:hover { background: var(--background-modifier-hover); }
+.sauce-attention-row--critical { border-left-color: var(--color-red, #e5534b); }
+.sauce-attention-row--warning { border-left-color: var(--color-orange, #d99e00); }
+.sauce-attention-row--info { border-left-color: var(--color-blue, #4c8dff); }
+.sauce-attention-body { display: flex; flex-direction: column; gap: 2px; }
+.sauce-attention-title { font-weight: 600; }
+.sauce-attention-rationale { font-size: 0.8em; color: var(--text-muted); }
+.sauce-attention-sev { text-transform: uppercase; font-size: 0.65em; letter-spacing: 0.04em; flex: 0 0 auto; margin-top: 2px; }
+.sauce-attention-sev--critical { background: var(--color-red, #e5534b); color: #fff; }
+.sauce-attention-sev--warning { background: var(--color-orange, #d99e00); color: #1a1a1a; }
+.sauce-attention-sev--info { background: var(--color-blue, #4c8dff); color: #fff; }

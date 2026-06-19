@@ -1358,6 +1358,65 @@ export default class SauceGraphPlugin extends Plugin {
     this.addSettingTab(new SauceGraphSettingTab(this.app, this));
     boot.mark("commands+settings-tab");
 
+    // Primary launcher — a single "open any view" dropdown grouped by
+    // category (CRM dashboards / Analytics / Logs & Activity / AI & Brain /
+    // Sync & Map). This is the canonical navigation surface: every registered
+    // view is reachable and labeled here, so nothing is "hidden". Each item
+    // routes through the shared `openView` helper (the same path the command
+    // palette uses), so a single wiring point keeps launcher + palette in sync.
+    this.addRibbonIcon("sauce-hierarchy", "SauceOM — Open a view", (event) => {
+      const m = new Menu();
+      const sec = (label: string): void => {
+        m.addItem((i) => i.setTitle(label).setDisabled(true));
+      };
+      const view = (title: string, icon: string, type: string): void => {
+        m.addItem((i) =>
+          i
+            .setTitle(title)
+            .setIcon(icon)
+            .onClick(() => void this.openView(type)),
+        );
+      };
+
+      sec("CRM dashboards");
+      view("Dashboard", "layout-dashboard", VIEW_DASHBOARD);
+      view("Parent Vault Dashboard", "sauce-parent-vault", VIEW_PARENT);
+      view("Tasks Board", "sauce-task", VIEW_TASKS);
+      view("Inbox", "sauce-ai-inbox", VIEW_INBOX);
+      view("Ledger", "sauce-ledger", VIEW_LEDGER);
+      view("Calendar", "sauce-touch", VIEW_CALENDAR);
+      view("Meetings", "sauce-touch", VIEW_MEETINGS);
+      view("Lanes", "columns-3", VIEW_LANES);
+      view("Weekly Briefings", "calendar-days", VIEW_WEEKLY);
+
+      m.addSeparator();
+      sec("Analytics");
+      view("Typed-Edge Graph", "sauce-hierarchy", VIEW_GRAPH);
+      view("Pipeline Kanban", "columns-3", VIEW_PIPELINE);
+      view("Compatibility Matrix", "sauce-compat", VIEW_COMPAT);
+      view("Touch Heatmap", "sauce-heatmap", VIEW_HEATMAP);
+      view("Hierarchy Tree", "sauce-hierarchy", VIEW_HIERARCHY);
+      view("Overdue Queue", "sauce-overdue", VIEW_OVERDUE);
+
+      m.addSeparator();
+      sec("AI & Brain");
+      view("SauceBot Chat", "sauce-copilot", VIEW_COPILOT_CHAT);
+      view("AI Inbox", "sauce-ai-inbox", VIEW_AI_INBOX);
+      view("Sauce Brain", "brain-circuit", VIEW_BRAIN);
+
+      m.addSeparator();
+      sec("Logs & activity");
+      view("Audit Log", "sauce-audit", VIEW_AUDIT_LOG);
+      view("Skill Run Log", "sauce-skill", VIEW_SKILL_RUN_LOG);
+
+      m.addSeparator();
+      sec("Sync & Map");
+      view("Sync Status", "sauce-sync", VIEW_SYNC_STATUS_REAL);
+      view("Map", "sauce-map", VIEW_MAP_REAL);
+
+      m.showAtMouseEvent(event);
+    });
+
     // Ribbon icons — three configurable group launchers. The defaults
     // match the most common operator flows: People (new person + log
     // touch), Graph (open typed-edge graph), and Copilot (chat panel).
