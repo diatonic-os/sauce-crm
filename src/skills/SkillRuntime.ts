@@ -5,6 +5,7 @@
 //   - ToolUseAdapter binding (every enabled skill exposed to the copilot)
 
 import { App, Notice } from "obsidian";
+import { activity } from "../ui/ActivityNotifier";
 import {
   SkillRegistry,
   Skill,
@@ -28,6 +29,8 @@ export interface SkillRunOptions {
   trigger?: "manual" | "scheduled" | "chat" | "command";
   /** Task ID that triggered this run (populated by SkillTaskScheduler). */
   taskId?: string;
+  /** Suppress the top-right activity toast (for high-frequency internal runs). */
+  silent?: boolean;
 }
 
 export class SkillRuntime {
@@ -148,6 +151,9 @@ export class SkillRuntime {
       },
     };
 
+    // Realtime alert: tell the user an agent/skill is running (unless silenced
+    // for high-frequency internal dispatches).
+    const act = opts.silent ? null : activity.start(`SauceBot: running ${id}…`);
     let result: SkillResult;
     try {
       result = await skill.execute(args, ctx);
@@ -156,6 +162,14 @@ export class SkillRuntime {
         ok: false,
         reason: `skill threw: ${e instanceof Error ? e.message : String(e)}`,
       };
+    }
+    if (act) {
+      if (result.ok)
+        act.succeed(
+          `${id} done${result.mutated.length ? ` · ${result.mutated.length} change${result.mutated.length === 1 ? "" : "s"}` : ""}`,
+          3000,
+        );
+      else act.fail(`${id}: ${result.reason}`.slice(0, 90));
     }
 
     // P15: push every run into the in-memory ring buffer for the Skill Run Log view.

@@ -35,6 +35,7 @@ import {
 } from "./services/transcribe/WhisperArgs";
 import { MemoryBackendRagAdapter } from "./bridge/MemoryBackendRagAdapter";
 import { injectMobileStyles } from "./ui/MobileStyles";
+import { activity } from "./ui/ActivityNotifier";
 import {
   EntityService,
   DEFAULT_PATHS,
@@ -3076,6 +3077,9 @@ export default class SauceGraphPlugin extends Plugin {
    *  hooks keep them current). Non-blocking. */
   async maybeAutoBuildBrain(): Promise<void> {
     if (!this.brainBuilder) return;
+    // Realtime alert: on every launch/reload we check the brain index and tell
+    // the user the outcome (up to date / vault changed → updating / building).
+    const act = activity.start("Sauce Brain: checking index…");
     await this.brainBuilder.load();
     const intact = await this.brainBuilder.isIntact();
     const manifest = this.brainBuilder.getManifest();
@@ -3088,8 +3092,17 @@ export default class SauceGraphPlugin extends Plugin {
     // Already complete and current → ready, skip the rebuild (fast launch).
     if (intact && manifest && !drifted) {
       this.brainState = "ready";
+      act.succeed(`Sauce Brain up to date · ${manifest.files} notes indexed`);
       return;
     }
+    // Hand off to the background build (which raises its own start/done toast);
+    // close the check toast with what we found so the reason is visible.
+    act.succeed(
+      intact && manifest
+        ? `Sauce Brain: vault changed (${manifest.files}→${vaultCount}) — updating…`
+        : "Sauce Brain: no index — building…",
+      2500,
+    );
     // Wiped / partial / never-built / drifted → rebuild on launch. The
     // deterministic build needs no provider (inference is layered at query
     // time), so it runs regardless; chat works during the build.
@@ -3153,10 +3166,29 @@ export default class SauceGraphPlugin extends Plugin {
     this.brainFlushTimer = null;
     const paths = [...this.brainDirty];
     this.brainDirty.clear();
-    for (const p of paths) {
-      const f = this.app.vault.getAbstractFileByPath(p);
-      if (f instanceof TFile)
-        await this.brainBuilder?.updateFile(this.brainFileFor(f));
+    if (!paths.length) return;
+    // Realtime alert: incremental re-crystallization of edited notes.
+    const act = activity.start(
+      `Sauce Brain: updating ${paths.length} note${paths.length === 1 ? "" : "s"}…`,
+    );
+    let n = 0;
+    try {
+      for (const p of paths) {
+        const f = this.app.vault.getAbstractFileByPath(p);
+        if (f instanceof TFile) {
+          await this.brainBuilder?.updateFile(this.brainFileFor(f));
+          n++;
+        }
+      }
+      act.succeed(
+        `Sauce Brain: ${n} note${n === 1 ? "" : "s"} re-crystallized`,
+        2500,
+      );
+    } catch (e) {
+      act.fail(
+        "Sauce Brain update failed: " +
+          (e instanceof Error ? e.message : String(e)).slice(0, 100),
+      );
     }
   }
 
