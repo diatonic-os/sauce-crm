@@ -23,6 +23,7 @@ import type {
   ProviderHost,
 } from "./ISauceBotProvider";
 import { parseSse } from "./StreamParsers";
+import { parseToolArgs, extractTextToolCalls } from "./LocalToolParse";
 
 export interface OpenAICompatSpec {
   /** Provider id (matches the registry id), surfaced as `name`. */
@@ -178,6 +179,9 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
         let usage:
           | { prompt_tokens?: number; completion_tokens?: number }
           | undefined;
+        // Accumulate streamed text so we can salvage a text-embedded tool call
+        // (local models often "speak" the call instead of emitting tool_calls).
+        let streamedText = "";
         try {
           for await (const evt of parseSse(resp.iter)) {
             let parsed: Chunk;
@@ -192,7 +196,10 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
             const d = choice.delta;
             const reasoning = d?.reasoning_content ?? d?.reasoning;
             if (reasoning) yield { type: "reasoning", delta: reasoning };
-            if (d?.content) yield { type: "text", delta: d.content };
+            if (d?.content) {
+              streamedText += d.content;
+              yield { type: "text", delta: d.content };
+            }
             if (d?.tool_calls) {
               for (const tc of d.tool_calls) {
                 const idx = tc.index ?? 0;
@@ -213,22 +220,39 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
           };
           return;
         }
+        let emittedToolCall = false;
         for (const tc of toolBuf.values()) {
-          try {
+          if (!tc.name) continue; // index buffer with no name → not a real call
+          emittedToolCall = true;
+          // Tolerant parse: fence-stripped / repaired / partial JSON args. A
+          // small local model that emits `{path: x}` or a fenced block no
+          // longer dead-ends the turn (it used to fall to `{_raw}` and fail).
+          yield {
+            type: "tool_use",
+            id: tc.id,
+            name: tc.name,
+            input: parseToolArgs(tc.args),
+          };
+        }
+        // Salvage: when the model produced NO structured tool_calls but spoke a
+        // call in plain text (a very common local-model failure), recover it so
+        // the loop can still execute the tool instead of treating the call as a
+        // final answer. Only matches registered tool names.
+        if (!emittedToolCall && streamedText) {
+          const known = (req.tools ?? []).map((t) => t.name);
+          const textCalls = extractTextToolCalls(streamedText, known);
+          for (let i = 0; i < textCalls.length; i++) {
+            const c = textCalls[i]!;
+            emittedToolCall = true;
             yield {
               type: "tool_use",
-              id: tc.id,
-              name: tc.name,
-              input: JSON.parse(tc.args || "{}"),
-            };
-          } catch {
-            yield {
-              type: "tool_use",
-              id: tc.id,
-              name: tc.name,
-              input: { _raw: tc.args },
+              id: `text_call_${i}`,
+              name: c.name,
+              input: c.input,
             };
           }
+          if (emittedToolCall && finishReason === "stop")
+            finishReason = "tool_calls";
         }
         yield {
           type: "usage",
@@ -308,29 +332,41 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
     if (batchReasoning) yield { type: "reasoning", delta: batchReasoning };
     if (choice.message.content)
       yield { type: "text", delta: choice.message.content };
+    let batchFinish = choice.finish_reason;
+    let emittedBatchCall = false;
     for (const tc of choice.message.tool_calls ?? []) {
-      try {
+      if (!tc.function?.name) continue;
+      emittedBatchCall = true;
+      // Tolerant arg parse (fence/repair/partial) — see streaming branch.
+      yield {
+        type: "tool_use",
+        id: tc.id,
+        name: tc.function.name,
+        input: parseToolArgs(tc.function.arguments),
+      };
+    }
+    // Text-embedded tool-call salvage for local models (see streaming branch).
+    if (!emittedBatchCall && choice.message.content) {
+      const known = (req.tools ?? []).map((t) => t.name);
+      const textCalls = extractTextToolCalls(choice.message.content, known);
+      for (let i = 0; i < textCalls.length; i++) {
+        const c = textCalls[i]!;
+        emittedBatchCall = true;
         yield {
           type: "tool_use",
-          id: tc.id,
-          name: tc.function.name,
-          input: JSON.parse(tc.function.arguments),
-        };
-      } catch {
-        yield {
-          type: "tool_use",
-          id: tc.id,
-          name: tc.function.name,
-          input: { _raw: tc.function.arguments },
+          id: `text_call_${i}`,
+          name: c.name,
+          input: c.input,
         };
       }
+      if (emittedBatchCall && batchFinish === "stop") batchFinish = "tool_calls";
     }
     yield {
       type: "usage",
       inputTokens: j.usage?.prompt_tokens ?? 0,
       outputTokens: j.usage?.completion_tokens ?? 0,
     };
-    yield { type: "done", reason: mapFinish(choice.finish_reason) };
+    yield { type: "done", reason: mapFinish(batchFinish) };
   }
 
   async embed(text: string, model: string): Promise<Float32Array> {

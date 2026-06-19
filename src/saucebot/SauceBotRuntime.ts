@@ -5,9 +5,11 @@ import { RagAssembler, ConversationStore, ToolUseAdapter } from "./index";
 import {
   buildProvider,
   PROVIDER_REGISTRY,
+  getProviderSpec,
   type ProviderId,
   type BuildProviderOpts,
 } from "./ProviderRegistry";
+import { estimateTokens } from "./Toon";
 import type {
   ChatMessage,
   ISauceBotProvider,
@@ -73,6 +75,27 @@ export interface SauceBotSettings {
   maxRetries?: number;
   /** Context-distillation config (TOON compaction of retrieved context). */
   distill?: DistillSettings;
+  /** Local-model multi-turn/tool quality tuning. Off ⇒ behaves exactly as
+   *  before. Auto-enabled for local providers (lmstudio/ollama) unless the
+   *  caller forces it via `localTuning.enabled`. */
+  localTuning?: LocalTuningSettings;
+}
+
+/** Knobs for closing the local-vs-cloud quality gap. Cloud providers ignore
+ *  these (they don't need prose tool prompts or aggressive compaction); they
+ *  only activate when the active provider is `kind: "local"` OR `enabled:true`. */
+export interface LocalTuningSettings {
+  /** Force on/off. undefined ⇒ auto (on for local providers, off for cloud). */
+  enabled?: boolean;
+  /** Inject a prose tool schema + one-shot example into the system prompt. */
+  toolPrompt?: boolean;
+  /** Compact prior history once accumulated tokens exceed this budget. The most
+   *  recent turn is always kept verbatim. Default 2000 (~8k chars). */
+  historyTokenBudget?: number;
+  /** Re-ask once on a malformed (`_raw`) tool call to coax valid tool JSON. */
+  toolRepairReask?: boolean;
+  /** One compaction+retry when a turn ends empty/truncated (self-correction). */
+  emptyAnswerRetry?: boolean;
 }
 
 /** Distillation: by default the chat model compacts retrieved context to TOON
@@ -122,6 +145,13 @@ export const COPILOT_DEFAULTS: SauceBotSettings = {
     autoSelectLocal: true,
     tokenGate: 700,
     maxPasses: 2,
+  },
+  localTuning: {
+    // enabled undefined ⇒ auto (on for local providers only).
+    toolPrompt: true,
+    historyTokenBudget: 2000,
+    toolRepairReask: true,
+    emptyAnswerRetry: true,
   },
 };
 
@@ -487,6 +517,13 @@ export class SauceBotRuntime {
     if (crystal.dirty) void this.saveCrystal();
     if (chunks.length === 0) return "";
 
+    // Recency-of-attention ordering for local models: small models weight the
+    // tail of a long prompt most heavily, so reverse the digest order to place
+    // the MOST relevant (centered[0]) LAST — immediately before the question.
+    // `centered` arrives best-first; `chunks` mirror that order. Cloud models
+    // are order-robust, so we only reorder when local tuning is active.
+    if (this.localTuningOn()) chunks.reverse();
+
     const d = this.settings.distill;
     if (d?.enabled ?? true) {
       try {
@@ -520,6 +557,185 @@ export class SauceBotRuntime {
     return parts.length
       ? "\n\n## Entity digest (crystallized)\n" + parts.join("\n\n")
       : "";
+  }
+
+  // ── Local-model tuning (close the local-vs-cloud quality gap) ──────────────
+  /** Whether the active chat provider runs locally (LM Studio / Ollama). Cloud
+   *  providers are order-robust and tool-reliable, so the local-only
+   *  enhancements (prose tool prompt, aggressive compaction, tail-ordering,
+   *  re-ask salvage) stay off for them by default. */
+  private isLocalProvider(): boolean {
+    const id: ProviderId =
+      this.settings.provider in PROVIDER_REGISTRY
+        ? this.settings.provider
+        : "anthropic";
+    try {
+      return getProviderSpec(id).kind === "local";
+    } catch {
+      return false;
+    }
+  }
+
+  /** Master gate for the local-tuning behaviors. Honors an explicit override;
+   *  otherwise auto-on for local providers, off for cloud. */
+  private localTuningOn(): boolean {
+    const t = this.settings.localTuning;
+    if (t?.enabled !== undefined) return t.enabled;
+    return this.isLocalProvider();
+  }
+
+  /**
+   * MULTI-TURN CONTEXT COMPACTION. When accumulated prior history exceeds the
+   * token budget, summarize the OLDER turns into a single compact note and keep
+   * the most recent turn verbatim. Local models degrade sharply as the working
+   * context grows across turns; this keeps the live context tight without
+   * losing the thread. Best-effort: on any failure returns the input unchanged.
+   * Pure of provider-answer behavior — only the messages handed forward change.
+   */
+  private async compactPriorHistory(
+    prior: ChatMessage[],
+  ): Promise<ChatMessage[]> {
+    if (!this.localTuningOn() || prior.length <= 2) return prior;
+    const budget = this.settings.localTuning?.historyTokenBudget ?? 2000;
+    const sizeOf = (m: ChatMessage): number =>
+      estimateTokens(
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+      );
+    const total = prior.reduce((s, m) => s + sizeOf(m), 0);
+    if (total <= budget) return prior;
+
+    // Keep the last turn (last user+assistant pair, i.e. up to 2 msgs) verbatim.
+    const keepCount = Math.min(2, prior.length);
+    const recent = prior.slice(prior.length - keepCount);
+    const older = prior.slice(0, prior.length - keepCount);
+    if (older.length === 0) return prior;
+
+    const transcript = older
+      .map((m) => {
+        const c =
+          typeof m.content === "string"
+            ? m.content
+            : JSON.stringify(m.content);
+        return `${m.role.toUpperCase()}: ${c}`;
+      })
+      .join("\n")
+      .slice(0, 12000);
+    const summary = await this.completeOnce(
+      "Summarize the earlier part of this conversation into a few tight bullet " +
+        "points capturing decisions, facts established, and open threads. No " +
+        "preamble — just the bullets. This will be the assistant's memory of " +
+        "the earlier turns.",
+      transcript,
+      { temperature: 0, maxTokens: 512 },
+    );
+    if (!summary) return prior; // compaction failed → keep full history
+    const memo: ChatMessage = {
+      role: "user",
+      content: `[Earlier conversation summary]\n${summary}`,
+    };
+    return [memo, ...recent];
+  }
+
+  /**
+   * Bounded re-ask when the model emitted a MALFORMED tool call (the provider
+   * could not parse the args and surfaced `{_raw: …}`). Rather than dispatch a
+   * broken call (or fail the turn), we nudge the model once with the exact
+   * schema and its own bad output, asking for valid tool JSON. Returns the
+   * repaired input object, or null when no repair was produced (caller then
+   * dispatches the original so the model at least sees an error result).
+   */
+  private async repairToolCall(
+    name: string,
+    raw: string,
+  ): Promise<Record<string, unknown> | null> {
+    const tool = this.toolUse.asTools().find((t) => t.name === name);
+    if (!tool) return null;
+    const schema = JSON.stringify(tool.inputSchema);
+    const out = await this.completeOnce(
+      "You produced an invalid tool call. Given the tool's JSON schema and your " +
+        "previous malformed arguments, output ONLY a single valid JSON object " +
+        "of arguments — no prose, no code fence, no tool name, just the JSON.",
+      `Tool: ${name}\nSchema: ${schema}\nYour invalid arguments:\n${raw}\n\nValid JSON arguments:`,
+      { temperature: 0, maxTokens: 512 },
+    );
+    if (!out) return null;
+    try {
+      const start = out.indexOf("{");
+      const end = out.lastIndexOf("}");
+      if (start < 0 || end <= start) return null;
+      const parsed = JSON.parse(out.slice(start, end + 1));
+      return parsed && typeof parsed === "object"
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** True when a tool input is the provider's "couldn't parse" sentinel. */
+  private isRawToolInput(input: unknown): input is { _raw: string } {
+    return (
+      typeof input === "object" &&
+      input !== null &&
+      "_raw" in input &&
+      typeof (input as { _raw: unknown })._raw === "string"
+    );
+  }
+
+  /**
+   * SELF-CONTEXT-FILTERING per turn. After tools have run, the accumulated
+   * tool-result messages can balloon the prompt and bury the signal — exactly
+   * what degrades local models. Before the next provider.complete in the loop,
+   * compact any oversized tool-result message down to the facts relevant to the
+   * CURRENT query, reusing the same gated Distiller (TOON + token gate) used for
+   * RAG context. Mutates the messages array in place. Best-effort + bounded:
+   * only fires for local tuning, only on messages over a size threshold, and
+   * silently leaves a message untouched on any failure.
+   */
+  private async filterToolResults(
+    query: string,
+    messages: ChatMessage[],
+  ): Promise<void> {
+    if (!this.localTuningOn()) return;
+    const gate = this.settings.distill?.tokenGate ?? 700;
+    // A tool result is "large" when it materially exceeds the distill gate.
+    const threshold = gate * 4 * 2; // gate→tokens→chars, ×2 headroom
+    for (const m of messages) {
+      if (m.role !== "tool" || typeof m.content !== "string") continue;
+      if (m.content.length < threshold || (m as { _filtered?: boolean })._filtered)
+        continue;
+      try {
+        const distiller = await this.distiller();
+        const { tag } = this.resolveDistill();
+        const result = await distiller.distill(
+          {
+            query,
+            chunks: [{ path: m.toolCallId ?? "tool_result", text: m.content }],
+          },
+          { useLlm: true, tokenGate: gate, maxPasses: 1, modelTag: tag },
+        );
+        if (this.distillCache?.dirty) void this.saveDistillCache();
+        // Only adopt the compaction when it actually shrank the content.
+        if (result.toon && result.toon.length < m.content.length) {
+          m.content =
+            "[tool result distilled to relevant facts]\n" + result.toon;
+          (m as { _filtered?: boolean })._filtered = true;
+        }
+      } catch {
+        /* leave this tool result untouched */
+      }
+    }
+  }
+
+  /** Heuristic: an answer that is empty or visibly cut off mid-thought. Drives
+   *  the one-shot self-correction retry for local models. */
+  private looksTruncated(text: string): boolean {
+    const t = text.trim();
+    if (t.length === 0) return true;
+    if (t.length < 24) return false; // short but complete answers are fine
+    const last = t[t.length - 1] ?? "";
+    // Ends without terminal punctuation / closing fence ⇒ likely cut off.
+    return !/[.!?)\]}"'`\n]/.test(last) && !t.endsWith("```");
   }
 
   /**
@@ -971,11 +1187,27 @@ export class SauceBotRuntime {
         `passing the user's message as its arguments. Do not reply with text first.`;
     }
 
+    // TOOL-USE PROMPTING for local models: cloud models are driven reliably by
+    // the structured `tools` array alone, but small local models follow tools
+    // far better when the schemas + a one-shot example + the "emit ONLY the
+    // tool call" rule are ALSO stated in prose. Skipped for cloud providers.
+    if (
+      this.localTuningOn() &&
+      (this.settings.localTuning?.toolPrompt ?? true)
+    ) {
+      const tp = this.toolUse.localToolPrompt();
+      if (tp) systemPlus += "\n\n" + tp;
+    }
+
     const provider = this.provider();
     // Honor the contextTurns setting: keep only the most recent N turns of
     // prior history (a turn ≈ a user+assistant pair). 0 ⇒ no prior context.
     const maxTurns = this.settings.contextTurns ?? 15;
-    const trimmedPrior = maxTurns > 0 ? prior.slice(-maxTurns * 2) : [];
+    let trimmedPrior = maxTurns > 0 ? prior.slice(-maxTurns * 2) : [];
+    // MULTI-TURN COMPACTION: when prior history is large, summarize the older
+    // turns (keeping the most recent verbatim) so the local model's working
+    // context stays within budget across turns. No-op for cloud / small history.
+    trimmedPrior = await this.compactPriorHistory(trimmedPrior);
     const messages: ChatMessage[] = [
       ...trimmedPrior,
       { role: "user", content: query },
@@ -1029,12 +1261,13 @@ export class SauceBotRuntime {
 
       // No tool calls — terminal turn.
       if (pendingCalls.length === 0) {
+        const answerSoFar = assistantTextParts.join("");
         // Reasoning salvage: a reasoning model can exhaust its token budget in
         // `reasoning_content` and emit ZERO final text. Rather than return a
         // blank answer, inject the reasoning back into a short extraction pass
         // to recover the conclusion the model ran out of room to write.
         if (
-          assistantTextParts.join("").trim().length === 0 &&
+          answerSoFar.trim().length === 0 &&
           reasoningParts.length > 0 &&
           endReason !== "error"
         ) {
@@ -1043,6 +1276,30 @@ export class SauceBotRuntime {
             reasoningParts.join(""),
           );
           if (salvaged) yield { type: "text", delta: salvaged };
+        } else if (
+          // SELF-CORRECTION: a local model can stop with an empty or visibly
+          // truncated answer (no reasoning to salvage from). Do ONE
+          // compaction+retry — compact the working context and re-ask — before
+          // giving up. Distinct from the reasoning-extraction salvage above and
+          // bounded to a single extra call. Cloud / non-truncated answers skip.
+          this.localTuningOn() &&
+          (this.settings.localTuning?.emptyAnswerRetry ?? true) &&
+          endReason !== "error" &&
+          reasoningParts.length === 0 &&
+          this.looksTruncated(answerSoFar)
+        ) {
+          const retry = await this.selfCorrectAnswer(
+            query,
+            systemPlus,
+            messages,
+            answerSoFar,
+          );
+          // Emit only the remainder so we don't duplicate any text already
+          // streamed (the retry returns the FULL answer; diff off the prefix).
+          if (retry && retry.length > answerSoFar.length && retry.startsWith(answerSoFar))
+            yield { type: "text", delta: retry.slice(answerSoFar.length) };
+          else if (retry && retry !== answerSoFar && answerSoFar.trim().length === 0)
+            yield { type: "text", delta: retry };
         }
         yield {
           type: "done",
@@ -1082,11 +1339,61 @@ export class SauceBotRuntime {
       messages.push({ role: "assistant", content: assistantBlocks });
 
       for (const c of pendingCalls) {
-        const result = await this.toolUse.runTool(c.name, c.input, this.app);
+        let input = c.input;
+        // TOOL-CALL REPAIR: when the provider could not parse the model's args
+        // (`{_raw}` sentinel), do ONE bounded re-ask nudging the model to emit
+        // valid tool JSON rather than dispatching a broken call. On success we
+        // dispatch the repaired args; on failure we dispatch the original so
+        // the model still sees a (likely error) result and can adapt.
+        if (
+          this.localTuningOn() &&
+          (this.settings.localTuning?.toolRepairReask ?? true) &&
+          this.isRawToolInput(input)
+        ) {
+          const repaired = await this.repairToolCall(c.name, input._raw);
+          if (repaired) input = repaired;
+        }
+        const result = await this.toolUse.runTool(c.name, input, this.app);
         const content =
           typeof result === "string" ? result : JSON.stringify(result);
         messages.push({ role: "tool", toolCallId: c.id, content });
       }
+
+      // SELF-CONTEXT-FILTERING: before the next provider.complete, compact any
+      // oversized tool results down to facts relevant to the current query
+      // (reusing the gated Distiller). Keeps the working context tight so the
+      // local model isn't buried by a large tool payload. No-op for cloud.
+      await this.filterToolResults(query, messages);
     }
+  }
+
+  /**
+   * One-shot self-correction: re-ask the model for a COMPLETE answer when the
+   * first attempt came back empty or truncated. Compacts the working context
+   * (system prompt is already RAG-grounded) and runs a single bounded,
+   * non-streamed completion. Returns the full answer text, or null. Used only
+   * for local providers; bounded to one extra call.
+   */
+  private async selfCorrectAnswer(
+    query: string,
+    systemPlus: string,
+    messages: ChatMessage[],
+    partial: string,
+  ): Promise<string | null> {
+    const nudge =
+      partial.trim().length === 0
+        ? "Your previous reply was empty. Provide a complete, direct answer now."
+        : "Your previous reply was cut off. Provide the COMPLETE answer now, in full.";
+    const system = systemPlus + "\n\n## Important\n" + nudge;
+    // Reuse the existing prior turns but drop the trailing assistant fragment if
+    // any; ask plainly for the full answer.
+    const userParts = [query];
+    if (partial.trim()) userParts.push(`(Partial draft so far:\n${partial})`);
+    const out = await this.completeOnce(system, userParts.join("\n\n"), {
+      temperature: this.settings.temperature,
+      maxTokens: Math.max(this.settings.maxTokens, 1024),
+    });
+    void messages; // signature kept for future context-aware retries
+    return out;
   }
 }
