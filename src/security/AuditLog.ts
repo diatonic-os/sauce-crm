@@ -52,12 +52,21 @@ export interface AuditHost {
 
 export class AuditLog {
   private prevSig: string | null = null;
+  /** Resolves the acting agent id (AI provider:model, user, integration), so
+   *  every entry records WHO/WHAT made the change even when the caller omits it. */
+  private actor: (() => string | null) | null = null;
 
   constructor(
     private readonly store: IAuditStore,
     private readonly host: AuditHost,
     private readonly masterKey: () => Promise<Uint8Array>,
   ) {}
+
+  /** Install the actor resolver (called once the copilot/agent identity exists).
+   *  Used to auto-populate `agentId` on append when the caller passes null. */
+  setActor(fn: () => string | null): void {
+    this.actor = fn;
+  }
 
   private payload(r: Omit<AuditRow, "signature">): string {
     return [
@@ -77,21 +86,29 @@ export class AuditLog {
     if (this.prevSig === null) {
       this.prevSig = (await this.store.lastSignature()) ?? "";
     }
-    const msg = (this.prevSig ?? "") + this.payload(row);
+    // Auto-fill the fields the audit was missing: a real agent id (the acting
+    // AI agent / user / integration) and a timestamp. Filled BEFORE signing so
+    // the HMAC chain covers them and verify stays consistent.
+    const filled: Omit<AuditRow, "signature"> = {
+      ...row,
+      ts: row.ts || Date.now(),
+      agentId: row.agentId ?? this.actor?.() ?? null,
+    };
+    const msg = (this.prevSig ?? "") + this.payload(filled);
     const sig = await this.host.hmacHex(key, msg);
     await this.store.append({
-      ts: row.ts,
-      op: row.op,
-      entityId: row.entityId,
-      agentId: row.agentId,
-      integration: row.integration,
-      beforeHash: row.beforeHash,
-      afterHash: row.afterHash,
-      details: JSON.stringify(row.details ?? null),
+      ts: filled.ts,
+      op: filled.op,
+      entityId: filled.entityId,
+      agentId: filled.agentId,
+      integration: filled.integration,
+      beforeHash: filled.beforeHash,
+      afterHash: filled.afterHash,
+      details: JSON.stringify(filled.details ?? null),
       signature: sig,
     });
     this.prevSig = sig;
-    return { ...row, signature: sig };
+    return { ...filled, signature: sig };
   }
 
   async verifyChain(): Promise<{ ok: boolean; brokenAt: number | null }> {

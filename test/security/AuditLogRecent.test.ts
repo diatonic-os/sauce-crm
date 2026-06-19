@@ -58,3 +58,81 @@ describe("AuditLog.recent", () => {
     expect(await log.recent(5)).toEqual([]);
   });
 });
+
+describe("AuditLog.append — auto-filled agent id + timestamp", () => {
+  function capturingStore(): { store: IAuditStore; written: StoredAuditRow[] } {
+    const written: StoredAuditRow[] = [];
+    return {
+      written,
+      store: {
+        append: async (r) => {
+          written.push(r);
+        },
+        allAsc: async () => written,
+        lastSignature: async () => written.at(-1)?.signature ?? null,
+      },
+    };
+  }
+
+  it("auto-fills agentId from the actor when the caller passes null", async () => {
+    const { store, written } = capturingStore();
+    const log = new AuditLog(store, host, async () => new Uint8Array([1]));
+    log.setActor(() => "sauce-crm/lmstudio:qwen3.5-9b");
+    const out = await log.append({
+      ts: 100,
+      op: "skill",
+      entityId: "people/alice.md",
+      agentId: null,
+      integration: null,
+      beforeHash: null,
+      afterHash: null,
+      details: null,
+    });
+    expect(out.agentId).toBe("sauce-crm/lmstudio:qwen3.5-9b");
+    expect(written[0]!.agentId).toBe("sauce-crm/lmstudio:qwen3.5-9b");
+    expect(written[0]!.entityId).toBe("people/alice.md");
+  });
+
+  it("keeps an explicit agentId and defaults a missing timestamp", async () => {
+    const { store, written } = capturingStore();
+    const log = new AuditLog(store, host, async () => new Uint8Array([1]));
+    log.setActor(() => "auto");
+    const out = await log.append({
+      ts: 0, // missing → auto-filled to now
+      op: "write",
+      entityId: "x",
+      agentId: "explicit-agent",
+      integration: null,
+      beforeHash: null,
+      afterHash: null,
+      details: null,
+    });
+    expect(out.agentId).toBe("explicit-agent"); // explicit wins over actor
+    expect(written[0]!.ts).toBeGreaterThan(0);
+  });
+
+  it("the signature covers the auto-filled agentId (chain verifies)", async () => {
+    // Real HMAC so the chain is meaningful; agentId is part of the payload.
+    const realHost: AuditHost = {
+      hmacHex: async (_k, msg) => {
+        let h = 0;
+        for (let i = 0; i < msg.length; i++) h = (h * 31 + msg.charCodeAt(i)) >>> 0;
+        return h.toString(16);
+      },
+    };
+    const { store } = capturingStore();
+    const log = new AuditLog(store, realHost, async () => new Uint8Array([1]));
+    log.setActor(() => "sauce-crm/agent");
+    await log.append({
+      ts: 1,
+      op: "skill",
+      entityId: "e",
+      agentId: null,
+      integration: null,
+      beforeHash: null,
+      afterHash: null,
+      details: null,
+    });
+    expect((await log.verifyChain()).ok).toBe(true);
+  });
+});

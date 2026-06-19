@@ -1197,6 +1197,9 @@ export default class SauceGraphPlugin extends Plugin {
     // manual + scheduled skill runs are recorded and visible in the Audit Log
     // view (was a console-only stub).
     const auditLog = this.v2?.auditLog;
+    // Auto-populate every audit entry's agentId with the acting AI agent
+    // (provider:model) so the chain records WHO/WHAT made each change.
+    auditLog?.setActor(() => this.currentAgentId());
     if (this.skills && auditLog) {
       this.skills.setAuditSink(async (op, entityId, details) => {
         await auditLog.append({
@@ -2999,6 +3002,16 @@ export default class SauceGraphPlugin extends Plugin {
 
   isBrainReady(): boolean {
     return this.brainState === "ready";
+  }
+
+  /** Stable id for the acting agent, used to auto-stamp audit entries. Reflects
+   *  the active AI model so the audit shows which agent made a change. */
+  currentAgentId(): string {
+    const c = this.settings.copilot;
+    if (c?.provider && c?.model)
+      return `sauce-crm/${c.provider}:${c.model}`;
+    if (c?.provider) return `sauce-crm/${c.provider}`;
+    return "sauce-crm/user";
   }
 
   /** Push the brain (manifest + crystal digests) to the hosted SauceDB edge.
