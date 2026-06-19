@@ -156,6 +156,10 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
         }
         type Delta = {
           content?: string | null;
+          // Reasoning models (qwen3 / deepseek-r1 via LM Studio, etc.) stream
+          // their thinking here; some emit ONLY this until the final content.
+          reasoning_content?: string | null;
+          reasoning?: string | null;
           tool_calls?: Array<{
             index?: number;
             id?: string;
@@ -186,6 +190,8 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
             const choice = parsed.choices?.[0];
             if (!choice) continue;
             const d = choice.delta;
+            const reasoning = d?.reasoning_content ?? d?.reasoning;
+            if (reasoning) yield { type: "reasoning", delta: reasoning };
             if (d?.content) yield { type: "text", delta: d.content };
             if (d?.tool_calls) {
               for (const tc of d.tool_calls) {
@@ -231,13 +237,17 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
         };
         yield { type: "done", reason: mapFinish(finishReason) };
         return;
-      } catch (e) {
-        yield {
-          type: "done",
-          reason: "error",
-          error: e instanceof Error ? e.message : String(e),
-        };
-        return;
+      } catch {
+        // Streaming connection failed. The common cause inside Obsidian/Electron
+        // is CORS: native fetch() from the app://obsidian.md origin is blocked
+        // against a local http endpoint (LM Studio / Ollama), even though the
+        // server is up. Rather than error out, fall through to the batch path,
+        // which uses Obsidian's requestUrl — a CORS-bypassing net request. We
+        // lose token streaming but the request actually works. No partial text
+        // was emitted (the throw is connection-level), so there is no dup risk.
+        delete body.stream;
+        delete body.stream_options;
+        // fall through to batch ↓
       }
     }
 
@@ -255,6 +265,8 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
       choices: Array<{
         message: {
           content: string | null;
+          reasoning_content?: string | null;
+          reasoning?: string | null;
           tool_calls?: Array<{
             id: string;
             function: { name: string; arguments: string };
@@ -291,6 +303,9 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
       yield { type: "done", reason: "stop" };
       return;
     }
+    const batchReasoning =
+      choice.message.reasoning_content ?? choice.message.reasoning;
+    if (batchReasoning) yield { type: "reasoning", delta: batchReasoning };
     if (choice.message.content)
       yield { type: "text", delta: choice.message.content };
     for (const tc of choice.message.tool_calls ?? []) {

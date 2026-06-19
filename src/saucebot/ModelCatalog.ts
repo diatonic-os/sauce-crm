@@ -28,6 +28,17 @@ export interface CatalogModel {
   sizeBytes?: number;
   loaded?: boolean;
   family?: string;
+  /** LM Studio native /api/v0 metadata (the "model card"). */
+  kind?: "llm" | "vlm" | "embeddings" | "unknown";
+  contextTokens?: number;
+  quantization?: string;
+  publisher?: string;
+  arch?: string;
+  vision?: boolean;
+  /** Native capabilities array (e.g. ["tool_use"]). */
+  capabilities?: string[];
+  /** Convenience flag derived from capabilities — gates tool calls per model. */
+  toolUse?: boolean;
 }
 
 export interface CatalogContext {
@@ -121,12 +132,20 @@ export class ModelCatalog {
   private cache = new Map<string, CacheEntry>();
 
   constructor(
-    private readonly fetchImpl: (
-      url: string,
-      init?: RequestInit,
-    ) => Promise<Response> = (u, i) => fetch(u, i),
+    private fetchImpl: (url: string, init?: RequestInit) => Promise<Response> = (
+      u,
+      i,
+    ) => fetch(u, i),
     private readonly logger: Logger | null = null,
   ) {}
+
+  /** Swap the HTTP impl. The plugin installs a requestUrl-backed (CORS-bypassing)
+   *  fetch here, because native fetch() from app://obsidian.md is blocked against
+   *  local endpoints (LM Studio / Ollama) — which left the model list empty. */
+  setFetch(fn: (url: string, init?: RequestInit) => Promise<Response>): void {
+    this.fetchImpl = fn;
+    this.cache.clear();
+  }
 
   /** Bust cache for one provider+endpoint (or all when arg omitted). */
   invalidate(ctx?: CatalogContext): void {
@@ -175,17 +194,33 @@ export class ModelCatalog {
           throw new Error(`unhandled: ${String(_exhaustive)}`);
         }
       }
-      // Local/NIM providers return a flat list; narrow to embedding models when
-      // requested. Keep the full list if the heuristic finds none (better than
-      // showing nothing — the user can still pick).
+      // Local/NIM providers return a flat, untyped list mixing chat + embedding
+      // models. Narrow by the requested kind. In both directions, keep the full
+      // list if the heuristic would empty it (better a noisy list than none).
       if (
-        ctx.kind === "embedding" &&
-        (ctx.provider === "ollama" ||
-          ctx.provider === "lmstudio" ||
-          ctx.provider === "nim")
+        ctx.provider === "ollama" ||
+        ctx.provider === "lmstudio" ||
+        ctx.provider === "nim"
       ) {
-        const embeds = models.filter((m) => EMBED_RE.test(m.id));
-        if (embeds.length) models = embeds;
+        // Prefer the EXACT model-card kind (LM Studio /api/v0 `type`) over the
+        // name regex; fall back to the regex when kind is unknown/absent.
+        const byRegex = (m: CatalogModel): boolean =>
+          m.kind === undefined || m.kind === "unknown";
+        const isEmbed = (m: CatalogModel): boolean =>
+          m.kind === "embeddings" || (byRegex(m) && EMBED_RE.test(m.id));
+        const isChat = (m: CatalogModel): boolean =>
+          m.kind === "llm" ||
+          m.kind === "vlm" ||
+          (byRegex(m) && !EMBED_RE.test(m.id));
+        if (ctx.kind === "embedding") {
+          const embeds = models.filter(isEmbed);
+          if (embeds.length) models = embeds;
+        } else {
+          // chat (default): drop embedding-only models so the chat picker never
+          // offers something that 400s on /chat/completions.
+          const chat = models.filter(isChat);
+          if (chat.length) models = chat;
+        }
       }
       log?.event("model_catalog.miss", {
         provider: ctx.provider,
@@ -228,23 +263,80 @@ export class ModelCatalog {
   }
 
   private async fetchLmStudio(ctx: CatalogContext): Promise<CatalogModel[]> {
-    const url = modelsUrl(ctx.endpoint || "http://localhost:1234");
-    const r = await (ctx.fetch ?? this.fetchImpl)(url, {
-      ...(ctx.apiKey
-        ? { headers: { authorization: `Bearer ${ctx.apiKey}` } }
-        : {}),
-    });
+    const base = (ctx.endpoint || "http://localhost:1234")
+      .replace(/\/+$/, "")
+      .replace(/\/v1$/, "");
+    const headers = ctx.apiKey
+      ? { authorization: `Bearer ${ctx.apiKey}` }
+      : undefined;
+    const fetch = ctx.fetch ?? this.fetchImpl;
+
+    // Prefer LM Studio's NATIVE /api/v0/models — it carries the model card:
+    // type (llm/vlm/embeddings), arch, loaded state, max context, quantization,
+    // publisher. This is what makes the picker show real metadata + lets us
+    // classify embeddings exactly (by type) instead of guessing from the name.
+    try {
+      const r = await fetch(`${base}/api/v0/models`, headers ? { headers } : {});
+      if (r.ok) {
+        const body = (await r.json()) as {
+          data?: Array<{
+            id?: string;
+            type?: string;
+            arch?: string;
+            state?: string;
+            max_context_length?: number;
+            quantization?: string;
+            publisher?: string;
+            capabilities?: string[];
+          }>;
+        };
+        if (Array.isArray(body.data) && body.data.length > 0) {
+          return body.data.map((m) => {
+            const id = m.id ?? "unknown";
+            const kind =
+              m.type === "embeddings"
+                ? ("embeddings" as const)
+                : m.type === "vlm"
+                  ? ("vlm" as const)
+                  : m.type === "llm"
+                    ? ("llm" as const)
+                    : ("unknown" as const);
+            return {
+              id,
+              label: id,
+              kind,
+              loaded: m.state === "loaded",
+              vision: kind === "vlm",
+              ...(m.arch ? { arch: m.arch } : {}),
+              ...(m.max_context_length
+                ? { contextTokens: m.max_context_length }
+                : {}),
+              ...(m.quantization ? { quantization: m.quantization } : {}),
+              ...(m.publisher ? { publisher: m.publisher } : {}),
+              ...(Array.isArray(m.capabilities)
+                ? {
+                    capabilities: m.capabilities,
+                    toolUse: m.capabilities.includes("tool_use"),
+                  }
+                : {}),
+              family: m.publisher ?? id.split("/")[0] ?? id,
+            };
+          });
+        }
+      }
+    } catch {
+      /* native API unavailable (older LM Studio) → OpenAI-compat fallback ↓ */
+    }
+
+    // Fallback: OpenAI-compatible /v1/models (ids only).
+    const r = await fetch(`${base}/v1/models`, headers ? { headers } : {});
     if (!r.ok) throw new Error(`lmstudio ${r.status}`);
     const body = (await r.json()) as {
       data?: Array<{ id?: string; object?: string }>;
     };
     return (body.data ?? []).map((m) => {
-      const family = m.id?.split("/")[0];
-      return {
-        id: m.id ?? "unknown",
-        label: m.id ?? "unknown",
-        ...(family !== undefined ? { family } : {}),
-      };
+      const id = m.id ?? "unknown";
+      return { id, label: id, family: id.split("/")[0] ?? id };
     });
   }
 
@@ -308,9 +400,41 @@ export class ModelCatalog {
   }
 }
 
+/** Compact context size, e.g. 32768 → "32k". */
+export function contextShort(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
+/** A rich, human dropdown label for a model card: a ● when loaded, plus context
+ *  size and quantization when known. Falls back to the bare id. */
+export function formatModelLabel(m: CatalogModel): string {
+  const meta: string[] = [];
+  if (m.contextTokens) meta.push(contextShort(m.contextTokens));
+  if (m.quantization) meta.push(m.quantization);
+  if (m.kind === "vlm") meta.push("vision");
+  if (m.toolUse && m.kind !== "embeddings") meta.push("tools");
+  const dot = m.loaded ? "● " : "";
+  return meta.length ? `${dot}${m.label}  ·  ${meta.join(" · ")}` : `${dot}${m.label}`;
+}
+
 /** Singleton accessor — most callers want one shared cache across the plugin. */
 let _shared: ModelCatalog | null = null;
+let _sharedFetch:
+  | ((url: string, init?: RequestInit) => Promise<Response>)
+  | null = null;
+
+/** Install the HTTP impl the shared catalog should use. The plugin calls this at
+ *  startup with a requestUrl-backed fetch so local-endpoint model lists (LM
+ *  Studio / Ollama) aren't blocked by CORS. Applies to the live singleton too. */
+export function setSharedCatalogFetch(
+  fn: (url: string, init?: RequestInit) => Promise<Response>,
+): void {
+  _sharedFetch = fn;
+  if (_shared) _shared.setFetch(fn);
+}
+
 export function sharedModelCatalog(logger?: Logger | null): ModelCatalog {
-  if (!_shared) _shared = new ModelCatalog(undefined, logger ?? null);
+  if (!_shared)
+    _shared = new ModelCatalog(_sharedFetch ?? undefined, logger ?? null);
   return _shared;
 }

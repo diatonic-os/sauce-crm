@@ -141,12 +141,14 @@ describe("ModelCatalog — OpenAI live wiring + endpoint normalization", () => {
     expect(models.some((m) => m.id === "gpt-4o")).toBe(true);
   });
 
-  it("does not produce /v1/v1/models when the endpoint already ends in /v1", async () => {
+  it("does not produce double paths when the endpoint already ends in /v1", async () => {
     const { impl, calls } = openAiFetch();
     const cat = new ModelCatalog(impl as unknown as typeof fetch);
     await cat.list({ provider: "lmstudio", endpoint: "http://localhost:1234/v1" });
-    expect(calls[0]).toBe("http://localhost:1234/v1/models");
-    expect(calls[0]).not.toContain("/v1/v1/");
+    // LM Studio now prefers the native /api/v0 endpoint; the trailing /v1 from
+    // the saved endpoint must be stripped (no /v1/api/v0, no /v1/v1).
+    expect(calls[0]).toBe("http://localhost:1234/api/v0/models");
+    expect(calls[0]).not.toContain("/v1/");
   });
 });
 

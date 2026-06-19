@@ -7,6 +7,7 @@ import {
   PROVIDER_REGISTRY,
   PROVIDER_IDS,
   buildProvider,
+  restoreSpecPath,
   type ProviderId,
 } from "../../src/saucebot/ProviderRegistry";
 import { OpenAICompatibleProvider } from "../../src/saucebot/OpenAICompatibleProvider";
@@ -135,5 +136,32 @@ describe("buildProvider — openai & lmstudio share the harness request shape", 
     await collect(lm.complete({ model: "m", messages: [{ role: "user", content: "x" }] }));
     expect(openaiHost.lastRequestTo("/chat/completions")!.headers.authorization).toBe("Bearer sk-live");
     expect(lmHost.lastRequestTo("/chat/completions")!.headers.authorization).toBeUndefined();
+  });
+});
+
+describe("restoreSpecPath — endpoint /v1 normalization", () => {
+  it("restores the spec path when an override drops it (LM Studio autodetect)", () => {
+    expect(restoreSpecPath("http://127.0.0.1:1234", "http://localhost:1234/v1")).toBe(
+      "http://127.0.0.1:1234/v1",
+    );
+  });
+  it("leaves an override that already has a path untouched", () => {
+    expect(restoreSpecPath("http://127.0.0.1:1234/v1", "http://localhost:1234/v1")).toBe(
+      "http://127.0.0.1:1234/v1",
+    );
+    expect(restoreSpecPath("http://proxy/custom/path", "http://localhost:1234/v1")).toBe(
+      "http://proxy/custom/path",
+    );
+  });
+  it("restores multi-segment spec paths (e.g. gemini's /v1beta/openai)", () => {
+    expect(restoreSpecPath("https://host", "https://x/v1beta/openai")).toBe(
+      "https://host/v1beta/openai",
+    );
+  });
+  it("builds the lmstudio provider with /v1 even from a path-less override", async () => {
+    const { ProviderHostMock } = await import("../_stubs/ProviderHostMock");
+    const host = new ProviderHostMock();
+    const p = buildProvider("lmstudio", host, { baseUrl: "http://127.0.0.1:1234" });
+    expect((p as OpenAICompatibleProvider).endpoint).toBe("http://127.0.0.1:1234/v1");
   });
 });
