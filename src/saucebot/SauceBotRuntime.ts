@@ -1203,6 +1203,101 @@ export class SauceBotRuntime {
     return parseBrainAnswer(text);
   }
 
+  /**
+   * Warm + VALIDATE an embedding model: ensure it loads in LM Studio and that it
+   * actually returns a vector. Drives the embed picker's loading→ready/failed
+   * indicator and gates selection — a model that doesn't load/respond is not
+   * committed. Independent of the RAG master switch (this is an explicit probe).
+   */
+  async warmEmbed(model: string): Promise<{
+    ok: boolean;
+    ms: number;
+    dims?: number;
+    error?: string;
+  }> {
+    const t0 = Date.now();
+    if (!model)
+      return { ok: false, ms: 0, error: "no embedding model selected" };
+    if (this.modelManager.isBlocked(model))
+      return {
+        ok: false,
+        ms: 0,
+        error: `${model} is blocked (a prior load failed)`,
+      };
+    // Pre-check: the model must actually be installed in the embed provider's
+    // catalog. (LM Studio silently embeds with the currently-loaded model for an
+    // UNKNOWN id, so "a vector came back" alone is not proof — guard with the
+    // catalog.)
+    const pre = await this.embedModelState(model);
+    if (!pre.known)
+      return {
+        ok: false,
+        ms: Date.now() - t0,
+        error: `${model} isn't installed in the embed provider`,
+      };
+    const ens = await this.ensureEmbedModelLoaded(model);
+    if (!ens.ok)
+      return {
+        ok: false,
+        ms: Date.now() - t0,
+        ...(ens.error !== undefined ? { error: ens.error } : {}),
+      };
+    const vec = await this.rawEmbed("warmup", model);
+    if (!vec) {
+      this.modelManager.recordFailure(model, "embeddings returned no vector");
+      return {
+        ok: false,
+        ms: Date.now() - t0,
+        error: "model did not return an embedding",
+      };
+    }
+    // Post-check: confirm THIS model is now reported loaded — catches the case
+    // where the provider answered with a different already-loaded embed model.
+    const post = await this.embedModelState(model);
+    if (post.known && !post.loaded) {
+      return {
+        ok: false,
+        ms: Date.now() - t0,
+        error: `${model} did not load (the provider used a different model)`,
+      };
+    }
+    this.modelManager.recordSuccess(model);
+    return { ok: true, ms: Date.now() - t0, dims: vec.length };
+  }
+
+  /** Fresh (cache-invalidated) catalog lookup for an embed model on the embed
+   *  provider — reports whether it's installed (known) and currently loaded.
+   *  Returns {known:true, loaded:true} for non-introspectable providers (cloud)
+   *  so validation never blocks where we can't verify. */
+  private async embedModelState(
+    model: string,
+  ): Promise<{ known: boolean; loaded: boolean }> {
+    const c = this.embedConfig;
+    const prov = c?.provider ?? this.settings.provider;
+    const endpoint = c?.endpoint ?? this.settings.baseUrl;
+    const catProvider =
+      prov === "lmstudio" || prov === "lmstudio-sdk"
+        ? "lmstudio"
+        : prov === "ollama"
+          ? "ollama"
+          : null;
+    if (!catProvider) return { known: true, loaded: true };
+    const ctx = {
+      provider: catProvider as "lmstudio" | "ollama",
+      // List the EMBEDDING catalog (default is chat, which excludes embed models).
+      kind: "embedding" as const,
+      ...(endpoint ? { endpoint } : {}),
+    };
+    try {
+      sharedModelCatalog().invalidate(ctx);
+      const models = await sharedModelCatalog().list(ctx);
+      const m = models.find((x) => x.id === model);
+      return { known: !!m, loaded: m?.loaded ?? false };
+    } catch {
+      return { known: true, loaded: true };
+    }
+  }
+
   provider(): ISauceBotProvider {
     // Guard against a corrupt/legacy provider value: an unknown id falls back
     // to the historical default (anthropic) rather than throwing inside the

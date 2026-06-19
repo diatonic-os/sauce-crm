@@ -558,11 +558,35 @@ export class SauceBotChatView extends ItemView {
     const model = this.embedSel.value;
     if (!model) return;
     const rag = this.plugin.settings.features.rag;
-    rag.providers[rag.provider].model = model;
-    await this.plugin.saveSettings();
-    (
-      this.plugin as unknown as { syncEmbeddingConfig?: () => void }
-    ).syncEmbeddingConfig?.();
+    const prev = rag.providers[rag.provider].model;
+    const el = this.modelStatusEl;
+    // Validate-before-select: an embed model is only committed once it has
+    // actually loaded in LM Studio AND returned a vector. Until then we show a
+    // live loading indicator; on failure we revert to the previous selection.
+    el?.removeClass("is-ok", "is-error");
+    el?.addClass("is-loading");
+    el?.setText(`warming embed ${model.split("/").pop()}…`);
+    const r = await this.plugin.copilot?.warmEmbed(model);
+    el?.removeClass("is-loading");
+    if (r?.ok) {
+      el?.addClass("is-ok");
+      el?.setText(
+        `embed ready · ${(Math.round((r.ms / 1000) * 10) / 10).toString()}s · ${r.dims}d`,
+      );
+      window.setTimeout(() => {
+        if (el?.hasClass("is-ok")) el.setText("");
+      }, 4000);
+      rag.providers[rag.provider].model = model;
+      await this.plugin.saveSettings();
+      (
+        this.plugin as unknown as { syncEmbeddingConfig?: () => void }
+      ).syncEmbeddingConfig?.();
+    } else {
+      el?.addClass("is-error");
+      el?.setText(`embed failed: ${(r?.error ?? "no response").slice(0, 70)}`);
+      // Revert the picker — do NOT commit a model that isn't warmed + responding.
+      this.embedSel.value = prev || "";
+    }
   }
 
   // ---------- Suggestions: Relevant Notes + Suggested Skills ----------
