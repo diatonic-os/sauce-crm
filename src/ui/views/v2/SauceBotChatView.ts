@@ -30,6 +30,12 @@ import {
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 import { SlashSuggest, type SlashItem } from "../../widgets/SlashSuggest";
 import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
+import {
+  newChatId,
+  newConversationId,
+  newMessageId,
+} from "../../../saucebot/Ids";
+import { buildTurnTrace, type TurnTrace } from "../../../saucebot/ChatTrace";
 import type { DocFormat } from "../../../services/DocumentHarvest";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 
@@ -97,6 +103,13 @@ export class SauceBotChatView extends ItemView {
   // Session persistence — a session is saved to _addenda/_copilot on New chat
   // and on view close, so the History popover can list/replay it.
   private sessionId = `s-${Date.now()}`;
+  // Stable trace ids: chatId per view load, conversationId per session.
+  private chatId = newChatId();
+  private conversationId = newConversationId();
+  private turns: TurnTrace[] = [];
+  private turnIndex = 0;
+  private sessionTokenIn = 0;
+  private sessionTokenOut = 0;
   private sessionCreatedTs = Date.now();
   private firstUserMsg = "";
 
@@ -585,6 +598,11 @@ export class SauceBotChatView extends ItemView {
     void this.persistCurrentSession();
     this.history = [];
     this.sessionId = `s-${Date.now()}`;
+    this.conversationId = newConversationId();
+    this.turns = [];
+    this.turnIndex = 0;
+    this.sessionTokenIn = 0;
+    this.sessionTokenOut = 0;
     this.sessionCreatedTs = Date.now();
     this.firstUserMsg = "";
     this.transcriptEl.empty();
@@ -601,14 +619,19 @@ export class SauceBotChatView extends ItemView {
     const s = this.plugin.copilot.getSettings();
     const session: SauceBotSession = {
       id: this.sessionId,
+      conversationId: this.conversationId,
+      chatId: this.chatId,
+      installId: this.plugin.settings.installId ?? "",
+      agentId: this.plugin.currentAgentId(),
       createdTs: this.sessionCreatedTs,
       updatedTs: Date.now(),
       model: s?.model ?? "",
       provider: s?.provider ?? "",
       skillSet: [],
       messages: this.history,
-      tokenIn: 0,
-      tokenOut: 0,
+      turns: this.turns,
+      tokenIn: this.sessionTokenIn,
+      tokenOut: this.sessionTokenOut,
     };
     try {
       await this.plugin.copilot.persistSession(session, this.firstUserMsg);
@@ -919,13 +942,19 @@ export class SauceBotChatView extends ItemView {
     this.appendMessage("user", q);
     const a = this.appendAssistantMessage();
     // Persist the user turn to history BEFORE streaming so it is never lost on
-    // an error or crash mid-response (the old code pushed only after the loop).
-    this.history.push({ role: "user", content: q });
+    // an error or crash mid-response. Stamp a stable message id + timestamp.
+    this.history.push({ role: "user", content: q, id: newMessageId(), ts: Date.now() });
 
     this.streamAbort = false;
     this.setStreaming(true);
     let text = "";
     let aborted = false;
+    // Per-turn trace accumulation (model usage + timing for replay).
+    const startedAt = Date.now();
+    let usageIn = 0;
+    let usageOut = 0;
+    let toolCalls = 0;
+    let doneReason = "end_turn";
     try {
       const activePath = this.plugin.app.workspace.getActiveFile()?.path;
       for await (const ev of copilot.ask(q, activePath, this.history.slice(0, -1), {
@@ -946,8 +975,14 @@ export class SauceBotChatView extends ItemView {
           // Stream plain text for responsiveness; markdown render on `done`.
           a.body.setText(text);
           this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
+        } else if (ev.type === "usage") {
+          usageIn += ev.inputTokens;
+          usageOut += ev.outputTokens;
+        } else if (ev.type === "tool_use") {
+          toolCalls += 1;
         } else if (ev.type === "done") {
           a.setStatus(null);
+          doneReason = ev.reason;
           if (ev.reason === "error") {
             a.setError(ev.error ?? "unknown error");
           } else if (text) {
@@ -978,7 +1013,37 @@ export class SauceBotChatView extends ItemView {
       }
       // Record the assistant turn even when it errored/stopped, so the
       // conversation history (and persisted session) reflect what happened.
-      this.history.push({ role: "assistant", content: text });
+      const responseTs = Date.now();
+      this.history.push({
+        role: "assistant",
+        content: text,
+        id: newMessageId(),
+        ts: responseTs,
+      });
+      // Stamp a full, replay-grade turn trace (ids at every layer + model usage
+      // + fingerprints). Best-effort; fingerprinting is async.
+      this.sessionTokenIn += usageIn;
+      this.sessionTokenOut += usageOut;
+      const s = this.plugin.copilot?.getSettings();
+      const ctx = {
+        conversationId: this.conversationId,
+        chatId: this.chatId,
+        installId: this.plugin.settings.installId ?? "",
+        agentId: this.plugin.currentAgentId(),
+        index: this.turnIndex++,
+      };
+      void buildTurnTrace(ctx, q, text, {
+        provider: s?.provider ?? "",
+        model: s?.model ?? "",
+        inputTokens: usageIn,
+        outputTokens: usageOut,
+        latencyMs: responseTs - startedAt,
+        reason: aborted ? "stopped" : doneReason,
+        toolCalls,
+      }).then((t) => {
+        this.turns.push(t);
+        void this.persistCurrentSession();
+      });
     }
   }
 

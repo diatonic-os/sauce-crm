@@ -173,6 +173,7 @@ import { MapViewReal, VIEW_MAP_REAL } from "./ui/views/v2/MapViewReal";
 import { BrainView, VIEW_BRAIN } from "./ui/views/v2/BrainView";
 import { BrainBuilder, type BrainFile } from "./saucebot/BrainBuilder";
 import { setSharedCatalogFetch } from "./saucebot/ModelCatalog";
+import { newInstallId, isId } from "./saucebot/Ids";
 import {
   SauceDbClient,
   canSyncSauceDb,
@@ -253,6 +254,10 @@ export interface SauceGraphSettings {
   /** Brain tier + SauceDB (hosted LanceDB edge) config. Free = local JSON
    *  brain; SauceDB = paid hosted edge sync. See src/saucebot/SauceDb.ts. */
   sauceDb?: SauceDbConfig;
+  /** Stable, non-repeatable install id (inst_…). Generated once, persisted, and
+   *  stamped onto every chat/audit trace so multi-user deployments are
+   *  distinguishable for enterprise audit/replay. */
+  installId?: string;
   /** Feature program toggles: RAG/embeddings, enrichment, prompts, documents.
    *  See src/settings/FeatureSettings.ts. */
   features: SauceFeatureSettings;
@@ -2868,6 +2873,12 @@ export default class SauceGraphPlugin extends Plugin {
         ...(loaded?.showAdvanced ?? {}),
       },
     };
+    // Mint a stable, non-repeatable install id ONCE and persist it, so every
+    // chat/audit trace can be attributed to this install in a multi-user estate.
+    if (!isId(this.settings.installId, "inst")) {
+      this.settings.installId = newInstallId();
+      await this.saveData(this.settings).catch(() => undefined);
+    }
   }
   async saveSettings(): Promise<void> {
     // SEC-01: never persist secrets to data.json. The cloud API key lives in

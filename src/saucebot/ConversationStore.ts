@@ -1,14 +1,22 @@
 // SPEC §19.5 — Sessions saved under _addenda/_copilot/YYYY-MM-DD-<slug>.md.
 import type { ChatMessage } from "./ISauceBotProvider";
+import type { TurnTrace } from "./ChatTrace";
 
 export interface SauceBotSession {
   id: string;
+  /** Stable trace ids — populated so an entire chat chain can be replayed. */
+  conversationId?: string;
+  chatId?: string;
+  installId?: string;
+  agentId?: string;
   createdTs: number;
   updatedTs: number;
   model: string;
   provider: string;
   skillSet: string[];
   messages: ChatMessage[];
+  /** Per-turn trace records (ids + model usage + fingerprints). */
+  turns?: TurnTrace[];
   tokenIn: number;
   tokenOut: number;
 }
@@ -59,11 +67,34 @@ export class ConversationStore {
       {
         type: "copilot-session",
         session_id: s.id,
+        // Replay-grade trace ids (every layer; never null in a live session).
+        conversation_id: s.conversationId ?? s.id,
+        chat_id: s.chatId ?? s.id,
+        install_id: s.installId ?? "",
+        agent_id: s.agentId ?? "",
         model: s.model,
         provider: s.provider,
         created: new Date(s.createdTs).toISOString(),
         updated: new Date(s.updatedTs).toISOString(),
         skills: s.skillSet,
+        // Full per-turn trace (ids, usage, fingerprints) for support/replay.
+        turns: (s.turns ?? []).map((t) => ({
+          turn_id: t.turnId,
+          response_id: t.responseId,
+          index: t.index,
+          ts: t.ts,
+          agent_id: t.agentId,
+          input_fp: t.inputFingerprint,
+          output_fp: t.outputFingerprint,
+          provider: t.usage.provider,
+          model: t.usage.model,
+          tokens_in: t.usage.inputTokens,
+          tokens_out: t.usage.outputTokens,
+          latency_ms: t.usage.latencyMs,
+          reason: t.usage.reason ?? "",
+          distilled: t.usage.distilled ?? false,
+          tool_calls: t.usage.toolCalls ?? 0,
+        })),
         tokens_in: s.tokenIn,
         tokens_out: s.tokenOut,
       },

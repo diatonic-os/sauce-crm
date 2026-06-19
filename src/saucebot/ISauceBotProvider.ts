@@ -23,6 +23,9 @@ export interface ChatMessage {
       }>;
   name?: string;
   toolCallId?: string;
+  /** Stable per-message id (msg_…) + creation time, for trace/replay. */
+  id?: string;
+  ts?: number;
 }
 
 export interface ToolDef {
