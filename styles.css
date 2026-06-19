@@ -1003,6 +1003,39 @@
   margin-bottom: var(--sg-gap-8);
   overflow-wrap: anywhere;
 }
+/* Assistant header row: role label + copy button (revealed on hover/content). */
+.sauce-copilot-msg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sg-gap-5);
+}
+.sauce-copilot-copy {
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+  height: 22px;
+  width: 22px;
+}
+.sauce-copilot-assistant:hover .sauce-copilot-copy { opacity: 0.7; }
+.sauce-copilot-copy:hover { opacity: 1 !important; }
+.sauce-copilot-copy.is-copied { color: var(--sauce-purple); opacity: 1 !important; }
+/* Realtime model-load indicator next to the model picker. */
+.sauce-cp-model-status {
+  font-size: 0.75em;
+  margin-left: var(--sg-gap-5);
+  white-space: nowrap;
+}
+.sauce-cp-model-status.is-loading {
+  color: var(--text-accent, var(--interactive-accent));
+}
+.sauce-cp-model-status.is-loading::before {
+  content: "◐ ";
+  display: inline-block;
+  animation: sauce-spin 0.9s linear infinite;
+}
+.sauce-cp-model-status.is-ok { color: var(--text-success, #3aa55d); }
+.sauce-cp-model-status.is-error { color: var(--text-error, #d33); }
+@keyframes sauce-spin { to { transform: rotate(360deg); } }
 .sauce-copilot-msg strong {
   display: block;
   font-size: 0.75em;

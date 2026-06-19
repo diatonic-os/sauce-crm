@@ -10,6 +10,7 @@ import LedgerDashboard from "../../svelte/LedgerDashboard.svelte";
 import type { TaskRow, InboxRow, LedgerRow } from "../../svelte/DashboardTypes";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
+import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_TASKS: ViewTypeId = asViewTypeId("sauce-crm-tasks-board");
 export const VIEW_INBOX: ViewTypeId = asViewTypeId("sauce-crm-inbox");
@@ -37,6 +38,7 @@ abstract class SvelteDashboardView extends ItemView {
 }
 
 export class TasksView extends SvelteDashboardView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_TASKS;
   }
@@ -49,6 +51,12 @@ export class TasksView extends SvelteDashboardView {
   override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(this.contentEl, {
+      title: "Tasks",
+      icon: "sauce-skill",
+      subtitle: "Track and complete CRM tasks",
+    });
     this.svelteApp = mount(TasksDashboard, {
       target: this.contentEl,
       props: {
@@ -98,6 +106,7 @@ export class TasksView extends SvelteDashboardView {
 }
 
 export class InboxView extends SvelteDashboardView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_INBOX;
   }
@@ -110,6 +119,12 @@ export class InboxView extends SvelteDashboardView {
   override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(this.contentEl, {
+      title: "Inbox",
+      icon: "sauce-ai-inbox",
+      subtitle: "Upcoming touches and follow-ups",
+    });
     this.svelteApp = mount(InboxDashboard, {
       target: this.contentEl,
       props: {
@@ -162,6 +177,7 @@ export class InboxView extends SvelteDashboardView {
 }
 
 export class LedgerView extends SvelteDashboardView {
+  private help!: SauceViewHelp;
   getViewType(): string {
     return VIEW_LEDGER;
   }
@@ -174,6 +190,12 @@ export class LedgerView extends SvelteDashboardView {
   override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("sauce-view");
+    this.help = new SauceViewHelp();
+    this.help.mountHeader(this.contentEl, {
+      title: "Ledger",
+      icon: "sauce-audit",
+      subtitle: "Money in and out by contact",
+    });
     this.svelteApp = mount(LedgerDashboard, {
       target: this.contentEl,
       props: {

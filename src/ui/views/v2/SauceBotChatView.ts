@@ -76,6 +76,7 @@ export class SauceBotChatView extends ItemView {
   private suggestionsEl!: HTMLDivElement;
   private providerSel!: HTMLSelectElement;
   private modelSel!: HTMLSelectElement;
+  private modelStatusEl: HTMLElement | null = null;
   private embedProviderSel!: HTMLSelectElement;
   private embedSel!: HTMLSelectElement;
   private micButton: HTMLButtonElement | null = null;
@@ -202,6 +203,10 @@ export class SauceBotChatView extends ItemView {
     this.modelSel.onchange = () => {
       void this.onModelChange();
     };
+    // Realtime model-load indicator (loading → ready/failed on switch).
+    this.modelStatusEl = this.modelSel.parentElement!.createSpan({
+      cls: "sauce-cp-model-status",
+    });
 
     // Embeddings provider (RAG) — decoupled from the chat provider so users
     // can embed locally (LM Studio / Ollama) while chatting against a cloud
@@ -352,6 +357,30 @@ export class SauceBotChatView extends ItemView {
     this.plugin.settings.copilot.model = model;
     await this.plugin.saveSettings();
     this.plugin.copilot?.updateSettings?.({ model });
+    // Realtime load indicator: local models JIT-load on first use, which can
+    // take seconds. Warm it up now and show loading → ready/failed.
+    void this.warmupActiveModel(model);
+  }
+
+  /** Show a small "loading → ready/failed" indicator while the model loads. */
+  private async warmupActiveModel(model: string): Promise<void> {
+    if (!this.modelStatusEl) return;
+    const el = this.modelStatusEl;
+    el.removeClass("is-ok", "is-error");
+    el.addClass("is-loading");
+    el.setText(`loading ${model.split("/").pop()}…`);
+    const r = await this.plugin.copilot?.warmup();
+    el.removeClass("is-loading");
+    if (r?.ok) {
+      el.addClass("is-ok");
+      el.setText(`ready · ${(Math.round((r.ms / 1000) * 10) / 10).toString()}s`);
+      window.setTimeout(() => {
+        if (el.hasClass("is-ok")) el.setText("");
+      }, 4000);
+    } else {
+      el.addClass("is-error");
+      el.setText(`failed: ${(r?.error ?? "unreachable").slice(0, 60)}`);
+    }
   }
   private async onEmbedProviderChange(): Promise<void> {
     const provider = this.embedProviderSel.value as EmbedProviderId;
@@ -923,6 +952,7 @@ export class SauceBotChatView extends ItemView {
             a.setError(ev.error ?? "unknown error");
           } else if (text) {
             await this.renderMarkdownInto(a.body, text);
+            a.setCopySource(text); // raw markdown is the most paste-friendly form
           } else if (a.hasReasoning()) {
             // The model spent its whole budget reasoning and emitted no final
             // content. Don't blank out — the reasoning is already visible
@@ -973,11 +1003,35 @@ export class SauceBotChatView extends ItemView {
     collapseReasoning: () => void;
     hasReasoning: () => boolean;
     setError: (msg: string) => void;
+    setCopySource: (text: string) => void;
   } {
     const wrap = this.transcriptEl.createDiv({
       cls: "sauce-copilot-msg sauce-copilot-assistant",
     });
-    wrap.createEl("strong", { text: "saucebot" });
+    // Header row: role label + a copy button for the whole answer block.
+    const head = wrap.createDiv({ cls: "sauce-copilot-msg-head" });
+    head.createEl("strong", { text: "saucebot" });
+    let copySource = "";
+    const copyBtn = head.createEl("button", {
+      cls: "sauce-copilot-copy clickable-icon",
+    });
+    setIcon(copyBtn, "copy");
+    copyBtn.setAttribute("aria-label", "Copy answer");
+    copyBtn.title = "Copy answer";
+    copyBtn.hide(); // shown once there is content to copy
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(copySource);
+        setIcon(copyBtn, "check");
+        copyBtn.addClass("is-copied");
+        window.setTimeout(() => {
+          setIcon(copyBtn, "copy");
+          copyBtn.removeClass("is-copied");
+        }, 1200);
+      } catch {
+        new Notice("Couldn't copy to clipboard.");
+      }
+    };
     const body = wrap.createDiv({ cls: "sauce-copilot-body" });
     let statusEl: HTMLDivElement | null = null;
     let reasoningEl: HTMLDetailsElement | null = null;
@@ -1028,6 +1082,11 @@ export class SauceBotChatView extends ItemView {
       setError: (msg) => {
         if (!errorEl) errorEl = wrap.createDiv({ cls: "sauce-copilot-error" });
         errorEl.setText(`⚠ ${msg}`);
+      },
+      setCopySource: (text) => {
+        copySource = text;
+        if (text.trim()) copyBtn.show();
+        else copyBtn.hide();
       },
     };
   }

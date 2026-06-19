@@ -656,6 +656,36 @@ export class SauceBotRuntime {
   }
 
   /**
+   * Warm up / JIT-load the active model with a 1-token request, surfacing
+   * whether the model loaded and how long it took. Drives the chat view's
+   * realtime "loading → ready/failed" indicator on model switch. Goes through
+   * completeResilient so an unreachable server is reported cleanly.
+   */
+  async warmup(): Promise<{ ok: boolean; ms: number; error?: string }> {
+    const t0 = Date.now();
+    let ok = false;
+    let error: string | undefined;
+    try {
+      for await (const ev of this.completeResilient(this.provider(), {
+        model: this.settings.model,
+        messages: [{ role: "user", content: "hi" }],
+        temperature: 0,
+        maxTokens: 1,
+        stream: false,
+      })) {
+        if (ev.type === "text" || ev.type === "reasoning") ok = true;
+        else if (ev.type === "done") {
+          if (ev.reason === "error") error = ev.error;
+          else ok = true;
+        }
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+    return error ? { ok: false, ms: Date.now() - t0, error } : { ok, ms: Date.now() - t0 };
+  }
+
+  /**
    * Reasoning salvage: when a turn produced only `reasoning_content` and no
    * final answer (the model spent its whole budget thinking), inject that
    * reasoning into a short extraction call and ask for ONLY the conclusion.
