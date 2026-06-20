@@ -177,7 +177,8 @@ import { ObsidianApprovalStore } from "./contract/ObsidianApprovalStore";
 import { ApprovalModalUI } from "./ui/modals/ApprovalModal";
 import { SkillRuntime } from "./skills/SkillRuntime";
 import { IntegrationRegistry } from "./integrations/IntegrationRegistry";
-import { MapViewReal, VIEW_MAP_REAL } from "./ui/views/v2/MapViewReal";
+import { VIEW_MAP_REAL } from "./ui/views/v2/MapViewReal";
+import { AtlasView, VIEW_ATLAS } from "./ui/atlas/AtlasView";
 import { BrainView, VIEW_BRAIN } from "./ui/views/v2/BrainView";
 import { BrainBuilder, type BrainFile } from "./saucebot/BrainBuilder";
 import { setSharedCatalogFetch } from "./saucebot/ModelCatalog";
@@ -231,7 +232,6 @@ import {
   VIEW_PARENT,
   DashboardView,
   PipelineKanbanView,
-  TypedEdgeGraphView,
   CompatibilityMatrixView,
   TouchHeatmapView,
   HierarchyTreeView,
@@ -1414,7 +1414,11 @@ export default class SauceGraphPlugin extends Plugin {
       VIEW_SYNC_STATUS_REAL,
       (l) => new SyncStatusViewReal(l, this),
     );
-    this.registerView(VIEW_MAP_REAL, (l) => new MapViewReal(l, this));
+    // Unified Sauce Atlas (geo globe + network) replaces the standalone Map and
+    // Typed-Edge Graph. The legacy view-types alias to it so saved workspace
+    // layouts and existing launcher/command references keep working.
+    this.registerView(VIEW_ATLAS, (l) => new AtlasView(l, this));
+    this.registerView(VIEW_MAP_REAL, (l) => new AtlasView(l, this));
     this.registerView(VIEW_BRAIN, (l) => new BrainView(l, this));
     // CON-SAUCEBOT S7 — register the FUNCTIONAL inbox/audit/run-log views in
     // place of the dormant "Real" placeholder stubs. The functional
@@ -1466,7 +1470,7 @@ export default class SauceGraphPlugin extends Plugin {
 
       m.addSeparator();
       sec("Analytics");
-      view("Typed-Edge Graph", "sauce-hierarchy", VIEW_GRAPH);
+      view("Sauce Atlas (geo + network)", "globe", VIEW_ATLAS);
       view("Pipeline Kanban", "columns-3", VIEW_PIPELINE);
       view("Compatibility Matrix", "sauce-compat", VIEW_COMPAT);
       view("Touch Heatmap", "sauce-heatmap", VIEW_HEATMAP);
@@ -1485,9 +1489,8 @@ export default class SauceGraphPlugin extends Plugin {
       view("Skill Run Log", "sauce-skill", VIEW_SKILL_RUN_LOG);
 
       m.addSeparator();
-      sec("Sync & Map");
+      sec("Sync");
       view("Sync Status", "sauce-sync", VIEW_SYNC_STATUS_REAL);
-      view("Map", "sauce-map", VIEW_MAP_REAL);
 
       m.addSeparator();
       m.addItem((i) =>
@@ -1800,7 +1803,7 @@ export default class SauceGraphPlugin extends Plugin {
   registerViews(): void {
     this.registerView(VIEW_DASHBOARD, (l) => new DashboardView(l, this));
     this.registerView(VIEW_PIPELINE, (l) => new PipelineKanbanView(l, this));
-    this.registerView(VIEW_GRAPH, (l) => new TypedEdgeGraphView(l, this));
+    this.registerView(VIEW_GRAPH, (l) => new AtlasView(l, this));
     this.registerView(VIEW_COMPAT, (l) => new CompatibilityMatrixView(l, this));
     this.registerView(VIEW_HEATMAP, (l) => new TouchHeatmapView(l, this));
     this.registerView(VIEW_HIERARCHY, (l) => new HierarchyTreeView(l, this));
