@@ -2300,24 +2300,9 @@ export default class SauceGraphPlugin extends Plugin {
     });
 
     // ─── V2 commands (§40) — operator-bindable surfaces ─────────────────
-    this.addCommand({
-      id: "sauce:open-sync-status",
-      name: "Open Sync Status",
-      callback: () => {
-        this.openView(VIEW_SYNC_STATUS_REAL).catch(
-          () => new Notice("Sync Status view not loaded"),
-        );
-      },
-    });
-    this.addCommand({
-      id: "sauce:open-audit-log",
-      name: "Open Audit Log",
-      callback: () => {
-        this.openView("sauce-audit-log").catch(
-          () => new Notice("Audit Log view not loaded"),
-        );
-      },
-    });
+    // (open-sync-status / open-audit-log / open-skill-run-log dups removed —
+    // the unprefixed ids above are the canonical ones, consistent with the
+    // other open-* commands; the manifest already namespaces to "sauce-crm:".)
     this.addCommand({
       id: "sauce:summarize-current",
       name: "Summarize Current Note",
@@ -2439,15 +2424,6 @@ export default class SauceGraphPlugin extends Plugin {
       name: "Weekly Briefing",
       callback: () => {
         this.runSkillOnActive("summarize-week");
-      },
-    });
-    this.addCommand({
-      id: "sauce:open-skill-runs",
-      name: "Open Skill Run Log",
-      callback: () => {
-        this.openView("sauce-skill-run-log").catch(
-          () => new Notice("Skill Run Log view not loaded"),
-        );
       },
     });
     this.addCommand({

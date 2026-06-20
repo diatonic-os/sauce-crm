@@ -1,4 +1,8 @@
-// SPEC §40 — V2 command catalogue. Host wires each `id` to its actual handler.
+// SPEC §40 — V2 command catalogue. The live commands are registered inline in
+// main.ts (registerCommands); this array is retained ONLY as a naming-regression
+// reference for rebrand.test.ts. The former registerV2Commands() registrar was
+// dead (never called — main.ts registers inline) and was removed (audit CMD-001)
+// so there is a single source of truth for command registration.
 export interface V2CommandDescriptor {
   id: string;
   name: string;
@@ -89,22 +93,3 @@ export const V2_COMMANDS: V2CommandDescriptor[] = [
   },
 ];
 
-export type V2CommandHandler = (id: string) => Promise<void> | void;
-
-export function registerV2Commands(opts: {
-  addCommand: (cmd: {
-    id: string;
-    name: string;
-    callback: () => void | Promise<void>;
-  }) => void;
-  handler: V2CommandHandler;
-}): void {
-  for (const c of V2_COMMANDS) {
-    // No default hotkeys — Obsidian plugin policy: users assign their own.
-    opts.addCommand({
-      id: c.id,
-      name: c.name,
-      callback: () => opts.handler(c.id),
-    });
-  }
-}
