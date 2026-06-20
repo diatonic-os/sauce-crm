@@ -347,7 +347,17 @@ export class MirrorSync {
     );
     const text = `${title}\n\n${mf.body}`.slice(0, EMBED_TEXT_CAP);
     const vec = await this.embedFn(text);
-    if (!vec || vec.length !== this.vectors.dim) return; // no model / dim mismatch
+    if (!vec) return; // no embed model reachable (reason logged upstream)
+    if (vec.length !== this.vectors.dim) {
+      // Do NOT silently drop: a dim mismatch (e.g. switching to a 1536-dim
+      // OpenAI model against a 768-dim index) would otherwise empty the whole
+      // vector store with zero signal and degrade RAG to lexical (BUG-003).
+      // eslint-disable-next-line no-restricted-syntax -- user-facing diagnostic, mirrors SauceBotRuntime.rawEmbed
+      console.warn(
+        `[saucebot] embedding skipped — dim mismatch: got ${vec.length}, index expects ${this.vectors.dim} (${mf.path}). Rebuild the vector index after changing embed models.`,
+      );
+      return;
+    }
     await this.vectors.store(
       mf.path,
       vec,

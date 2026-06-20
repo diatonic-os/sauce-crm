@@ -12,8 +12,32 @@ vi.mock("@/services/GraphAtlasService", () => {
     snapshot() {
       return {
         nodes: [
-          { id: "n1", label: "Alice", path: "people/Alice.md", kind: "person", degree: 5, x: 0, y: 0, radius: 10, score: 1, color: "#000", icon: "user" },
-          { id: "n2", label: "Bob",   path: "people/Bob.md",   kind: "person", degree: 3, x: 0, y: 0, radius: 10, score: 1, color: "#000", icon: "user" },
+          {
+            id: "n1",
+            label: "Alice",
+            path: "people/Alice.md",
+            kind: "person",
+            degree: 5,
+            x: 0,
+            y: 0,
+            radius: 10,
+            score: 1,
+            color: "#000",
+            icon: "user",
+          },
+          {
+            id: "n2",
+            label: "Bob",
+            path: "people/Bob.md",
+            kind: "person",
+            degree: 3,
+            x: 0,
+            y: 0,
+            radius: 10,
+            score: 1,
+            color: "#000",
+            icon: "user",
+          },
         ],
         edges: [],
         nodeById: new Map(),
@@ -23,7 +47,7 @@ vi.mock("@/services/GraphAtlasService", () => {
   return { GraphAtlasService };
 });
 
-import { CompatibilityMatrixView, TypedEdgeGraphView } from "@/ui/views/Views";
+import { CompatibilityMatrixView } from "@/ui/views/Views";
 import { App, WorkspaceLeaf } from "obsidian";
 
 /** Patch an HTMLElement with the Obsidian extension methods that jsdom lacks. */
@@ -34,10 +58,13 @@ function patchEl(el: HTMLElement): HTMLElement {
   (el as any).addClass = function (...cls: string[]) {
     this.classList.add(...cls);
   };
-  (el as any).createDiv = function (opts: { cls?: string; attr?: Record<string, string> } = {}) {
+  (el as any).createDiv = function (
+    opts: { cls?: string; attr?: Record<string, string> } = {},
+  ) {
     const d = document.createElement("div");
     if (opts.cls) d.className = opts.cls;
-    if (opts.attr) Object.entries(opts.attr).forEach(([k, v]) => d.setAttribute(k, v));
+    if (opts.attr)
+      Object.entries(opts.attr).forEach(([k, v]) => d.setAttribute(k, v));
     patchEl(d);
     this.appendChild(d);
     return d;
@@ -49,12 +76,17 @@ function patchEl(el: HTMLElement): HTMLElement {
     const e = document.createElement(tag) as HTMLElementTagNameMap[K];
     if (opts.cls) (e as HTMLElement).className = opts.cls;
     if (opts.text) e.textContent = opts.text;
-    if (opts.attr) Object.entries(opts.attr).forEach(([k, v]) => (e as HTMLElement).setAttribute(k, v));
+    if (opts.attr)
+      Object.entries(opts.attr).forEach(([k, v]) =>
+        (e as HTMLElement).setAttribute(k, v),
+      );
     patchEl(e as unknown as HTMLElement);
     this.appendChild(e);
     return e;
   };
-  (el as any).createSpan = function (opts: { cls?: string; text?: string } = {}) {
+  (el as any).createSpan = function (
+    opts: { cls?: string; text?: string } = {},
+  ) {
     const s = document.createElement("span");
     if (opts.cls) s.className = opts.cls;
     if (opts.text) s.textContent = opts.text;
@@ -84,11 +116,19 @@ function makeStubPlugin() {
       allPeople: () => [
         {
           file: { path: "people/Alice.md", basename: "Alice" },
-          frontmatter: { type: "warm-contact", roles: ["engineer"], industry: "tech" },
+          frontmatter: {
+            type: "warm-contact",
+            roles: ["engineer"],
+            industry: "tech",
+          },
         },
         {
           file: { path: "people/Bob.md", basename: "Bob" },
-          frontmatter: { type: "warm-contact", roles: ["engineer"], industry: "tech" },
+          frontmatter: {
+            type: "warm-contact",
+            roles: ["engineer"],
+            industry: "tech",
+          },
         },
       ],
     },
@@ -109,25 +149,8 @@ describe("CompatibilityMatrixView — mobile layout", () => {
 
     // On mobile: no NxN grid rendered, yes pair list.
     expect(view.contentEl.querySelector(".sauce-matrix")).toBeNull();
-    expect(view.contentEl.querySelector(".sauce-compat-pairlist")).not.toBeNull();
-  });
-});
-
-describe("TypedEdgeGraphView — mobile layout", () => {
-  it("renders top-nodes list + desktop notice; no interactive graph shell", async () => {
-    const stub = makeStubPlugin();
-    const view = new (TypedEdgeGraphView as any)(
-      new WorkspaceLeaf(),
-      stub,
-    );
-    patchEl(view.contentEl);
-
-    await view.onOpen();
-
-    // Mobile path: compat pair list (top nodes) and empty-state notice must exist.
-    expect(view.contentEl.querySelector(".sauce-compat-pairlist")).not.toBeNull();
-    expect(view.contentEl.querySelector(".sauce-empty-state")).not.toBeNull();
-    // Desktop-only interactive shell must NOT be rendered on mobile.
-    expect(view.contentEl.querySelector(".sauce-graph-shell")).toBeNull();
+    expect(
+      view.contentEl.querySelector(".sauce-compat-pairlist"),
+    ).not.toBeNull();
   });
 });

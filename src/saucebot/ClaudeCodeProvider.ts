@@ -297,10 +297,23 @@ export async function makeDefaultRunner(): Promise<Runner | null> {
         });
         let stdout = "";
         let stderr = "";
+        // Bound the CLI: a hung `claude` (auth prompt, stdin/network stall) must
+        // not leave the chat turn pending forever (BUG-005). Kill + reject after
+        // the timeout; clear it whichever way the child settles.
+        const timer = setTimeout(() => {
+          child.kill();
+          reject(new Error("claude CLI timed out after 60s"));
+        }, 60_000);
         child.stdout?.on("data", (d) => (stdout += String(d)));
         child.stderr?.on("data", (d) => (stderr += String(d)));
-        child.on("error", reject);
-        child.on("close", (code) => resolve({ stdout, stderr, code: code ?? 0 }));
+        child.on("error", (e) => {
+          clearTimeout(timer);
+          reject(e);
+        });
+        child.on("close", (code) => {
+          clearTimeout(timer);
+          resolve({ stdout, stderr, code: code ?? 0 });
+        });
         if (input) child.stdin?.end(input);
         else child.stdin?.end();
       });

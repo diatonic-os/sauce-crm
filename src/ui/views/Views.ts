@@ -371,12 +371,7 @@ export class DashboardView extends BaseView {
           } else {
             const absR = Math.abs(r);
             // Colour bucket: 0–0.3 low, 0.3–0.6 mid, 0.6–1 high
-            const bucket =
-              absR < 0.3
-                ? "low"
-                : absR < 0.6
-                  ? "mid"
-                  : "high";
+            const bucket = absR < 0.3 ? "low" : absR < 0.6 ? "mid" : "high";
             td.addClass(`sauce-matrix-cell--${bucket}`);
             if (r < 0) td.addClass("sauce-matrix-cell--neg");
             td.setText(r.toFixed(2));
@@ -730,274 +725,6 @@ export class PipelineKanbanView extends BaseView {
   override async onClose(): Promise<void> {}
 }
 
-export class TypedEdgeGraphView extends BaseView {
-  private help!: SauceViewHelp;
-  private shell: HTMLDivElement | null = null;
-  private edgeCanvas: HTMLCanvasElement | null = null;
-  private nodeLayer: HTMLDivElement | null = null;
-  private resizeObserver: ResizeObserver | null = null;
-  private highlightId: string | null = null;
-  private renderQueued = false;
-
-  getViewType(): string {
-    return VIEW_GRAPH;
-  }
-  getDisplayText(): string {
-    return "Sauce: Relationship Atlas";
-  }
-
-  override async onOpen(): Promise<void> {
-    const root = this.contentEl;
-    root.empty();
-    root.addClass("sauce-view");
-    root.addClass("sauce-graph-view");
-    this.help = new SauceViewHelp();
-    this.help.mountHeader(root, {
-      title: "Relationship Atlas",
-      icon: "network",
-      subtitle: "Live force graph of your relationships",
-    });
-
-    if (Platform.isMobile) {
-      this.renderTopNodes(root);
-      return;
-    }
-
-    root.createEl("h2", { text: "Relationship Atlas" });
-    root.createEl("p", {
-      cls: "sauce-view-desc",
-      text: "Weighted nodes, geo pull, relationship force, and icon cards that reflow live when metadata changes.",
-    });
-
-    this.shell = root.createDiv({ cls: "sauce-graph-shell" });
-    this.edgeCanvas = this.shell.createEl("canvas", {
-      cls: "sauce-graph-canvas",
-    }) as HTMLCanvasElement;
-    this.nodeLayer = this.shell.createDiv({ cls: "sauce-graph-node-layer" });
-
-    const legend = root.createDiv({ cls: "sauce-graph-legend" });
-    for (const [label, icon, tone] of [
-      ["People / Orgs", "sauce-person", "person"],
-      ["Interactions", "sauce-touch", "touch"],
-      ["Tasks / Ideas", "sauce-task", "task"],
-      ["Geo nodes", "sauce-map", "geo"],
-    ] as const) {
-      const chip = legend.createDiv({
-        cls: `sauce-graph-legend-chip sauce-graph-legend-chip--${tone}`,
-      });
-      const iconEl = chip.createSpan({ cls: "sauce-graph-legend-icon" });
-      setIcon(iconEl, icon);
-      chip.createSpan({ text: label });
-    }
-
-    this.resizeObserver = new ResizeObserver(() => this.scheduleRender());
-    if (this.shell) this.resizeObserver.observe(this.shell);
-    this.scheduleRender();
-  }
-
-  /** Mobile-only: list top-20 nodes by degree with a desktop notice. */
-  private renderTopNodes(root: HTMLElement): void {
-    const atlas = new GraphAtlasService(
-      this.plugin.app,
-      this.plugin.entityService,
-    );
-    const snapshot = atlas.snapshot({ width: 360, height: 640 });
-    const top = snapshot.nodes
-      .slice()
-      .sort((a, b) => b.degree - a.degree)
-      .slice(0, 20);
-
-    const list = root.createDiv({ cls: "sauce-compat-pairlist" });
-    for (const node of top) {
-      const row = list.createDiv({ cls: "sauce-attention-row sauce-attention-row--clickable" });
-      const body = row.createDiv({ cls: "sauce-attention-body" });
-      body.createDiv({ cls: "sauce-attention-title", text: node.label });
-      body.createDiv({
-        cls: "sauce-attention-rationale",
-        text: `${node.kind} · ${node.degree} connection${node.degree !== 1 ? "s" : ""}`,
-      });
-      row.onclick = () => {
-        void this.app.workspace.openLinkText(node.path, "", false);
-      };
-    }
-
-    const notice = root.createDiv({ cls: "sauce-empty-state" });
-    notice.createDiv({
-      cls: "sauce-empty-state-title",
-      text: "Interactive graph available on desktop",
-    });
-    notice.createDiv({
-      cls: "sauce-empty-state-body",
-      text: "Open Sauce in Obsidian desktop to explore the live force graph with full interaction.",
-    });
-  }
-
-  override async onClose(): Promise<void> {
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
-    this.highlightId = null;
-    this.renderQueued = false;
-    this.shell = null;
-    this.edgeCanvas = null;
-    this.nodeLayer = null;
-  }
-
-  private scheduleRender(): void {
-    if (this.renderQueued) return;
-    this.renderQueued = true;
-    window.requestAnimationFrame(() => {
-      this.renderQueued = false;
-      void this.renderGraph();
-    });
-  }
-
-  private async renderGraph(): Promise<void> {
-    if (!this.edgeCanvas || !this.nodeLayer || !this.shell) return;
-    const atlas = new GraphAtlasService(
-      this.plugin.app,
-      this.plugin.entityService,
-    );
-    const width = Math.max(960, this.shell.clientWidth || 0);
-    const height = Math.max(680, this.shell.clientHeight || 0);
-    const snapshot = atlas.snapshot({
-      width,
-      height,
-      focusId: this.highlightId,
-    });
-    const canvas = this.edgeCanvas;
-    canvas.width = Math.max(800, Math.floor(width));
-    canvas.height = Math.max(600, Math.floor(height));
-    const ctx = canvas.getContext("2d");
-    if (ctx)
-      this.drawEdges(
-        ctx,
-        canvas.width,
-        canvas.height,
-        snapshot.nodes,
-        snapshot.edges,
-      );
-    this.drawNodes(snapshot.nodes, snapshot.edges);
-  }
-
-  private drawEdges(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    nodes: GraphNode[],
-    edges: GraphEdge[],
-  ): void {
-    ctx.clearRect(0, 0, width, height);
-    ctx.save();
-    ctx.lineCap = "round";
-    const nodeById = new Map(nodes.map((n) => [n.id, n]));
-    const focus = this.highlightId
-      ? (nodeById.get(this.highlightId) ?? null)
-      : null;
-    for (const edge of edges) {
-      const source = nodeById.get(edge.source);
-      const target = nodeById.get(edge.target);
-      if (!source || !target) continue;
-      const connected =
-        !focus || source.id === focus.id || target.id === focus.id;
-      const alpha = connected ? 0.72 : 0.14;
-      ctx.beginPath();
-      ctx.moveTo(source.x, source.y);
-      const midX = (source.x + target.x) / 2;
-      const midY = (source.y + target.y) / 2;
-      const bend = clamp(edge.weight * 8, 8, 28);
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      const nx = -dy / dist;
-      const ny = dx / dist;
-      ctx.quadraticCurveTo(
-        midX + nx * bend,
-        midY + ny * bend,
-        target.x,
-        target.y,
-      );
-      ctx.strokeStyle = withAlpha(edge.color, alpha);
-      ctx.lineWidth = clamp(edge.weight, 0.8, 5.5);
-      ctx.stroke();
-
-      if (edge.directed) {
-        const px = target.x - (dx / dist) * (target.radius + 8);
-        const py = target.y - (dy / dist) * (target.radius + 8);
-        ctx.beginPath();
-        ctx.arc(px, py, 2.4, 0, Math.PI * 2);
-        ctx.fillStyle = withAlpha(edge.color, alpha);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-  }
-
-  private drawNodes(nodes: GraphNode[], edges: GraphEdge[]): void {
-    if (!this.nodeLayer) return;
-    this.nodeLayer.empty();
-    const edgeNeighbors = new Map<string, Set<string>>();
-    for (const edge of edges) {
-      if (!edgeNeighbors.has(edge.source))
-        edgeNeighbors.set(edge.source, new Set());
-      if (!edgeNeighbors.has(edge.target))
-        edgeNeighbors.set(edge.target, new Set());
-      edgeNeighbors.get(edge.source)!.add(edge.target);
-      edgeNeighbors.get(edge.target)!.add(edge.source);
-    }
-    const focusNeighbors = this.highlightId
-      ? new Set([
-          this.highlightId,
-          ...(edgeNeighbors.get(this.highlightId) ?? []),
-        ])
-      : null;
-    for (const node of nodes) {
-      const btn = this.nodeLayer.createEl("button", {
-        cls: `sauce-graph-node sauce-graph-node--${node.kind}`,
-        attr: { type: "button" },
-      });
-      btn.style.setProperty("--node-color", node.color);
-      btn.style.setProperty(
-        "--node-size",
-        `${clamp(node.radius * 4.1, 44, 130)}px`,
-      );
-      btn.style.setProperty("--node-x", `${node.x}px`);
-      btn.style.setProperty("--node-y", `${node.y}px`);
-      btn.style.setProperty("--node-z", `${Math.round(node.layer * 12)}px`);
-      btn.style.left = `${node.x}px`;
-      btn.style.top = `${node.y}px`;
-      btn.style.width = `${clamp(node.radius * 4.1, 44, 130)}px`;
-      btn.style.height = `${clamp(node.radius * 4.1, 44, 130)}px`;
-      btn.style.transform = `translate3d(-50%, -50%, ${Math.round(node.layer * 12)}px) scale(${focusNeighbors && !focusNeighbors.has(node.id) ? 0.92 : 1})`;
-      btn.style.opacity =
-        focusNeighbors && !focusNeighbors.has(node.id) ? "0.45" : "1";
-      btn.title = `${node.label} · ${node.kind} · degree ${node.degree} · score ${node.score.toFixed(1)}`;
-      if (focusNeighbors && focusNeighbors.has(node.id))
-        btn.dataset.focus = "true";
-      const icon = btn.createSpan({ cls: "sauce-graph-node-icon" });
-      setIcon(icon, node.icon);
-      const text = btn.createDiv({ cls: "sauce-graph-node-text" });
-      text.createDiv({ cls: "sauce-graph-node-label", text: node.label });
-      text.createDiv({
-        cls: "sauce-graph-node-meta",
-        text: `${node.kind} · ${node.degree} links · ${node.score.toFixed(1)}`,
-      });
-      btn.onmouseenter = () => {
-        this.highlightId = node.id;
-        this.scheduleRender();
-      };
-      btn.onmouseleave = () => {
-        this.highlightId = null;
-        this.scheduleRender();
-      };
-      btn.onclick = () => this.openNode(node);
-    }
-  }
-
-  private openNode(node: GraphNode): void {
-    this.openModalFor(node.file);
-  }
-}
-
 export class CompatibilityMatrixView extends BaseView {
   private help!: SauceViewHelp;
   getViewType(): string {
@@ -1036,15 +763,21 @@ export class CompatibilityMatrixView extends BaseView {
       const empty = list.createDiv({ cls: "sauce-empty-state" });
       empty.createDiv({
         cls: "sauce-empty-state-title",
-        text: fields.length === 0
-          ? "No compatibility fields configured"
-          : "Not enough people",
+        text:
+          fields.length === 0
+            ? "No compatibility fields configured"
+            : "Not enough people",
       });
       return;
     }
 
     // Compute all pairs, sort descending by density, take top 30.
-    const pairs: Array<{ a: Entity; b: Entity; density: number; shared: string[] }> = [];
+    const pairs: Array<{
+      a: Entity;
+      b: Entity;
+      density: number;
+      shared: string[];
+    }> = [];
     for (let i = 0; i < allPeople.length; i++) {
       for (let j = i + 1; j < allPeople.length; j++) {
         const a = allPeople[i] ?? null;
@@ -1058,7 +791,9 @@ export class CompatibilityMatrixView extends BaseView {
     const top = pairs.slice(0, 30);
 
     for (const { a, b, density, shared } of top) {
-      const row = list.createDiv({ cls: "sauce-attention-row sauce-attention-row--clickable" });
+      const row = list.createDiv({
+        cls: "sauce-attention-row sauce-attention-row--clickable",
+      });
       const pct = Math.round(density * 100);
       const body = row.createDiv({ cls: "sauce-attention-body" });
       body.createDiv({
@@ -1066,7 +801,10 @@ export class CompatibilityMatrixView extends BaseView {
         text: `${a.file.basename} ⇄ ${b.file.basename}`,
       });
       const sharedText = shared.length
-        ? shared.map((s) => s.replace(/^[^:]+:/, "")).slice(0, 6).join(", ")
+        ? shared
+            .map((s) => s.replace(/^[^:]+:/, ""))
+            .slice(0, 6)
+            .join(", ")
         : "no shared characteristics";
       body.createDiv({
         cls: "sauce-attention-rationale",

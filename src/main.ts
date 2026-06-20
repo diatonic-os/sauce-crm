@@ -3424,6 +3424,7 @@ export default class SauceGraphPlugin extends Plugin {
 
   private async flushBrainUpdates(): Promise<void> {
     this.brainFlushTimer = null;
+    if (this.unloaded) return; // PLC-04: do not write after teardown (BUG-004)
     const paths = [...this.brainDirty];
     this.brainDirty.clear();
     if (!paths.length) return;
@@ -4121,6 +4122,10 @@ export default class SauceGraphPlugin extends Plugin {
     this.mirrorSync?.close();
     if (this.viewRefreshTimer !== null)
       window.clearTimeout(this.viewRefreshTimer);
+    // A brain-flush timer armed within ~1.5s of unload must not fire and write
+    // the brain matrix after teardown (BUG-004).
+    if (this.brainFlushTimer !== null)
+      window.clearTimeout(this.brainFlushTimer);
     this.wiredSvc?.dispose();
     // PLC-03: await async teardown instead of dropping the promises on the floor.
     await this.bridgeService?.stop();
