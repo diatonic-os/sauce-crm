@@ -452,6 +452,55 @@ describe("PersonStat channel/outcome/degree fields (Task 2.4)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Task 2.5 — degree wiring via injected GraphAtlasService
+// ---------------------------------------------------------------------------
+
+describe("PersonStat degree (Task 2.5)", () => {
+  it("populates degree from an injected GraphAtlasService snapshot", async () => {
+    const app = new App();
+    const entities = new EntityService(app, DEFAULT_PATHS);
+
+    await makeEntity(app, "people/Diane.md", {
+      type: "warm-contact",
+      name: "Diane",
+      closeness: 4,
+      cadence: "monthly",
+    });
+
+    const analytics = new RelationshipAnalytics(app, entities);
+
+    // Inject a minimal mock GraphAtlasService that reports degree=7 for Diane.
+    analytics.graphAtlas = {
+      snapshot: () => ({
+        nodes: [{ path: "people/Diane.md", degree: 7 }],
+        edges: [],
+        nodeById: new Map(),
+      }),
+    } as unknown as import("../../src/services/GraphAtlasService").GraphAtlasService;
+
+    const stats = analytics.peopleStats(NOW);
+    const diane = stats.find((p) => p.path === "people/Diane.md")!;
+    expect(diane).toBeDefined();
+    expect(diane.degree).toBe(7);
+  });
+
+  it("defaults degree to 0 when no graphAtlas is set", async () => {
+    const app = new App();
+    const entities = new EntityService(app, DEFAULT_PATHS);
+    await makeEntity(app, "people/Eve.md", {
+      type: "warm-contact",
+      name: "Eve",
+      closeness: 3,
+      cadence: "quarterly",
+    });
+    const analytics = new RelationshipAnalytics(app, entities);
+    const stats = analytics.peopleStats(NOW);
+    const eve = stats.find((p) => p.path === "people/Eve.md")!;
+    expect(eve.degree).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Service-layer integration through the obsidian stub
 // ---------------------------------------------------------------------------
 

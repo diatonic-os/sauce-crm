@@ -17,8 +17,11 @@ import { Person } from "../domain/Person";
 import { Touch } from "../domain/Touch";
 import { PipelineDeal } from "../domain/PipelineDeal";
 import type { EntityService } from "./EntityService";
+import type { GraphAtlasService } from "./GraphAtlasService";
 import { basenameFromLink } from "../util/Wikilink";
 import { pearson } from "./stats/Statistics";
+import { buildCrossMatrix } from "./stats/CrossMatrixAnalytics";
+export type { CrossMatrixReport } from "./stats/CrossMatrixAnalytics";
 export { pearson } from "./stats/Statistics";
 
 // ---------------------------------------------------------------------------
@@ -359,6 +362,11 @@ export function buildReport(
 // ---------------------------------------------------------------------------
 
 export class RelationshipAnalytics {
+  /** Optional GraphAtlasService — when set, `peopleStats()` populates degree
+   *  from the atlas snapshot. If not set or if snapshot() throws, degree
+   *  defaults to 0 (never throws). */
+  graphAtlas?: GraphAtlasService;
+
   constructor(
     public app: App,
     public entities: EntityService,
@@ -398,20 +406,12 @@ export class RelationshipAnalytics {
       }
     }
 
-    // Degree: try to get from GraphAtlasService snapshot; default 0 if unavailable.
-    // We build the degree map lazily here to avoid throwing if the service errors.
+    // Degree: populate from the injected GraphAtlasService snapshot.
+    // Default to 0 if not injected or if snapshot() throws.
     let degreeByPath = new Map<string, number>();
     try {
-      // GraphAtlasService is not always injected — fall back gracefully.
-      const atlas = (
-        this as unknown as {
-          graphAtlas?: {
-            snapshot(): { nodes: Array<{ path: string; degree: number }> };
-          };
-        }
-      ).graphAtlas;
-      if (atlas) {
-        const snap = atlas.snapshot();
+      if (this.graphAtlas) {
+        const snap = this.graphAtlas.snapshot();
         for (const node of snap.nodes) {
           degreeByPath.set(node.path, node.degree);
         }
@@ -494,5 +494,39 @@ export class RelationshipAnalytics {
   /** Resolve a suggestion's target to a TFile for UI linking. */
   fileForSuggestion(s: Suggestion): TFile | null {
     return this.entities.getFile(s.targetPath);
+  }
+
+  /**
+   * Build the cross-matrix report for the current vault state.
+   *
+   * Builds `orgsByPerson` from Person frontmatter (company → org → basename
+   * fallback), then delegates to `buildCrossMatrix` from CrossMatrixAnalytics.
+   */
+  crossMatrix(nowIso: string): import("./stats/CrossMatrixAnalytics").CrossMatrixReport {
+    const people = this.peopleStats();
+    const deals = this.dealStats();
+
+    // Build person-path → org-name map from frontmatter.
+    const orgsByPerson = new Map<string, string>();
+    for (const ps of people) {
+      const file = this.entities.getFile(ps.path);
+      if (!file) {
+        orgsByPerson.set(ps.path, ps.name);
+        continue;
+      }
+      const fm =
+        this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+      const org =
+        (typeof fm["company"] === "string" && fm["company"].trim()
+          ? fm["company"]
+          : null) ??
+        (typeof fm["org"] === "string" && fm["org"].trim()
+          ? fm["org"]
+          : null) ??
+        file.basename;
+      orgsByPerson.set(ps.path, org);
+    }
+
+    return buildCrossMatrix(people, orgsByPerson, deals, nowIso);
   }
 }
