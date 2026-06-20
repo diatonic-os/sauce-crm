@@ -153,3 +153,32 @@ Renderer WebGL output itself is verified by a **live smoke test in Obsidian**
 WebGL rendering, globe projection, arc layers and tile loading require a live
 Obsidian smoke test (the pure logic and lifecycle are unit-tested + build-gated).
 This will be called out explicitly at hand-off rather than claimed as verified.
+
+### Live smoke-test checklist (run in Obsidian after `npm run build` deploys)
+
+Phase-1 is code-complete, typecheck/build/1860-test green, and maplibre bundles
+into `main.js`. NOT yet verified live. To verify:
+
+1. `npm run build` (auto-deploys to the vault plugin dirs in esbuild.config.mjs).
+2. In Obsidian: reload the plugin (or Hot Reload), open the **SauceOM** ribbon →
+   Analytics → **Sauce Atlas (geo + network)**.
+3. **Geo mode** should show the offline globe (dark sphere + graticule) with
+   geocoded people/orgs as circles and relationship arcs. Confirm: spin/zoom
+   works; clicking a node focuses (dims others); the relation chips + closeness
+   slider filter live; search flies to a node; the "N of M located" notice shows.
+4. **Network mode** (toggle): force layout settles (does not spin forever) and
+   shows all entities; click focuses; toggle back to Geo.
+5. **WebGL-context check (critical):** open and close the Atlas ~5× and toggle
+   Geo⇄Network ~10×; the console must NOT log "Too many active WebGL contexts"
+   and Obsidian must stay responsive (verifies `map.remove()` on dispose).
+6. **Blob-worker check:** confirm no CSP error like "Refused to create a worker
+   from blob:" in the console (maplibre's tile worker). If blocked, the fallback
+   is to set the basemap to an online style URL in settings (Phase 2 UI) or
+   investigate Obsidian's worker CSP.
+7. If anything fails, capture the console error — the renderer seams are isolated
+   (`GeoRenderer`/`NetworkRenderer`) so fixes are localized.
+
+Known Phase-1 limitations (by design): offline basemap is a graticule only (no
+landmass/streets until a local `.pmtiles` or online tiles are configured — the
+settings UI for that is Phase 2); arcs are great-circle surface curves (the 3D
+lifted-arc custom layer is Phase 2; height data is already computed).
