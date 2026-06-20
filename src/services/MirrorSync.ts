@@ -348,7 +348,12 @@ export class MirrorSync {
     const text = `${title}\n\n${mf.body}`.slice(0, EMBED_TEXT_CAP);
     const vec = await this.embedFn(text);
     if (!vec || vec.length !== this.vectors.dim) return; // no model / dim mismatch
-    await this.vectors.store(mf.path, vec, this.opts.modelIdFn?.() ?? "copilot", mf.bodyHash);
+    await this.vectors.store(
+      mf.path,
+      vec,
+      this.opts.modelIdFn?.() ?? "copilot",
+      mf.bodyHash,
+    );
     await this.provenance
       ?.record("embed", mf.path, "embedding", text, {
         ...(parentFp !== undefined && { parentFp }),

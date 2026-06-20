@@ -399,6 +399,111 @@ async function makeEntity(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Task 2.4 — channelCounts / outcomeCounts / degree on PersonStat
+// ---------------------------------------------------------------------------
+
+describe("PersonStat channel/outcome/degree fields (Task 2.4)", () => {
+  it("tallies channelCounts per channel and outcomeCounts per tag", async () => {
+    const app = new App();
+    const entities = new EntityService(app, DEFAULT_PATHS);
+
+    await makeEntity(app, "people/Carol.md", {
+      type: "warm-contact",
+      name: "Carol",
+      closeness: 3,
+      cadence: "quarterly",
+    });
+    // Two call touches + one email touch on Carol
+    await makeEntity(app, "touches/t-c1.md", {
+      type: "touch",
+      contact: "[[Carol]]",
+      date: "2026-05-01",
+      channel: "call",
+      outcome_tags: ["intro", "followup"],
+    });
+    await makeEntity(app, "touches/t-c2.md", {
+      type: "touch",
+      contact: "[[Carol]]",
+      date: "2026-05-15",
+      channel: "call",
+      outcome_tags: ["followup"],
+    });
+    await makeEntity(app, "touches/t-c3.md", {
+      type: "touch",
+      contact: "[[Carol]]",
+      date: "2026-06-01",
+      channel: "email",
+      outcome_tags: [],
+    });
+
+    const analytics = new RelationshipAnalytics(app, entities);
+    const stats = analytics.peopleStats(NOW);
+    const carol = stats.find((p) => p.path === "people/Carol.md")!;
+
+    expect(carol.touchCount).toBe(3);
+    expect(carol.channelCounts["call"]).toBe(2);
+    expect(carol.channelCounts["email"]).toBe(1);
+    expect(carol.outcomeCounts["followup"]).toBe(2);
+    expect(carol.outcomeCounts["intro"]).toBe(1);
+    // degree defaults to 0 when GraphAtlasService is not injected
+    expect(carol.degree).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 2.5 — degree wiring via injected GraphAtlasService
+// ---------------------------------------------------------------------------
+
+describe("PersonStat degree (Task 2.5)", () => {
+  it("populates degree from an injected GraphAtlasService snapshot", async () => {
+    const app = new App();
+    const entities = new EntityService(app, DEFAULT_PATHS);
+
+    await makeEntity(app, "people/Diane.md", {
+      type: "warm-contact",
+      name: "Diane",
+      closeness: 4,
+      cadence: "monthly",
+    });
+
+    const analytics = new RelationshipAnalytics(app, entities);
+
+    // Inject a minimal mock GraphAtlasService that reports degree=7 for Diane.
+    analytics.graphAtlas = {
+      snapshot: () => ({
+        nodes: [{ path: "people/Diane.md", degree: 7 }],
+        edges: [],
+        nodeById: new Map(),
+      }),
+    } as unknown as import("../../src/services/GraphAtlasService").GraphAtlasService;
+
+    const stats = analytics.peopleStats(NOW);
+    const diane = stats.find((p) => p.path === "people/Diane.md")!;
+    expect(diane).toBeDefined();
+    expect(diane.degree).toBe(7);
+  });
+
+  it("defaults degree to 0 when no graphAtlas is set", async () => {
+    const app = new App();
+    const entities = new EntityService(app, DEFAULT_PATHS);
+    await makeEntity(app, "people/Eve.md", {
+      type: "warm-contact",
+      name: "Eve",
+      closeness: 3,
+      cadence: "quarterly",
+    });
+    const analytics = new RelationshipAnalytics(app, entities);
+    const stats = analytics.peopleStats(NOW);
+    const eve = stats.find((p) => p.path === "people/Eve.md")!;
+    expect(eve.degree).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Service-layer integration through the obsidian stub
+// ---------------------------------------------------------------------------
+
 describe("RelationshipAnalytics service (wired to EntityService)", () => {
   it("normalizes people/touches/deals and produces a real report", async () => {
     const app = new App();

@@ -1430,6 +1430,33 @@
   .sauce-view, .sauce-copilot { padding: var(--sg-gap-5); }
 }
 
+/* ===== Mobile table, calendar, and analytics overrides (≤600px) ===== */
+@media (max-width: 600px) {
+  /* Index table + sync-jobs: contain horizontal scroll within the wrapper. */
+  .sauce-table-wrap { overflow-x: auto; }
+  .sauce-index-table :is(th, td),
+  .sauce-sync-jobs th,
+  .sauce-sync-jobs td { padding: var(--sg-gap-3) var(--sg-gap-5); font-size: 0.82em; }
+  /* Matrix + heatmap: keep their natural width but make the wrapper the
+     scroll boundary so the PAGE never scrolls; add an inertia scroll. */
+  .sauce-matrix-wrap, .sauce-heatmap-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .sauce-heatmap-months { min-width: 0; }          /* was 610px — let it ride the scroll wrapper */
+  /* Kanban: stack lanes vertically instead of a horizontal rail. */
+  .sauce-kanban { grid-template-columns: 1fr !important; }
+  /* Dashboard: force single-column KPIs + columns below the auto-fit floor. */
+  .sauce-view-kpis { grid-template-columns: repeat(2, 1fr) !important; }
+  .sauce-dashboard-columns { grid-template-columns: 1fr !important; }
+  /* Modal: tighter than 38rem on a phone. */
+  :root { --sg-modal-w: min(94vw, 38rem); }
+}
+@media (max-width: 380px) {
+  .sauce-view-kpis { grid-template-columns: 1fr !important; }
+}
+
 /* ---------- RTL ---------- */
 
 [dir="rtl"] .sauce-copilot-assistant .sauce-copilot-body {
@@ -2136,3 +2163,262 @@ select.sauce-input {
   font-size: var(--font-ui-smaller); color: var(--text-muted);
   border-top: 1px solid var(--background-modifier-border);
 }
+/* ===== Mobile compat pair list (.sauce-compat-pairlist) ===== */
+/* Flex column of .sauce-attention-row items; reuses the attention-row
+   design tokens for visual consistency with the dashboard attention panel. */
+.sauce-compat-pairlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-gap-5);
+  padding: var(--sg-gap-8);
+}
+
+/* ===== Phase 2.5 — Dashboard cross-matrix section ===== */
+/* ── Cross-matrix section ─────────────────────────────────── */
+.sauce-cross-matrix {
+  margin-top: var(--sauce-gap, 12px);
+}
+.sauce-cross-matrix summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.sauce-cross-matrix summary::-webkit-details-marker { display: none; }
+.sauce-cross-matrix-title {
+  display: inline;
+  margin: 0;
+}
+
+/* Matrix table */
+.sauce-matrix-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 8px;
+}
+.sauce-matrix-table {
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  min-width: min-content;
+}
+.sauce-matrix-header,
+.sauce-matrix-row-header {
+  padding: 4px 8px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: left;
+}
+.sauce-matrix-cell {
+  padding: 4px 8px;
+  text-align: center;
+  border: 1px solid var(--background-modifier-border);
+  min-width: 44px; /* mobile tap target width */
+}
+.sauce-matrix-cell--diag {
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+}
+.sauce-matrix-cell--low {
+  background: color-mix(in srgb, var(--color-blue) 10%, transparent);
+}
+.sauce-matrix-cell--mid {
+  background: color-mix(in srgb, var(--color-blue) 30%, transparent);
+  font-weight: 500;
+}
+.sauce-matrix-cell--high {
+  background: color-mix(in srgb, var(--color-blue) 55%, transparent);
+  font-weight: 700;
+}
+.sauce-matrix-cell--neg.sauce-matrix-cell--low {
+  background: color-mix(in srgb, var(--color-red) 10%, transparent);
+}
+.sauce-matrix-cell--neg.sauce-matrix-cell--mid {
+  background: color-mix(in srgb, var(--color-red) 30%, transparent);
+}
+.sauce-matrix-cell--neg.sauce-matrix-cell--high {
+  background: color-mix(in srgb, var(--color-red) 55%, transparent);
+}
+
+/* Top-pair sentences */
+.sauce-matrix-pairs {
+  margin-top: 10px;
+}
+.sauce-matrix-pairs h4 {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sauce-matrix-pair-sentence {
+  margin: 2px 0;
+  font-size: 0.82rem;
+  color: var(--text-normal);
+}
+
+/* Outliers */
+.sauce-matrix-outliers {
+  margin-top: 10px;
+}
+.sauce-matrix-outliers h4 {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* ===== Phase 3 — Eisenhower matrix view ===== */
+
+.sauce-eis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--size-4-4);
+  padding: var(--size-4-2);
+}
+@media (max-width: 600px) {
+  .sauce-eis-grid { grid-template-columns: 1fr; }
+}
+
+.sauce-eis-quadrant {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-2);
+  padding: var(--size-4-2);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  border-top: 3px solid transparent;
+  min-height: 120px;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+
+.sauce-eis-q1 { border-top-color: var(--color-red); }
+.sauce-eis-q2 { border-top-color: var(--color-blue); }
+.sauce-eis-q3 { border-top-color: var(--color-orange); }
+.sauce-eis-q4 { border-top-color: var(--text-faint); }
+
+.sauce-eis-quadrant-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--size-2-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.sauce-eis-quadrant-title {
+  margin: 0;
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+}
+.sauce-eis-quadrant-sub {
+  margin: 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.sauce-eis-count {
+  margin-inline-start: auto;
+}
+
+.sauce-eis-task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+}
+.sauce-eis-task-row {
+  padding: var(--size-2-1) var(--size-2-2);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sauce-eis-task-row:hover { background: var(--background-modifier-hover); }
+
+.sauce-eis-task-title {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: start;
+  cursor: pointer;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  min-height: 44px; /* Apple HIG tap target */
+  display: flex;
+  align-items: center;
+}
+.sauce-eis-task-title:hover { color: var(--interactive-accent); text-decoration: underline; }
+.sauce-eis-task-title:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
+.sauce-eis-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-1);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.sauce-eis-due { color: var(--text-muted); }
+.sauce-eis-contact::before { content: "@"; opacity: 0.6; }
+
+.sauce-eis-empty {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+  padding: var(--size-4-2);
+}
+
+/* Quadrant pill in TasksDashboard (sortBy:quadrant) */
+.sauce-eis-pill {
+  font-size: var(--font-ui-smaller);
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: var(--font-semibold);
+}
+.sauce-eis-pill-do      { color: var(--color-red);    border: 1px solid var(--color-red); }
+.sauce-eis-pill-schedule { color: var(--color-blue);   border: 1px solid var(--color-blue); }
+.sauce-eis-pill-delegate { color: var(--color-orange); border: 1px solid var(--color-orange); }
+.sauce-eis-pill-eliminate { color: var(--text-muted);  border: 1px solid var(--text-muted); }
+
+.sauce-eis-prio-urgent { color: var(--color-red); }
+.sauce-eis-prio-high   { color: var(--color-orange); }
+.sauce-eis-prio-medium { color: var(--color-yellow); }
+.sauce-eis-prio-low    { color: var(--color-green); }
+
+/* ===== Phase 4 — calendar reschedule + quadrant overlay ===== */
+
+/* Quadrant color toggle button — same chrome as nav/mode buttons */
+.sauce-cal-color-toggle {
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: var(--size-2-1) var(--size-4-2);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  font-size: var(--font-ui-smaller);
+  text-transform: capitalize;
+}
+.sauce-cal-color-toggle:hover { background: var(--interactive-hover); }
+.sauce-cal-color-toggle:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* DnD affordance cursors */
+.sauce-cal-dot[draggable="true"] { cursor: grab; }
+.sauce-cal-chip[draggable="true"] { cursor: grab; }

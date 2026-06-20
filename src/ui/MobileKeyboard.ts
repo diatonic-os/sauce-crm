@@ -51,7 +51,11 @@ export function installMobileKeyboard(
   if (!vv) return { dispose: () => {} };
 
   const apply = (): void => {
-    const inset = computeKeyboardInset(vv.height, win.innerHeight, vv.offsetTop);
+    const inset = computeKeyboardInset(
+      vv.height,
+      win.innerHeight,
+      vv.offsetTop,
+    );
     doc.body.style.setProperty("--sg-kb-inset", `${inset}px`);
     const open = inset > OPEN_THRESHOLD;
     doc.body.classList.toggle("sg-kb-open", open);

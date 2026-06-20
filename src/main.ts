@@ -210,6 +210,7 @@ import {
   VIEW_TASKS,
   VIEW_INBOX,
 } from "./ui/views/v2/DashboardViews";
+import { EisenhowerView, VIEW_EISENHOWER } from "./ui/views/v2/EisenhowerView";
 import {
   MeetingsView,
   LanesView,
@@ -1430,6 +1431,7 @@ export default class SauceGraphPlugin extends Plugin {
     this.registerView(VIEW_CALENDAR, (l) => new CalendarView(l, this));
     this.registerView(VIEW_TASKS, (l) => new TasksView(l, this));
     this.registerView(VIEW_INBOX, (l) => new InboxView(l, this));
+    this.registerView(VIEW_EISENHOWER, (l) => new EisenhowerView(l, this));
 
     boot.mark("registry+bridge");
     this.registerViews();
@@ -1464,6 +1466,7 @@ export default class SauceGraphPlugin extends Plugin {
       view("Tasks Board", "sauce-task", VIEW_TASKS);
       view("Inbox", "sauce-ai-inbox", VIEW_INBOX);
       view("Calendar", "sauce-touch", VIEW_CALENDAR);
+      view("Eisenhower Matrix", "layout-dashboard", VIEW_EISENHOWER);
       view("Meetings", "sauce-touch", VIEW_MEETINGS);
       view("Lanes", "columns-3", VIEW_LANES);
       view("Weekly Briefings", "calendar-days", VIEW_WEEKLY);
@@ -2163,6 +2166,11 @@ export default class SauceGraphPlugin extends Plugin {
       callback: () => this.openView(VIEW_INBOX),
     });
     this.addCommand({
+      id: "open-eisenhower",
+      name: "Open Eisenhower Matrix",
+      callback: () => this.openView(VIEW_EISENHOWER),
+    });
+    this.addCommand({
       id: "onboarding",
       name: "Onboarding Wizard",
       callback: () => new OnboardingWizardModal(this.app, this).open(),
@@ -2535,6 +2543,71 @@ export default class SauceGraphPlugin extends Plugin {
       id: "show-boot-timing",
       name: "Show boot timing",
       callback: () => this.showBootTiming(),
+    });
+    this.addCommand({
+      id: "tasks-bridge-import",
+      name: "Tasks Bridge — Import Tasks-plugin → Sauce",
+      callback: () => {
+        if (!(this.app as any).plugins?.plugins?.['obsidian-tasks-plugin']) {
+          new Notice("Obsidian Tasks plugin not installed/enabled.");
+          return;
+        }
+        void this.tasks.listTasks().then((refs) => {
+          new Notice(
+            `Found ${refs.length} Tasks-plugin task(s). (Full import/reconcile coming soon.)`,
+          );
+        }).catch((e: unknown) =>
+          new Notice(`Tasks Bridge error: ${String(e)}`),
+        );
+      },
+    });
+    this.addCommand({
+      id: "tasks-bridge-mirror",
+      name: "Tasks Bridge — Mirror Sauce tasks → _TASKS.md",
+      callback: () => {
+        if (!(this.app as any).plugins?.plugins?.['obsidian-tasks-plugin']) {
+          new Notice("Obsidian Tasks plugin not installed/enabled.");
+          return;
+        }
+        const svc = this.tasks;
+        const files = this.app.vault.getMarkdownFiles();
+        const cache = this.app.metadataCache;
+        void svc.listTasks().then((existingRefs) => {
+          // Build a dedup set of "title|due" keys already in _TASKS.md
+          const existing = new Set(
+            existingRefs.map((r) => `${r.task.title}|${r.task.due ?? ""}`)
+          );
+          const pushes: Promise<void>[] = [];
+          for (const f of files) {
+            const fm = cache.getFileCache(f)?.frontmatter as
+              | Record<string, unknown>
+              | undefined;
+            if (fm?.["type"] !== "task") continue;
+            const title =
+              typeof fm["title"] === "string" ? fm["title"] : f.basename;
+            const due =
+              typeof fm["due"] === "string"
+                ? fm["due"].slice(0, 10)
+                : undefined;
+            // Skip if already mirrored (idempotence)
+            if (existing.has(`${title}|${due ?? ""}`)) continue;
+            pushes.push(
+              svc.addTask(
+                due !== undefined
+                  ? { title, status: "todo", due }
+                  : { title, status: "todo" },
+              ),
+            );
+          }
+          return Promise.all(pushes).then(() =>
+            new Notice(
+              `Tasks Bridge: mirrored ${pushes.length} task(s) → _TASKS.md`,
+            ),
+          );
+        }).catch((e: unknown) =>
+          new Notice(`Tasks Bridge error: ${String(e)}`),
+        );
+      },
     });
   }
 
@@ -3746,6 +3819,7 @@ export default class SauceGraphPlugin extends Plugin {
         VIEW_CALENDAR,
         VIEW_TASKS,
         VIEW_INBOX,
+        VIEW_EISENHOWER,
       ]) {
         for (const leaf of this.app.workspace.getLeavesOfType(type)) {
           if (leaf.view instanceof ItemView) {

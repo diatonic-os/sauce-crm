@@ -17,7 +17,12 @@ import { Person } from "../domain/Person";
 import { Touch } from "../domain/Touch";
 import { PipelineDeal } from "../domain/PipelineDeal";
 import type { EntityService } from "./EntityService";
+import type { GraphAtlasService } from "./GraphAtlasService";
 import { basenameFromLink } from "../util/Wikilink";
+import { pearson } from "./stats/Statistics";
+import { buildCrossMatrix } from "./stats/CrossMatrixAnalytics";
+export type { CrossMatrixReport } from "./stats/CrossMatrixAnalytics";
+export { pearson } from "./stats/Statistics";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -75,6 +80,12 @@ export interface PersonStat {
   lastTouch: string | null;
   /** Count of touches attributed to this person (touch-frequency proxy). */
   touchCount: number;
+  /** Touch counts keyed by channel (e.g. { call: 2, email: 1 }). */
+  channelCounts: Record<string, number>;
+  /** Touch counts keyed by each outcome tag (e.g. { intro: 1, followup: 2 }). */
+  outcomeCounts: Record<string, number>;
+  /** Graph degree (edge count) from GraphAtlasService; 0 when unavailable. */
+  degree: number;
 }
 
 export interface DealStat {
@@ -126,32 +137,9 @@ export function cadenceInterval(cadence: string): number {
   return CADENCE_DAYS[cadence] ?? 90;
 }
 
-/** Pearson correlation coefficient over paired samples. */
-export function pearson(xs: number[], ys: number[]): number | null {
-  const n = Math.min(xs.length, ys.length);
-  if (n < 2) return null;
-  let sx = 0;
-  let sy = 0;
-  for (let i = 0; i < n; i++) {
-    sx += xs[i]!;
-    sy += ys[i]!;
-  }
-  const mx = sx / n;
-  const my = sy / n;
-  let num = 0;
-  let dx2 = 0;
-  let dy2 = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = xs[i]! - mx;
-    const dy = ys[i]! - my;
-    num += dx * dy;
-    dx2 += dx * dx;
-    dy2 += dy * dy;
-  }
-  const denom = Math.sqrt(dx2 * dy2);
-  if (denom === 0) return null; // zero variance in at least one axis
-  return num / denom;
-}
+// pearson is now the canonical implementation in ./stats/Statistics.
+// It is imported above and re-exported so existing callers of
+// `RelationshipAnalytics.pearson` keep working without changes.
 
 function slugifyPath(path: string): string {
   return path.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -374,6 +362,11 @@ export function buildReport(
 // ---------------------------------------------------------------------------
 
 export class RelationshipAnalytics {
+  /** Optional GraphAtlasService — when set, `peopleStats()` populates degree
+   *  from the atlas snapshot. If not set or if snapshot() throws, degree
+   *  defaults to 0 (never throws). */
+  graphAtlas?: GraphAtlasService;
+
   constructor(
     public app: App,
     public entities: EntityService,
@@ -389,23 +382,58 @@ export class RelationshipAnalytics {
       .allTouches()
       .filter((e): e is Touch => e instanceof Touch);
 
-    // Touch-frequency by person basename (touch.contact is a wikilink).
+    // Touch-frequency, channel counts, and outcome counts by person basename.
     const touchCounts = new Map<string, number>();
+    const channelCountsMap = new Map<string, Record<string, number>>();
+    const outcomeCountsMap = new Map<string, Record<string, number>>();
+
     for (const t of touches) {
       if (!t.contact) continue;
       const base = basenameFromLink(t.contact);
       touchCounts.set(base, (touchCounts.get(base) ?? 0) + 1);
+
+      // Channel tallying
+      const channel = t.channel ?? "unknown";
+      const chMap = channelCountsMap.get(base) ?? {};
+      chMap[channel] = (chMap[channel] ?? 0) + 1;
+      channelCountsMap.set(base, chMap);
+
+      // Outcome-tag tallying (outcome_tags is string[])
+      for (const tag of t.outcome_tags) {
+        const ocMap = outcomeCountsMap.get(base) ?? {};
+        ocMap[tag] = (ocMap[tag] ?? 0) + 1;
+        outcomeCountsMap.set(base, ocMap);
+      }
+    }
+
+    // Degree: populate from the injected GraphAtlasService snapshot.
+    // Default to 0 if not injected or if snapshot() throws.
+    let degreeByPath = new Map<string, number>();
+    try {
+      if (this.graphAtlas) {
+        const snap = this.graphAtlas.snapshot();
+        for (const node of snap.nodes) {
+          degreeByPath.set(node.path, node.degree);
+        }
+      }
+    } catch {
+      // Unavailable; degree stays 0 for all people.
+      degreeByPath = new Map();
     }
 
     return people.map((p) => {
       const name = String(p.frontmatter.name ?? p.file.basename);
+      const base = p.file.basename;
       return {
         path: p.file.path,
         name,
         closeness: p.closeness,
         cadence: p.cadence,
         lastTouch: coerceIsoDay(p.last_touch),
-        touchCount: touchCounts.get(p.file.basename) ?? 0,
+        touchCount: touchCounts.get(base) ?? 0,
+        channelCounts: channelCountsMap.get(base) ?? {},
+        outcomeCounts: outcomeCountsMap.get(base) ?? {},
+        degree: degreeByPath.get(p.file.path) ?? 0,
       };
     });
   }
@@ -466,5 +494,40 @@ export class RelationshipAnalytics {
   /** Resolve a suggestion's target to a TFile for UI linking. */
   fileForSuggestion(s: Suggestion): TFile | null {
     return this.entities.getFile(s.targetPath);
+  }
+
+  /**
+   * Build the cross-matrix report for the current vault state.
+   *
+   * Builds `orgsByPerson` from Person frontmatter (company → org → basename
+   * fallback), then delegates to `buildCrossMatrix` from CrossMatrixAnalytics.
+   */
+  crossMatrix(
+    nowIso: string,
+  ): import("./stats/CrossMatrixAnalytics").CrossMatrixReport {
+    const people = this.peopleStats();
+    const deals = this.dealStats();
+
+    // Build person-path → org-name map from frontmatter.
+    const orgsByPerson = new Map<string, string>();
+    for (const ps of people) {
+      const file = this.entities.getFile(ps.path);
+      if (!file) {
+        orgsByPerson.set(ps.path, ps.name);
+        continue;
+      }
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+      const org =
+        (typeof fm["company"] === "string" && fm["company"].trim()
+          ? fm["company"]
+          : null) ??
+        (typeof fm["org"] === "string" && fm["org"].trim()
+          ? fm["org"]
+          : null) ??
+        file.basename;
+      orgsByPerson.set(ps.path, org);
+    }
+
+    return buildCrossMatrix(people, orgsByPerson, deals, nowIso);
   }
 }

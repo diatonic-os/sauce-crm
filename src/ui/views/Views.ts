@@ -1,7 +1,7 @@
 // View type identifiers + base helper. We export all 8 views from this barrel
 // to keep main.ts wiring concise.
 
-import { ItemView, WorkspaceLeaf, TFile, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, setIcon, Platform } from "obsidian";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import type SauceGraphPlugin from "../../main";
 import { Entity } from "../../domain/Entity";
@@ -15,7 +15,10 @@ import {
   type GraphEdge,
 } from "../../services/GraphAtlasService";
 import { SauceViewHelp } from "../components/v2/SauceViewHelp";
-import { RelationshipAnalytics } from "../../services/RelationshipAnalytics";
+import {
+  RelationshipAnalytics,
+  type CrossMatrixReport,
+} from "../../services/RelationshipAnalytics";
 
 export const VIEW_DASHBOARD: ViewTypeId = asViewTypeId("sauce-dashboard");
 export const VIEW_PIPELINE: ViewTypeId = asViewTypeId("sauce-pipeline");
@@ -115,6 +118,7 @@ export class DashboardView extends BaseView {
 
     // Analytics engine (W5): real, data-driven suggestions + correlation.
     this.renderAttention(root);
+    this.renderCrossMatrix(root);
 
     const top = root.createDiv({ cls: "sauce-dashboard-columns" });
     const morning = top.createDiv({ cls: "sauce-section" });
@@ -291,6 +295,149 @@ export class DashboardView extends BaseView {
         row.addClass("sauce-attention-row--clickable");
         row.onclick = () => this.openModalFor(file);
       }
+    }
+  }
+
+  /**
+   * Task 2.5 — Correlation matrix & outliers section.
+   * Collapsible <details> block appended after "What needs attention".
+   * Renders:
+   *   1. NxN heatmap coloured by |r|  (.sauce-matrix-* classes)
+   *   2. Top-3 pair sentences
+   *   3. Outlier rows (.sauce-attention-row) wired to openModalFor
+   */
+  private renderCrossMatrix(root: HTMLElement): void {
+    const analytics = new RelationshipAnalytics(
+      this.app,
+      this.plugin.entityService,
+    );
+    try {
+      analytics.graphAtlas = new GraphAtlasService(
+        this.app,
+        this.plugin.entityService,
+      );
+    } catch {
+      // Atlas unavailable; degree column will read 0.
+    }
+    const nowIso = todayIso();
+    let report: CrossMatrixReport;
+    try {
+      report = analytics.crossMatrix(nowIso);
+    } catch {
+      return; // silently skip if something goes wrong
+    }
+
+    const details = root.createEl("details", {
+      cls: "sauce-section sauce-cross-matrix",
+    });
+    const summary = details.createEl("summary");
+    summary.createEl("h3", {
+      text: "Correlation matrix & outliers",
+      cls: "sauce-cross-matrix-title",
+    });
+
+    // ── 1. NxN heatmap ────────────────────────────────────────────────────
+    const tableWrap = details.createDiv({ cls: "sauce-matrix-wrap" });
+    const table = tableWrap.createEl("table", { cls: "sauce-matrix-table" });
+
+    // Header row
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: "" }); // corner cell
+    for (const v of report.variables) {
+      headerRow.createEl("th", {
+        cls: "sauce-matrix-header",
+        text: v,
+      });
+    }
+
+    // Body rows
+    const tbody = table.createEl("tbody");
+    for (let i = 0; i < report.variables.length; i++) {
+      const tr = tbody.createEl("tr");
+      tr.createEl("th", {
+        cls: "sauce-matrix-row-header",
+        text: report.variables[i] ?? "",
+      });
+      for (let j = 0; j < report.variables.length; j++) {
+        const td = tr.createEl("td", { cls: "sauce-matrix-cell" });
+        if (i === j) {
+          td.setText("—");
+          td.addClass("sauce-matrix-cell--diag");
+        } else {
+          const r = report.matrix[i]?.[j];
+          if (r == null) {
+            td.setText("");
+          } else {
+            const absR = Math.abs(r);
+            // Colour bucket: 0–0.3 low, 0.3–0.6 mid, 0.6–1 high
+            const bucket =
+              absR < 0.3
+                ? "low"
+                : absR < 0.6
+                  ? "mid"
+                  : "high";
+            td.addClass(`sauce-matrix-cell--${bucket}`);
+            if (r < 0) td.addClass("sauce-matrix-cell--neg");
+            td.setText(r.toFixed(2));
+          }
+        }
+      }
+    }
+
+    // ── 2. Top-3 pairs ────────────────────────────────────────────────────
+    const top3 = report.topPairs.slice(0, 3);
+    if (top3.length > 0) {
+      const pairsWrap = details.createDiv({ cls: "sauce-matrix-pairs" });
+      pairsWrap.createEl("h4", { text: "Strongest correlations" });
+      for (const pair of top3) {
+        const dir = pair.r >= 0 ? "positively" : "negatively";
+        pairsWrap.createEl("p", {
+          cls: "sauce-matrix-pair-sentence",
+          text: `${pair.a} and ${pair.b} are ${pair.strength} correlated ${dir} (r=${pair.r.toFixed(2)}, n=${pair.n})`,
+        });
+      }
+    }
+
+    // ── 3. Outliers ───────────────────────────────────────────────────────
+    if (report.outliers.length > 0) {
+      const outliersWrap = details.createDiv({ cls: "sauce-matrix-outliers" });
+      outliersWrap.createEl("h4", { text: "Statistical outliers" });
+      const list = outliersWrap.createDiv({ cls: "sauce-attention-list" });
+      for (const o of report.outliers) {
+        const sev = Math.abs(o.z) >= 3 ? "critical" : "warning";
+        const row = list.createDiv({
+          cls: `sauce-attention-row sauce-attention-row--${sev}`,
+        });
+        const badge = row.createSpan({
+          cls: `sauce-badge sauce-attention-sev sauce-attention-sev--${sev}`,
+          text: sev,
+        });
+        void badge;
+        const body = row.createDiv({ cls: "sauce-attention-body" });
+        body.createDiv({
+          cls: "sauce-attention-title",
+          text: `${o.name} — ${o.metric}`,
+        });
+        body.createDiv({ cls: "sauce-attention-rationale", text: o.note });
+        const file = this.app.vault.getFileByPath
+          ? this.app.vault.getFileByPath(o.path)
+          : this.app.vault.getAbstractFileByPath(o.path) instanceof TFile
+            ? (this.app.vault.getAbstractFileByPath(o.path) as TFile)
+            : null;
+        if (file instanceof TFile) {
+          row.addClass("sauce-attention-row--clickable");
+          row.onclick = () => this.openModalFor(file);
+        }
+      }
+    }
+
+    // Empty-state guard
+    if (report.outliers.length === 0 && top3.length === 0) {
+      details.createEl("p", {
+        cls: "sauce-field-help",
+        text: "Not enough data for correlation analysis yet.",
+      });
     }
   }
 
@@ -610,6 +757,12 @@ export class TypedEdgeGraphView extends BaseView {
       icon: "network",
       subtitle: "Live force graph of your relationships",
     });
+
+    if (Platform.isMobile) {
+      this.renderTopNodes(root);
+      return;
+    }
+
     root.createEl("h2", { text: "Relationship Atlas" });
     root.createEl("p", {
       cls: "sauce-view-desc",
@@ -640,6 +793,43 @@ export class TypedEdgeGraphView extends BaseView {
     this.resizeObserver = new ResizeObserver(() => this.scheduleRender());
     if (this.shell) this.resizeObserver.observe(this.shell);
     this.scheduleRender();
+  }
+
+  /** Mobile-only: list top-20 nodes by degree with a desktop notice. */
+  private renderTopNodes(root: HTMLElement): void {
+    const atlas = new GraphAtlasService(
+      this.plugin.app,
+      this.plugin.entityService,
+    );
+    const snapshot = atlas.snapshot({ width: 360, height: 640 });
+    const top = snapshot.nodes
+      .slice()
+      .sort((a, b) => b.degree - a.degree)
+      .slice(0, 20);
+
+    const list = root.createDiv({ cls: "sauce-compat-pairlist" });
+    for (const node of top) {
+      const row = list.createDiv({ cls: "sauce-attention-row sauce-attention-row--clickable" });
+      const body = row.createDiv({ cls: "sauce-attention-body" });
+      body.createDiv({ cls: "sauce-attention-title", text: node.label });
+      body.createDiv({
+        cls: "sauce-attention-rationale",
+        text: `${node.kind} · ${node.degree} connection${node.degree !== 1 ? "s" : ""}`,
+      });
+      row.onclick = () => {
+        void this.app.workspace.openLinkText(node.path, "", false);
+      };
+    }
+
+    const notice = root.createDiv({ cls: "sauce-empty-state" });
+    notice.createDiv({
+      cls: "sauce-empty-state-title",
+      text: "Interactive graph available on desktop",
+    });
+    notice.createDiv({
+      cls: "sauce-empty-state-body",
+      text: "Open Sauce in Obsidian desktop to explore the live force graph with full interaction.",
+    });
   }
 
   override async onClose(): Promise<void> {
@@ -828,7 +1018,62 @@ export class CompatibilityMatrixView extends BaseView {
       icon: "network",
       subtitle: "Pairwise compatibility scores between people",
     });
+    if (Platform.isMobile) {
+      this.renderPairList(root, this.plugin.entityService.allPeople());
+      return;
+    }
     this.renderBody(root);
+  }
+
+  /** Mobile-only: render top compatible pairs as a ranked list instead of the NxN grid. */
+  private renderPairList(root: HTMLElement, allPeople: Entity[]): void {
+    const cfg = this.plugin.settings.compat_config;
+    const fields = cfg.fields ?? [];
+
+    const list = root.createDiv({ cls: "sauce-compat-pairlist" });
+
+    if (allPeople.length < 2 || fields.length === 0) {
+      const empty = list.createDiv({ cls: "sauce-empty-state" });
+      empty.createDiv({
+        cls: "sauce-empty-state-title",
+        text: fields.length === 0
+          ? "No compatibility fields configured"
+          : "Not enough people",
+      });
+      return;
+    }
+
+    // Compute all pairs, sort descending by density, take top 30.
+    const pairs: Array<{ a: Entity; b: Entity; density: number; shared: string[] }> = [];
+    for (let i = 0; i < allPeople.length; i++) {
+      for (let j = i + 1; j < allPeople.length; j++) {
+        const a = allPeople[i] ?? null;
+        const b = allPeople[j] ?? null;
+        if (!a || !b) continue;
+        const cms = computeCompatibleSet(a.frontmatter, b.frontmatter, fields);
+        pairs.push({ a, b, density: cms.density, shared: cms.shared });
+      }
+    }
+    pairs.sort((x, y) => y.density - x.density);
+    const top = pairs.slice(0, 30);
+
+    for (const { a, b, density, shared } of top) {
+      const row = list.createDiv({ cls: "sauce-attention-row sauce-attention-row--clickable" });
+      const pct = Math.round(density * 100);
+      const body = row.createDiv({ cls: "sauce-attention-body" });
+      body.createDiv({
+        cls: "sauce-attention-title",
+        text: `${a.file.basename} ⇄ ${b.file.basename}`,
+      });
+      const sharedText = shared.length
+        ? shared.map((s) => s.replace(/^[^:]+:/, "")).slice(0, 6).join(", ")
+        : "no shared characteristics";
+      body.createDiv({
+        cls: "sauce-attention-rationale",
+        text: `${pct}% · shared: ${sharedText}`,
+      });
+      row.onclick = () => this.openModalFor(a.file);
+    }
   }
 
   private renderBody(root: HTMLElement): void {

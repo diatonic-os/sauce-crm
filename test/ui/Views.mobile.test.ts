@@ -1,0 +1,133 @@
+import { describe, it, expect, vi } from "vitest";
+
+// Force Platform.isMobile = true BEFORE importing the view module.
+vi.mock("obsidian", async (orig) => {
+  const real = await orig<typeof import("obsidian")>();
+  return { ...real, Platform: { ...(real as any).Platform, isMobile: true } };
+});
+
+// Stub GraphAtlasService so renderTopNodes works without real vault data.
+vi.mock("@/services/GraphAtlasService", () => {
+  class GraphAtlasService {
+    snapshot() {
+      return {
+        nodes: [
+          { id: "n1", label: "Alice", path: "people/Alice.md", kind: "person", degree: 5, x: 0, y: 0, radius: 10, score: 1, color: "#000", icon: "user" },
+          { id: "n2", label: "Bob",   path: "people/Bob.md",   kind: "person", degree: 3, x: 0, y: 0, radius: 10, score: 1, color: "#000", icon: "user" },
+        ],
+        edges: [],
+        nodeById: new Map(),
+      };
+    }
+  }
+  return { GraphAtlasService };
+});
+
+import { CompatibilityMatrixView, TypedEdgeGraphView } from "@/ui/views/Views";
+import { App, WorkspaceLeaf } from "obsidian";
+
+/** Patch an HTMLElement with the Obsidian extension methods that jsdom lacks. */
+function patchEl(el: HTMLElement): HTMLElement {
+  (el as any).empty = function () {
+    while (this.firstChild) this.removeChild(this.firstChild);
+  };
+  (el as any).addClass = function (...cls: string[]) {
+    this.classList.add(...cls);
+  };
+  (el as any).createDiv = function (opts: { cls?: string; attr?: Record<string, string> } = {}) {
+    const d = document.createElement("div");
+    if (opts.cls) d.className = opts.cls;
+    if (opts.attr) Object.entries(opts.attr).forEach(([k, v]) => d.setAttribute(k, v));
+    patchEl(d);
+    this.appendChild(d);
+    return d;
+  };
+  (el as any).createEl = function <K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    opts: { cls?: string; text?: string; attr?: Record<string, string> } = {},
+  ): HTMLElementTagNameMap[K] {
+    const e = document.createElement(tag) as HTMLElementTagNameMap[K];
+    if (opts.cls) (e as HTMLElement).className = opts.cls;
+    if (opts.text) e.textContent = opts.text;
+    if (opts.attr) Object.entries(opts.attr).forEach(([k, v]) => (e as HTMLElement).setAttribute(k, v));
+    patchEl(e as unknown as HTMLElement);
+    this.appendChild(e);
+    return e;
+  };
+  (el as any).createSpan = function (opts: { cls?: string; text?: string } = {}) {
+    const s = document.createElement("span");
+    if (opts.cls) s.className = opts.cls;
+    if (opts.text) s.textContent = opts.text;
+    patchEl(s);
+    this.appendChild(s);
+    return s;
+  };
+  (el as any).setText = function (t: string) {
+    this.textContent = t;
+  };
+  (el as any).querySelectorAll = el.querySelectorAll.bind(el);
+  (el as any).querySelector = el.querySelector.bind(el);
+  return el;
+}
+
+function makeStubPlugin() {
+  const app = new App();
+  return {
+    app,
+    settings: {
+      compat_config: {
+        rho_adm: 0.7,
+        fields: ["roles", "industry"],
+      },
+    },
+    entityService: {
+      allPeople: () => [
+        {
+          file: { path: "people/Alice.md", basename: "Alice" },
+          frontmatter: { type: "warm-contact", roles: ["engineer"], industry: "tech" },
+        },
+        {
+          file: { path: "people/Bob.md", basename: "Bob" },
+          frontmatter: { type: "warm-contact", roles: ["engineer"], industry: "tech" },
+        },
+      ],
+    },
+  };
+}
+
+describe("CompatibilityMatrixView — mobile layout", () => {
+  it("renders a pair LIST (not a grid) on mobile", async () => {
+    const stub = makeStubPlugin();
+    const view = new (CompatibilityMatrixView as any)(
+      new WorkspaceLeaf(),
+      stub,
+    );
+    // Patch the contentEl so Obsidian DOM extensions work in jsdom.
+    patchEl(view.contentEl);
+
+    await view.onOpen();
+
+    // On mobile: no NxN grid rendered, yes pair list.
+    expect(view.contentEl.querySelector(".sauce-matrix")).toBeNull();
+    expect(view.contentEl.querySelector(".sauce-compat-pairlist")).not.toBeNull();
+  });
+});
+
+describe("TypedEdgeGraphView — mobile layout", () => {
+  it("renders top-nodes list + desktop notice; no interactive graph shell", async () => {
+    const stub = makeStubPlugin();
+    const view = new (TypedEdgeGraphView as any)(
+      new WorkspaceLeaf(),
+      stub,
+    );
+    patchEl(view.contentEl);
+
+    await view.onOpen();
+
+    // Mobile path: compat pair list (top nodes) and empty-state notice must exist.
+    expect(view.contentEl.querySelector(".sauce-compat-pairlist")).not.toBeNull();
+    expect(view.contentEl.querySelector(".sauce-empty-state")).not.toBeNull();
+    // Desktop-only interactive shell must NOT be rendered on mobile.
+    expect(view.contentEl.querySelector(".sauce-graph-shell")).toBeNull();
+  });
+});

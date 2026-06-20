@@ -3,6 +3,8 @@
 // component side and the host ItemView side without needing svelte
 // type-shim plumbing.
 
+import type { Quadrant } from "@/services/tasks/EisenhowerEngine";
+
 export interface TaskRow {
   path: string;
   title: string;
@@ -11,6 +13,7 @@ export interface TaskRow {
   priority?: "low" | "medium" | "high" | "urgent" | string;
   contact?: string;
   tags?: string[];
+  quadrant?: Quadrant;
 }
 
 export interface InboxRow {

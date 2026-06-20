@@ -7,8 +7,9 @@
     events: CalendarEvent[];
     onOpenPath?: (path: string) => void;
     onSelectDate?: (date: string) => void;
+    onReschedule?: (path: string, newDate: string) => void;
   }
-  let { events, onOpenPath, onSelectDate }: Props = $props();
+  let { events, onOpenPath, onSelectDate, onReschedule }: Props = $props();
 
   type Mode = "month" | "week" | "day" | "year";
 
@@ -17,6 +18,9 @@
   let cursor = $state(new Date());
   let selectedDate = $state<string | null>(null);
   const MODES: Mode[] = ["month", "week", "day", "year"];
+
+  // Drag-to-reschedule state
+  let dragging = $state<CalendarEvent | null>(null);
 
   const iso = (d: Date): string =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -28,7 +32,25 @@
     followup: "var(--color-purple)",
     event: "var(--color-green)",
   };
+
+  const QUADRANT_COLOR: Record<string, string> = {
+    do: "var(--color-red)",
+    schedule: "var(--color-blue)",
+    delegate: "var(--color-orange)",
+    eliminate: "var(--color-base-40)",
+  };
+
   const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Color-by mode: 'kind' (default) or 'quadrant'
+  let colorBy = $state<"kind" | "quadrant">("kind");
+
+  function eventColor(ev: CalendarEvent): string {
+    if (colorBy === "quadrant" && ev.kind === "task" && ev.quadrant) {
+      return QUADRANT_COLOR[ev.quadrant] ?? KIND_COLOR[ev.kind];
+    }
+    return KIND_COLOR[ev.kind];
+  }
 
   let eventsByDate = $derived.by(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -112,6 +134,23 @@
   }
   const dayEvents = $derived(selectedDate ? evs(selectedDate) : []);
 
+  // ── Drag-to-reschedule handlers ─────────────────────────────────────
+  function handleDragStart(e: DragEvent, ev: CalendarEvent): void {
+    dragging = ev;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", ev.path ?? "");
+    }
+  }
+
+  function handleDrop(e: DragEvent, d: string): void {
+    e.preventDefault();
+    if (dragging?.path && dragging.date !== d) {
+      onReschedule?.(dragging.path, d);
+    }
+    dragging = null;
+  }
+
   const KINDS: CalendarEvent["kind"][] = ["touch", "task", "followup", "event"];
   let totalEvents = $derived(events.length);
 </script>
@@ -123,7 +162,7 @@
     <button class="sauce-cal-nav" onclick={() => nav(1)} aria-label="next">›</button>
     <div class="sauce-cal-modes" role="tablist">
       {#each MODES as m}
-        <button class="sauce-cal-mode" class:is-active={mode === m} role="tab" aria-selected={mode === m} onclick={() => (mode = m)}>{m}</button>
+        <button class="sauce-cal-mode" class:is-active={mode === m} role="tab" aria-selected={mode === m} data-mode={m} onclick={() => (mode = m)}>{m}</button>
       {/each}
     </div>
     <button class="sauce-cal-today" onclick={today}>Today</button>
@@ -136,6 +175,7 @@
       </span>
     {/each}
     <span class="sauce-cal-legend-count">{totalEvents} event{totalEvents === 1 ? "" : "s"}</span>
+    <button class="sauce-cal-color-toggle" onclick={() => (colorBy = colorBy === "kind" ? "quadrant" : "kind")}>Color: {colorBy}</button>
   </div>
 
   {#if mode === "month" || mode === "week"}
@@ -151,11 +191,27 @@
           <div class="sauce-cal-cell sauce-cal-cell--empty"></div>
         {:else}
           {@const d = iso(cell)}
-          <button class="sauce-cal-cell" class:is-today={d === TODAY} class:is-selected={d === selectedDate} onclick={() => selectDate(d)} aria-label={d}>
+          <button
+            class="sauce-cal-cell"
+            class:is-today={d === TODAY}
+            class:is-selected={d === selectedDate}
+            onclick={() => selectDate(d)}
+            ondragover={(e) => e.preventDefault()}
+            ondrop={(e) => handleDrop(e, d)}
+            aria-label={d}
+          >
             <span class="sauce-cal-cell-day">{cell.getDate()}</span>
             {#if evs(d).length > 0}
               <span class="sauce-cal-dots">
-                {#each evs(d).slice(0, 4) as ev}<span class="sauce-cal-dot" style:background={KIND_COLOR[ev.kind]} title={ev.label}></span>{/each}
+                {#each evs(d).slice(0, 4) as ev}
+                  <span
+                    class="sauce-cal-dot"
+                    style:background={eventColor(ev)}
+                    title={ev.label}
+                    draggable={ev.path ? true : false}
+                    ondragstart={(e) => handleDragStart(e, ev)}
+                  ></span>
+                {/each}
                 {#if evs(d).length > 4}<span class="sauce-cal-dot-more">+{evs(d).length - 4}</span>{/if}
               </span>
             {/if}
@@ -167,11 +223,25 @@
     <div class="sauce-cal-grid sauce-cal-grid--week">
       {#each weekDays as cell}
         {@const d = iso(cell)}
-        <button class="sauce-cal-cell sauce-cal-cell--week" class:is-today={d === TODAY} class:is-selected={d === selectedDate} onclick={() => selectDate(d)} aria-label={d}>
+        <button
+          class="sauce-cal-cell sauce-cal-cell--week"
+          class:is-today={d === TODAY}
+          class:is-selected={d === selectedDate}
+          onclick={() => selectDate(d)}
+          ondragover={(e) => e.preventDefault()}
+          ondrop={(e) => handleDrop(e, d)}
+          aria-label={d}
+        >
           <span class="sauce-cal-cell-day">{cell.getDate()}</span>
           <span class="sauce-cal-week-events">
             {#each evs(d) as ev}
-              <span class="sauce-cal-chip" style:border-inline-start-color={KIND_COLOR[ev.kind]} title={ev.label}>{ev.label}</span>
+              <span
+                class="sauce-cal-chip"
+                style:border-inline-start-color={eventColor(ev)}
+                title={ev.label}
+                draggable={ev.path ? true : false}
+                ondragstart={(e) => handleDragStart(e, ev)}
+              >{ev.label}</span>
             {/each}
           </span>
         </button>
@@ -186,7 +256,7 @@
         <ul class="sauce-cal-list">
           {#each evs(d) as ev}
             <li class="sauce-cal-list-item">
-              <span class="sauce-cal-dot" style:background={KIND_COLOR[ev.kind]}></span>
+              <span class="sauce-cal-dot" style:background={eventColor(ev)}></span>
               <span class="sauce-cal-list-kind">{ev.kind}</span>
               {#if ev.path && onOpenPath}
                 <button class="sauce-cal-list-link" onclick={() => onOpenPath?.(ev.path!)}>{ev.label}</button>
@@ -223,7 +293,7 @@
         <ul class="sauce-cal-list">
           {#each dayEvents as ev}
             <li class="sauce-cal-list-item">
-              <span class="sauce-cal-dot" style:background={KIND_COLOR[ev.kind]}></span>
+              <span class="sauce-cal-dot" style:background={eventColor(ev)}></span>
               <span class="sauce-cal-list-kind">{ev.kind}</span>
               {#if ev.path && onOpenPath}
                 <button class="sauce-cal-list-link" onclick={() => onOpenPath?.(ev.path!)}>{ev.label}</button>
@@ -240,15 +310,16 @@
   .sauce-cal { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; min-height: 0; box-sizing: border-box; }
   .sauce-cal-head { display: flex; align-items: center; gap: var(--size-4-2); flex-wrap: wrap; flex: 0 0 auto; }
   .sauce-cal-title { margin: 0; flex: 1 1 auto; font-size: var(--font-ui-large); }
-  .sauce-cal-nav, .sauce-cal-today, .sauce-cal-mode {
+  .sauce-cal-nav, .sauce-cal-today, .sauce-cal-mode, .sauce-cal-color-toggle {
     background: var(--interactive-normal); color: var(--text-normal); border: 1px solid var(--background-modifier-border);
     border-radius: var(--radius-s); padding: var(--size-2-1) var(--size-4-2); cursor: pointer; font: inherit; line-height: 1;
   }
-  .sauce-cal-nav:hover, .sauce-cal-today:hover, .sauce-cal-mode:hover { background: var(--interactive-hover); }
+  .sauce-cal-nav:hover, .sauce-cal-today:hover, .sauce-cal-mode:hover, .sauce-cal-color-toggle:hover { background: var(--interactive-hover); }
   .sauce-cal-modes { display: flex; gap: 2px; }
   .sauce-cal-mode { text-transform: capitalize; font-size: var(--font-ui-smaller); }
   .sauce-cal-mode.is-active { background: var(--interactive-accent); color: var(--text-on-accent); border-color: var(--interactive-accent); }
-  .sauce-cal-nav:focus-visible, .sauce-cal-today:focus-visible, .sauce-cal-mode:focus-visible, .sauce-cal-cell:focus-visible, .sauce-cal-mini:focus-visible, .sauce-cal-list-link:focus-visible {
+  .sauce-cal-color-toggle { font-size: var(--font-ui-smaller); text-transform: capitalize; }
+  .sauce-cal-nav:focus-visible, .sauce-cal-today:focus-visible, .sauce-cal-mode:focus-visible, .sauce-cal-cell:focus-visible, .sauce-cal-mini:focus-visible, .sauce-cal-list-link:focus-visible, .sauce-cal-color-toggle:focus-visible {
     outline: 2px solid var(--interactive-accent); outline-offset: 2px;
   }
 
@@ -278,11 +349,13 @@
   .sauce-cal-cell-day { font-size: var(--font-ui-small); font-weight: var(--font-semibold); flex: 0 0 auto; }
   .sauce-cal-dots { margin-block-start: auto; display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
   .sauce-cal-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: var(--text-muted); flex: 0 0 auto; }
+  .sauce-cal-dot[draggable="true"] { cursor: grab; }
   .sauce-cal-dot-more { font-size: var(--font-ui-smaller); color: var(--text-muted); }
 
   .sauce-cal-cell--week { overflow: auto; }
   .sauce-cal-week-events { display: flex; flex-direction: column; gap: 2px; margin-block-start: var(--size-2-1); }
   .sauce-cal-chip { font-size: var(--font-ui-smaller); border-inline-start: 3px solid var(--text-muted); padding-inline-start: var(--size-2-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sauce-cal-chip[draggable="true"] { cursor: grab; }
 
   .sauce-cal-mini { display: flex; flex-direction: column; gap: var(--size-2-1); background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); padding: var(--size-4-1); cursor: pointer; color: inherit; font: inherit; }
   .sauce-cal-mini:hover { background: var(--background-modifier-hover); }
@@ -299,4 +372,16 @@
   .sauce-cal-list-item { display: flex; align-items: center; gap: var(--size-2-2); }
   .sauce-cal-list-kind { font-size: var(--font-ui-smaller); text-transform: uppercase; color: var(--text-muted); min-width: 60px; }
   .sauce-cal-list-link { background: none; border: none; color: var(--text-accent); cursor: pointer; padding: 0; text-align: start; text-decoration: underline; font: inherit; }
+
+  /* ===== Mobile calendar overrides (≤600px) ===== */
+  @media (max-width: 600px) {
+    /* Smaller cell height + font so month/week grids fit on a 360px screen. */
+    .sauce-cal-cell { min-height: 38px; font-size: 0.8em; }
+    /* Mode buttons wrap rather than overflow. */
+    .sauce-cal-modes { flex-wrap: wrap; }
+    /* Year view is too dense on a phone — hide the grid and its mode button. */
+    .sauce-cal-grid--year { display: none; }
+    .sauce-cal-mode[data-mode="year"] { display: none; }
+  }
+
 </style>
