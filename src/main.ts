@@ -85,6 +85,7 @@ import {
 } from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
 import { CommandReferenceService } from "./services/CommandReferenceService";
+import { VaultEventBus } from "./services/VaultEventBus";
 import { ContractValidator } from "./contract/ContractValidator";
 import { RegistryService } from "./federation/RegistryService";
 import { FederationValidator } from "./federation/FederationValidator";
@@ -1729,42 +1730,125 @@ export default class SauceGraphPlugin extends Plugin {
       m.showAtMouseEvent(event);
     });
 
+    // ── Event-driven automation layer (VaultEventBus) ──────────────────────
+    // One typed bus fans every vault event out to ORDERED subscribers
+    // (edges → mirror → enrichment → brain → views), so delete/rename now get
+    // the same edge-reciprocity + cache fan-out a change does — closing the gap
+    // where delete/rename bypassed EdgeSyncService and left dangling edges
+    // (audit EV-01/EV-04). `changed` behavior is preserved exactly.
+    const bus = new VaultEventBus();
+    const baseName = (p: string): string =>
+      (p.split("/").pop() ?? p).replace(/\.md$/i, "");
+    const fileAt = (p: string): TFile | null => {
+      const f = this.app.vault.getAbstractFileByPath(p);
+      return f instanceof TFile ? f : null;
+    };
+    const ALL = new Set<"changed" | "deleted" | "renamed">([
+      "changed",
+      "deleted",
+      "renamed",
+    ]);
+
+    bus.subscribe({
+      name: "edges",
+      order: 10,
+      kinds: ALL,
+      handle: (ev) => {
+        if (ev.kind === "changed") {
+          const f = fileAt(ev.path);
+          if (f) this.edgeSync.scheduleReconcile(f);
+        } else if (ev.kind === "deleted") {
+          void this.edgeSync.purgeNode(baseName(ev.path)).catch(() => {});
+        } else if (ev.kind === "renamed" && ev.oldPath) {
+          void this.edgeSync
+            .renameNode(baseName(ev.oldPath), baseName(ev.path))
+            .catch(() => {});
+        }
+      },
+    });
+    bus.subscribe({
+      name: "mirror",
+      order: 20,
+      kinds: ALL,
+      handle: (ev) => {
+        if (ev.kind === "changed") {
+          const f = fileAt(ev.path);
+          if (f) void this.mirrorSync?.syncFile(f).catch(() => {});
+        } else if (ev.kind === "deleted") {
+          void this.mirrorSync?.deleteFile(ev.path).catch(() => {});
+        } else if (ev.kind === "renamed" && ev.oldPath) {
+          void this.mirrorSync?.renameFile(ev.oldPath, ev.path).catch(() => {});
+        }
+      },
+    });
+    bus.subscribe({
+      name: "enrichment",
+      order: 30,
+      kinds: new Set(["changed"]),
+      handle: (ev) => {
+        // Idempotent, so it can't loop on its own frontmatter write.
+        if (!this.settings.features.enrichment.autostart) return;
+        const f = fileAt(ev.path);
+        if (f) void this.runEnrichment(f).catch(() => {});
+      },
+    });
+    bus.subscribe({
+      name: "brain",
+      order: 40,
+      kinds: ALL,
+      handle: (ev) => {
+        if (ev.kind === "changed") {
+          if (!ev.isMarkdown) return;
+          const f = fileAt(ev.path);
+          if (f) this.scheduleBrainUpdate(f);
+        } else if (ev.kind === "deleted") {
+          void this.brainBuilder?.removeFile(ev.path);
+        } else if (ev.kind === "renamed" && ev.oldPath && ev.isMarkdown) {
+          const f = fileAt(ev.path);
+          if (f)
+            void this.brainBuilder?.renameFile(ev.oldPath, this.brainFileFor(f));
+        }
+      },
+    });
+    bus.subscribe({
+      name: "views",
+      order: 50,
+      kinds: ALL,
+      handle: () => this.scheduleOpenViewRefresh(),
+    });
+
     this.registerEvent(
       this.app.metadataCache.on("changed", (f) => {
         if (this.unloaded) return; // PLC-04
-        if (f instanceof TFile) this.edgeSync.scheduleReconcile(f);
-        // Keep the LanceDB mirror + embeddings in step (frontmatter is parsed by
-        // the time "changed" fires, so entity type/tags/edges are available).
         if (f instanceof TFile)
-          void this.mirrorSync?.syncFile(f).catch(() => {});
-        // Auto-enrichment when enabled + autostart. Idempotent, so it can't loop
-        // on its own frontmatter write.
-        if (f instanceof TFile && this.settings.features.enrichment.autostart) {
-          void this.runEnrichment(f).catch(() => {});
-        }
-        // Realtime brain: keep the path/relationship matrix current (debounced).
-        if (f instanceof TFile && f.extension === "md")
-          this.scheduleBrainUpdate(f);
-        this.scheduleOpenViewRefresh();
+          bus.publish({
+            kind: "changed",
+            path: f.path,
+            isMarkdown: f.extension === "md",
+          });
       }),
     );
     this.registerEvent(
       this.app.vault.on("delete", (f) => {
         if (this.unloaded) return; // PLC-04
         if (f instanceof TFile)
-          void this.mirrorSync?.deleteFile(f.path).catch(() => {});
-        if (f instanceof TFile) void this.brainBuilder?.removeFile(f.path);
-        this.scheduleOpenViewRefresh();
+          bus.publish({
+            kind: "deleted",
+            path: f.path,
+            isMarkdown: f.extension === "md",
+          });
       }),
     );
     this.registerEvent(
       this.app.vault.on("rename", (f, oldPath) => {
         if (this.unloaded) return; // PLC-04
         if (f instanceof TFile)
-          void this.mirrorSync?.renameFile(oldPath, f.path).catch(() => {});
-        if (f instanceof TFile && f.extension === "md")
-          void this.brainBuilder?.renameFile(oldPath, this.brainFileFor(f));
-        this.scheduleOpenViewRefresh();
+          bus.publish({
+            kind: "renamed",
+            path: f.path,
+            oldPath,
+            isMarkdown: f.extension === "md",
+          });
       }),
     );
 

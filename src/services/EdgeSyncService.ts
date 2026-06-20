@@ -87,6 +87,64 @@ export class EdgeSyncService {
     }
   }
 
+  /**
+   * Strip every reference to a deleted node's basename from all peers' symmetric
+   * edge frontmatter (EV-01). `metadataCache.on("changed")` never fires for a
+   * deleted file, so reconcile()/removeDanglingInverses() never runs for it —
+   * without this, peers keep a dead `[[Name]]` in knows/worked_with forever.
+   */
+  async purgeNode(basename: string): Promise<void> {
+    const symmetric = Object.entries(this.rules).filter(([, r]) => r.symmetric);
+    for (const peer of this.app.vault.getMarkdownFiles()) {
+      const peerFm = this.app.metadataCache.getFileCache(peer)?.frontmatter;
+      if (!peerFm) continue;
+      const hit = symmetric.some(([edge]) =>
+        arr<string>(peerFm[edge]).some((l) => (parseWikilink(l) ?? l) === basename),
+      );
+      if (!hit) continue;
+      await this.app.fileManager.processFrontMatter(peer, (pfm) => {
+        for (const [edge] of symmetric) {
+          const cur = arr<string>(pfm[edge]);
+          const next = cur.filter((l) => (parseWikilink(l) ?? l) !== basename);
+          if (next.length !== cur.length) pfm[edge] = next;
+        }
+      });
+    }
+  }
+
+  /**
+   * Rewrite `[[oldBasename]]` → `[[newBasename]]` in all peers' symmetric edges
+   * on rename (EV-01), so peers don't strand a reference to the old name (which
+   * the next reconcile would otherwise treat as no-longer-mutual).
+   */
+  async renameNode(oldBasename: string, newBasename: string): Promise<void> {
+    if (!oldBasename || oldBasename === newBasename) return;
+    const newLink = wrapWikilink(newBasename);
+    const symmetric = Object.entries(this.rules).filter(([, r]) => r.symmetric);
+    for (const peer of this.app.vault.getMarkdownFiles()) {
+      const peerFm = this.app.metadataCache.getFileCache(peer)?.frontmatter;
+      if (!peerFm) continue;
+      const hit = symmetric.some(([edge]) =>
+        arr<string>(peerFm[edge]).some((l) => (parseWikilink(l) ?? l) === oldBasename),
+      );
+      if (!hit) continue;
+      await this.app.fileManager.processFrontMatter(peer, (pfm) => {
+        for (const [edge] of symmetric) {
+          const cur = arr<string>(pfm[edge]);
+          let changed = false;
+          const next = cur.map((l) => {
+            if ((parseWikilink(l) ?? l) === oldBasename) {
+              changed = true;
+              return newLink;
+            }
+            return l;
+          });
+          if (changed) pfm[edge] = uniq(next);
+        }
+      });
+    }
+  }
+
   private resolveLink(link: string, source: TFile): TFile | null {
     const target = parseWikilink(link) ?? link;
     const f = this.app.metadataCache.getFirstLinkpathDest(target, source.path);
