@@ -18,6 +18,8 @@ import { Touch } from "../domain/Touch";
 import { PipelineDeal } from "../domain/PipelineDeal";
 import type { EntityService } from "./EntityService";
 import { basenameFromLink } from "../util/Wikilink";
+import { pearson } from "./stats/Statistics";
+export { pearson } from "./stats/Statistics";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -132,32 +134,9 @@ export function cadenceInterval(cadence: string): number {
   return CADENCE_DAYS[cadence] ?? 90;
 }
 
-/** Pearson correlation coefficient over paired samples. */
-export function pearson(xs: number[], ys: number[]): number | null {
-  const n = Math.min(xs.length, ys.length);
-  if (n < 2) return null;
-  let sx = 0;
-  let sy = 0;
-  for (let i = 0; i < n; i++) {
-    sx += xs[i]!;
-    sy += ys[i]!;
-  }
-  const mx = sx / n;
-  const my = sy / n;
-  let num = 0;
-  let dx2 = 0;
-  let dy2 = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = xs[i]! - mx;
-    const dy = ys[i]! - my;
-    num += dx * dy;
-    dx2 += dx * dx;
-    dy2 += dy * dy;
-  }
-  const denom = Math.sqrt(dx2 * dy2);
-  if (denom === 0) return null; // zero variance in at least one axis
-  return num / denom;
-}
+// pearson is now the canonical implementation in ./stats/Statistics.
+// It is imported above and re-exported so existing callers of
+// `RelationshipAnalytics.pearson` keep working without changes.
 
 function slugifyPath(path: string): string {
   return path.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
