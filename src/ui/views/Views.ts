@@ -310,6 +310,14 @@ export class DashboardView extends BaseView {
       this.app,
       this.plugin.entityService,
     );
+    try {
+      analytics.graphAtlas = new GraphAtlasService(
+        this.app,
+        this.plugin.entityService,
+      );
+    } catch {
+      // Atlas unavailable; degree column will read 0.
+    }
     const nowIso = todayIso();
     let report: CrossMatrixReport;
     try {

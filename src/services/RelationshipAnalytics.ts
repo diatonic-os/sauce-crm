@@ -502,7 +502,9 @@ export class RelationshipAnalytics {
    * Builds `orgsByPerson` from Person frontmatter (company → org → basename
    * fallback), then delegates to `buildCrossMatrix` from CrossMatrixAnalytics.
    */
-  crossMatrix(nowIso: string): import("./stats/CrossMatrixAnalytics").CrossMatrixReport {
+  crossMatrix(
+    nowIso: string,
+  ): import("./stats/CrossMatrixAnalytics").CrossMatrixReport {
     const people = this.peopleStats();
     const deals = this.dealStats();
 
@@ -514,8 +516,7 @@ export class RelationshipAnalytics {
         orgsByPerson.set(ps.path, ps.name);
         continue;
       }
-      const fm =
-        this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
       const org =
         (typeof fm["company"] === "string" && fm["company"].trim()
           ? fm["company"]

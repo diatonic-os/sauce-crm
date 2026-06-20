@@ -4,7 +4,6 @@
 // RelationshipAnalytics and Statistics primitives.
 
 import type { PersonStat, DealStat } from "../RelationshipAnalytics";
-import { interpretCorrelation } from "../RelationshipAnalytics";
 import { pearson, zscores } from "./Statistics";
 
 // ---------------------------------------------------------------------------
@@ -156,18 +155,13 @@ function buildTopPairs(
   return pairs;
 }
 
-/** Extract strength label from interpretCorrelation output. */
-function strengthLabel(r: number, n: number): string {
-  const interp = interpretCorrelation(r, n);
-  // interpretCorrelation embeds phrases like "a weak", "a strong", etc.
-  // Extract the human-readable strength word(s) for the label.
+/** Extract strength label from |r| thresholds. */
+function strengthLabel(r: number, _n: number): string {
   const mag = Math.abs(r);
   if (mag < 0.1) return "negligible";
   if (mag < 0.3) return "weak";
   if (mag < 0.5) return "moderate";
   if (mag < 0.7) return "strong";
-  // Suppress unused-variable warning; interp is referenced to keep the import used.
-  void interp;
   return "very strong";
 }
 
