@@ -1440,7 +1440,7 @@ export default class SauceGraphPlugin extends Plugin {
     // view is reachable and labeled here, so nothing is "hidden". Each item
     // routes through the shared `openView` helper (the same path the command
     // palette uses), so a single wiring point keeps launcher + palette in sync.
-    this.addRibbonIcon("sauce-hierarchy", "SauceOM — Open a view", (event) => {
+    this.addRibbonIcon("sauce-hierarchy", "SauceOM", (event) => {
       const m = new Menu();
       const sec = (label: string): void => {
         m.addItem((i) => i.setTitle(label).setDisabled(true));
@@ -1489,16 +1489,28 @@ export default class SauceGraphPlugin extends Plugin {
       view("Sync Status", "sauce-sync", VIEW_SYNC_STATUS_REAL);
       view("Map", "sauce-map", VIEW_MAP_REAL);
 
+      m.addSeparator();
+      m.addItem((i) =>
+        i
+          .setTitle("Run Path Query")
+          .setIcon("git-branch")
+          .onClick(() => this.runPathPrompt()),
+      );
+
       m.showAtMouseEvent(event);
     });
 
-    // Ribbon icons — three configurable group launchers. The defaults
-    // match the most common operator flows: People (new person + log
-    // touch), Graph (open typed-edge graph), and Copilot (chat panel).
-    // Each opens a Menu of grouped commands; clicking an item routes
-    // through the existing addCommand handler chain.
-    this.addRibbonIcon("sauce-person", "Sauce CRM — People", (event) => {
+    // Second (and only other) ribbon — capture + data ops. Consolidates the
+    // former "People" and "Setup & Data" ribbons. The previous "Graph & Views"
+    // and "AI & Chat" ribbons merely re-listed views already in the "SauceOM"
+    // launcher above and have been removed (one ribbon, not five). Everything
+    // here is also reachable from the command palette.
+    this.addRibbonIcon("plus-circle", "SauceOM — Capture & Data", (event) => {
       const m = new Menu();
+      const sec = (label: string): void => {
+        m.addItem((i) => i.setTitle(label).setDisabled(true));
+      };
+      sec("Capture");
       m.addItem((i) =>
         i
           .setTitle("New Person")
@@ -1531,140 +1543,6 @@ export default class SauceGraphPlugin extends Plugin {
             new PromoteProspectModal(this.app, this, this.activeFile()).open(),
           ),
       );
-      m.showAtMouseEvent(event);
-    });
-    this.addRibbonIcon(
-      "sauce-hierarchy",
-      "Sauce RG — Graph & Views",
-      (event) => {
-        const m = new Menu();
-        m.addItem((i) =>
-          i
-            .setTitle("Dashboard")
-            .setIcon("layout-dashboard")
-            .onClick(() => this.openView(VIEW_DASHBOARD)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Parent Vault Dashboard")
-            .setIcon("sauce-parent-vault")
-            .onClick(() => this.openView(VIEW_PARENT)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Typed-Edge Graph")
-            .setIcon("sauce-hierarchy")
-            .onClick(() => this.openView(VIEW_GRAPH)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Pipeline Kanban")
-            .setIcon("columns-3")
-            .onClick(() => this.openView(VIEW_PIPELINE)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Compatibility Matrix")
-            .setIcon("sauce-compat")
-            .onClick(() => this.openView(VIEW_COMPAT)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Touch Heatmap")
-            .setIcon("sauce-heatmap")
-            .onClick(() => this.openView(VIEW_HEATMAP)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Hierarchy Tree")
-            .setIcon("sauce-hierarchy")
-            .onClick(() => this.openView(VIEW_HIERARCHY)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Overdue Queue")
-            .setIcon("sauce-overdue")
-            .onClick(() => this.openView(VIEW_OVERDUE)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Map")
-            .setIcon("sauce-map")
-            .onClick(() => this.openView(VIEW_MAP_REAL)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Calendar")
-            .setIcon("sauce-touch")
-            .onClick(() => this.openView(VIEW_CALENDAR)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Tasks Board")
-            .setIcon("sauce-skill")
-            .onClick(() => this.openView(VIEW_TASKS)),
-        );
-        m.addItem((i) =>
-          i
-            .setTitle("Inbox")
-            .setIcon("sauce-ai-inbox")
-            .onClick(() => this.openView(VIEW_INBOX)),
-        );
-        m.addSeparator();
-        m.addItem((i) =>
-          i
-            .setTitle("Run Path Query")
-            .setIcon("git-branch")
-            .onClick(() => this.runPathPrompt()),
-        );
-        m.showAtMouseEvent(event);
-      },
-    );
-    this.addRibbonIcon("bot", "SauceBot — AI & Chat", (event) => {
-      const m = new Menu();
-      m.addItem((i) =>
-        i
-          .setTitle("Open SauceBot Chat")
-          .setIcon("sauce-copilot")
-          .onClick(() => this.openView(VIEW_COPILOT_CHAT)),
-      );
-      m.addItem((i) =>
-        i
-          .setTitle("AI Inbox")
-          .setIcon("sauce-ai-inbox")
-          .onClick(() => this.openView(VIEW_AI_INBOX)),
-      );
-      m.addItem((i) =>
-        i
-          .setTitle("Open Sauce Brain")
-          .setIcon("brain-circuit")
-          .onClick(() => this.openView(VIEW_BRAIN)),
-      );
-      m.addSeparator();
-      m.addItem((i) =>
-        i
-          .setTitle("Audit Log")
-          .setIcon("sauce-audit")
-          .onClick(() => this.openView(VIEW_AUDIT_LOG)),
-      );
-      m.addItem((i) =>
-        i
-          .setTitle("Skill Run Log")
-          .setIcon("sauce-skill")
-          .onClick(() => this.openView(VIEW_SKILL_RUN_LOG)),
-      );
-      m.addItem((i) =>
-        i
-          .setTitle("Sync Status")
-          .setIcon("sauce-sync")
-          .onClick(() => this.openView(VIEW_SYNC_STATUS_REAL)),
-      );
-      m.showAtMouseEvent(event);
-    });
-    // Fourth ribbon — utilities, setup, and data ops. Keeps the People /
-    // Graph / Copilot menus focused while ensuring nothing is unreachable.
-    this.addRibbonIcon("settings-2", "SauceOM — Setup & Data", (event) => {
-      const m = new Menu();
       m.addItem((i) =>
         i
           .setTitle("Quick Capture")
@@ -1756,6 +1634,7 @@ export default class SauceGraphPlugin extends Plugin {
           }),
       );
       m.addSeparator();
+      sec("Data");
       m.addItem((i) =>
         i
           .setTitle("Import (CSV/vCard/ICS/JSON)")
@@ -1775,30 +1654,25 @@ export default class SauceGraphPlugin extends Plugin {
         i
           .setTitle("Export Graph JSON")
           .setIcon("download")
-          // PLC-02: call the handler directly rather than round-tripping
-          // through the private commands API.
           .onClick(() => void this.exportGraphJson()),
       );
-      m.addItem(
-        (i) =>
-          i
-            .setTitle("Run Backup Now")
-            .setIcon("hard-drive")
-            .onClick(() => void this.runBackupNow()), // PLC-02
+      m.addItem((i) =>
+        i
+          .setTitle("Run Backup Now")
+          .setIcon("hard-drive")
+          .onClick(() => void this.runBackupNow()),
       );
-      m.addItem(
-        (i) =>
-          i
-            .setTitle("Prune Old Backups")
-            .setIcon("trash-2")
-            .onClick(() => void this.pruneBackups()), // PLC-02
+      m.addItem((i) =>
+        i
+          .setTitle("Prune Old Backups")
+          .setIcon("trash-2")
+          .onClick(() => void this.pruneBackups()),
       );
       m.addSeparator();
       m.addItem((i) =>
         i
           .setTitle("Initialize Vault")
           .setIcon("folder-plus")
-          // PLC-02: call the bootstrap service directly (mirrors the command).
           .onClick(
             () =>
               void this.bootstrap
@@ -1812,7 +1686,6 @@ export default class SauceGraphPlugin extends Plugin {
         i
           .setTitle("Initialize Parent Vault")
           .setIcon("folder-tree")
-          // PLC-02: call the parent-bootstrap service directly (mirrors the command).
           .onClick(
             () =>
               void this.parentBootstrap
@@ -1824,16 +1697,14 @@ export default class SauceGraphPlugin extends Plugin {
         i
           .setTitle("Onboarding…")
           .setIcon("compass")
-          // PLC-02: open the wizard modal directly (mirrors the command).
           .onClick(() => new OnboardingWizardModal(this.app, this).open()),
       );
       m.addSeparator();
-      m.addItem(
-        (i) =>
-          i
-            .setTitle("Sauce CRM Settings")
-            .setIcon("settings")
-            .onClick(() => this.openPluginSettings()), // PLC-02
+      m.addItem((i) =>
+        i
+          .setTitle("Sauce CRM Settings")
+          .setIcon("settings")
+          .onClick(() => this.openPluginSettings()),
       );
       m.showAtMouseEvent(event);
     });
