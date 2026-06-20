@@ -104,6 +104,13 @@ function toChange(c: ConfigChange): OptimizationChange {
   };
 }
 
+/** Minimal interface for the TasksService needed by the bridge — avoids
+ *  importing TasksService (which carries an App dep) into the adapter. */
+export interface TasksServiceLike {
+  listTasks(): Promise<{ task: import("../../services/TasksEmitter").SauceTask; path: string; line: number }[]>;
+  addTask(task: import("../../services/TasksEmitter").SauceTask): Promise<void>;
+}
+
 export class TasksAdapter implements IObsidianPluginIntegration {
   readonly id = TASKS_PLUGIN_ID;
   readonly label = "Tasks";
@@ -114,6 +121,7 @@ export class TasksAdapter implements IObsidianPluginIntegration {
     private readonly config: PluginConfigService,
     private readonly runtime: TasksRuntimeHost,
     private readonly profile: CanonicalProfile = SAUCE_TASKS_PROFILE,
+    private readonly tasksService?: TasksServiceLike,
   ) {}
 
   async detect(): Promise<PluginState> {
@@ -191,6 +199,12 @@ export class TasksAdapter implements IObsidianPluginIntegration {
     pushed: number;
     errors: number;
   }> {
-    return { pulled: 0, pushed: 0, errors: 0 };
+    if (!this.tasksService) return { pulled: 0, pushed: 0, errors: 0 };
+    try {
+      const refs = await this.tasksService.listTasks();
+      return { pulled: refs.length, pushed: 0, errors: 0 };
+    } catch {
+      return { pulled: 0, pushed: 0, errors: 1 };
+    }
   }
 }

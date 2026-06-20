@@ -2492,6 +2492,57 @@ export default class SauceGraphPlugin extends Plugin {
       name: "Show boot timing",
       callback: () => this.showBootTiming(),
     });
+    this.addCommand({
+      id: "tasks-bridge-import",
+      name: "Tasks Bridge — Import Tasks-plugin → Sauce",
+      callback: () => {
+        void this.tasks.listTasks().then((refs) => {
+          new Notice(
+            `Tasks Bridge: found ${refs.length} checkbox task(s) in _TASKS.md`,
+          );
+        }).catch((e: unknown) =>
+          new Notice(`Tasks Bridge error: ${String(e)}`),
+        );
+      },
+    });
+    this.addCommand({
+      id: "tasks-bridge-mirror",
+      name: "Tasks Bridge — Mirror Sauce tasks → _TASKS.md",
+      callback: () => {
+        const svc = this.tasks;
+        const files = this.app.vault.getMarkdownFiles();
+        const cache = this.app.metadataCache;
+        const pushes: Promise<void>[] = [];
+        for (const f of files) {
+          const fm = cache.getFileCache(f)?.frontmatter as
+            | Record<string, unknown>
+            | undefined;
+          if (fm?.["type"] !== "task") continue;
+          const title =
+            typeof fm["title"] === "string" ? fm["title"] : f.basename;
+          const due =
+            typeof fm["due"] === "string"
+              ? fm["due"].slice(0, 10)
+              : undefined;
+          pushes.push(
+            svc.addTask(
+              due !== undefined
+                ? { title, status: "todo", due }
+                : { title, status: "todo" },
+            ),
+          );
+        }
+        void Promise.all(pushes)
+          .then(() =>
+            new Notice(
+              `Tasks Bridge: mirrored ${pushes.length} task(s) → _TASKS.md`,
+            ),
+          )
+          .catch((e: unknown) =>
+            new Notice(`Tasks Bridge error: ${String(e)}`),
+          );
+      },
+    });
   }
 
   private activeFile(): TFile | null {
