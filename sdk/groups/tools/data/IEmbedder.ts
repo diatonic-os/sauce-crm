@@ -33,7 +33,8 @@ export class HashEmbedder implements IEmbedder {
   private embedOne(text: string): number[] {
     const v = new Array<number>(this.dimensions).fill(0);
     for (const tok of text.toLowerCase().split(/\W+/).filter(Boolean)) {
-      v[fnv1a(tok) % this.dimensions] += 1;
+      const i = fnv1a(tok) % this.dimensions;
+      v[i] = (v[i] ?? 0) + 1;
     }
     const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
     return norm === 0 ? v : v.map((x) => x / norm);

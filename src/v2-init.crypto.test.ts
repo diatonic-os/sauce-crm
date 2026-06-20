@@ -61,10 +61,10 @@ describe("SEC-03 AES-GCM nonce compat", () => {
     const nonce = new Uint8Array(12).fill(4);
     const sealed = await sealAesGcm(KEY, nonce, MSG);
     const tampered = sealed.slice();
-    tampered[0] ^= 0xff; // corrupt the SGV2 magic
+    tampered[0] = (tampered[0] ?? 0) ^ 0xff; // corrupt the SGV2 magic
     expect(await openAesGcm(KEY, nonce, tampered)).toBeNull();
     const wrongKey = KEY.slice();
-    wrongKey[0] ^= 0xff;
+    wrongKey[0] = (wrongKey[0] ?? 0) ^ 0xff;
     expect(await openAesGcm(wrongKey, nonce, sealed)).toBeNull();
   });
 });

@@ -52,7 +52,7 @@ async function deriveKey(
     ["deriveKey"],
   );
   return subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
     baseKey,
     { name: "AES-GCM", length: 256 },
     false,
@@ -165,9 +165,9 @@ export class EncryptedBackupService {
       const ct = base64ToBytes(env.ciphertext);
       const key = await deriveKey(passphrase, salt);
       const ptBuf = await globalThis.crypto.subtle.decrypt(
-        { name: "AES-GCM", iv },
+        { name: "AES-GCM", iv: iv as BufferSource },
         key,
-        ct,
+        ct as BufferSource,
       );
       return new TextDecoder().decode(ptBuf);
     } catch {

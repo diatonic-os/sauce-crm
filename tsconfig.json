@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    // TS 6.0 deprecates baseUrl (still functions until TS 7); the `@/*` paths
+    // alias relies on it. Silence the deprecation-as-error until a paths migration.
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "inlineSourceMap": true,
     "inlineSources": true,
@@ -7,9 +10,15 @@
     "target": "ES2020",
     "allowJs": true,
     // "bundler" (vs legacy "node") resolves modern dependency `exports` maps
-    // (vitest/vite) so the FULL lib check passes without skipLibCheck. Correct
-    // for this project since esbuild does the actual bundling.
+    // (vitest/vite). Correct for this project since esbuild does the bundling.
     "moduleResolution": "bundler",
+    // TypeScript was upgraded to 6.0 so the lib supports generic typed arrays
+    // (Uint8Array<ArrayBuffer>) that maplibre-gl's deps (kdbush@4) emit. We also
+    // enable skipLibCheck — the TS-recommended posture for a large dependency
+    // tree like maplibre's: it skips type-checking THIRD-PARTY .d.ts only (e.g.
+    // @maplibre/geojson-vt's ambient GeoJSON refs). Our own src/** is still
+    // fully type-checked.
+    "skipLibCheck": true,
     "importHelpers": true,
     "isolatedModules": true,
     "strict": true,

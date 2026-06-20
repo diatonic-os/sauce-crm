@@ -30,7 +30,9 @@ export async function sha256Hex(data: string): Promise<string> {
 export async function hmacHex(key: Uint8Array, msg: string): Promise<string> {
   const k = await subtle().importKey(
     "raw",
-    key, // Uint8Array implements ArrayBufferView ⊆ BufferSource — no cast needed
+    // TS 6.0 generic typed arrays: a Uint8Array<ArrayBufferLike> isn't a
+    // BufferSource (could be SharedArrayBuffer-backed); ours never is.
+    key as BufferSource,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
@@ -74,7 +76,7 @@ function bytesToBase64(bytes: Uint8Array): string {
   throw new Error("no base64 encoder available");
 }
 
-function base64ToBytes(b64: string): Uint8Array {
+function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
   if (typeof atob === "function") {
     const bin = atob(b64);
     const out = new Uint8Array(bin.length);
@@ -96,7 +98,7 @@ function base64ToBytes(b64: string): Uint8Array {
 export async function deriveTransportKey(
   pairingKey: Uint8Array,
 ): Promise<CryptoKey> {
-  const ikm = await subtle().importKey("raw", pairingKey, "HKDF", false, [
+  const ikm = await subtle().importKey("raw", pairingKey as BufferSource, "HKDF", false, [
     "deriveKey",
   ]);
   return subtle().deriveKey(
@@ -159,7 +161,7 @@ export async function transportDecrypt(
 }
 
 /** Cryptographically-strong random bytes, Web Crypto with a guarded fallback. */
-function randomBytes(n: number): Uint8Array {
+function randomBytes(n: number): Uint8Array<ArrayBuffer> {
   const c = (globalThis as { crypto?: Crypto }).crypto;
   if (c && typeof c.getRandomValues === "function") {
     return c.getRandomValues(new Uint8Array(n));
