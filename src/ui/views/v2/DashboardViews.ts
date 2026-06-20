@@ -11,6 +11,11 @@ import type { TaskRow, InboxRow, LedgerRow } from "../../svelte/DashboardTypes";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
+import { collectTaskInputs } from "@/services/tasks/collectTasks";
+import {
+  scoreTasks,
+  type Quadrant,
+} from "@/services/tasks/EisenhowerEngine";
 
 export const VIEW_TASKS: ViewTypeId = asViewTypeId("sauce-crm-tasks-board");
 export const VIEW_INBOX: ViewTypeId = asViewTypeId("sauce-crm-inbox");
@@ -85,42 +90,66 @@ export class TasksView extends SvelteDashboardView {
       },
     });
   }
-  private collectTaskRows(): TaskRow[] {
-    const out: TaskRow[] = [];
+  private buildClosenessMap(): Map<string, number> {
+    const map = new Map<string, number>();
     const cache = this.plugin.app.metadataCache;
     for (const f of this.plugin.app.vault.getMarkdownFiles()) {
       const fm = cache.getFileCache(f)?.frontmatter as
         | Record<string, unknown>
         | undefined;
-      if (!fm || fm.type !== "task") continue;
-      const _due = typeof fm.due === "string" ? fm.due : undefined;
-      const _priority =
-        typeof fm.priority === "string" ? fm.priority : undefined;
-      const _contact = typeof fm.contact === "string" ? fm.contact : undefined;
-      const _tags = Array.isArray(fm.tags)
-        ? fm.tags.filter((t): t is string => typeof t === "string")
-        : undefined;
-      // Normalize status so legacy / loosely-typed values (whitespace,
-      // casing, "in-progress" with a hyphen, "in progress" with a space)
-      // map onto the canonical enum the dashboard groups by. A missing or
-      // unrecognized value falls back to "todo" rather than vanishing.
-      out.push({
-        path: f.path,
-        title: typeof fm.title === "string" ? fm.title : f.basename,
-        status:
-          typeof fm.status === "string"
-            ? fm.status
-                .trim()
-                .toLowerCase()
-                .replace(/[\s-]+/g, "_") || "todo"
-            : "todo",
-        ...(_due !== undefined ? { due: _due } : {}),
-        ...(_priority !== undefined ? { priority: _priority } : {}),
-        ...(_contact !== undefined ? { contact: _contact } : {}),
-        ...(_tags !== undefined ? { tags: _tags } : {}),
-      });
+      if (!fm || fm["type"] !== "warm-contact") continue;
+      const closeness =
+        typeof fm["closeness"] === "number"
+          ? fm["closeness"]
+          : Number(fm["closeness"] ?? 3);
+      map.set(f.basename, Number.isFinite(closeness) ? closeness : 3);
     }
-    return out;
+    return map;
+  }
+
+  private collectTaskRows(): TaskRow[] {
+    const inputs = collectTaskInputs(this.plugin.app);
+    const closenessMap = this.buildClosenessMap();
+    const closenessOf = (contact: string | null): number => {
+      if (!contact) return 3;
+      const name = contact.replace(/^\[\[|\]\]$/g, "");
+      return closenessMap.get(name) ?? 3;
+    };
+    const now = new Date();
+    const scored = scoreTasks(inputs, closenessOf, now);
+    // Build a quadrant lookup by path
+    const quadrantByPath = new Map<string, Quadrant>();
+    for (const s of scored) {
+      quadrantByPath.set(s.input.path, s.quadrant);
+    }
+
+    const cache = this.plugin.app.metadataCache;
+    return inputs.map((inp) => {
+      const f = this.plugin.app.vault.getAbstractFileByPath(inp.path);
+      const fm = f
+        ? (cache.getFileCache(f as TFile)?.frontmatter as
+            | Record<string, unknown>
+            | undefined)
+        : undefined;
+      const _tags = Array.isArray(fm?.["tags"])
+        ? (fm!["tags"] as unknown[]).filter(
+            (t): t is string => typeof t === "string",
+          )
+        : undefined;
+      const row: TaskRow = {
+        path: inp.path,
+        title: inp.title,
+        status: inp.status,
+        ...(inp.due !== null ? { due: inp.due } : {}),
+        ...(inp.priority !== null ? { priority: inp.priority } : {}),
+        ...(inp.contact !== null ? { contact: inp.contact } : {}),
+        ...(_tags !== undefined ? { tags: _tags } : {}),
+        ...(quadrantByPath.has(inp.path)
+          ? { quadrant: quadrantByPath.get(inp.path)! }
+          : {}),
+      };
+      return row;
+    });
   }
 }
 

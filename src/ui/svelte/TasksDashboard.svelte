@@ -14,6 +14,15 @@
   // `filtered.length`, not `groups.length`, so no real data ever disappears.
 
   import type { TaskRow } from "./DashboardTypes";
+  import type { Quadrant } from "@/services/tasks/EisenhowerEngine";
+
+  const QUADRANT_ORDER: Quadrant[] = ["do", "schedule", "delegate", "eliminate"];
+  const QUADRANT_LABEL: Record<Quadrant, string> = {
+    do: "Q1·Do",
+    schedule: "Q2·Schedule",
+    delegate: "Q3·Delegate",
+    eliminate: "Q4·Eliminate",
+  };
 
   interface Props {
     rows: TaskRow[];
@@ -28,7 +37,7 @@
   let filterPriority = $state<string>("all");
   let filterContact = $state<string>("all");
   let search = $state("");
-  let sortBy = $state<"status" | "due" | "priority" | "title">("status");
+  let sortBy = $state<"status" | "due" | "priority" | "title" | "quadrant">("status");
 
   const STATUS_ORDER = ["todo", "in_progress", "blocked", "done", "cancelled"];
   const STATUS_LABEL: Record<string, string> = {
@@ -95,6 +104,12 @@
       );
     } else if (sortBy === "title") {
       out.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === "quadrant") {
+      out.sort((a, b) => {
+        const ai = a.quadrant ? QUADRANT_ORDER.indexOf(a.quadrant) : 99;
+        const bi = b.quadrant ? QUADRANT_ORDER.indexOf(b.quadrant) : 99;
+        return ai - bi;
+      });
     }
     return out;
   }
@@ -230,6 +245,7 @@
         <option value="due">due date</option>
         <option value="priority">priority</option>
         <option value="title">title (A→Z)</option>
+        <option value="quadrant">quadrant (Eisenhower)</option>
       </select>
     </div>
   </div>
@@ -275,6 +291,9 @@
                 {/if}
                 {#if t.contact}
                   <span class="sauce-task-contact">{t.contact}</span>
+                {/if}
+                {#if t.quadrant}
+                  <span class="sauce-badge sauce-eis-quadrant-pill sauce-eis-pill-{t.quadrant}">{QUADRANT_LABEL[t.quadrant]}</span>
                 {/if}
                 {#each t.tags ?? [] as tag}
                   <span class="sauce-tag">#{tag}</span>
