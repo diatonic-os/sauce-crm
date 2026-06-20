@@ -157,7 +157,8 @@ This will be called out explicitly at hand-off rather than claimed as verified.
 ### Live smoke-test checklist (run in Obsidian after `npm run build` deploys)
 
 Phase-1 is code-complete, typecheck/build/1860-test green, and maplibre bundles
-into `main.js`. NOT yet verified live. To verify:
+into `main.js`. **LIVE-VERIFIED 2026-06-20** on `Sauce_Relationship_Graph` (see
+"Smoke-test result" below). To re-verify:
 
 1. `npm run build` (auto-deploys to the vault plugin dirs in esbuild.config.mjs).
 2. In Obsidian: reload the plugin (or Hot Reload), open the **SauceOM** ribbon →
@@ -182,3 +183,27 @@ Known Phase-1 limitations (by design): offline basemap is a graticule only (no
 landmass/streets until a local `.pmtiles` or online tiles are configured — the
 settings UI for that is Phase 2); arcs are great-circle surface curves (the 3D
 lifted-arc custom layer is Phase 2; height data is already computed).
+
+### Smoke-test result (2026-06-20 — PASS)
+
+Run live in Obsidian on `Sauce_Relationship_Graph` via `obsidian eval` after
+`npm run build` (main.js 1.87 MB, maplibre bundled). All critical items pass:
+
+- **Render:** AtlasView mounts; geo `<canvas>` present; "N of M located" notice
+  shows; relation chips + Geo/Network mode buttons render. ✅
+- **Geo data path:** with no geocoded entities it correctly reads "0 of 325
+  located"; seeding 3 entities with `lat`/`lon` frontmatter (NYC/SF/London) made
+  the notice update to "3 of 328 located" — geo nodes resolve end-to-end. ✅
+- **Network mode:** toggle Geo⇄Network works; canvas persists (context reused). ✅
+- **WebGL durability (critical):** 5× open/close + 10× Geo⇄Network toggles →
+  **0 "Too many active WebGL contexts" errors, 0 leaks** — `map.remove()` on
+  dispose works. ✅
+- **Blob-worker CSP (critical):** **0** "Refused to create a worker from blob:"
+  errors — maplibre's tile worker is not blocked in Obsidian's Electron. ✅
+- **Console:** **0 errors** across all opens/toggles. ✅
+
+Status: Atlas Phase-1 is **DONE** (code-complete + live-verified). The only
+observed gap is data — the production vault has 0 geocoded entities, so the geo
+globe shows the empty graticule until people/orgs carry `lat`/`lon` (a content
+task, not a renderer bug; the Geocode-current-note command + Phase-2 basemap UI
+address it).
