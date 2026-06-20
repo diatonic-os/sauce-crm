@@ -36,7 +36,7 @@
   const QUADRANT_COLOR: Record<string, string> = {
     do: "var(--color-red)",
     schedule: "var(--color-blue)",
-    delegate: "var(--color-yellow)",
+    delegate: "var(--color-orange)",
     eliminate: "var(--color-base-40)",
   };
 

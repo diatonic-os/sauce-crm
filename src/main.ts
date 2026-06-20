@@ -2496,9 +2496,13 @@ export default class SauceGraphPlugin extends Plugin {
       id: "tasks-bridge-import",
       name: "Tasks Bridge — Import Tasks-plugin → Sauce",
       callback: () => {
+        if (!(this.app as any).plugins?.plugins?.['obsidian-tasks-plugin']) {
+          new Notice("Obsidian Tasks plugin not installed/enabled.");
+          return;
+        }
         void this.tasks.listTasks().then((refs) => {
           new Notice(
-            `Tasks Bridge: found ${refs.length} checkbox task(s) in _TASKS.md`,
+            `Found ${refs.length} Tasks-plugin task(s). (Full import/reconcile coming soon.)`,
           );
         }).catch((e: unknown) =>
           new Notice(`Tasks Bridge error: ${String(e)}`),
@@ -2509,38 +2513,48 @@ export default class SauceGraphPlugin extends Plugin {
       id: "tasks-bridge-mirror",
       name: "Tasks Bridge — Mirror Sauce tasks → _TASKS.md",
       callback: () => {
+        if (!(this.app as any).plugins?.plugins?.['obsidian-tasks-plugin']) {
+          new Notice("Obsidian Tasks plugin not installed/enabled.");
+          return;
+        }
         const svc = this.tasks;
         const files = this.app.vault.getMarkdownFiles();
         const cache = this.app.metadataCache;
-        const pushes: Promise<void>[] = [];
-        for (const f of files) {
-          const fm = cache.getFileCache(f)?.frontmatter as
-            | Record<string, unknown>
-            | undefined;
-          if (fm?.["type"] !== "task") continue;
-          const title =
-            typeof fm["title"] === "string" ? fm["title"] : f.basename;
-          const due =
-            typeof fm["due"] === "string"
-              ? fm["due"].slice(0, 10)
-              : undefined;
-          pushes.push(
-            svc.addTask(
-              due !== undefined
-                ? { title, status: "todo", due }
-                : { title, status: "todo" },
-            ),
+        void svc.listTasks().then((existingRefs) => {
+          // Build a dedup set of "title|due" keys already in _TASKS.md
+          const existing = new Set(
+            existingRefs.map((r) => `${r.task.title}|${r.task.due ?? ""}`)
           );
-        }
-        void Promise.all(pushes)
-          .then(() =>
+          const pushes: Promise<void>[] = [];
+          for (const f of files) {
+            const fm = cache.getFileCache(f)?.frontmatter as
+              | Record<string, unknown>
+              | undefined;
+            if (fm?.["type"] !== "task") continue;
+            const title =
+              typeof fm["title"] === "string" ? fm["title"] : f.basename;
+            const due =
+              typeof fm["due"] === "string"
+                ? fm["due"].slice(0, 10)
+                : undefined;
+            // Skip if already mirrored (idempotence)
+            if (existing.has(`${title}|${due ?? ""}`)) continue;
+            pushes.push(
+              svc.addTask(
+                due !== undefined
+                  ? { title, status: "todo", due }
+                  : { title, status: "todo" },
+              ),
+            );
+          }
+          return Promise.all(pushes).then(() =>
             new Notice(
               `Tasks Bridge: mirrored ${pushes.length} task(s) → _TASKS.md`,
             ),
-          )
-          .catch((e: unknown) =>
-            new Notice(`Tasks Bridge error: ${String(e)}`),
           );
+        }).catch((e: unknown) =>
+          new Notice(`Tasks Bridge error: ${String(e)}`),
+        );
       },
     });
   }

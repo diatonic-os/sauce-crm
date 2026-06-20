@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { toCheckbox, parseCheckbox, type SauceTask } from '../../src/services/TasksEmitter';
+import { toCheckbox, parseCheckbox, parseTasksFromText, type SauceTask } from '../../src/services/TasksEmitter';
 import { TasksAdapter, SAUCE_TASKS_PROFILE, TASKS_PLUGIN_ID } from '../../src/integrations/obsidian/TasksAdapter';
 import { PluginConfigService, type PluginConfigHost, type PluginKind } from '../../src/services/PluginConfigService';
 
@@ -75,5 +75,57 @@ describe('TasksAdapter.syncResource with tasksService', () => {
     expect(result.pulled).toBe(0);
     expect(result.pushed).toBe(0);
     expect(result.errors).toBe(0);
+  });
+});
+
+describe('mirror dedup helper', () => {
+  it('filters tasks already present in _TASKS.md (dedup by title+due)', () => {
+    // Simulate what the mirror command does: build existing set, skip matches
+    const existing = [
+      { task: { title: 'Buy milk', status: 'todo' as const, due: '2024-06-01' }, path: '_TASKS.md', line: 1 },
+      { task: { title: 'Call Alice', status: 'todo' as const }, path: '_TASKS.md', line: 2 },
+    ];
+    const existingSet = new Set(
+      existing.map((r) => `${r.task.title}|${r.task.due ?? ''}`)
+    );
+
+    const incoming: SauceTask[] = [
+      { title: 'Buy milk', status: 'todo', due: '2024-06-01' },  // duplicate
+      { title: 'Call Alice', status: 'todo' },                    // duplicate
+      { title: 'Write tests', status: 'todo', due: '2024-07-01' }, // new
+    ];
+
+    const toMirror = incoming.filter(
+      (t) => !existingSet.has(`${t.title}|${t.due ?? ''}`)
+    );
+
+    expect(toMirror).toHaveLength(1);
+    expect(toMirror[0]!.title).toBe('Write tests');
+  });
+
+  it('mirroring the same task set twice yields no new tasks on second pass', () => {
+    const tasks: SauceTask[] = [
+      { title: 'Task A', status: 'todo', due: '2024-05-01' },
+      { title: 'Task B', status: 'todo' },
+    ];
+
+    // First pass: nothing existing → all are new
+    const existingSet1 = new Set<string>();
+    const firstPass = tasks.filter((t) => !existingSet1.has(`${t.title}|${t.due ?? ''}`));
+    expect(firstPass).toHaveLength(2);
+
+    // Second pass: all tasks now "exist" in _TASKS.md
+    const existingSet2 = new Set(tasks.map((t) => `${t.title}|${t.due ?? ''}`));
+    const secondPass = tasks.filter((t) => !existingSet2.has(`${t.title}|${t.due ?? ''}`));
+    expect(secondPass).toHaveLength(0);
+  });
+
+  it('round-trips through toCheckbox/parseTasksFromText preserve dedup keys', () => {
+    const task: SauceTask = { title: 'Review PR', status: 'todo', due: '2024-08-15' };
+    const line = toCheckbox(task);
+    const parsed = parseTasksFromText(line);
+    expect(parsed).toHaveLength(1);
+    const key = `${parsed[0]!.task.title}|${parsed[0]!.task.due ?? ''}`;
+    expect(key).toBe('Review PR|2024-08-15');
   });
 });

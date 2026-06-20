@@ -69,7 +69,8 @@ export class IcsExportAdapter implements IExportAdapter {
         out.push("BEGIN:VEVENT");
         if (e.frontmatter.id) out.push(`UID:${e.frontmatter.id}`);
         if (e.frontmatter.summary) out.push(`SUMMARY:${e.frontmatter.summary}`);
-        if (e.frontmatter.date) out.push(`DTSTART:${e.frontmatter.date}`);
+        if (e.frontmatter.date)
+          out.push(`DTSTART:${String(e.frontmatter.date).slice(0, 10)}`);
         out.push("END:VEVENT");
       } else if (e.type === "task") {
         out.push("BEGIN:VEVENT");

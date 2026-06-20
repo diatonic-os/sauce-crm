@@ -2345,8 +2345,6 @@ select.sauce-input {
 
 /* ===== Phase 4 — calendar reschedule + quadrant overlay ===== */
 
-These classes were added to `Calendar.svelte` `<style>` (no styles.css changes):
-
 /* Quadrant color toggle button — same chrome as nav/mode buttons */
 .sauce-cal-color-toggle {
   background: var(--interactive-normal);
