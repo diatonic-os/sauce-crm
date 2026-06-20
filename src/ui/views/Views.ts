@@ -1,7 +1,7 @@
 // View type identifiers + base helper. We export all 8 views from this barrel
 // to keep main.ts wiring concise.
 
-import { ItemView, WorkspaceLeaf, TFile, setIcon, Platform } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, Platform } from "obsidian";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import type SauceGraphPlugin from "../../main";
 import { Entity } from "../../domain/Entity";
@@ -9,11 +9,7 @@ import { Person } from "../../domain/Person";
 import { Org } from "../../domain/Org";
 import { computeCompatibleSet } from "../../compat/CompatibleSet";
 import { todayIso, parseIsoSafe, daysBetween } from "../../util/DateUtil";
-import {
-  GraphAtlasService,
-  type GraphNode,
-  type GraphEdge,
-} from "../../services/GraphAtlasService";
+import { GraphAtlasService } from "../../services/GraphAtlasService";
 import { SauceViewHelp } from "../components/v2/SauceViewHelp";
 import {
   RelationshipAnalytics,
@@ -1484,14 +1480,4 @@ function displayWikilink(v: unknown): string {
   const afterPipe = raw.includes("|") ? raw.slice(raw.indexOf("|") + 1) : raw;
   const segs = afterPipe.split("/");
   return (segs[segs.length - 1] ?? afterPipe).trim();
-}
-
-function withAlpha(color: string, alpha: number): string {
-  if (color.startsWith("#") && color.length === 7) {
-    const r = Number.parseInt(color.slice(1, 3), 16);
-    const g = Number.parseInt(color.slice(3, 5), 16);
-    const b = Number.parseInt(color.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-  return color;
 }

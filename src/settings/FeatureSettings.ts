@@ -82,7 +82,11 @@ export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
     // lane JIT-loads the embed model at query time and degrades to lexical if
     // the embed endpoint is unreachable, so this is safe on a fresh install).
     enabled: true,
-    provider: "lmstudio",
+    // OpenAI is the preferred default for embedding accuracy, but selection is
+    // KEY-GATED at runtime via resolveEmbeddingProvider(): a keyless install
+    // transparently falls back to the local LM Studio model below, so a fresh
+    // vault without an API key still gets working (768-dim) embeddings.
+    provider: "openai",
     realtimeEmbeddings: true,
     fullVaultIndex: false,
     excludeGlobs: [],
@@ -96,7 +100,9 @@ export const DEFAULT_FEATURE_SETTINGS: SauceFeatureSettings = {
         model: "text-embedding-nomic-embed-text-v1.5",
       },
       openai: {
-        enabled: false,
+        // Enabled so the preferred default is usable the moment a key is set;
+        // resolveEmbeddingProvider still falls back to LM Studio when no key.
+        enabled: true,
         endpoint: "https://api.openai.com/v1",
         model: "text-embedding-3-small",
       },
@@ -170,4 +176,83 @@ export function activeEmbeddingProvider(
   const config = f.rag.providers[f.rag.provider];
   if (!config?.enabled || !config.model) return null;
   return { provider: f.rag.provider, config };
+}
+
+/** Known embed-model → output-dimension map. The LanceDB vector column dim is
+ *  fixed at table creation, so the index dim MUST match the active model's
+ *  output dim or every vector is dropped (EMB-1). Used to derive the table dim
+ *  from the resolved model and to detect a model/index dim mismatch. */
+export const EMBED_MODEL_DIMS: Readonly<Record<string, number>> = {
+  "text-embedding-3-small": 1536,
+  "text-embedding-3-large": 3072,
+  "text-embedding-ada-002": 1536,
+  "text-embedding-nomic-embed-text-v1.5": 768,
+  "nomic-embed-text-v1.5": 768,
+  "nomic-embed-text": 768,
+  "mxbai-embed-large": 1024,
+  "bge-large": 1024,
+  "bge-base": 768,
+  "bge-small": 384,
+  "all-minilm-l6-v2": 384,
+  "all-minilm": 384,
+};
+
+/** Resolve a model id to its embedding dimension, tolerating common id
+ *  decorations (`nomic-embed-text:latest`, `text-embedding-3-small@8bit`).
+ *  Returns null for unknown models so callers keep their configured/default dim. */
+export function embedDimForModel(model: string): number | null {
+  if (!model) return null;
+  const key = model.toLowerCase().trim();
+  if (EMBED_MODEL_DIMS[key] != null) return EMBED_MODEL_DIMS[key]!;
+  for (const [name, dim] of Object.entries(EMBED_MODEL_DIMS)) {
+    if (key.includes(name)) return dim;
+  }
+  return null;
+}
+
+export interface ResolvedEmbedProvider {
+  provider: EmbedProviderId;
+  config: EmbeddingProviderConfig;
+  /** Why this provider was chosen — surfaced in the RAG settings UI so the user
+   *  understands a silent fallback ("OpenAI preferred but no API key"). */
+  reason: "preferred" | "fallback-no-openai-key" | "fallback-disabled";
+}
+
+/**
+ * Resolve which embedding provider to ACTUALLY use, honoring the preferred
+ * provider but gating OpenAI on the presence of an API key and falling back to
+ * a reachable local provider otherwise (EMB-2). This is what makes an OpenAI
+ * default safe for keyless installs: they transparently use the local model.
+ * Returns null only when RAG is off or no provider is usable at all.
+ */
+export function resolveEmbeddingProvider(
+  f: SauceFeatureSettings,
+  hasOpenAIKey: boolean,
+): ResolvedEmbedProvider | null {
+  if (!f.rag.enabled) return null;
+  const usable = (id: EmbedProviderId): EmbeddingProviderConfig | null => {
+    const c = f.rag.providers[id];
+    if (!c?.enabled || !c.model) return null;
+    if (id === "openai" && !hasOpenAIKey) return null; // key-gated
+    return c;
+  };
+  const preferred = f.rag.provider;
+  const pc = usable(preferred);
+  if (pc) return { provider: preferred, config: pc, reason: "preferred" };
+  // Fallback: prefer reachable local providers, then OpenAI (if a key appeared).
+  for (const id of ["lmstudio", "ollama", "openai"] as EmbedProviderId[]) {
+    if (id === preferred) continue;
+    const c = usable(id);
+    if (c) {
+      return {
+        provider: id,
+        config: c,
+        reason:
+          preferred === "openai" && !hasOpenAIKey
+            ? "fallback-no-openai-key"
+            : "fallback-disabled",
+      };
+    }
+  }
+  return null;
 }
