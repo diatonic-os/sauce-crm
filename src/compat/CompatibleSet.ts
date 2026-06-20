@@ -10,7 +10,7 @@ export interface CompatibleSetResult {
   unique_a: string[];
   unique_b: string[];
   density: number; // |Cms| / |X ∪ Y|, normalized 0..1
-  symmetric: boolean;
+  symmetric: boolean; // true iff X(A) and X(B) are the SAME set (no unique tokens)
 }
 
 export function computeCompatibleSet(
@@ -39,7 +39,10 @@ export function computeCompatibleSet(
     unique_a,
     unique_b,
     density,
-    symmetric: unique_a.length === unique_b.length,
+    // True symmetry = the characteristic sets are equal (no unique tokens on
+    // either side). The old `unique_a.length === unique_b.length` only compared
+    // COUNTS, so two disjoint-but-equal-sized sets were wrongly flagged.
+    symmetric: unique_a.length === 0 && unique_b.length === 0,
   };
 }
 

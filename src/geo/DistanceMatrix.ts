@@ -12,7 +12,9 @@ export function haversineMeters(
   const s =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
+  // Clamp the asin argument: floating-point error can push sqrt(s) marginally
+  // above 1 for near-antipodal points, which would yield NaN.
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
 export function distanceMatrix(

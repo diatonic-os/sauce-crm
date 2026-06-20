@@ -29,14 +29,28 @@ export class GeoIndex {
     maxM = Infinity,
   ): { point: GeoPoint; distanceM: number }[] {
     const candidates: GeoPoint[] = [];
-    const baseLat = Math.floor(lat / this.cellDeg);
-    const baseLon = Math.floor(lon / this.cellDeg);
-    for (let dy = -1; dy <= 1; dy++)
-      for (let dx = -1; dx <= 1; dx++) {
-        candidates.push(
-          ...(this.cells.get(`${baseLat + dy},${baseLon + dx}`) ?? []),
-        );
-      }
+    if (!Number.isFinite(maxM)) {
+      // Unbounded radius: a fixed cell window could miss far points, so scan all.
+      for (const arr of this.cells.values()) candidates.push(...arr);
+    } else {
+      // Size the cell-ring from maxM instead of a fixed 3×3 window, which only
+      // covered ~one cell (~111 km at cellDeg=1) and silently missed farther
+      // candidates. Longitude cells shrink toward the poles, so widen the lon
+      // ring by 1/cos(lat).
+      const baseLat = Math.floor(lat / this.cellDeg);
+      const baseLon = Math.floor(lon / this.cellDeg);
+      const metersPerDeg = 111_320;
+      const cellM = this.cellDeg * metersPerDeg;
+      const cosLat = Math.max(0.01, Math.cos((lat * Math.PI) / 180));
+      const latRing = Math.max(1, Math.ceil(maxM / cellM));
+      const lonRing = Math.max(1, Math.ceil(maxM / (cellM * cosLat)));
+      for (let dy = -latRing; dy <= latRing; dy++)
+        for (let dx = -lonRing; dx <= lonRing; dx++) {
+          candidates.push(
+            ...(this.cells.get(`${baseLat + dy},${baseLon + dx}`) ?? []),
+          );
+        }
+    }
     const out = candidates
       .map((p) => ({
         point: p,

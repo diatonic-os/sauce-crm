@@ -43,6 +43,9 @@ export function buildMatrix(
     const i = idx.get(e.src),
       j = idx.get(e.dst);
     if (i == null || j == null) continue;
+    // Reject non-finite weights so a malformed edge cannot poison the matrix
+    // (NaN would defeat eqMatrix convergence; ±Infinity collides with sr.zero).
+    if (!Number.isFinite(e.weight)) continue;
     // i,j < n (from buildIndex over nodes[0..n-1]); m is n×n
     m[i]![j] = sr.add(m[i]![j]!, e.weight);
   }

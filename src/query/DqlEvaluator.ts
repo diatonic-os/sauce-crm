@@ -28,8 +28,14 @@ export class DqlEvaluator {
         for (const s of q.sort!) {
           const av = a.frontmatter[s.field],
             bv = b.frontmatter[s.field];
-          const cmp =
-            av == null ? 1 : bv == null ? -1 : av > bv ? 1 : av < bv ? -1 : 0;
+          // Nulls always sort last, independent of direction (the old code
+          // applied -cmp under DESC, which flipped nulls to the front).
+          const aNull = av == null,
+            bNull = bv == null;
+          if (aNull && bNull) continue;
+          if (aNull) return 1;
+          if (bNull) return -1;
+          const cmp = compareValues(av, bv);
           if (cmp !== 0) return s.dir === "DESC" ? -cmp : cmp;
         }
         return 0;
@@ -56,6 +62,23 @@ export class DqlEvaluator {
       return false;
     }
   }
+}
+
+/**
+ * Deterministic comparison for heterogeneous frontmatter values. Raw JS `>`/`<`
+ * returns false both ways for non-comparable pairs (e.g. number vs non-numeric
+ * string), yielding cmp=0 and unstable order. Compare like-typed values
+ * natively; otherwise fall back to a stable string form (ISO dates sort
+ * correctly as strings).
+ */
+function compareValues(a: unknown, b: unknown): number {
+  if (typeof a === "number" && typeof b === "number")
+    return a < b ? -1 : a > b ? 1 : 0;
+  if (typeof a === "boolean" && typeof b === "boolean")
+    return a === b ? 0 : a ? 1 : -1;
+  const as = a instanceof Date ? a.toISOString() : String(a);
+  const bs = b instanceof Date ? b.toISOString() : String(b);
+  return as < bs ? -1 : as > bs ? 1 : 0;
 }
 
 function stripQuotes(s: string): string {

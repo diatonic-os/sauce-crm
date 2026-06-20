@@ -78,8 +78,15 @@ export function closure<T>(sr: Semiring<T>, h: Matrix<T>): Matrix<T> {
 }
 
 /**
- * Reconstruct one best path between i and j via predecessor matrix.
- * Uses Dijkstra-style relaxation under the semiring.
+ * Reconstruct one best path between i and j, consistent with closure()[i][j].
+ *
+ * Uses Bellman-Ford-style relaxation (repeated full-edge sweeps), which is valid
+ * for any closed (idempotent) semiring used here. Dijkstra's "settle a node once
+ * and stop" is NOT valid when extending a path can IMPROVE the metric — e.g.
+ * MaxPlus (⊕=max, ⊙=+) with positive edge weights, where a longer route can beat
+ * a shorter one. The old greedy settle could lock in a suboptimal path whose
+ * weight disagreed with closure()[i][j]; this reconstructs a path whose weight
+ * equals dist[j] == closure()[i][j].
  */
 export function bestPath<T>(
   sr: Semiring<T>,
@@ -88,53 +95,47 @@ export function bestPath<T>(
   j: number,
 ): number[] | null {
   const n = h.length;
+  if (n === 0 || i < 0 || i >= n || j < 0 || j >= n) return null;
+  if (i === j) return [i];
   const dist: T[] = Array.from({ length: n }, () => sr.zero);
   const prev: number[] = Array.from({ length: n }, () => -1);
   dist[i] = sr.one;
-  const visited = new Set<number>();
-  for (let _step = 0; _step < n; _step++) {
-    let u = -1;
-    let best: T = sr.zero;
-    // v < n: dist[] has length n, all accesses in-bounds
-    for (let v = 0; v < n; v++) {
-      if (visited.has(v)) continue;
-      if (u === -1 || !sr.eq(sr.add(best, dist[v]!), best)) {
-        if (u === -1 || dominates(sr, dist[v]!, best)) {
-          u = v;
-          best = dist[v]!;
+  // n full sweeps: a best simple path has ≤ n-1 edges, so n-1 sweeps reach the
+  // optimum; the extra sweep observes "no change" and breaks early. The pass
+  // cap also bounds the work if an improving cycle prevents convergence.
+  for (let pass = 0; pass < n; pass++) {
+    let changed = false;
+    for (let u = 0; u < n; u++) {
+      // u unreachable so far → nothing to relax from it
+      if (sr.eq(dist[u]!, sr.zero)) continue;
+      const rowU = h[u]!;
+      for (let v = 0; v < n; v++) {
+        const alt = sr.mul(dist[u]!, rowU[v]!);
+        if (sr.eq(alt, sr.zero)) continue; // no edge u→v
+        const merged = sr.add(dist[v]!, alt);
+        if (!sr.eq(merged, dist[v]!)) {
+          // The merge strictly improved v, and the improvement came through u,
+          // so u is v's best predecessor for the current optimum.
+          dist[v] = merged;
+          prev[v] = u;
+          changed = true;
         }
       }
     }
-    if (u === -1 || sr.eq(best, sr.zero)) break;
-    visited.add(u);
-    if (u === j) break;
-    // u,v < n: dist[], h[], prev[] all have length n; h rows have length n
-    for (let v = 0; v < n; v++) {
-      if (visited.has(v)) continue;
-      const alt = sr.mul(dist[u]!, h[u]![v]!);
-      const merged = sr.add(dist[v]!, alt);
-      if (!sr.eq(merged, dist[v]!)) {
-        dist[v] = merged;
-        prev[v] = u;
-      }
-    }
+    if (!changed) break;
   }
-  // j is a valid node index (caller guards j < n via buildIndex)
-  if (prev[j]! === -1 && i !== j) return null;
+  if (sr.eq(dist[j]!, sr.zero) || prev[j]! === -1) return null;
+  // Walk predecessors j → … → i. The visited guard is defensive against an
+  // improving-cycle prev chain (cannot occur for a converged simple path).
   const path: number[] = [];
+  const visited = new Set<number>();
   let cur = j;
   while (cur !== -1) {
+    if (visited.has(cur)) return null;
+    visited.add(cur);
     path.unshift(cur);
     if (cur === i) break;
-    // cur is either a valid node index or -1 (loop terminates on -1)
     cur = prev[cur]!;
   }
-  // path always contains at least j; path[0] is defined
   return path[0]! === i ? path : null;
-}
-
-function dominates<T>(sr: Semiring<T>, a: T, b: T): boolean {
-  // a "wins" if a ⊕ b === a but a !== b
-  if (sr.eq(a, b)) return false;
-  return sr.eq(sr.add(a, b), a);
 }

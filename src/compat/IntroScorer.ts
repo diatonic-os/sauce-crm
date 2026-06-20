@@ -1,10 +1,10 @@
 import { computeCompatibleSet } from "./CompatibleSet";
-import { clearsThreshold } from "./InfoDensity";
+import { clearsThreshold, isFilled } from "./InfoDensity";
 
 export interface IntroScore {
-  score: number; // 0..1
+  score: number; // 0..1 — plain Jaccard density (|shared| / |union|), unweighted
   passes_threshold: boolean;
-  missing_for_threshold: string[];
+  missing_for_threshold: string[]; // fields to fill to raise representativity
 }
 
 export function scoreIntro(
@@ -17,8 +17,10 @@ export function scoreIntro(
   const passes = clearsThreshold(a, b, fields, rhoAdm);
   const missing: string[] = [];
   if (!passes) {
+    // Fields unfilled on either side — filling them raises representativity
+    // toward rhoAdm. Uses the same "filled" predicate as representativity().
     for (const f of fields) {
-      if (a[f] == null || b[f] == null) missing.push(f);
+      if (!isFilled(a[f]) || !isFilled(b[f])) missing.push(f);
     }
   }
   return {

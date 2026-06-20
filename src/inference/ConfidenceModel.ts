@@ -6,18 +6,18 @@ export interface ConfidenceConfig {
 }
 
 export const DEFAULT_THRESHOLDS: Record<string, ConfidenceConfig> = {
-  knows: { autoAccept: 1, propose: 0.6, discard: 0.3 },
-  worked_with: { autoAccept: 1, propose: 0.7, discard: 0.3 },
-  company: { autoAccept: 1, propose: 0.65, discard: 0.3 },
-  parent: { autoAccept: 1, propose: 0.8, discard: 0.4 },
-  family_of: { autoAccept: 1, propose: 0.75, discard: 0.4 },
-  merge: { autoAccept: 1, propose: 0.85, discard: 0.5 },
-  tags: { autoAccept: 1, propose: 0.55, discard: 0.3 },
+  knows: { autoAccept: 0.95, propose: 0.6, discard: 0.3 },
+  worked_with: { autoAccept: 0.95, propose: 0.7, discard: 0.3 },
+  company: { autoAccept: 0.95, propose: 0.65, discard: 0.3 },
+  parent: { autoAccept: 0.95, propose: 0.8, discard: 0.4 },
+  family_of: { autoAccept: 0.95, propose: 0.75, discard: 0.4 },
+  merge: { autoAccept: 0.95, propose: 0.85, discard: 0.5 },
+  tags: { autoAccept: 0.95, propose: 0.55, discard: 0.3 },
 };
 
 /** Fallback used when a threshold key is not present in the registry. */
 export const FALLBACK_THRESHOLD: ConfidenceConfig = {
-  autoAccept: 1,
+  autoAccept: 0.95,
   propose: 0.65,
   discard: 0.3,
 };
@@ -47,6 +47,9 @@ export function combineSignals(weights: number[], features: number[]): number {
 }
 
 export type Verdict = "auto_accept" | "propose" | "discard";
+// NB: confidence from combineSignals() is logistic() ∈ (0,1) and never reaches
+// 1, so an autoAccept of 1 made the tier unreachable. Cutoffs are < 1 (0.95) so
+// a saturated/externally-supplied high confidence can actually auto-accept.
 export function verdict(conf: number, cfg: ConfidenceConfig): Verdict {
   if (conf >= cfg.autoAccept) return "auto_accept";
   if (conf >= cfg.propose) return "propose";
