@@ -65,6 +65,16 @@ export class ChainedCredentialSource implements CredentialSource {
   available(): boolean {
     return this.sources.some((s) => s.available());
   }
+  /** Per-source availability for a UI vault-status indicator. The first
+   *  available source is where writes land (`active`). */
+  describe(): { label: string; available: boolean; active: boolean }[] {
+    const firstActive = this.sources.findIndex((s) => s.available());
+    return this.sources.map((s, i) => ({
+      label: s.label,
+      available: s.available(),
+      active: i === firstActive,
+    }));
+  }
   async get(service: string): Promise<string | null> {
     for (const s of this.sources) {
       if (!s.available()) continue;

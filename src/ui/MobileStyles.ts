@@ -147,6 +147,57 @@ body.is-mobile .sauce-quick-capture textarea { min-height: var(--sg-tap-min); }
 
 /* --- Toolbar icons: spaced for thumbs --- */
 body.is-mobile .sauce-copilot-actions .sauce-cp-icon { margin: 0 var(--sg-gap-2); }
+
+/* ===== Keyboard avoidance (driven by --sg-kb-inset from MobileKeyboard.ts) =====
+   The soft keyboard is NOT covered by safe-area insets. MobileKeyboard publishes
+   its height as --sg-kb-inset and toggles body.sg-kb-open so the composer and
+   modal inputs stay visible while typing — "see what you type at any point". */
+body.is-mobile { --sg-kb-inset: 0px; }
+
+/* Chat composer: lift it above the keyboard and keep the transcript scrollable
+   to the last line. The composer is the input row pinned at the bottom. */
+body.is-mobile .sauce-copilot-input {
+  position: sticky;
+  bottom: 0;
+  background: var(--background-primary);
+  padding-bottom: calc(var(--sg-mobile-bottom) + var(--sg-kb-inset, 0px));
+  transition: padding-bottom 0.15s ease-out;
+  z-index: 5;
+}
+body.is-mobile .sauce-copilot-transcript {
+  /* Room so the newest message isn't hidden behind composer + keyboard. */
+  scroll-padding-bottom: calc(var(--sg-tap-min) + var(--sg-kb-inset, 0px));
+  padding-bottom: var(--sg-gap-8);
+}
+/* Any focused field scrolls clear of the keyboard. */
+body.is-mobile input,
+body.is-mobile textarea {
+  scroll-margin-bottom: calc(var(--sg-kb-inset, 0px) + var(--sg-gap-21));
+}
+
+/* Modals: when the keyboard is open, cap the sheet to the visible area and pad
+   its footer so the submit button + the field being typed stay on screen. */
+body.is-mobile.sg-kb-open .modal,
+body.is-mobile.sg-kb-open .modal-content {
+  max-height: calc(100dvh - var(--sg-kb-inset, 0px)) !important;
+  overflow-y: auto;
+}
+body.is-mobile.sg-kb-open .modal-content {
+  padding-bottom: calc(var(--sg-gap-13) + var(--sg-kb-inset, 0px));
+}
+/* The InputModal (promptText / data entry) keeps its field + CTA above the kb. */
+body.is-mobile.sg-kb-open .sauce-input-modal,
+body.is-mobile.sg-kb-open .prompt {
+  margin-bottom: var(--sg-kb-inset, 0px);
+}
+
+/* Larger, calmer touch targets for the mobile-simplified data entry. */
+body.is-mobile .sauce-copilot-textarea {
+  min-height: calc(var(--sg-tap-min) * 1.1);
+  max-height: 40vh;
+  line-height: 1.45;
+}
+body.is-mobile .sauce-cp-send { min-width: var(--sg-tap-min); min-height: var(--sg-tap-min); }
 `;
 
 /** Inject the mobile stylesheet into <head>. Returns a cleanup that removes it

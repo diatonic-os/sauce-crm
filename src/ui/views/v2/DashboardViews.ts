@@ -6,15 +6,13 @@ import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import { mount, unmount } from "svelte";
 import TasksDashboard from "../../svelte/TasksDashboard.svelte";
 import InboxDashboard from "../../svelte/InboxDashboard.svelte";
-import LedgerDashboard from "../../svelte/LedgerDashboard.svelte";
-import type { TaskRow, InboxRow, LedgerRow } from "../../svelte/DashboardTypes";
+import type { TaskRow, InboxRow } from "../../svelte/DashboardTypes";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_TASKS: ViewTypeId = asViewTypeId("sauce-crm-tasks-board");
 export const VIEW_INBOX: ViewTypeId = asViewTypeId("sauce-crm-inbox");
-export const VIEW_LEDGER: ViewTypeId = asViewTypeId("sauce-crm-ledger");
 
 abstract class SvelteDashboardView extends ItemView {
   protected svelteApp: ReturnType<typeof mount> | undefined;
@@ -195,58 +193,3 @@ export class InboxView extends SvelteDashboardView {
   }
 }
 
-export class LedgerView extends SvelteDashboardView {
-  private help!: SauceViewHelp;
-  getViewType(): string {
-    return VIEW_LEDGER;
-  }
-  getDisplayText(): string {
-    return "Sauce CRM — Ledger";
-  }
-  override getIcon(): string {
-    return "sauce-audit";
-  }
-  override async onOpen(): Promise<void> {
-    this.contentEl.empty();
-    this.contentEl.addClass("sauce-view");
-    this.help = new SauceViewHelp();
-    this.help.mountHeader(this.contentEl, {
-      title: "Ledger",
-      icon: "sauce-audit",
-      subtitle: "Money in and out by contact",
-    });
-    this.svelteApp = mount(LedgerDashboard, {
-      target: this.contentEl,
-      props: {
-        rows: this.collectLedgerRows(),
-        onOpenPath: (p: string) => this.openPath(p),
-      },
-    });
-  }
-  private collectLedgerRows(): LedgerRow[] {
-    const out: LedgerRow[] = [];
-    const cache = this.plugin.app.metadataCache;
-    for (const f of this.plugin.app.vault.getMarkdownFiles()) {
-      const fm = cache.getFileCache(f)?.frontmatter as
-        | Record<string, unknown>
-        | undefined;
-      if (!fm || fm.type !== "ledger-entry") continue;
-      const amount =
-        typeof fm.amount === "number" ? fm.amount : Number(fm.amount);
-      if (!Number.isFinite(amount)) continue;
-      const direction = fm.direction === "in" ? "in" : "out";
-      const _notes = typeof fm.notes === "string" ? fm.notes : undefined;
-      out.push({
-        path: f.path,
-        date: typeof fm.date === "string" ? fm.date : "",
-        contact: typeof fm.contact === "string" ? fm.contact : "?",
-        category: typeof fm.category === "string" ? fm.category : "?",
-        amount,
-        currency: typeof fm.currency === "string" ? fm.currency : "USD",
-        direction,
-        ...(_notes !== undefined ? { notes: _notes } : {}),
-      });
-    }
-    return out;
-  }
-}

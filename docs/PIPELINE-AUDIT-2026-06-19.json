@@ -1,0 +1,342 @@
+[
+  {
+    "stage": "FILE ATTACHMENT + CONTEXT INJECTION",
+    "findings": [
+      {
+        "title": "compactPriorHistory injects two consecutive user messages \u2014 Anthropic API protocol violation",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 827,
+        "severity": "critical",
+        "bug": "compactPriorHistory builds a summary ChatMessage with role='user' and prepends it to `recent`, which already starts with a user message (the last turn's user prompt). The returned array is [user(summary), user(last_turn), assistant(last_turn)]. ask() then appends the current user query, producing [user(summary), user(prior), assistant(prior), user(current)] \u2014 two consecutive user messages at positions 0 and 1. Anthropic (and most strict providers) enforce user/assistant alternation and reject this with a 400.",
+        "evidence": "Line 827-831: `const memo: ChatMessage = { role: 'user', content: '[Earlier conversation summary]...' }; return [memo, ...recent];`. `recent = prior.slice(prior.length - 2)` which is [user_msg, assistant_msg] for a normal history. Ask() at line 1622-1624 appends the current user turn, giving the sequence user\u2192user\u2192assistant\u2192user.",
+        "fix": "Give the summary the role 'assistant' (e.g., the model 'recalls' its earlier context), or insert a dummy assistant ACK between the summary and the next user message, or prefix it into the existing prior assistant turn. Simplest fix: `{ role: 'assistant', content: '[Earlier conversation summary]\\n' + summary }`.",
+        "confidence": 0.95
+      },
+      {
+        "title": "pinnedPaths always returns [] \u2014 pinned-paths RAG boost is permanently dead",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 244,
+        "severity": "high",
+        "bug": "ObsidianRagHost is constructed with a hardcoded `pinnedPaths: () => []` closure. There is no setter method and the value is never updated. `pinned()` therefore always returns an empty array, making the SPEC \u00a719.3 pin-boost (2x score multiplier) and the 'Pinned' tier of the RAG assembly permanently inoperative for every query.",
+        "evidence": "SauceBotRuntime.ts line 244: `() => []` is passed as pinnedPaths. SauceBotHostAdapters.ts line 128: `async pinned() { return this.pinnedPaths(); }`. Grep across the entire src/ confirms no `setPinnedPaths` or mutation of that field exists anywhere.",
+        "fix": "Add a `setPinnedPaths(fn: () => string[])` method on ObsidianRagHost, then wire it from `main.ts` or from the plugin settings (e.g., reading a user-configured list of vault paths to always include in RAG). Alternatively pass the settings getter as a lambda at construction time.",
+        "confidence": 0.99
+      },
+      {
+        "title": "ctx.addenda assembled but never injected into the system prompt",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/RagAssembler.ts",
+        "line": 124,
+        "severity": "high",
+        "bug": "RagAssembler.assemble() calls `this.host.addendaTail(p, n)` for every centered path, collects results into `ctx.addenda`, and counts their estimated tokens \u2014 but neither `ask()` nor `askBrainStructured()` in SauceBotRuntime ever reads `ctx.addenda`. The addenda context that SPEC \u00a719.3 designates as the 'addenda tail' is silently assembled and then discarded. The I/O cost is paid but the model never sees the data.",
+        "evidence": "RagAssembler.ts lines 117-134 build `addenda` and return it. A grep of all src/ for `.addenda` (excluding paths, tables and UI addendum modals) shows zero consumers of `ctx.addenda` in SauceBotRuntime.ts. Only `ctx.centered`, `ctx.recentTouches`, `ctx.pinned`, `ctx.graph`, and `ctx.semantic` are read.",
+        "fix": "In `ask()` and `askBrainStructured()`, append the addenda bodies to the system prompt after the centered paths list, e.g. iterate `ctx.addenda` entries and format as `### Addenda for ${path}\\n${tail.map(a => a.body).join('\\n')}`. Also see the companion bug: addenda bodies are always '' in V1 (ObsidianRagHost line 240).",
+        "confidence": 0.98
+      },
+      {
+        "title": "addendaTail always returns empty body strings \u2014 addenda content can never reach the model",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotHostAdapters.ts",
+        "line": 240,
+        "severity": "high",
+        "bug": "ObsidianRagHost.addendaTail() sets `const body = '';` for every addendum entry with an explicit comment 'body not loaded in V1 EntityService; left empty for v0'. Even if the ctx.addenda were injected into the prompt (see companion bug), all body fields would be empty strings. The estimatedTokens computation in RagAssembler is always 0, and the trimmed flag is never set, masking the fact that no addenda content is actually available.",
+        "evidence": "SauceBotHostAdapters.ts line 240: `const body = ''; // body not loaded in V1 EntityService; left empty for v0`. RagAssembler.ts lines 126-128: `estimatedTokens += tail.reduce((s, a) => s + this.host.estimateTokens(a.body), 0)` \u2014 with body always '', estimateTokens returns 0 for every addendum.",
+        "fix": "Read the addendum note body from the vault: replace line 240 with `const raw = await this.app.vault.cachedRead(a.file); const body = raw.replace(/^---\\n[\\s\\S]*?\\n---\\n?/, '').trim();` \u2014 the same pattern used in `readFile()` (line 258). Gate this behind a capability flag to avoid the performance cost on every query.",
+        "confidence": 0.97
+      },
+      {
+        "title": "ConversationStore root path hardcoded to DEFAULT_PATHS, diverges from settings.paths \u2014 history invisible in openHistory()",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/ConversationStore.ts",
+        "line": 55,
+        "severity": "high",
+        "bug": "ConversationStore is constructed with `root = DEFAULT_PATHS.addenda + '/_copilot'` (hardcoded to `.sauceBrain/addenda/_copilot`). The chat view's openHistory() reads from `this.plugin.settings.paths.addenda + '/_copilot'`. If the user has a non-default paths configuration, sessions are written to the default path but the history UI reads from the settings-configured path \u2014 creating a split-brain where persisted sessions are never listed.",
+        "evidence": "ConversationStore.ts line 55 uses `DEFAULT_PATHS.addenda`. SauceBotChatView.ts line 941: `const root = '${this.plugin.settings.paths.addenda}/_copilot'`. SauceBotRuntime.ts line 249-251: `new ConversationStore(new ObsidianConversationHost(app))` \u2014 no root path passed, so DEFAULT_PATHS is used. The plugin wires `entityService` with `this.settings.paths` (main.ts line 853) but never passes those paths to ConversationStore.",
+        "fix": "Pass `this.settings.paths.addenda + '/_copilot'` as the `root` argument when constructing ConversationStore in SauceBotRuntime. Either accept a `root` parameter in the SauceBotRuntime constructor or add a `setConversationRoot(root: string)` method.",
+        "confidence": 0.93
+      },
+      {
+        "title": "selfCorrectAnswer drops all multi-turn messages and tool results from the retry call",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1811,
+        "severity": "medium",
+        "bug": "selfCorrectAnswer() is invoked after a local model returns a truncated/empty response mid-tool-loop. It calls `this.completeOnce(system, userParts.join('\\n\\n'))`, which constructs a single-turn `[{role:'user', content: userPrompt}]` request, completely discarding the accumulated `messages` array (which may include tool call results, prior assistant turns, and tool-use blocks). The model retries without any of the context it just accumulated, making the correction likely to repeat the same incomplete answer.",
+        "evidence": "Line 1811: `const out = await this.completeOnce(system, userParts.join('\\n\\n'), ...)`. Line 1815: `void messages; // signature kept for future context-aware retries`. completeOnce at line 1075: `messages: [{role:'user', content: userPrompt}]` \u2014 single message only.",
+        "fix": "Pass `messages` as prior context in the retry: build a minimal messages array from the existing conversation (stripping tool-use blocks for providers that don't support them in this path), and issue a `completeResilient` call with those messages rather than `completeOnce`. Or at minimum, append the partial answer to messages before the retry so the model knows what it already produced.",
+        "confidence": 0.9
+      },
+      {
+        "title": "askBrainStructured never passes focus (active note) \u2014 no 1-hop graph expansion for Brain Ask",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1201,
+        "severity": "medium",
+        "bug": "askBrainStructured() calls `this.rag.assemble(question)` without a `focus` argument. RagAssembler.assemble() requires `focus` to trigger `this.host.oneHop(focus)` for graph expansion (line 64: `const graph = focus ? await this.host.oneHop(focus) : []`). Brain Ask therefore never expands the 1-hop neighbor graph, losing a key RAG signal compared to `ask()` which receives `activePath` from the chat view.",
+        "evidence": "SauceBotRuntime.ts line 1201: `const ctx = await this.rag.assemble(question)` \u2014 no second argument. RagAssembler.ts line 64: `const graph = focus ? await this.host.oneHop(focus) : []` \u2014 graph is always [] for Brain Ask. The chat path at line 1549 correctly passes `focus`: `this.rag.assemble(query, focus)`.",
+        "fix": "Add an optional `focus?: string` parameter to `askBrainStructured(question, focus?)` and pass it through to `this.rag.assemble(question, focus)`. BrainView.ts should supply the active note path when calling `copilot.askBrainStructured(d.q.trim(), activeNotePath)`.",
+        "confidence": 0.92
+      },
+      {
+        "title": "inlineEntityContent silently produces empty context for vaults where brain-crystal.json has no entries",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 708,
+        "severity": "medium",
+        "bug": "digestFor() returns null when the entity body is empty after stripping frontmatter (line 581: `if (!body) return null`). On a vault that has never run 'Crystallize brain', the crystal cache is empty and every file with only frontmatter (no body) skips. The chunks array stays empty and inlineEntityContent returns '' \u2014 silently providing zero entity content to the model with no warning or fallback to direct file reads. The user gets a response grounded on RAG paths alone with no entity bodies.",
+        "evidence": "SauceBotRuntime.ts lines 706-712: each path goes through digestFor(); on null it is silently skipped. Line 715: `if (chunks.length === 0) return ''`. There is no fallback to reading the file directly (via `this.host.readFile()`) when all digests are missing. The cold-start state produces an empty entity context block that is indistinguishable from 'all entities have content'.",
+        "fix": "When `digestFor` returns null due to an empty body, fall back to `this.host.readFile(path)` to read the raw body and use that as the chunk text (with a character cap). Add a Notice or log entry when the crystal is empty so users know to run the Crystallize command.",
+        "confidence": 0.85
+      }
+    ]
+  },
+  {
+    "stage": "RESPONSE FORMATTING + STREAM HANDLING",
+    "findings": [
+      {
+        "title": "AnthropicProvider maps tool-role messages incorrectly \u2014 tool results sent as bare user content, breaking multi-tool turns",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/AnthropicProvider.ts",
+        "line": 58,
+        "severity": "critical",
+        "bug": "When a ChatMessage has role='tool', the Anthropic provider maps it to role='user' and passes m.content verbatim. Anthropic's Messages API requires tool results to be a user-role message whose content is an array of `{type:'tool_result', tool_use_id, content}` blocks. Sending a plain string content with role='user' omits the tool_use_id entirely, so Claude cannot pair the result with the tool_use block \u2014 the API either rejects the request or produces a corrupt multi-turn conversation.",
+        "evidence": "`role: m.role === 'tool' ? 'user' : m.role, content: m.content` (line 58). The toolCallId is on the ChatMessage but is never mapped to `tool_use_id`. Runtime appends tool messages as `{ role: 'tool', toolCallId: c.id, content }` (SauceBotRuntime.ts:1778), which the Anthropic provider silently discards.",
+        "fix": "When m.role === 'tool', emit `{ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.toolCallId ?? '', content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }] }` instead of the bare string mapping.",
+        "confidence": 0.98
+      },
+      {
+        "title": "OpenAICompatibleProvider mapFinish drops 'length' finish_reason \u2014 max-tokens truncation silently reported as 'stop'",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/OpenAICompatibleProvider.ts",
+        "line": 428,
+        "severity": "high",
+        "bug": "The `mapFinish` function only handles 'tool_calls' and 'stop'; all other values (including OpenAI's 'length', Groq's 'length', Ollama's 'length') fall through to return 'stop'. This means a truncated response (hit max_tokens) is reported to the runtime as a clean 'stop', not 'max_tokens'. The runtime's `looksTruncated` heuristic may rescue some cases, but for locally-tuned-off paths (cloud providers) or when the last character happens to be punctuation, the truncation goes undetected and the corrupt answer is rendered without warning.",
+        "evidence": "`function mapFinish(reason: string | null): 'tool_use' | 'end_turn' | 'stop' { if (reason === 'tool_calls') return 'tool_use'; if (reason === 'stop') return 'end_turn'; return 'stop'; }` \u2014 'length' falls to return 'stop'. OllamaProvider correctly handles this case at line 195 (`doneReason === 'length' ? 'max_tokens' : 'end_turn'`), showing the intent was there but was omitted in the shared OpenAI-compat harness.",
+        "fix": "Add `if (reason === 'length' || reason === 'max_tokens') return 'max_tokens';` as the first branch (or map to the ISauceBotProvider's 'stop' that the runtime treats as truncated \u2014 but the cleanest fix is to extend the CompletionEvent done reason union or map to 'stop' with a well-documented note, then handle it in the UI).",
+        "confidence": 0.97
+      },
+      {
+        "title": "Reasoning salvage text yielded AFTER the chat view already received done=error \u2014 salvaged answer permanently invisible",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1683,
+        "severity": "high",
+        "bug": "When a reasoning-only turn ends with endReason='error' (provider returned done/error even though reasoning was emitted), the guard `endReason !== 'error'` on line 1683 correctly skips salvage. However, if endReason is non-error but endError is also set (e.g. a soft error string propagated), the done event emitted at line 1725 carries both an endError and whatever text was salvaged upstream. In the chat view, the done handler checks `ev.reason === 'error'` to call `setError`; it does NOT check `ev.error` on a non-error reason. So a salvage text delta that was yielded just before the done event (line 1689) will have already set `text`, and the subsequent done will call `renderMarkdownInto` \u2014 that is actually fine. The real defect is the mirror path: when the reasoning salvage call itself (`extractFromReasoning` \u2192 `completeOnce`) throws or returns null on an 'error' endReason turn, the user sees a blank body because the `done` event with reason='error' arrives but `text` is empty and `a.hasReasoning()` returns true, triggering the misleading 'No final answer produced' error message instead of describing the actual provider failure.",
+        "evidence": "SauceBotRuntime.ts line 1683: `endReason !== 'error'` gates the salvage. ChatView line 1229-1235: `else if (a.hasReasoning()) { a.setError('No final answer\u2026') }` fires when done.reason==='error' has already been reported as `a.setError(ev.error ?? 'unknown error')` at line 1225. Both setError calls fire on the same errorEl, with the second 'No final answer' message overwriting the actual provider error string.",
+        "fix": "In the chat view done handler, check `ev.reason === 'error'` first and return immediately after `a.setError`; do not fall through to the `a.hasReasoning()` branch when an error was already surfaced.",
+        "confidence": 0.88
+      },
+      {
+        "title": "Text-embedded tool-call salvage (extractTextToolCalls) yields tool_use AFTER text deltas already streamed to the UI \u2014 chat body shows the raw tool JSON as prose",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/OpenAICompatibleProvider.ts",
+        "line": 261,
+        "severity": "high",
+        "bug": "When a local model 'speaks' a tool call in plain text instead of emitting structured tool_calls, the streaming branch yields every content delta as `{type:'text'}` (lines 220-222), accumulating in `streamedText`. After the SSE loop ends, `extractTextToolCalls` detects a tool call in that already-streamed text and yields a `tool_use` event (line 269). The chat view has already appended all those text deltas to its `text` variable and called `a.body.setText(text)` for each \u2014 so the raw `<tool_call>\u2026</tool_call>` or JSON block is visible to the user as literal prose. The subsequent `tool_use` event only increments `toolCalls` counter in the view (line 1220); it is NOT rendered or hidden. The already-shown prose is never cleaned up.",
+        "evidence": "OpenAICompatibleProvider.ts lines 220-222: `streamedText += d.content; yield { type: 'text', delta: d.content };` for every content chunk. Lines 261-275: after the loop, `extractTextToolCalls(streamedText, known)` retroactively detects the call. SauceBotChatView.ts line 1219-1220: `tool_use` events only increment `toolCalls`; no DOM cleanup of the body text occurs.",
+        "fix": "Buffer streamed text without yielding it when tools are registered. Only yield `{type:'text'}` deltas once the SSE loop completes and no tool call was detected in the accumulated text. Alternatively, yield a corrective event after salvage to clear the body (e.g. a special `{type:'text_replace', text:''}` or simply redesign to buffer-then-emit).",
+        "confidence": 0.95
+      },
+      {
+        "title": "aborted stop path in finally block overwrites already-rendered markdown with plain text \u2014 markdown lost on user-Stop",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/ui/views/v2/SauceBotChatView.ts",
+        "line": 1250,
+        "severity": "medium",
+        "bug": "When the user clicks Stop mid-stream, `aborted` is set, the for-await loop breaks, and the `finally` block executes `a.body.setText(text ? text + '\\n\\n[stopped]' : '[stopped]')`. The `done` event was never received (loop broke before it), so `renderMarkdownInto` was never called. But if text is non-empty, `setText` replaces the already-streaming plain-text body with itself plus '[stopped]' \u2014 which is correct. However: if the user stopped AFTER `done` was received and `renderMarkdownInto` had already converted the body to rendered HTML (line 1227), the `finally` block's `setText` destroys the rendered DOM and replaces it with raw markdown + '[stopped]'. This corrupts the visual output for any response completed before the abort flag was checked.",
+        "evidence": "SauceBotChatView.ts line 1201-1203: `if (this.streamAbort) { aborted = true; break; }` is checked BEFORE processing each event, so when a `done` event arrives in the same iteration as the streamAbort flag being set, the `done` path at line 1221 fires first (renderMarkdownInto is called), then on the NEXT iteration `streamAbort` is checked and `aborted = true; break`. Then `finally` at line 1250 calls `a.body.setText(text + '\\n\\n[stopped]')`, wiping the rendered HTML. The setCopySource call at line 1228 also is not redone.",
+        "fix": "In the finally block, check `aborted` AND whether `renderMarkdownInto` has already been called (e.g. track a `rendered` flag). If rendered, just append a text node '[stopped]' to the existing DOM rather than calling `setText` which destroys rendered content.",
+        "confidence": 0.9
+      },
+      {
+        "title": "askBrainStructured/runOnce silently drops all reasoning_content \u2014 parseBrainAnswer always receives empty string when model is a reasoning model",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1230,
+        "severity": "medium",
+        "bug": "The `runOnce` closure inside `askBrainStructured` only accumulates `ev.type === 'text'` deltas. If the provider is a reasoning model (LM Studio qwen3 / deepseek-r1), the actual JSON answer may arrive only via `ev.type === 'reasoning'` with an empty `text` block, or the JSON is in `reasoning_content` while `text` is empty. The function returns `text = ''`, and `parseBrainAnswer('')` falls through all parse attempts and returns `NO_CITED_ANSWER`. The Brain Ask structured call silently returns the honesty placeholder even though the model produced a valid JSON answer in its reasoning block.",
+        "evidence": "SauceBotRuntime.ts line 1230: `if (ev.type === 'text') text += ev.delta;` \u2014 no `ev.type === 'reasoning'` branch. The ask() loop at line 1659 correctly handles both types, but runOnce does not. The main ask() at line 1682-1689 has explicit reasoning salvage for this exact case; runOnce has none.",
+        "fix": "In `runOnce`, also accumulate reasoning deltas: `else if (ev.type === 'reasoning') reasoningText += ev.delta;`. After the loop, if `text` is empty and `reasoningText` is non-empty, attempt `parseBrainAnswer(reasoningText)` (reasoning models sometimes put the full JSON there).",
+        "confidence": 0.93
+      },
+      {
+        "title": "selfCorrectAnswer retry emits full retry text as a single delta even when partial answer was already streamed \u2014 risk of duplicate content in history",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1709,
+        "severity": "medium",
+        "bug": "When the self-correct retry fires and the retry string does NOT start with `answerSoFar` (the model produced a completely different answer rather than completing the partial), the code falls to the branch at line 1717-1721: `else if (retry && retry !== answerSoFar && answerSoFar.trim().length === 0) yield { type: 'text', delta: retry }`. This second branch only fires when `answerSoFar` is empty. However, when `answerSoFar` is non-empty AND the retry is a completely different string (retry doesn't start with answerSoFar), NEITHER branch fires \u2014 the retry is silently dropped and the user sees only the partial/truncated original. Additionally, the `completeOnce` inside `selfCorrectAnswer` uses the system prompt plus the partial draft in the user message (line 1810), which means the retry prompt explicitly contains the partial draft text; if the model echoes it back, `retry.startsWith(answerSoFar)` is true and only the suffix is emitted, but the view's `text` variable still contains the original prefix \u2014 yielding the correct final text in the stream but the full duplicated content in `assistantTextParts` (which was already filled by the first pass), causing the history message at line 1255 to store only the first-pass text without the correction.",
+        "evidence": "SauceBotRuntime.ts lines 1709-1721: the two yield branches; line 1811: `selfCorrectAnswer` passes `partial` as part of the user message. Line 1255: `this.history.push({ role: 'assistant', content: text })` where `text` is the chat view's accumulator, which only receives the suffix delta from the retry, not the full answer.",
+        "fix": "After the retry, unconditionally set `text` in the chat view to the full retry answer. The runtime should yield a single replacement-text event (or clear-then-emit pattern) rather than a suffix-only delta. Separately, remove `partial` from the selfCorrectAnswer user message to avoid the echo-then-diff fragility.",
+        "confidence": 0.85
+      },
+      {
+        "title": "parseSse flushes a final incomplete event without an event-type field \u2014 reasoning_content deltas can be attributed to wrong event type",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/StreamParsers.ts",
+        "line": 51,
+        "severity": "low",
+        "bug": "The final-flush at lines 51-58 yields any remaining `currentData` with `currentEvent` if set. The issue: `currentEvent` persists across blank-line boundaries only if reset to `undefined` at the blank-line handler (line 37: `currentEvent = undefined`). If the stream ends mid-event (no trailing blank line) with both an `event:` and a `data:` line, the event is flushed correctly. However, if a stream ends with only a `data:` line and no preceding `event:` line in the same block, `currentEvent` will be `undefined` and the event is emitted with no `event` field, so the Anthropic provider's `switch(evt.event)` falls to `default: break` \u2014 silently dropping that data. In practice this is rare for Anthropic (they always terminate properly), but for LM Studio's OpenAI-compat SSE, a truncated stream (network drop) can result in a partially-received chunk being buffered and then flushed as a no-event record, causing the last text delta to be silently dropped rather than emitted as an error.",
+        "evidence": "StreamParsers.ts lines 51-58: `if (currentData.length > 0) { const data = ...; if (data !== '[DONE]') yield { ...(currentEvent !== undefined ? { event: currentEvent } : {}), data }; }`. AnthropicProvider.ts line 131: `switch (evt.event)` \u2014 a missing event field falls to `default: break`, silently discarding the payload.",
+        "fix": "On stream-end flush, if `currentEvent` is undefined and `currentData` is non-empty, either yield with a synthetic `event: 'data'` marker or, for the Anthropic provider, treat an event-less flush as a potential `content_block_delta` and attempt to parse it as such.",
+        "confidence": 0.75
+      }
+    ]
+  },
+  {
+    "stage": "EMBEDDINGS INJECTION + USAGE",
+    "findings": [
+      {
+        "title": "User-configured embeddingDim ignored: v2-init reads wrong settings path",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/v2-init.ts",
+        "line": 287,
+        "severity": "critical",
+        "bug": "v2-init.ts reads embeddingDim from `settings?.lancedb?.embeddingDim`, but the `lancedb` settings object is typed as `{ installDecision: LanceDBInstallDecision }` and never has an `embeddingDim` field \u2014 it is always `undefined`. The user-configured dimension lives at `settings.features.rag.embeddingDim` (FeatureSettings.ts line 35), but that path is never consulted by v2-init. As a result, `initLanceBackend` is always called without `embeddingDim`, falling back to `DEFAULT_EMBEDDING_DIM = 768` regardless of what the user set in the RAG settings tab.",
+        "evidence": "v2-init.ts:285-287: `const pluginSettings = (plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }).settings; const embeddingDim = pluginSettings?.lancedb?.embeddingDim;` \u2014 but main.ts:276 defines `lancedb?: { installDecision: LanceDBInstallDecision }` with no embeddingDim field. The settings UI writes to `rag.embeddingDim` (ui/settings/sections/rag.ts:130) which is completely disconnected from the path v2-init reads.",
+        "fix": "In v2-init.ts, replace the read of `pluginSettings?.lancedb?.embeddingDim` with `pluginSettings?.features?.rag?.embeddingDim ?? undefined`. This wires the user-configured dimension into the LanceDB table creation.",
+        "confidence": 0.99
+      },
+      {
+        "title": "EmbeddingsLane.setConfig unconditionally destroys cache on every call, discarding valid cached embeddings",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/EmbeddingsLane.ts",
+        "line": 138,
+        "severity": "high",
+        "bug": "setConfig() replaces `this.cache` with a brand-new LruCache on every invocation (line 138), regardless of whether the model or cacheSize actually changed. The model-change guard at line 130-134 correctly clears on model change, but the unconditional `this.cache = new LruCache(...)` at line 138 always discards the entire cache. Since `SauceBotRuntime.embed()` calls `embeddingsLane.setConfig(...)` on every embed call where `model !== lastEmbedModel` \u2014 which is true on the very first call after construction (lastEmbedModel starts as `\"\"`) \u2014 the cache is rebuilt and all previously cached query vectors are lost.",
+        "evidence": "EmbeddingsLane.ts:127-139: the `if (modelChanged)` block clears the old cache object at line 133, but line 138 `this.cache = new LruCache<string, Float32Array>(newSize)` runs unconditionally every time setConfig is called, making the LRU cache useless across any config sync cycle.",
+        "fix": "Move the cache replacement inside the `if (modelChanged)` block, or add a guard: `if (modelChanged || newSize !== this.cache.capacity) { this.cache = new LruCache(newSize); }`. Only rebuild the cache when the model or capacity actually changed.",
+        "confidence": 0.97
+      },
+      {
+        "title": "When no dedicated embedConfig, rawEmbed falls back to the chat provider (including Anthropic which throws on embed)",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 360,
+        "severity": "high",
+        "bug": "rawEmbed() at line 360 selects the provider as `c ? this.embedProvider(c) : this.provider()`. When `embedConfig` is null (e.g., no separate embedding provider is configured, or `setEmbeddingConfig(null)` was called), it uses the chat provider \u2014 which may be Anthropic, OpenRouter, Groq, or Gemini. AnthropicProvider.embed() throws unconditionally with `new Error('Anthropic does not provide an embeddings endpoint...')`. The throw is caught silently at line 363, returning null and collapsing RAG to lexical search with no user-visible error \u2014 not even a trace entry (trace only fires on `status === 'failed'`, line 1000, but ensureModel may have passed).",
+        "evidence": "SauceBotRuntime.ts:359-365: `const prov = c ? this.embedProvider(c) : this.provider()` followed by `try { return await prov.embed(text, model); } catch { return null; }`. AnthropicProvider.ts:263-266: `async embed(_text, _model) { throw new Error('Anthropic does not provide...') }`. The fallback is completely silent.",
+        "fix": "In rawEmbed(), check `if (!c) { return null; }` before selecting a provider \u2014 if no dedicated embed config is set, callers should not try to embed via the chat provider. Alternatively, guard with `if (!c && !this.provider().capabilities().embeddings()) return null;`.",
+        "confidence": 0.95
+      },
+      {
+        "title": "Vectors stored with hardcoded model id 'copilot', making model-change detection impossible",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/services/MirrorSync.ts",
+        "line": 346,
+        "severity": "high",
+        "bug": "MirrorSync.embed() stores every embedding vector with the hardcoded model string `\"copilot\"` (line 346: `await this.vectors.store(mf.path, vec, \"copilot\", mf.bodyHash)`). The EmbeddingRow.model column exists to record which embedding model produced each vector, enabling stale-detection when the configured embed model changes. With this hardcoded value, the system can never detect that an entity's stored vector was produced by a different model than the one currently configured \u2014 old mismatched vectors persist in the index after a model change and will be compared against query vectors from the new model.",
+        "evidence": "MirrorSync.ts:346 `this.vectors.store(mf.path, vec, \"copilot\", mf.bodyHash)` vs the intent of EmbeddingRow.model (LanceSchema.ts:74-78). The `embed()` method receives no model identifier to store \u2014 it only has the embedFn closure from main.ts:975.",
+        "fix": "Pass the active embed model id into MirrorSync (e.g., as a getter lambda `() => this.copilot?.lastEmbedModel ?? ''`), and use it as the model argument in vectors.store(). This enables future stale-detection and at minimum makes the stored model traceable.",
+        "confidence": 0.97
+      },
+      {
+        "title": "OpenAICompatibleProvider._ensureEmbedModel hook is declared but never wired \u2014 embed pre-load guard is dead code",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/OpenAICompatibleProvider.ts",
+        "line": 401,
+        "severity": "medium",
+        "bug": "OpenAICompatibleProvider declares an optional `_ensureEmbedModel` hook (line 58) and the embed() method checks it at line 401-404, guarding the POST with a pre-load call. However, nowhere in the codebase is `_ensureEmbedModel` ever assigned to a provider instance \u2014 a grep across all .ts files returns zero assignment sites. The hook is dead code, meaning the LM Studio REST provider (OpenAI-compat) never pre-loads the embed model before POSTing to /embeddings, relying entirely on LM Studio's implicit JIT-load behavior (which may 4xx if the model isn't loaded and LM Studio's auto-load is disabled).",
+        "evidence": "grep -rn '_ensureEmbedModel' src returns only the declaration (line 58) and the check (lines 401-402) in OpenAICompatibleProvider.ts. No assignment exists. EmbeddingsLane does call ensureModel() before embed(), so for the lane path this is partially mitigated \u2014 but the warmEmbed() path at SauceBotRuntime.ts:1329 calls rawEmbed() directly without going through the lane.",
+        "fix": "In SauceBotRuntime.embedProvider(), after building the provider, assign the hook: `(prov as OpenAICompatibleProvider)._ensureEmbedModel = (m) => this.ensureEmbedModelLoaded(m);` \u2014 or remove the hook and rely on the EmbeddingsLane's ensureModel call which already does this.",
+        "confidence": 0.9
+      },
+      {
+        "title": "embeddingsLane initialized with model:'', enabled:true \u2014 every first embed() call before setConfig is a cache miss returning disabled",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 297,
+        "severity": "medium",
+        "bug": "EmbeddingsLane is constructed with `{ model: '', enabled: true }` (line 297). EmbeddingsLane.embedQuery() returns `{ vec: null, status: 'disabled' }` when `!this.cfg.model` (EmbeddingsLane.ts:151). In SauceBotRuntime.embed(), the model is resolved from embedConfig/settings and compared to `this.lastEmbedModel` (starts as `''`). If the chat model is also `''` (fresh-install default, COPILOT_DEFAULTS.model is `''`), the model remains `''`, embed() returns null at line 990 rather than `disabled` status, and no trace is written. Combined with the unconditional cache replacement in setConfig(), every embed call that changes the model also resets the cache.",
+        "evidence": "SauceBotRuntime.ts:297 `{ model: '', enabled: true }`. SauceBotRuntime.ts:988-990: `const model = c?.model || this.settings.preferredEmbeddingModel || this.settings.embedModel || this.settings.model; if (!model) return null;`. COPILOT_DEFAULTS.model (line 182) is `''`. So on a fresh install with no embed model configured and no chat model, embed() short-circuits with null and no observable failure signal.",
+        "fix": "Initialize lastEmbedModel to a sentinel value that cannot equal a real model id (e.g., `null`), and ensure syncEmbeddingConfig() is called early enough to set a model before the first embed() attempt.",
+        "confidence": 0.82
+      },
+      {
+        "title": "EmbeddingsLane modelEnsuring promise not cleared on failed ensureModel \u2014 concurrent retries share a permanently failed promise",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/EmbeddingsLane.ts",
+        "line": 175,
+        "severity": "medium",
+        "bug": "When ensureModel fails (`!ensureResult.ok`), the code returns early at line 176-182 but never sets `this.modelEnsuring = null`. On the next call to embedQuery(), `this.modelReady` is still false and `this.modelEnsuring` still holds the resolved-but-failed promise. The next invocation takes the `if (this.modelEnsuring === null)` branch as false, awaits the same already-resolved failed promise again, and returns another failure. This is correct behavior \u2014 but if ensureModel() produces a transient failure (e.g., server temporarily unavailable), the promise is cached indefinitely and no retry is ever attempted because `modelEnsuring !== null` prevents a fresh call.",
+        "evidence": "EmbeddingsLane.ts:170-185: `if (!this.modelReady) { if (this.modelEnsuring === null) { this.modelEnsuring = this.host.ensureModel(this.cfg.model); } const ensureResult = await this.modelEnsuring; if (!ensureResult.ok) { this._failures++; return { vec: null, status: 'failed', ... }; } this.modelReady = true; this.modelEnsuring = null; }` \u2014 on failure, `this.modelEnsuring` is not nulled, so subsequent calls always re-await the same failed (already-settled) promise and can never trigger a retry.",
+        "fix": "After the failure return path, set `this.modelEnsuring = null`: add `this.modelEnsuring = null;` at line 179 (inside the `if (!ensureResult.ok)` block, before the return). This allows subsequent embed calls to retry the model load.",
+        "confidence": 0.97
+      },
+      {
+        "title": "EmbeddingRuntimeConfig.provider is typed as ProviderId but activeEmbeddingProvider only accepts EmbedProviderId \u2014 type mismatch allows non-embedding chat providers to be set as embed provider",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 169,
+        "severity": "low",
+        "bug": "EmbeddingRuntimeConfig.provider is typed as ProviderId (line 172: `provider: ProviderId`), which includes all chat providers (anthropic, openrouter, groq, gemini, nim, lmstudio-sdk). The registry marks openrouter, nim, and gemini as `embeddings: true` (ProviderRegistry.ts:193, 181, 217), but those providers do not actually expose embedding endpoints. If setEmbeddingConfig is called with provider='openrouter', the embed() call routes through OpenAICompatibleProvider.embed() to `https://openrouter.ai/api/v1/embeddings` which does not exist. The error is caught silently and returns null. The narrower EmbedProviderId type (FeatureSettings.ts:7: `'lmstudio' | 'openai' | 'ollama'`) prevents this in the FeatureSettings layer but is not enforced at the runtime interface.",
+        "evidence": "SauceBotRuntime.ts:169-175: `EmbeddingRuntimeConfig { enabled: boolean; provider: ProviderId; ... }`. ProviderRegistry.ts:192: `openrouter: { capabilities: { embeddings: true, ... } }` \u2014 but OpenRouter has no public /embeddings endpoint. Errors silently swallowed at SauceBotRuntime.ts:363.",
+        "fix": "Change EmbeddingRuntimeConfig.provider from ProviderId to EmbedProviderId (`'lmstudio' | 'openai' | 'ollama'`), or add an explicit capability check in rawEmbed() before attempting the call.",
+        "confidence": 0.78
+      }
+    ]
+  },
+  {
+    "stage": "APP USAGE + TOOL/CONTROL FLOW + SILENT FAILURES",
+    "findings": [
+      {
+        "title": "ask() silently drops load-failure classification from done events",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1665,
+        "severity": "high",
+        "bug": "The inner event loop in ask() captures only `endReason` and `endError` from the done event (lines 1666-1667), but never captures `ev.kind`, `ev.userMessage`, or `ev.fallback`. The final yield at lines 1723-1726 re-emits done with only `{ reason, error }`, stripping the ModelManager load-failure classification that completeResilient computed and attached. The UI (SauceBotChatView line 1224) only reads `ev.error`, so users never see the human-readable failure reason or the suggested fallback model \u2014 even though completeResilient went to the trouble of classifying the failure and calling fallbackChatModel().",
+        "evidence": "completeResilient yields `{ type:'done', reason:'error', error, kind, userMessage, fallback }` (SauceBotRuntime.ts line 1524-1531). ask() buffers only `endReason = ev.reason` and `endError = ev.error` (lines 1666-1667), then re-yields `{ type:'done', reason: endReason ?? 'end_turn', ...(endError ? { error: endError } : {}) }` (lines 1723-1726). SauceBotChatView line 1225 shows `a.setError(ev.error ?? 'unknown error')` \u2014 the classified userMessage and fallback suggestion are never surfaced.",
+        "fix": "Capture all three extra fields in the done handler: `let endKind: LoadFailureKind | undefined; let endUserMessage: string | undefined; let endFallback: string | null | undefined;`. Set them at line 1666. Include them in the final yield: `...(endKind !== undefined ? { kind: endKind } : {}), ...(endUserMessage !== undefined ? { userMessage: endUserMessage } : {}), ...(endFallback !== undefined ? { fallback: endFallback } : {})`. The SauceBotChatView done handler can then mirror the warmup() path (lines 537-541) to show the classified message and a one-click fallback.",
+        "confidence": 0.98
+      },
+      {
+        "title": "Tool-turn cap fires after streaming tool_use events, leaving orphaned events with no results",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1628,
+        "severity": "high",
+        "bug": "The tool-turn loop runs `for (let turn = 0; turn <= MAX_TOOL_TURNS; turn++)` (inclusive upper bound, 9 iterations: 0-8). On turn 8, completeResilient is called and `tool_use` events are yielded to the consumer at line 1664. Only after the inner loop completes does the cap check fire (`if (turn >= MAX_TOOL_TURNS)` at line 1732), yielding done:max_tokens and returning. The pending tool calls are never dispatched; no tool result messages are appended to history. The UI consumer has already seen `tool_use` events with no corresponding tool results \u2014 an inconsistent transcript. Additionally, since MAX_TOOL_TURNS is 8 but the loop is `<=`, the actual maximum is 9 provider calls, not 8 as the constant name implies.",
+        "evidence": "Line 1628: `for (let turn = 0; turn <= MAX_TOOL_TURNS; turn++)` \u2014 `turn` reaches 8. Line 1664: `yield ev` inside `else if (ev.type === 'tool_use')` runs at turn=8, streaming tool_use events to the caller. Line 1732: `if (turn >= MAX_TOOL_TURNS)` fires at turn=8 with `pendingCalls.length > 0`, yielding done before the dispatch block at line 1760.",
+        "fix": "Change the cap check to fire BEFORE streaming tool_use events on the last turn: either change the loop to `turn < MAX_TOOL_TURNS` (8 tool-call iterations) or move the cap check before the inner event collection loop. The simplest fix: `for (let turn = 0; turn < MAX_TOOL_TURNS; turn++)` \u2014 this makes the cap check at 1732 unreachable (the loop exits), so replace it with a post-loop `yield { type:'done', reason:'max_tokens', error:'tool-turn cap reached' }` after the for block. Alternatively, check the cap before yielding tool_use events by checking `turn >= MAX_TOOL_TURNS - 1` at the start of each iteration.",
+        "confidence": 0.97
+      },
+      {
+        "title": "Blocklist/knownGood persistence is fire-and-forget \u2014 disk errors are silently swallowed",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/main.ts",
+        "line": 895,
+        "severity": "medium",
+        "bug": "The `setOnSettingsChanged` callback wired at line 895 uses `void this.saveSettings()`, discarding the returned Promise. `saveSettings()` is `async` and calls `this.saveData(redacted)` plus `credentialChain.put()`. Any failure (disk full, plugin data directory unavailable, vault locked) is silently swallowed. The practical consequence is that model blocklist entries (disabledModels) and known-good records (knownGoodModels) written by ModelManager on load success/failure exist in memory for the session but are never persisted. On the next Obsidian reload, the blocklisted model is retried, hitting the same permanent failure again.",
+        "evidence": "Line 895: `this.copilot.setOnSettingsChanged(() => void this.saveSettings());` \u2014 the `void` operator discards the Promise. `saveSettings` at line 2982 is `async saveSettings(): Promise<void>` and calls `await this.saveData(redacted)` which can throw. ModelManager's `blocklist.add()` closure (SauceBotRuntime.ts line 257-262) calls `this.onSettingsChanged?.()` which fires this callback \u2014 this is the only persistence path for blocklist updates.",
+        "fix": "Replace `() => void this.saveSettings()` with `() => { this.saveSettings().catch((e) => console.error('SauceBot: failed to persist settings after model state change', e)); }`. This ensures disk errors are at least logged rather than silently lost.",
+        "confidence": 0.95
+      },
+      {
+        "title": "ModelManager.ensureLoaded returns status 'loaded' for both success and failure, making callers unable to distinguish them by status",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/ModelManager.ts",
+        "line": 203,
+        "severity": "medium",
+        "bug": "When `host.loadModel()` succeeds, `ensureLoaded` returns `{ status: 'loaded' }`. When it fails (throws), it catches the error, records the failure, and returns `{ status: 'loaded', error }` \u2014 the same status string. Any caller that branches on `r.status === 'loaded'` and assumes success will incorrectly treat a failed load as successful. The only safe way to check is to inspect `r.error`, but the return type makes the status field misleading: the union `'already' | 'loaded' | 'jit' | 'blocked'` implies 'loaded' means the model is now available.",
+        "evidence": "ModelManager.ts line 205-210: `try { await this.host.loadModel(id); return { status: 'loaded' }; } catch (e) { ... const error = this.recordFailure(id, raw); return { status: 'loaded', error }; }`. The JSDoc comment at line 186 acknowledges this but describes it as 'load was attempted but failed \u2014 callers inspect the error field', making status effectively meaningless.",
+        "fix": "Add a distinct status value for the failure case: change line 210 to `return { status: 'load_failed', error };` and update the return type union to include `'load_failed'`. This makes the status field usable for branching and eliminates the requirement to inspect the error field to determine whether the load succeeded.",
+        "confidence": 0.92
+      },
+      {
+        "title": "completeResilient: a ping-passing provider that then silently returns an empty generator is treated as a successful end_turn",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1500,
+        "severity": "medium",
+        "bug": "When a provider's `complete()` generator finishes without emitting any events (no text, no done, no error), `errored` stays `false`. Line 1500: `if (!errored) return;` exits the attempt loop as if the request succeeded. Back in `ask()`, `endReason` is `null` and `answerSoFar` is empty. The terminal-turn block yields `done { reason: 'end_turn' }` with an empty answer, which the UI renders as '(no answer returned)'. This masks a real provider failure (e.g., a silently dropped connection) as a normal empty response, and the chat-level emptyAnswerRetry can fire an extra LLM call that is also doomed to fail.",
+        "evidence": "completeResilient line 1479: `for await (const ev of provider.complete(req)) { ... }` \u2014 if the generator immediately returns, the loop body never runs, `emitted=false`, `errored=false`. Line 1500: `if (!errored) return;` \u2014 treats zero events as a clean completion. ask() line 1725: `reason: endReason ?? 'end_turn'` \u2014 null endReason is coerced to 'end_turn'.",
+        "fix": "Track whether a `done` event was actually received: `let receivedDone = false;` then set it in the done branch. After the inner loop: `if (!errored && !receivedDone) { /* zero-event response \u2014 treat as transient */ errored = true; lastError = 'provider returned no events'; }` before the `if (!errored) return;` guard. This lets the retry logic handle empty responses the same as transient failures.",
+        "confidence": 0.88
+      },
+      {
+        "title": "rawEmbed silently swallows all embedding errors, masking provider failures as a null vector",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 361,
+        "severity": "low",
+        "bug": "The `rawEmbed` method at line 355 wraps `prov.embed(text, model)` in a bare `catch { return null; }` with no logging or classification. Any error \u2014 wrong model id, OOM during embed, provider unreachable, dimension mismatch \u2014 is collapsed to `null`. The caller `embed()` (line 982) checks for `r.status === 'failed'` on the EmbeddingsLane result to log a trace, but `rawEmbed` is also called directly from `warmEmbed()` (line 1329) where a `null` return triggers `modelManager.recordFailure(model, 'embeddings returned no vector')` with a generic message. The root cause (provider exception message) is permanently lost.",
+        "evidence": "SauceBotRuntime.ts lines 361-365: `try { return await prov.embed(text, model); } catch { return null; }` \u2014 the error is discarded. Line 1331: `this.modelManager.recordFailure(model, 'embeddings returned no vector')` \u2014 the actual exception message is not included in the failure record, so classifyLoadFailure always classifies it as 'unknown' instead of 'oom' or 'not-found'.",
+        "fix": "Capture and re-surface the error: `catch (e) { this._lastEmbedError = e instanceof Error ? e.message : String(e); return null; }`. Pass the captured message to `recordFailure` in `warmEmbed`: `this.modelManager.recordFailure(model, this._lastEmbedError ?? 'embeddings returned no vector')`. This enables accurate classification of embed failures as OOM, not-found, etc.",
+        "confidence": 0.85
+      },
+      {
+        "title": "selfCorrectAnswer ignores accumulated tool results \u2014 the correction call cannot use what tools already retrieved",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/saucebot/SauceBotRuntime.ts",
+        "line": 1811,
+        "severity": "low",
+        "bug": "When `selfCorrectAnswer` is called after a truncated/empty response, it delegates to `completeOnce` (line 1811) which sends only a fresh `[{role:'user', content: userParts.join(...)}]` message, ignoring the `messages` argument entirely. Line 1815: `void messages; // signature kept for future context-aware retries`. If the current turn had already dispatched tool calls and received tool results (i.e., `messages` contains tool and assistant blocks), those results are absent from the correction call. The model is asked to give a complete answer without access to data it already fetched. The comment acknowledges this is deferred, but the parameter name and signature imply correction happens in context.",
+        "evidence": "selfCorrectAnswer signature line 1796: takes `messages: ChatMessage[]`. Line 1811: `const out = await this.completeOnce(system, userParts.join('\\n\\n'), { ... });` \u2014 completeOnce always sends `[{ role: 'user', content: userPrompt }]` (line 1074) regardless of the passed messages. Line 1815: `void messages;` confirms messages is intentionally unused.",
+        "fix": "Either (a) pass `messages` to a bounded non-streaming `provider.complete()` call in selfCorrectAnswer so the tool results are in context, or (b) rename the parameter to `_messages` and add a comment that tool results are deliberately excluded to keep the correction bounded. Option (a) closes the quality gap; option (b) makes the intentional limitation explicit and prevents future callers from expecting context-aware behavior.",
+        "confidence": 0.82
+      },
+      {
+        "title": "approvalGate write callback uses fire-and-forget saveSettings, silently losing approval-always decisions on disk error",
+        "file": "/home/daclab-ai/Desktop/sauce-graph/plugin/src/main.ts",
+        "line": 794,
+        "severity": "low",
+        "bug": "The ApprovalGate write callback at lines 794-797 calls `await this.saveSettings()` but this is inside a closure passed to ObsidianApprovalStore which is called synchronously by ApprovalGate. If saveSettings throws (disk full, saveData failure), the error propagates up through the approval gate's ask() call at line 3817, can potentially crash the gate interaction, and the permanent approval decision that was just made is lost \u2014 the next tool call with the same action class will prompt again. Unlike the blocklist callback (line 895 which uses `void`), this one does `await`, so errors propagate rather than being silently swallowed, but there is no error handler at the call site.",
+        "evidence": "main.ts lines 794-797: `write: async (r: ApprovalRecord) => { this.settings.approvals = r; await this.saveSettings(); }` \u2014 this async function's rejection can propagate to ApprovalGate.ask(). The caller at line 3817: `const r = await this.approvalGate.ask(req)` \u2014 no try/catch means an unhandled rejection here would bubble to the command handler.",
+        "fix": "Add error handling in the write callback: `write: async (r: ApprovalRecord) => { this.settings.approvals = r; await this.saveSettings().catch(e => console.error('SauceBot: failed to persist approval record', e)); }`. This keeps the in-memory approval decision (settings.approvals) intact even when the disk write fails, so the session continues to honor the decision.",
+        "confidence": 0.78
+      }
+    ]
+  }
+]

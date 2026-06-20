@@ -25,11 +25,12 @@ export type EntityType =
   | "conversation"
   | "inbox"
   | "thread"
-  | "ledger-entry"
   | "metric"
   | "rollup"
-  // CON-OBS-INTEG-001 SH-E — DEC-003 new entities (people/orgs/touches/addenda/
-  // tasks/ideas/ledger already covered above; these complete the 14):
+  // Canonical CRM note types from the vault contract (CLAUDE.md v1.6.0 §2):
+  | "lane"
+  | "meeting"
+  // CON-OBS-INTEG-001 SH-E — DEC-003 entities:
   | "playbook"
   | "template"
   | "vault"
@@ -92,19 +93,50 @@ function need(
 
 // ---------- person (warm-contact) ----------
 
+// Canonical vault enums (CLAUDE.md v1.6.0 §3.1). Kept here as the single
+// source of truth the plugin validates against; _PLUGIN-CONFIG.md mirrors it.
+export const PERSON_PRIMARY_TYPES = [
+  "co-founder",
+  "family",
+  "advisor",
+  "mentor",
+  "connector",
+  "peer-founder",
+  "community",
+  "past-colleague",
+] as const;
+export const PERSON_ROLES = [...PERSON_PRIMARY_TYPES, "prospect"] as const;
+export const CADENCES = [
+  "weekly",
+  "monthly",
+  "quarterly",
+  "bi-annual",
+  "ad-hoc",
+] as const;
+
 export interface PersonFrontmatter extends Record<string, unknown> {
   type: "warm-contact";
   name: string;
   primary_type?: string;
   roles?: string[];
+  closeness?: number;
   cadence?: string;
   last_touch?: string;
-  tags?: string[];
+  location?: string;
+  company?: string;
+  title?: string;
+  email?: string;
+  phone?: string;
+  linkedin?: string;
+  intro_via?: string;
+  intro_opt_in?: boolean;
+  expertise?: string[];
+  seeking?: string[];
   knows?: string[];
   worked_with?: string[];
-  intro_via?: string[];
-  family_of?: string[];
-  company?: string;
+  intro_candidates?: string[];
+  family_of?: string;
+  tags?: string[];
 }
 
 export const PersonSchema: EntitySchema<PersonFrontmatter> = {
@@ -113,8 +145,17 @@ export const PersonSchema: EntitySchema<PersonFrontmatter> = {
   defaultFrontmatter: () => ({
     type: "warm-contact",
     name: "",
-    roles: [],
-    tags: [],
+    primary_type: "connector",
+    roles: ["connector"],
+    closeness: 3,
+    cadence: "quarterly",
+    intro_opt_in: false,
+    expertise: [],
+    seeking: [],
+    knows: [],
+    worked_with: [],
+    intro_candidates: [],
+    tags: ["warm-network"],
   }),
   validate(fm) {
     const e: ValidationError[] = [];
@@ -122,9 +163,30 @@ export const PersonSchema: EntitySchema<PersonFrontmatter> = {
       e.push(err("type", `expected "warm-contact"`));
     need(fm, "name", isString, "name must be a non-empty string", e);
     if (fm.name === "") e.push(err("name", "name must be non-empty"));
-    if ("roles" in fm && !isStringArray(fm.roles))
-      e.push(err("roles", "roles must be string[]"));
-    if ("last_touch" in fm && !isIsoDate(fm.last_touch))
+    // Canonical required fields (§2.1). Empty list/scalar permitted (§2).
+    if ("primary_type" in fm && !isString(fm.primary_type))
+      e.push(err("primary_type", "primary_type must be a string", "warn"));
+    if ("closeness" in fm && fm.closeness != null) {
+      const c = Number(fm.closeness);
+      if (!Number.isInteger(c) || c < 1 || c > 5)
+        e.push(err("closeness", "closeness must be 1..5", "warn"));
+    }
+    if ("cadence" in fm && fm.cadence != null && !isString(fm.cadence))
+      e.push(err("cadence", "cadence must be a string", "warn"));
+    if ("intro_opt_in" in fm && typeof fm.intro_opt_in !== "boolean")
+      e.push(err("intro_opt_in", "intro_opt_in must be boolean", "warn"));
+    for (const arr of [
+      "roles",
+      "expertise",
+      "seeking",
+      "knows",
+      "worked_with",
+      "intro_candidates",
+    ] as const) {
+      if (arr in fm && !isStringArray(fm[arr]))
+        e.push(err(arr, `${arr} must be string[]`));
+    }
+    if ("last_touch" in fm && fm.last_touch && !isIsoDate(fm.last_touch))
       e.push(err("last_touch", "must be ISO date", "warn"));
     return {
       passed: e.filter((x) => x.severity === "error").length === 0,
@@ -140,12 +202,23 @@ export const PersonSchema: EntitySchema<PersonFrontmatter> = {
 
 // ---------- org ----------
 
+export const ORG_STATUSES = [
+  "active",
+  "customer",
+  "vendor",
+  "competitor",
+  "defunct",
+  "prospect",
+] as const;
+
 export interface OrgFrontmatter extends Record<string, unknown> {
   type: "org" | "subsidiary";
   name: string;
+  primary_type?: string;
   status?: string;
   industry?: string;
   location?: string;
+  website?: string;
   tags?: string[];
   parent?: string;
 }
@@ -153,7 +226,13 @@ export interface OrgFrontmatter extends Record<string, unknown> {
 export const OrgSchema: EntitySchema<OrgFrontmatter> = {
   type: "org",
   description: "An organization in the relationship graph.",
-  defaultFrontmatter: () => ({ type: "org", name: "", tags: [] }),
+  defaultFrontmatter: () => ({
+    type: "org",
+    name: "",
+    primary_type: "org",
+    status: "active",
+    tags: ["org"],
+  }),
   validate(fm) {
     const e: ValidationError[] = [];
     if (fm.type !== "org" && fm.type !== "subsidiary")
@@ -173,13 +252,32 @@ export const OrgSchema: EntitySchema<OrgFrontmatter> = {
 
 // ---------- touch ----------
 
+export const CHANNELS = [
+  "in-person",
+  "call",
+  "text",
+  "dinner",
+  "email",
+  "event",
+] as const;
+export const OUTCOME_TAGS = [
+  "update-given",
+  "advice-received",
+  "intro-offered",
+  "intro-made",
+  "asked-for-intro",
+] as const;
+
 export interface TouchFrontmatter extends Record<string, unknown> {
   type: "touch";
   contact: string;
   date: string;
   channel?: string;
-  outcome_tag?: string[];
-  notes?: string;
+  playbook_used?: string;
+  outcome_tags?: string[];
+  referral_to?: string;
+  attendees?: string[];
+  source?: string;
 }
 
 export const TouchSchema: EntitySchema<TouchFrontmatter> = {
@@ -190,12 +288,20 @@ export const TouchSchema: EntitySchema<TouchFrontmatter> = {
     type: "touch",
     contact: "",
     date: new Date().toISOString().slice(0, 10),
+    channel: "call",
+    playbook_used: "",
+    outcome_tags: [],
+    attendees: [],
   }),
   validate(fm) {
     const e: ValidationError[] = [];
     if (fm.type !== "touch") e.push(err("type", `expected "touch"`));
     need(fm, "contact", isString, "contact must be a wikilink-string", e);
     need(fm, "date", isIsoDate, "date must be ISO YYYY-MM-DD", e);
+    if ("outcome_tags" in fm && !isStringArray(fm.outcome_tags))
+      e.push(err("outcome_tags", "outcome_tags must be string[]"));
+    if ("attendees" in fm && !isStringArray(fm.attendees))
+      e.push(err("attendees", "attendees must be string[]"));
     return {
       passed: e.filter((x) => x.severity === "error").length === 0,
       errors: e,
@@ -346,26 +452,51 @@ export const FollowupSchema: EntitySchema<FollowupFrontmatter> = {
 
 // ---------- idea ----------
 
+export const IDEA_STAGES = [
+  "seed",
+  "shaping",
+  "planned",
+  "active",
+  "shipped",
+  "archived",
+] as const;
+export const IMPACTS = ["low", "medium", "high"] as const;
+
 export interface IdeaFrontmatter extends Record<string, unknown> {
   type: "idea";
   title: string;
-  related_contacts?: string[];
-  status: "open" | "considering" | "shipped" | "shelved";
+  stage: string;
+  impact?: string;
+  next_action?: string;
+  contact?: string;
+  org?: string;
+  date?: string;
+  author?: string;
   tags?: string[];
 }
 
 export const IdeaSchema: EntitySchema<IdeaFrontmatter> = {
   type: "idea",
-  description: "A spark or concept tied to contacts/orgs.",
-  defaultFrontmatter: () => ({ type: "idea", title: "", status: "open" }),
+  description: "A captured idea / opportunity thesis (CLAUDE.md §2.10).",
+  defaultFrontmatter: () => ({
+    type: "idea",
+    title: "",
+    stage: "seed",
+    date: new Date().toISOString().slice(0, 10),
+    tags: ["idea"],
+  }),
   validate(fm) {
     const e: ValidationError[] = [];
     if (fm.type !== "idea") e.push(err("type", `expected "idea"`));
     need(fm, "title", isString, "title must be a string", e);
+    if (!(IDEA_STAGES as readonly string[]).includes(String(fm.stage)))
+      e.push(err("stage", "stage must be a known idea_stage"));
     if (
-      !["open", "considering", "shipped", "shelved"].includes(String(fm.status))
+      "impact" in fm &&
+      fm.impact != null &&
+      !(IMPACTS as readonly string[]).includes(String(fm.impact))
     )
-      e.push(err("status", "unknown status"));
+      e.push(err("impact", "impact must be low|medium|high", "warn"));
     return {
       passed: e.filter((x) => x.severity === "error").length === 0,
       errors: e,
@@ -378,40 +509,51 @@ export const IdeaSchema: EntitySchema<IdeaFrontmatter> = {
   },
 };
 
-// ---------- ledger-entry ----------
+// ---------- lane (CLAUDE.md §2.6) ----------
 
-export interface LedgerEntryFrontmatter extends Record<string, unknown> {
-  type: "ledger-entry";
-  contact: string;
-  date: string;
-  category: string;
-  amount: number;
-  currency: string;
-  direction: "in" | "out";
-  notes?: string;
+export const LANE_AXES = ["experience", "expertise"] as const;
+export const LANE_STATUSES = ["active", "exploratory", "dormant"] as const;
+
+export interface LaneFrontmatter extends Record<string, unknown> {
+  type: "lane";
+  owner: string;
+  lane_axis: string;
+  primary_domain: string;
+  domain_tags?: string[];
+  status: string;
+  partner_orgs?: string[];
+  prospect_orgs?: string[];
+  communities?: string[];
+  related_lanes?: string[];
+  tags?: string[];
 }
 
-export const LedgerEntrySchema: EntitySchema<LedgerEntryFrontmatter> = {
-  type: "ledger-entry",
-  description: "A financial/value-flow record between operator and contact.",
+export const LaneSchema: EntitySchema<LaneFrontmatter> = {
+  type: "lane",
+  description:
+    "A curated MOC aggregating people/orgs/threads for an operator-domain pairing.",
   defaultFrontmatter: () => ({
-    type: "ledger-entry",
-    contact: "",
-    date: new Date().toISOString().slice(0, 10),
-    category: "favor",
-    amount: 0,
-    currency: "USD",
-    direction: "out",
+    type: "lane",
+    owner: "",
+    lane_axis: "expertise",
+    primary_domain: "",
+    domain_tags: [],
+    status: "exploratory",
+    partner_orgs: [],
+    prospect_orgs: [],
+    communities: [],
+    related_lanes: [],
+    tags: ["lane"],
   }),
   validate(fm) {
     const e: ValidationError[] = [];
-    if (fm.type !== "ledger-entry")
-      e.push(err("type", `expected "ledger-entry"`));
-    need(fm, "contact", isString, "contact must be a wikilink", e);
-    need(fm, "date", isIsoDate, "date must be ISO date", e);
-    need(fm, "amount", isNumber, "amount must be a number", e);
-    if (!["in", "out"].includes(String(fm.direction)))
-      e.push(err("direction", "direction must be in/out"));
+    if (fm.type !== "lane") e.push(err("type", `expected "lane"`));
+    need(fm, "owner", isString, "owner must be a [[Person]] wikilink", e);
+    need(fm, "primary_domain", isString, "primary_domain must be a tag", e);
+    if (!(LANE_AXES as readonly string[]).includes(String(fm.lane_axis)))
+      e.push(err("lane_axis", "lane_axis must be experience|expertise"));
+    if (!(LANE_STATUSES as readonly string[]).includes(String(fm.status)))
+      e.push(err("status", "status must be active|exploratory|dormant"));
     return {
       passed: e.filter((x) => x.severity === "error").length === 0,
       errors: e,
@@ -420,7 +562,56 @@ export const LedgerEntrySchema: EntitySchema<LedgerEntryFrontmatter> = {
   parse(fm) {
     const r = this.validate(fm);
     if (!r.passed) return null;
-    return fm as LedgerEntryFrontmatter;
+    return fm as LaneFrontmatter;
+  },
+};
+
+// ---------- meeting (CLAUDE.md §2.8) ----------
+
+export const MEETING_KINDS = ["held", "prep", "agenda"] as const;
+
+export interface MeetingFrontmatter extends Record<string, unknown> {
+  type: "meeting";
+  date: string;
+  attendees?: string[];
+  org?: string;
+  kind?: string;
+  outcome?: string;
+  related_touch?: string;
+  tags?: string[];
+}
+
+export const MeetingSchema: EntitySchema<MeetingFrontmatter> = {
+  type: "meeting",
+  description: "A working record/agenda/outcome of a convening (CLAUDE.md §2.8).",
+  defaultFrontmatter: () => ({
+    type: "meeting",
+    date: new Date().toISOString().slice(0, 10),
+    attendees: [],
+    kind: "held",
+    tags: ["meeting"],
+  }),
+  validate(fm) {
+    const e: ValidationError[] = [];
+    if (fm.type !== "meeting") e.push(err("type", `expected "meeting"`));
+    need(fm, "date", isIsoDate, "date must be ISO YYYY-MM-DD", e);
+    if ("attendees" in fm && !isStringArray(fm.attendees))
+      e.push(err("attendees", "attendees must be string[]"));
+    if (
+      "kind" in fm &&
+      fm.kind != null &&
+      !(MEETING_KINDS as readonly string[]).includes(String(fm.kind))
+    )
+      e.push(err("kind", "kind must be held|prep|agenda", "warn"));
+    return {
+      passed: e.filter((x) => x.severity === "error").length === 0,
+      errors: e,
+    };
+  },
+  parse(fm) {
+    const r = this.validate(fm);
+    if (!r.passed) return null;
+    return fm as MeetingFrontmatter;
   },
 };
 
@@ -502,7 +693,8 @@ export const ENTITY_SCHEMAS = {
   task: TaskSchema,
   followup: FollowupSchema,
   idea: IdeaSchema,
-  "ledger-entry": LedgerEntrySchema,
+  lane: LaneSchema,
+  meeting: MeetingSchema,
   rollup: RollupSchema,
   // DEC-003 new entities (SH-E):
   playbook: PlaybookSchema,

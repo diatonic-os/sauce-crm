@@ -3,6 +3,7 @@
 // Sauce owns authoring + status changes. Encoding lives in TasksEmitter.
 
 import type { App } from "obsidian";
+import { DEFAULT_PATHS } from "./EntityService";
 import {
   toCheckbox,
   parseTasksFromText,
@@ -19,7 +20,8 @@ export interface TaskRef {
 export class TasksService {
   constructor(
     private readonly app: App,
-    private readonly tasksPath = "_TASKS.md",
+    // Dashboard task note now lives under the hidden dashboards folder.
+    private readonly tasksPath = `${DEFAULT_PATHS.dashboards}/_TASKS.md`,
   ) {}
 
   /** All tasks across the tasks note + any note under a _Tasks/ folder. */
@@ -62,8 +64,8 @@ export class TasksService {
     const files = new Set<string>();
     if (await a.exists(this.tasksPath)) files.add(this.tasksPath);
     try {
-      if (await a.exists("_Tasks")) {
-        for (const f of (await a.list("_Tasks")).files)
+      if (await a.exists(DEFAULT_PATHS.tasks)) {
+        for (const f of (await a.list(DEFAULT_PATHS.tasks)).files)
           if (f.endsWith(".md")) files.add(f);
       }
     } catch {

@@ -936,7 +936,9 @@ export class SauceBotChatView extends ItemView {
     modal.modalEl.addClass("sauce-modal");
     modal.titleEl.setText("Chat history");
     const c = modal.contentEl.createDiv({ cls: "sauce-section" });
-    const root = "_addenda/_copilot";
+    // Resolve dynamically from settings (NOT the legacy `_addenda/_copilot`
+    // literal, which would recreate `_addenda` at the vault root).
+    const root = `${this.plugin.settings.paths.addenda}/_copilot`;
     const adapter = this.app.vault.adapter;
     let files: string[] = [];
     try {
@@ -1180,6 +1182,7 @@ export class SauceBotChatView extends ItemView {
     this.setStreaming(true);
     let text = "";
     let aborted = false;
+    let rendered = false; // true once renderMarkdownInto has replaced the body DOM
     // Per-turn trace accumulation (model usage + timing for replay).
     const startedAt = Date.now();
     let usageIn = 0;
@@ -1223,6 +1226,7 @@ export class SauceBotChatView extends ItemView {
             a.setError(ev.error ?? "unknown error");
           } else if (text) {
             await this.renderMarkdownInto(a.body, text);
+            rendered = true;
             a.setCopySource(text); // raw markdown is the most paste-friendly form
           } else if (a.hasReasoning()) {
             // The model spent its whole budget reasoning and emitted no final
@@ -1245,7 +1249,13 @@ export class SauceBotChatView extends ItemView {
       this.setStreaming(false);
       if (aborted) {
         a.setStatus(null);
-        a.body.setText(text ? text + "\n\n[stopped]" : "[stopped]");
+        if (rendered) {
+          // Markdown was already rendered into the DOM — do not call setText
+          // (which would wipe the rendered HTML). Append a plain-text suffix node.
+          a.body.appendText("\n\n[stopped]");
+        } else {
+          a.body.setText(text ? text + "\n\n[stopped]" : "[stopped]");
+        }
       }
       // Record the assistant turn even when it errored/stopped, so the
       // conversation history (and persisted session) reflect what happened.

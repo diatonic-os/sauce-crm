@@ -70,7 +70,7 @@ export class EncryptedBackupService {
 
   async runEncrypted(passphrase: string): Promise<EncryptedBackupReport> {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const folder = "_backups";
+    const folder = this.entities.paths.backups;
     if (!this.app.vault.getAbstractFileByPath(folder)) {
       await this.app.vault.createFolder(folder).catch(() => {
         /* ok */

@@ -38,6 +38,11 @@ export interface MirrorSyncOptions {
    *  (drains microtasks + lets paint happen). Injected so tests can drive it with
    *  fake timers. Receives the resolve callback to invoke when the host is idle. */
   scheduleYield?: (resume: () => void) => void;
+  /** Returns the currently active embedding model identifier so that the
+   *  stored model column in EmbeddingRow reflects the real model. When omitted
+   *  the column falls back to the static string "copilot", which prevents
+   *  stale-vector detection when the configured embed model changes. */
+  modelIdFn?: () => string;
 }
 
 /** Phase of a full resync, surfaced to the progress callback + status bar. */
@@ -343,7 +348,7 @@ export class MirrorSync {
     const text = `${title}\n\n${mf.body}`.slice(0, EMBED_TEXT_CAP);
     const vec = await this.embedFn(text);
     if (!vec || vec.length !== this.vectors.dim) return; // no model / dim mismatch
-    await this.vectors.store(mf.path, vec, "copilot", mf.bodyHash);
+    await this.vectors.store(mf.path, vec, this.opts.modelIdFn?.() ?? "copilot", mf.bodyHash);
     await this.provenance
       ?.record("embed", mf.path, "embedding", text, {
         ...(parentFp !== undefined && { parentFp }),

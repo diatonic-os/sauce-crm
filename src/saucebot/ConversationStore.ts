@@ -1,6 +1,8 @@
-// SPEC §19.5 — Sessions saved under _addenda/_copilot/YYYY-MM-DD-<slug>.md.
+// SPEC §19.5 — Sessions saved under <addenda>/_copilot/YYYY-MM-DD-<slug>.md.
+// The addenda folder is hidden under .sauceBrain/ post-consolidation.
 import type { ChatMessage } from "./ISauceBotProvider";
 import type { TurnTrace } from "./ChatTrace";
+import { DEFAULT_PATHS } from "../services/EntityService";
 
 export interface SauceBotSession {
   id: string;
@@ -47,7 +49,10 @@ function slug(s: string): string {
 export class ConversationStore {
   constructor(
     private readonly host: ConversationHost,
-    private readonly root = "_addenda/_copilot",
+    // Sessions live under the (now hidden) addenda folder. Default follows the
+    // consolidated layout; legacy `_addenda/_copilot` sessions are relocated
+    // here by SauceBrainMigration. Callers may override for custom path setups.
+    private readonly root = `${DEFAULT_PATHS.addenda}/_copilot`,
   ) {}
 
   pathFor(s: SauceBotSession, titleHint = ""): string {
