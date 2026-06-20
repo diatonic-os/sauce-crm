@@ -75,6 +75,12 @@ export interface PersonStat {
   lastTouch: string | null;
   /** Count of touches attributed to this person (touch-frequency proxy). */
   touchCount: number;
+  /** Touch counts keyed by channel (e.g. { call: 2, email: 1 }). */
+  channelCounts: Record<string, number>;
+  /** Touch counts keyed by each outcome tag (e.g. { intro: 1, followup: 2 }). */
+  outcomeCounts: Record<string, number>;
+  /** Graph degree (edge count) from GraphAtlasService; 0 when unavailable. */
+  degree: number;
 }
 
 export interface DealStat {
@@ -389,23 +395,66 @@ export class RelationshipAnalytics {
       .allTouches()
       .filter((e): e is Touch => e instanceof Touch);
 
-    // Touch-frequency by person basename (touch.contact is a wikilink).
+    // Touch-frequency, channel counts, and outcome counts by person basename.
     const touchCounts = new Map<string, number>();
+    const channelCountsMap = new Map<string, Record<string, number>>();
+    const outcomeCountsMap = new Map<string, Record<string, number>>();
+
     for (const t of touches) {
       if (!t.contact) continue;
       const base = basenameFromLink(t.contact);
       touchCounts.set(base, (touchCounts.get(base) ?? 0) + 1);
+
+      // Channel tallying
+      const channel = t.channel ?? "unknown";
+      const chMap = channelCountsMap.get(base) ?? {};
+      chMap[channel] = (chMap[channel] ?? 0) + 1;
+      channelCountsMap.set(base, chMap);
+
+      // Outcome-tag tallying (outcome_tags is string[])
+      for (const tag of t.outcome_tags) {
+        const ocMap = outcomeCountsMap.get(base) ?? {};
+        ocMap[tag] = (ocMap[tag] ?? 0) + 1;
+        outcomeCountsMap.set(base, ocMap);
+      }
+    }
+
+    // Degree: try to get from GraphAtlasService snapshot; default 0 if unavailable.
+    // We build the degree map lazily here to avoid throwing if the service errors.
+    let degreeByPath = new Map<string, number>();
+    try {
+      // GraphAtlasService is not always injected — fall back gracefully.
+      const atlas = (
+        this as unknown as {
+          graphAtlas?: {
+            snapshot(): { nodes: Array<{ path: string; degree: number }> };
+          };
+        }
+      ).graphAtlas;
+      if (atlas) {
+        const snap = atlas.snapshot();
+        for (const node of snap.nodes) {
+          degreeByPath.set(node.path, node.degree);
+        }
+      }
+    } catch {
+      // Unavailable; degree stays 0 for all people.
+      degreeByPath = new Map();
     }
 
     return people.map((p) => {
       const name = String(p.frontmatter.name ?? p.file.basename);
+      const base = p.file.basename;
       return {
         path: p.file.path,
         name,
         closeness: p.closeness,
         cadence: p.cadence,
         lastTouch: coerceIsoDay(p.last_touch),
-        touchCount: touchCounts.get(p.file.basename) ?? 0,
+        touchCount: touchCounts.get(base) ?? 0,
+        channelCounts: channelCountsMap.get(base) ?? {},
+        outcomeCounts: outcomeCountsMap.get(base) ?? {},
+        degree: degreeByPath.get(p.file.path) ?? 0,
       };
     });
   }
