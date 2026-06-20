@@ -293,7 +293,7 @@
                   <span class="sauce-task-contact">{t.contact}</span>
                 {/if}
                 {#if t.quadrant}
-                  <span class="sauce-badge sauce-eis-quadrant-pill sauce-eis-pill-{t.quadrant}">{QUADRANT_LABEL[t.quadrant]}</span>
+                  <span class="sauce-badge sauce-eis-pill sauce-eis-pill-{t.quadrant}">{QUADRANT_LABEL[t.quadrant]}</span>
                 {/if}
                 {#each t.tags ?? [] as tag}
                   <span class="sauce-tag">#{tag}</span>

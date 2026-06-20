@@ -2213,32 +2213,7 @@ select.sauce-input {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-=== END T2.5 CSS ADDITIONS ===
-
----
-
-## Deviations from the brief
-
-1. **TDD red phase:** The duck-typed cast meant the degree tests passed immediately without a true red phase. Implementation refactored to a proper typed property regardless, which is the correct code improvement.
-
-2. **`crossMatrix()` placement:** The method is on `RelationshipAnalytics` (as specified). It uses `this.app.metadataCache.getFileCache()` to read frontmatter for `company`/`org` fields — consistent with how the rest of the service layer reads metadata.
-
-3. **`vault.getFileByPath` compat shim:** Obsidian 1.4+ exposes `vault.getFileByPath`; older versions use `vault.getAbstractFileByPath`. The outlier click handler uses a ternary to fall back gracefully.
-
-4. **`analytics.graphAtlas` not set in `renderCrossMatrix`:** The dashboard's `renderCrossMatrix` does not inject a `GraphAtlasService` into the analytics instance — degree in the cross-matrix will be 0 for all people until the caller wires it. This matches the existing `renderAttention` pattern (no atlas there either). Wiring atlas into the dashboard is a separate concern outside Task 2.5 scope.
-
----
-
-## Risks
-
-- **Performance:** `analytics.crossMatrix()` calls `this.graphAtlas.snapshot()` inside `peopleStats()` (if injected) which re-computes the entire force-directed layout. With large vaults this could be slow. Mitigation: the section is inside `<details>` (collapsed by default) and `crossMatrix()` is called once on `onOpen`.
-
-- **n < 2 edge case:** `buildCrossMatrix` with 0–1 people returns empty `matrix`/`topPairs`/`outliers`. The empty-state guard (`if outliers.length === 0 && top3.length === 0`) shows a friendly message.
-
-- **CSS not yet merged to `styles.css`:** CSS additions are captured in this report only (per brief constraint). They must be manually merged before the section is visually styled in production.
-
 /* ===== Phase 3 — Eisenhower matrix view ===== */
-/* Add to styles.css after existing .sauce-tasks-* rules */
 
 .sauce-eis-grid {
   display: grid;

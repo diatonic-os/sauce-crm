@@ -36,5 +36,6 @@ describe("EisenhowerEngine", () => {
 
   it("done/cancelled tasks score urgency 0", () => {
     expect(urgencyOf({ due: "2026-06-10", status: "done" } as any, now)).toBe(0);
+    expect(urgencyOf({ due: "2026-06-10", status: "cancelled" } as any, now)).toBe(0);
   });
 });

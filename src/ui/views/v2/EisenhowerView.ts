@@ -148,7 +148,7 @@ export class EisenhowerView extends ItemView {
         if (s.input.contact) {
           meta2.createSpan({
             cls: "sauce-eis-contact",
-            text: `@${s.input.contact}`,
+            text: s.input.contact,
           });
         }
       }
