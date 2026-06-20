@@ -2342,3 +2342,30 @@ select.sauce-input {
 .sauce-eis-prio-high   { color: var(--color-orange); }
 .sauce-eis-prio-medium { color: var(--color-yellow); }
 .sauce-eis-prio-low    { color: var(--color-green); }
+
+/* ===== Phase 4 — calendar reschedule + quadrant overlay ===== */
+
+These classes were added to `Calendar.svelte` `<style>` (no styles.css changes):
+
+/* Quadrant color toggle button — same chrome as nav/mode buttons */
+.sauce-cal-color-toggle {
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: var(--size-2-1) var(--size-4-2);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  font-size: var(--font-ui-smaller);
+  text-transform: capitalize;
+}
+.sauce-cal-color-toggle:hover { background: var(--interactive-hover); }
+.sauce-cal-color-toggle:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* DnD affordance cursors */
+.sauce-cal-dot[draggable="true"] { cursor: grab; }
+.sauce-cal-chip[draggable="true"] { cursor: grab; }
