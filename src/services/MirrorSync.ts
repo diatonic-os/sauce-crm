@@ -382,6 +382,7 @@ export class MirrorSync {
     if (!rawType && !this.opts.fullVaultIndex) return null;
     const type = rawType || "note";
     const raw = await this.app.vault.cachedRead(file);
+    const body = raw.replace(FRONTMATTER_RE, "");
     return {
       path: file.path,
       type,
@@ -389,8 +390,13 @@ export class MirrorSync {
         ? { primaryType: String(fm["primary_type"]) }
         : {}),
       frontmatter: fm,
-      body: raw.replace(FRONTMATTER_RE, ""),
-      bodyHash: hashString(raw),
+      body,
+      // Hash the frontmatter-STRIPPED body (not the raw file) so frontmatter-only
+      // writes — edge reciprocity, enrichment, last_touch bumps — don't flip
+      // bodyChanged and trigger a wasteful re-embed of an identical vector
+      // (EV-03). The entity row still updates every sync via onModify(), so
+      // type/tags/edges stay fresh regardless.
+      bodyHash: hashString(body),
       mtime: file.stat.mtime,
       ctime: file.stat.ctime,
       tags: this.arr(fm["tags"]).map(String),
