@@ -204,6 +204,7 @@ import {
   VIEW_INBOX,
   VIEW_LEDGER,
 } from "./ui/views/v2/DashboardViews";
+import { EisenhowerView, VIEW_EISENHOWER } from "./ui/views/v2/EisenhowerView";
 import {
   MeetingsView,
   LanesView,
@@ -1350,6 +1351,7 @@ export default class SauceGraphPlugin extends Plugin {
     this.registerView(VIEW_TASKS, (l) => new TasksView(l, this));
     this.registerView(VIEW_INBOX, (l) => new InboxView(l, this));
     this.registerView(VIEW_LEDGER, (l) => new LedgerView(l, this));
+    this.registerView(VIEW_EISENHOWER, (l) => new EisenhowerView(l, this));
 
     boot.mark("registry+bridge");
     this.registerViews();
@@ -1385,6 +1387,7 @@ export default class SauceGraphPlugin extends Plugin {
       view("Inbox", "sauce-ai-inbox", VIEW_INBOX);
       view("Ledger", "sauce-ledger", VIEW_LEDGER);
       view("Calendar", "sauce-touch", VIEW_CALENDAR);
+      view("Eisenhower Matrix", "layout-dashboard", VIEW_EISENHOWER);
       view("Meetings", "sauce-touch", VIEW_MEETINGS);
       view("Lanes", "columns-3", VIEW_LANES);
       view("Weekly Briefings", "calendar-days", VIEW_WEEKLY);
@@ -2109,6 +2112,11 @@ export default class SauceGraphPlugin extends Plugin {
       id: "open-ledger",
       name: "Open Ledger",
       callback: () => this.openView(VIEW_LEDGER),
+    });
+    this.addCommand({
+      id: "open-eisenhower",
+      name: "Open Eisenhower Matrix",
+      callback: () => this.openView(VIEW_EISENHOWER),
     });
     this.addCommand({
       id: "onboarding",
@@ -3617,6 +3625,7 @@ export default class SauceGraphPlugin extends Plugin {
         VIEW_TASKS,
         VIEW_INBOX,
         VIEW_LEDGER,
+        VIEW_EISENHOWER,
       ]) {
         for (const leaf of this.app.workspace.getLeavesOfType(type)) {
           if (leaf.view instanceof ItemView) {
