@@ -7,4 +7,5 @@ export interface CalendarEvent {
   kind: "touch" | "task" | "followup" | "event";
   label: string;
   path?: string; // optional vault path for click-through
+  quadrant?: "do" | "schedule" | "delegate" | "eliminate";
 }
