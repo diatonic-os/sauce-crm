@@ -299,4 +299,17 @@
   .sauce-cal-list-item { display: flex; align-items: center; gap: var(--size-2-2); }
   .sauce-cal-list-kind { font-size: var(--font-ui-smaller); text-transform: uppercase; color: var(--text-muted); min-width: 60px; }
   .sauce-cal-list-link { background: none; border: none; color: var(--text-accent); cursor: pointer; padding: 0; text-align: start; text-decoration: underline; font: inherit; }
+
+  /* ===== Mobile calendar overrides (≤600px) ===== */
+  @media (max-width: 600px) {
+    /* Smaller cell height + font so month/week grids fit on a 360px screen. */
+    .sauce-cal-cell { min-height: 38px; font-size: 0.8em; }
+    /* Mode buttons wrap rather than overflow. */
+    .sauce-cal-modes { flex-wrap: wrap; }
+    /* Year view is too dense on a phone — hide it; month is the fallback. */
+    .sauce-cal-grid--year { display: none; }
+  }
+  @media (max-width: 480px) {
+    .sauce-cal-grid--year { display: none; }
+  }
 </style>
