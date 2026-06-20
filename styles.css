@@ -2236,3 +2236,134 @@ select.sauce-input {
 - **n < 2 edge case:** `buildCrossMatrix` with 0–1 people returns empty `matrix`/`topPairs`/`outliers`. The empty-state guard (`if outliers.length === 0 && top3.length === 0`) shows a friendly message.
 
 - **CSS not yet merged to `styles.css`:** CSS additions are captured in this report only (per brief constraint). They must be manually merged before the section is visually styled in production.
+
+/* ===== Phase 3 — Eisenhower matrix view ===== */
+/* Add to styles.css after existing .sauce-tasks-* rules */
+
+.sauce-eis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--size-4-4);
+  padding: var(--size-4-2);
+}
+@media (max-width: 600px) {
+  .sauce-eis-grid { grid-template-columns: 1fr; }
+}
+
+.sauce-eis-quadrant {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-2);
+  padding: var(--size-4-2);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  border-top: 3px solid transparent;
+  min-height: 120px;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+
+.sauce-eis-q1 { border-top-color: var(--color-red); }
+.sauce-eis-q2 { border-top-color: var(--color-blue); }
+.sauce-eis-q3 { border-top-color: var(--color-orange); }
+.sauce-eis-q4 { border-top-color: var(--text-faint); }
+
+.sauce-eis-quadrant-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--size-2-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.sauce-eis-quadrant-title {
+  margin: 0;
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+}
+.sauce-eis-quadrant-sub {
+  margin: 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.sauce-eis-count {
+  margin-inline-start: auto;
+}
+
+.sauce-eis-task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+}
+.sauce-eis-task-row {
+  padding: var(--size-2-1) var(--size-2-2);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sauce-eis-task-row:hover { background: var(--background-modifier-hover); }
+
+.sauce-eis-task-title {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: start;
+  cursor: pointer;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  min-height: 44px; /* Apple HIG tap target */
+  display: flex;
+  align-items: center;
+}
+.sauce-eis-task-title:hover { color: var(--interactive-accent); text-decoration: underline; }
+.sauce-eis-task-title:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
+.sauce-eis-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-1);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.sauce-eis-due { color: var(--text-muted); }
+.sauce-eis-contact::before { content: "@"; opacity: 0.6; }
+
+.sauce-eis-empty {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+  padding: var(--size-4-2);
+}
+
+/* Quadrant pill in TasksDashboard (sortBy:quadrant) */
+.sauce-eis-pill {
+  font-size: var(--font-ui-smaller);
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: var(--font-semibold);
+}
+.sauce-eis-pill-do      { color: var(--color-red);    border: 1px solid var(--color-red); }
+.sauce-eis-pill-schedule { color: var(--color-blue);   border: 1px solid var(--color-blue); }
+.sauce-eis-pill-delegate { color: var(--color-orange); border: 1px solid var(--color-orange); }
+.sauce-eis-pill-eliminate { color: var(--text-muted);  border: 1px solid var(--text-muted); }
+
+.sauce-eis-prio-urgent { color: var(--color-red); }
+.sauce-eis-prio-high   { color: var(--color-orange); }
+.sauce-eis-prio-medium { color: var(--color-yellow); }
+.sauce-eis-prio-low    { color: var(--color-green); }
