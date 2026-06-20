@@ -2,6 +2,11 @@
 // Each mount step is best-effort — V2 stays functional under partial init (e.g. no SQLite).
 
 import { App, Plugin, normalizePath, requestUrl } from "obsidian";
+import {
+  resolveEmbeddingProvider,
+  embedDimForModel,
+  type SauceFeatureSettings,
+} from "./settings/FeatureSettings";
 import { initLanceBackend, type LanceBackend } from "./backend/lance";
 import {
   withTimeout,
@@ -284,18 +289,28 @@ export async function initV2(
   const pluginSettings = (
     plugin as unknown as {
       settings?: {
-        features?: { rag?: { embeddingDim?: number | null } };
+        features?: SauceFeatureSettings;
         lancedb?: { embeddingDim?: number };
+        copilot?: { apiKey?: string };
       };
     }
   ).settings; // Plugin subclass field; base Plugin type lacks it
-  // The user-configured dim lives at features.rag.embeddingDim (RAG settings
-  // section). Fall back to the legacy lancedb.embeddingDim, then the caller's
-  // default — reading the wrong path silently ignored the user's dimension.
-  const embeddingDim =
+  // Dim resolution order: an explicit user override (features.rag.embeddingDim
+  // or legacy lancedb.embeddingDim) always wins. When unset, DERIVE the dim from
+  // the resolved embed model so the table matches what the active provider
+  // actually emits (EMB-1) — e.g. a keyed install resolving to OpenAI gets a
+  // 1536-dim table, a keyless install resolving to the local model gets 768.
+  const explicitDim =
     pluginSettings?.features?.rag?.embeddingDim ??
     pluginSettings?.lancedb?.embeddingDim ??
-    undefined;
+    null;
+  let derivedDim: number | null = null;
+  if (explicitDim == null && pluginSettings?.features) {
+    const hasKey = !!pluginSettings.copilot?.apiKey?.trim();
+    const resolved = resolveEmbeddingProvider(pluginSettings.features, hasKey);
+    if (resolved) derivedDim = embedDimForModel(resolved.config.model);
+  }
+  const embeddingDim = explicitDim ?? derivedDim ?? undefined;
 
   // ─── Backend: LanceDB single-backend (require-install) ───────────────
   // LanceDB is the sole persistence engine. If its native binding is not yet

@@ -13,8 +13,9 @@ describe("mergeFeatureSettings", () => {
   it("keeps default sub-keys when a partial blob is loaded", () => {
     const merged = mergeFeatureSettings({ rag: { enabled: true } } as never);
     expect(merged.rag.enabled).toBe(true);
-    // untouched sub-keys retain defaults
-    expect(merged.rag.provider).toBe("lmstudio");
+    // untouched sub-keys retain defaults (provider default is now OpenAI, which
+    // resolveEmbeddingProvider key-gates with a local fallback)
+    expect(merged.rag.provider).toBe("openai");
     expect(merged.rag.providers.ollama.model).toBe("nomic-embed-text");
     expect(merged.enrichment).toEqual(DEFAULT_FEATURE_SETTINGS.enrichment);
   });
