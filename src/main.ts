@@ -1479,8 +1479,10 @@ export default class SauceGraphPlugin extends Plugin {
 
       m.addSeparator();
       sec("AI & Brain");
-      view("SauceBot Chat", "sauce-copilot", VIEW_COPILOT_CHAT);
-      view("AI Inbox", "sauce-ai-inbox", VIEW_AI_INBOX);
+      // Launcher icons MATCH each view's getIcon() (all Lucide) so the three
+      // align identically and the menu icon equals the resulting tab icon.
+      view("SauceBot Chat", "message-circle", VIEW_COPILOT_CHAT);
+      view("AI Inbox", "inbox", VIEW_AI_INBOX);
       view("Sauce Brain", "brain-circuit", VIEW_BRAIN);
 
       m.addSeparator();
