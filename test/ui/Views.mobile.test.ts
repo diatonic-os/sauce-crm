@@ -6,7 +6,24 @@ vi.mock("obsidian", async (orig) => {
   return { ...real, Platform: { ...(real as any).Platform, isMobile: true } };
 });
 
-import { CompatibilityMatrixView } from "@/ui/views/Views";
+// Stub GraphAtlasService so renderTopNodes works without real vault data.
+vi.mock("@/services/GraphAtlasService", () => {
+  class GraphAtlasService {
+    snapshot() {
+      return {
+        nodes: [
+          { id: "n1", label: "Alice", path: "people/Alice.md", kind: "person", degree: 5, x: 0, y: 0, radius: 10, score: 1, color: "#000", icon: "user" },
+          { id: "n2", label: "Bob",   path: "people/Bob.md",   kind: "person", degree: 3, x: 0, y: 0, radius: 10, score: 1, color: "#000", icon: "user" },
+        ],
+        edges: [],
+        nodeById: new Map(),
+      };
+    }
+  }
+  return { GraphAtlasService };
+});
+
+import { CompatibilityMatrixView, TypedEdgeGraphView } from "@/ui/views/Views";
 import { App, WorkspaceLeaf } from "obsidian";
 
 /** Patch an HTMLElement with the Obsidian extension methods that jsdom lacks. */
@@ -93,5 +110,24 @@ describe("CompatibilityMatrixView — mobile layout", () => {
     // On mobile: no NxN grid rendered, yes pair list.
     expect(view.contentEl.querySelector(".sauce-matrix")).toBeNull();
     expect(view.contentEl.querySelector(".sauce-compat-pairlist")).not.toBeNull();
+  });
+});
+
+describe("TypedEdgeGraphView — mobile layout", () => {
+  it("renders top-nodes list + desktop notice; no interactive graph shell", async () => {
+    const stub = makeStubPlugin();
+    const view = new (TypedEdgeGraphView as any)(
+      new WorkspaceLeaf(),
+      stub,
+    );
+    patchEl(view.contentEl);
+
+    await view.onOpen();
+
+    // Mobile path: compat pair list (top nodes) and empty-state notice must exist.
+    expect(view.contentEl.querySelector(".sauce-compat-pairlist")).not.toBeNull();
+    expect(view.contentEl.querySelector(".sauce-empty-state")).not.toBeNull();
+    // Desktop-only interactive shell must NOT be rendered on mobile.
+    expect(view.contentEl.querySelector(".sauce-graph-shell")).toBeNull();
   });
 });

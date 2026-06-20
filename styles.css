@@ -1430,17 +1430,13 @@
   .sauce-view, .sauce-copilot { padding: var(--sg-gap-5); }
 }
 
-/* ===== Mobile table + calendar overrides (≤600px) ===== */
+/* ===== Mobile table, calendar, and analytics overrides (≤600px) ===== */
 @media (max-width: 600px) {
   /* Index table + sync-jobs: contain horizontal scroll within the wrapper. */
   .sauce-table-wrap { overflow-x: auto; }
   .sauce-index-table :is(th, td),
   .sauce-sync-jobs th,
   .sauce-sync-jobs td { padding: var(--sg-gap-3) var(--sg-gap-5); font-size: 0.82em; }
-}
-
-/* ===== Mobile analytics overrides (≤600px) ===== */
-@media (max-width: 600px) {
   /* Matrix + heatmap: keep their natural width but make the wrapper the
      scroll boundary so the PAGE never scrolls; add an inertia scroll. */
   .sauce-matrix-wrap, .sauce-heatmap-wrap {
@@ -2118,6 +2114,6 @@ select.sauce-input {
 .sauce-compat-pairlist {
   display: flex;
   flex-direction: column;
-  gap: var(--sg-gap-5, 5px);
-  padding: var(--sg-gap-8, 8px);
+  gap: var(--sg-gap-5);
+  padding: var(--sg-gap-8);
 }

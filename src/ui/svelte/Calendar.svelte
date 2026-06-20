@@ -123,7 +123,7 @@
     <button class="sauce-cal-nav" onclick={() => nav(1)} aria-label="next">›</button>
     <div class="sauce-cal-modes" role="tablist">
       {#each MODES as m}
-        <button class="sauce-cal-mode" class:is-active={mode === m} role="tab" aria-selected={mode === m} onclick={() => (mode = m)}>{m}</button>
+        <button class="sauce-cal-mode" class:is-active={mode === m} role="tab" aria-selected={mode === m} data-mode={m} onclick={() => (mode = m)}>{m}</button>
       {/each}
     </div>
     <button class="sauce-cal-today" onclick={today}>Today</button>
@@ -306,10 +306,9 @@
     .sauce-cal-cell { min-height: 38px; font-size: 0.8em; }
     /* Mode buttons wrap rather than overflow. */
     .sauce-cal-modes { flex-wrap: wrap; }
-    /* Year view is too dense on a phone — hide it; month is the fallback. */
+    /* Year view is too dense on a phone — hide the grid and its mode button. */
     .sauce-cal-grid--year { display: none; }
+    .sauce-cal-mode[data-mode="year"] { display: none; }
   }
-  @media (max-width: 480px) {
-    .sauce-cal-grid--year { display: none; }
-  }
+
 </style>
