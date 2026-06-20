@@ -25,24 +25,3 @@ export interface InboxRow {
   /** Days from today; negative = overdue, 0 = today, positive = future. */
   daysFromToday: number;
 }
-
-export interface LedgerRow {
-  path: string;
-  date: string;
-  contact: string;
-  category: string;
-  amount: number;
-  currency: string;
-  direction: "in" | "out";
-  notes?: string;
-}
-
-/** Money rolled up by some grouping key (contact or category). */
-export interface LedgerRollup {
-  /** The grouping key value (a contact name or a category name). */
-  key: string;
-  in: number;
-  out: number;
-  net: number;
-  entryCount: number;
-}

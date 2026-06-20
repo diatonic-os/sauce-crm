@@ -15,7 +15,7 @@ function fakeApp(files: Record<string, string> = {}) {
           store[p] = d;
         },
         list: async (_p: string) => ({
-          files: Object.keys(store).filter((k) => k.startsWith("_Tasks/")),
+          files: Object.keys(store).filter((k) => k.startsWith("tasks/")),
           folders: [],
         }),
       },
@@ -44,10 +44,10 @@ describe("TasksService", () => {
     expect(rows[0].path).toBe("_TASKS.md");
   });
 
-  it("aggregates tasks from the _Tasks folder too", async () => {
+  it("aggregates tasks from the tasks folder too", async () => {
     const { app } = fakeApp({
       "_TASKS.md": "- [ ] root task\n",
-      "_Tasks/work.md": "- [x] folder task\n",
+      "tasks/work.md": "- [x] folder task\n",
     });
     const rows = await new TasksService(app, "_TASKS.md").listTasks();
     expect(rows.map((r) => r.task.title).sort()).toEqual([

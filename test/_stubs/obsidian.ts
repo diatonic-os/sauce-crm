@@ -134,8 +134,21 @@ export class Vault {
     file.contents = next;
     return next;
   }
-  async delete(file: TFile): Promise<void> {
-    this.files.delete(file.path);
+  async delete(file: TAbstractFile, recursive = false): Promise<void> {
+    const p = normalizePath(file.path);
+    if (this.folders.has(p)) {
+      // Folder delete: remove the folder and (when recursive) all descendants.
+      for (const key of [...this.folders.keys()]) {
+        if (key === p || key.startsWith(p + "/")) this.folders.delete(key);
+      }
+      if (recursive) {
+        for (const key of [...this.files.keys()]) {
+          if (key.startsWith(p + "/")) this.files.delete(key);
+        }
+      }
+      return;
+    }
+    this.files.delete(p);
   }
   async cachedRead(file: TFile): Promise<string> {
     return file.contents;
@@ -145,6 +158,54 @@ export class Vault {
   }
   getMarkdownFiles(): TFile[] {
     return [...this.files.values()].filter((f) => f.extension === "md");
+  }
+  getFiles(): TFile[] {
+    return [...this.files.values()];
+  }
+  /**
+   * Link-preserving move used by SauceBrainMigration. Renaming a TFolder moves
+   * the folder and every descendant file/folder (path-prefix rewrite); renaming
+   * a TFile moves the single file. Auto-creates the destination parent chain.
+   */
+  async rename(file: TAbstractFile, newPath: string): Promise<void> {
+    const from = normalizePath(file.path);
+    const to = normalizePath(newPath);
+    const ensureParents = (p: string) => {
+      const parts = p.split("/");
+      let acc = "";
+      for (let i = 0; i < parts.length - 1; i++) {
+        acc = acc ? `${acc}/${parts[i]}` : parts[i];
+        if (!this.folders.has(acc)) this.folders.set(acc, new TFolder(acc, null));
+      }
+    };
+    if (this.folders.has(from)) {
+      // Move folder + all descendants.
+      for (const [path, f] of [...this.files]) {
+        if (path === from || path.startsWith(from + "/")) {
+          const dest = to + path.slice(from.length);
+          this.files.delete(path);
+          ensureParents(dest);
+          f.path = dest;
+          this.files.set(dest, f);
+        }
+      }
+      for (const [path, fld] of [...this.folders]) {
+        if (path === from || path.startsWith(from + "/")) {
+          const dest = to + path.slice(from.length);
+          this.folders.delete(path);
+          ensureParents(dest);
+          fld.path = dest;
+          this.folders.set(dest, fld);
+        }
+      }
+    } else {
+      const f = this.files.get(from);
+      if (!f) throw new Error(`rename: no such file ${from}`);
+      this.files.delete(from);
+      ensureParents(to);
+      f.path = to;
+      this.files.set(to, f);
+    }
   }
 }
 
@@ -178,6 +239,11 @@ export class App {
   // under test. We round-trip a YAML-ish frontmatter block by parsing the
   // file body, calling the mutator, and re-serializing.
   fileManager = {
+    // Link-preserving move. In real Obsidian this also rewrites inbound
+    // wikilinks; the stub delegates the path move to Vault.rename.
+    renameFile: async (file: TAbstractFile, newPath: string) => {
+      await this.vault.rename(file, newPath);
+    },
     processFrontMatter: async (
       file: TFile,
       mutator: (fm: Record<string, unknown>) => void,

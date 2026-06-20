@@ -24,7 +24,7 @@ export class BackupService {
   async run(): Promise<BackupReport> {
     const ts = Date.now();
     const stamp = new Date(ts).toISOString().replace(/[:.]/g, "-");
-    const folder = "_backups";
+    const folder = this.entities.paths.backups;
     if (!this.app.vault.getAbstractFileByPath(folder))
       await this.app.vault.createFolder(folder).catch(() => {
         /* ok */
@@ -78,7 +78,8 @@ export class BackupService {
 
   /** Garbage-collect old backups, keeping the most recent N. */
   async prune(keep = 14): Promise<number> {
-    const folder = this.app.vault.getAbstractFileByPath("_backups");
+    const bdir = this.entities.paths.backups;
+    const folder = this.app.vault.getAbstractFileByPath(bdir);
     if (!folder) return 0;
     const files = this.app.vault
       .getMarkdownFiles()
@@ -86,12 +87,12 @@ export class BackupService {
         this.app.vault
           .getFiles()
           .filter(
-            (f) => f.path.startsWith("_backups/") && f.path.endsWith(".json"),
+            (f) => f.path.startsWith(bdir + "/") && f.path.endsWith(".json"),
           ),
       );
     const backups = files.filter(
       (f) =>
-        f.path.startsWith("_backups/sauce-backup-") && f.path.endsWith(".json"),
+        f.path.startsWith(bdir + "/sauce-backup-") && f.path.endsWith(".json"),
     );
     backups.sort((a, b) => b.path.localeCompare(a.path));
     const removed: TFile[] = backups.slice(keep);

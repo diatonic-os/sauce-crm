@@ -237,7 +237,8 @@ export class ObsidianRagHost implements RagAssemblerHost {
         .replace(/\[\[|\]\]/g, "")
         .split("|")[0];
       if (addends !== basename) continue;
-      const body = ""; // body not loaded in V1 EntityService; left empty for v0
+      const raw = await this.app.vault.cachedRead(a.file);
+      const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
       tail.push({
         id: a.file.path,
         date: String(fm.date ?? ""),

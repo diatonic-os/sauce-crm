@@ -9,12 +9,13 @@ import {
   ObservationSchema,
   NoteSchema,
   EventSchema,
+  LaneSchema,
+  MeetingSchema,
 } from "../../../src/domain/schemas/index";
 
-describe("DEC-003 14-entity surface (T-E-01)", () => {
-  it("registers all 14 reconciled entity types (no duplication)", () => {
+describe("canonical entity surface (CLAUDE.md v1.6.0)", () => {
+  it("registers the canonical CRM entity types", () => {
     const types = Object.keys(ENTITY_SCHEMAS);
-    // the 7 pre-existing (reconciled) + 7 new = the DEC-003 14, plus legacy followup/rollup
     for (const t of [
       "warm-contact",
       "org",
@@ -22,17 +23,23 @@ describe("DEC-003 14-entity surface (T-E-01)", () => {
       "addendum",
       "task",
       "idea",
-      "ledger-entry", // existing 7
+      "lane", // canonical §2.6
+      "meeting", // canonical §2.8
       "playbook",
       "template",
       "vault",
       "pipeline",
       "observation",
       "note",
-      "event", // new 7
+      "event",
     ]) {
       expect(types).toContain(t);
     }
+  });
+
+  it("no longer registers the purged financial ledger type", () => {
+    expect(Object.keys(ENTITY_SCHEMAS)).not.toContain("ledger-entry");
+    expect(validateEntity({ type: "ledger-entry", amount: 1 })).toBeNull();
   });
 
   it("each new schema validates a well-formed entity and rejects a malformed one", () => {
@@ -62,14 +69,55 @@ describe("DEC-003 14-entity surface (T-E-01)", () => {
     expect(
       ObservationSchema.validate({
         type: "observation",
-        subjectId: "person/A",
-        claim: "x",
+        observation_kind: "connecting-organization",
+        name: "CXPA",
       }).passed,
     ).toBe(true);
+    expect(
+      ObservationSchema.validate({
+        type: "observation",
+        observation_kind: "not-a-kind",
+      }).passed,
+    ).toBe(false);
     expect(NoteSchema.validate({ type: "note", title: "N" }).passed).toBe(true);
     expect(
-      EventSchema.validate({ type: "event", eventType: "entity.update" })
-        .passed,
+      EventSchema.validate({
+        type: "event",
+        title: "Chamber meeting",
+        date: "2026-07-08",
+      }).passed,
+    ).toBe(true);
+    expect(
+      EventSchema.validate({ type: "event", title: "x", date: "nope" }).passed,
+    ).toBe(false);
+  });
+
+  it("validates the canonical lane and meeting types", () => {
+    expect(
+      LaneSchema.validate({
+        type: "lane",
+        owner: "[[Malcolm Sullivan]]",
+        lane_axis: "experience",
+        primary_domain: "commercial-real-estate",
+        status: "active",
+      }).passed,
+    ).toBe(true);
+    expect(
+      LaneSchema.validate({
+        type: "lane",
+        owner: "[[X]]",
+        lane_axis: "bogus",
+        primary_domain: "x",
+        status: "active",
+      }).passed,
+    ).toBe(false);
+    expect(
+      MeetingSchema.validate({
+        type: "meeting",
+        date: "2026-05-24",
+        attendees: ["[[Bob Lambert]]"],
+        kind: "prep",
+      }).passed,
     ).toBe(true);
   });
 

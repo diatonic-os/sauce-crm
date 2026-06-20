@@ -17,25 +17,33 @@ describe("VaultBootstrapper", () => {
 
     expect(result.created).toEqual(
       expect.arrayContaining([
+        // Visible CRM content stays in the vault root.
         "people",
         "orgs",
         "touches",
-        "_addenda",
         "notes",
         "ideas",
         "observations",
         "tasks",
         "events",
-        "ledger",
         "pipeline",
-        "_templates",
-        "_playbooks",
-        "$user",
+        // Scaffolding + machine tiers consolidate under hidden .sauceBrain/.
+        ".sauceBrain/addenda",
+        ".sauceBrain/templates",
+        ".sauceBrain/playbooks",
+        ".sauceBrain/users",
+        ".sauceBrain/saucebot",
+        ".sauceBrain/brain",
+        ".sauceBrain/cache",
+        ".sauceBrain/.tmp",
+        ".sauceBrain/artifacts",
+        ".sauceBrain/dashboards",
       ]),
     );
 
-    for (const path of [
-      "CLAUDE.md",
+    // CLAUDE.md stays at root; dashboard surfaces seed under .sauceBrain/dashboards/.
+    expect(app.vault.getAbstractFileByPath("CLAUDE.md")).toBeTruthy();
+    for (const name of [
       "_README.md",
       "_MOC.md",
       "_DASHBOARD.md",
@@ -43,11 +51,12 @@ describe("VaultBootstrapper", () => {
       "_ADDENDA.md",
       "_IDEAS.md",
       "_EVENTS.md",
-      "_LEDGER.md",
       "_POLICY.md",
       "_PLUGIN-CONFIG.md",
     ]) {
-      expect(app.vault.getAbstractFileByPath(path)).toBeTruthy();
+      expect(
+        app.vault.getAbstractFileByPath(`.sauceBrain/dashboards/${name}`),
+      ).toBeTruthy();
     }
   });
 });

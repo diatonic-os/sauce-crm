@@ -22,6 +22,31 @@ function fakeMgr(loaded: string[]) {
   return { mgr, events, set };
 }
 
+describe("dual-load policy", () => {
+  it("never unloads a protected (embed) model when switching chat", async () => {
+    const { mgr, events } = fakeMgr(["chat-old", "embed-model"]);
+    const r = await switchModel(mgr, {
+      provider: "lmstudio",
+      prev: "embed-model", // pretend the prev happened to be the embed model
+      next: "chat-new",
+      protect: ["embed-model"],
+    });
+    expect(r.loaded).toBe("chat-new");
+    expect(r.unloaded).toBeUndefined();
+    expect(events).not.toContain("unload:embed-model");
+  });
+
+  it("defaultKeepWarm is on for local, off for cloud", async () => {
+    const { defaultKeepWarm } = await import(
+      "../../src/saucebot/ModelLifecycle"
+    );
+    expect(defaultKeepWarm("lmstudio")).toBe(true);
+    expect(defaultKeepWarm("ollama")).toBe(true);
+    expect(defaultKeepWarm("anthropic")).toBe(false);
+    expect(defaultKeepWarm("openai")).toBe(false);
+  });
+});
+
 describe("switchModel", () => {
   it("loads the new model and unloads the previous (LM Studio)", async () => {
     const { mgr, events } = fakeMgr(["old-model"]);

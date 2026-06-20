@@ -69,7 +69,7 @@ export function renderBasic(
       banner.remove();
     };
     banner.createEl("p", {
-      text: "Get started by bootstrapping your vault structure. This creates the folders for people, organizations, touches, notes, ideas, observations, tasks, events, ledger entries, pipeline deals, and your $user workspace.",
+      text: "Get started by bootstrapping your vault structure. This creates the folders for people, organizations, touches, notes, ideas, observations, tasks, events, meetings, lanes, pipeline deals, and your $user workspace.",
     });
     const startBtn = banner.createEl("button", {
       text: "Start",

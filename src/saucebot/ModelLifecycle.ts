@@ -23,6 +23,9 @@ export interface SwitchModelOpts {
   next: string;
   /** Unload `prev` after loading `next` (free VRAM). Default true. */
   unloadPrev?: boolean;
+  /** Models that must stay loaded regardless (e.g. the embed model) so chat +
+   *  embeddings can be loaded SIMULTANEOUSLY — the dual-model guarantee. */
+  protect?: string[];
   /** Idle auto-unload TTL for the loaded model. */
   ttlSeconds?: number;
 }
@@ -34,6 +37,18 @@ export interface SwitchModelResult {
 }
 
 const LOCAL_PROVIDERS = new Set(["lmstudio", "lmstudio-sdk", "ollama"]);
+
+/** True when a provider JIT-loads locally (vs cloud, server-managed). */
+export function isLocalProvider(provider: string): boolean {
+  return LOCAL_PROVIDERS.has(provider);
+}
+
+/** Keep-warm should default ON for local providers — otherwise the model idle-
+ *  unloads between messages and every message pays a cold reload. Cloud providers
+ *  are server-managed (no warm needed). The user's explicit setting overrides. */
+export function defaultKeepWarm(provider: string): boolean {
+  return isLocalProvider(provider);
+}
 
 /** Ensure `next` is loaded and (optionally) `prev` is unloaded. Idempotent:
  *  won't reload an already-loaded model; won't unload `next` or a model that
@@ -60,10 +75,12 @@ export async function switchModel(
     result.loaded = opts.next;
   }
   const unloadPrev = opts.unloadPrev ?? true;
+  const protect = new Set(opts.protect ?? []);
   if (
     unloadPrev &&
     opts.prev &&
     opts.prev !== opts.next &&
+    !protect.has(opts.prev) && // never unload a protected (e.g. embed) model
     isLoaded(opts.prev)
   ) {
     await mgr.unload(opts.prev);

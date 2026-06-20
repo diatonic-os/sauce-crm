@@ -35,12 +35,17 @@ import {
 } from "./services/transcribe/WhisperArgs";
 import { MemoryBackendRagAdapter } from "./bridge/MemoryBackendRagAdapter";
 import { injectMobileStyles } from "./ui/MobileStyles";
+import { installMobileKeyboard } from "./ui/MobileKeyboard";
 import { activity } from "./ui/ActivityNotifier";
 import {
   EntityService,
   DEFAULT_PATHS,
   VaultPaths,
 } from "./services/EntityService";
+import {
+  SauceBrainMigration,
+  type MigrationStamp,
+} from "./services/SauceBrainMigration";
 import {
   EdgeSyncService,
   DEFAULT_EDGE_RULES,
@@ -85,6 +90,8 @@ import { FederationValidator } from "./federation/FederationValidator";
 import { ParentVaultBootstrapper } from "./federation/ParentVaultBootstrapper";
 import { PersonModal } from "./ui/modals/PersonModal";
 import { OrgModal } from "./ui/modals/OrgModal";
+import { RelationshipCardModal } from "./ui/modals/RelationshipCardModal";
+import { detectClaudeCode } from "./saucebot/ClaudeCodeProvider";
 import { TouchModal } from "./ui/modals/TouchModal";
 import { AddendumModal } from "./ui/modals/AddendumModal";
 import { IntroModal } from "./ui/modals/IntroModal";
@@ -199,10 +206,8 @@ import { CalendarView, VIEW_CALENDAR } from "./ui/views/v2/CalendarView";
 import {
   TasksView,
   InboxView,
-  LedgerView,
   VIEW_TASKS,
   VIEW_INBOX,
-  VIEW_LEDGER,
 } from "./ui/views/v2/DashboardViews";
 import { EisenhowerView, VIEW_EISENHOWER } from "./ui/views/v2/EisenhowerView";
 import {
@@ -251,8 +256,12 @@ export interface SauceGraphSettings {
   enums: Record<string, string[]>;
   copilot: SauceBotSettings;
   /** Vault folder the Sauce Brain dashboard reads standalone `*.html` builds
-   *  from (BrainView). Defaults to `_brain`. */
+   *  from (BrainView). Defaults to `.sauceBrain/brain` (legacy: `_brain`,
+   *  auto-migrated by {@link SauceBrainMigration}). */
   brainFolder?: string;
+  /** Stamp recording the last completed .sauceBrain folder consolidation.
+   *  Gates re-runs of the one-way migration. */
+  sauceBrainMigration?: MigrationStamp;
   /** Brain tier + SauceDB (hosted LanceDB edge) config. Free = local JSON
    *  brain; SauceDB = paid hosted edge sync. See src/saucebot/SauceDb.ts. */
   sauceDb?: SauceDbConfig;
@@ -308,6 +317,14 @@ export interface SauceGraphSettings {
   daemon?: DaemonSettings;
   /** Forward-compat beta opt-in gate. Absent in production releases. */
   beta?: { enabled?: boolean };
+  /** Verbose debug mode — when on, every feature logs through the shared
+   *  DebugSink (see saucebot/lmstudio/LMStudioCapability.makeDebugSink). Off by
+   *  default; user-toggled in Settings. */
+  debugMode?: boolean;
+  /** Hosted Bifrost gateway endpoint (our VPS worker node). When set, clients
+   *  auto-connect to it on load — hybrid cloud+local routing without per-client
+   *  config. Empty ⇒ no auto-connect (direct providers). */
+  gatewayUrl?: string;
   /** Local Whisper transcription (S8). Default empty/off — the plugin never
    *  downloads or installs whisper; the operator sets an absolute binary path
    *  (or uses Detect), or routes transcription through the daemon. */
@@ -428,9 +445,13 @@ const DEFAULT_SETTINGS: SauceGraphSettings = {
     ],
   },
   copilot: COPILOT_DEFAULTS,
-  brainFolder: "_brain",
+  brainFolder: DEFAULT_PATHS.brain,
   sauceDb: { tier: "local" },
   features: DEFAULT_FEATURE_SETTINGS,
+  debugMode: false,
+  // Bake the hosted gateway URL here (VPS worker node) so installed clients
+  // auto-connect on load. Empty by default for OSS / self-host builds.
+  gatewayUrl: "",
   activeTab: "TAB-BASIC",
   hasInitialized: false,
   hasDismissedFirstRun: false,
@@ -728,10 +749,45 @@ export default class SauceGraphPlugin extends Plugin {
     await this.loadSettings();
     boot.mark("settings-load");
 
+    // One-way folder consolidation (≤0.5.0 layout → hidden .sauceBrain/). Runs
+    // once per vault — a persisted stamp short-circuits every subsequent load.
+    // MOVES data link-preserving; never deletes. Must precede EntityService and
+    // the brainFolder reads below so they see the migrated paths. Failures are
+    // swallowed: a half-migrated vault keeps working on its (also-rewired)
+    // settings and retries are safe (idempotent + collision-skipping).
+    try {
+      const migration = await new SauceBrainMigration(this.app).run(
+        this.settings,
+      );
+      if (!migration.skipped) {
+        if (migration.totalFilesMoved > 0 || migration.pathsChanged) {
+          await this.saveSettings();
+        }
+        if (migration.totalFilesMoved > 0) {
+          activity.info(
+            `SauceBrain: consolidated ${migration.totalFilesMoved} file(s) into .sauceBrain/`,
+          );
+        }
+        if (migration.conflicts.length > 0) {
+          console.warn(
+            "[SauceBrain migration] left sources in place for existing destinations:",
+            migration.conflicts,
+          );
+        }
+      }
+      boot.mark("saucebrain-migration");
+    } catch (err) {
+      console.error("[SauceBrain migration] failed (vault unchanged):", err);
+    }
+
     // Mobile (Apple-native) optimization: inject the .is-mobile stylesheet and
     // surface a one-tap quick-capture ribbon for on-the-go recording.
     if (Platform.isMobile) {
       this.register(injectMobileStyles());
+      // Keyboard avoidance: keep the focused composer/field visible above the
+      // soft keyboard while typing. Disposed on unload.
+      const kb = installMobileKeyboard(window, document);
+      this.register(() => kb.dispose());
       this.addRibbonIcon("plus-circle", "SauceOM: Quick capture", () =>
         new QuickCaptureModal(this.app, this).open(),
       );
@@ -749,7 +805,12 @@ export default class SauceGraphPlugin extends Plugin {
         read: () => this.settings.approvals ?? DEFAULT_APPROVAL_RECORD,
         write: async (r: ApprovalRecord) => {
           this.settings.approvals = r;
-          await this.saveSettings();
+          await this.saveSettings().catch((e) =>
+            console.error(
+              "SauceBot: failed to persist approval record",
+              e,
+            ),
+          );
         },
       }),
       new ApprovalModalUI(this.app),
@@ -848,14 +909,27 @@ export default class SauceGraphPlugin extends Plugin {
     );
     // Persist immediately when the runtime discovers a model to blocklist (a
     // permanent load failure), so the picker reflects it across reloads.
-    this.copilot.setOnSettingsChanged(() => void this.saveSettings());
+    this.copilot.setOnSettingsChanged(() => {
+      this.saveSettings().catch((e) =>
+        console.error(
+          "SauceBot: failed to persist settings after model state change",
+          e,
+        ),
+      );
+    });
     // Point the crystallized-brain digest cache at the configured brain folder.
-    this.copilot.setBrainFolder(this.settings.brainFolder ?? "_brain");
+    this.copilot.setBrainFolder(
+      this.settings.brainFolder ?? DEFAULT_PATHS.brain,
+    );
+    // Auto-connect to the hosted Bifrost gateway (VPS worker node) if configured
+    // — installed clients route through the central proxy with no manual setup.
+    // Off the awaited boot path; silent best-effort.
+    void this.autoConnectGateway();
     // Deterministic brain builder (lexicon/taxonomy/path-lattice). The Obsidian
     // vault adapter satisfies BrainPersistence (read/write/exists/mkdir).
     this.brainBuilder = new BrainBuilder(
       this.app.vault.adapter,
-      this.settings.brainFolder ?? "_brain",
+      this.settings.brainFolder ?? DEFAULT_PATHS.brain,
     );
     // SauceDB hosted-edge sync client (paywalled). Uses Obsidian's requestUrl
     // (CORS-bypassing) as the HTTP seam; gated by entitlement + config.
@@ -931,6 +1005,9 @@ export default class SauceGraphPlugin extends Plugin {
         {
           realtimeEmbeddings: () =>
             this.settings.features.rag.realtimeEmbeddings,
+          // Stamp the REAL active embed model on each stored vector so a model
+          // change is detectable downstream (was hardcoded "copilot").
+          modelIdFn: () => this.copilot?.activeEmbedModel || "",
           // B (S6): whole-vault coverage — mirror untyped notes as type:"note"
           // and honor the operator's exclude-folder list.
           fullVaultIndex: this.settings.features.rag.fullVaultIndex,
@@ -1350,7 +1427,6 @@ export default class SauceGraphPlugin extends Plugin {
     this.registerView(VIEW_CALENDAR, (l) => new CalendarView(l, this));
     this.registerView(VIEW_TASKS, (l) => new TasksView(l, this));
     this.registerView(VIEW_INBOX, (l) => new InboxView(l, this));
-    this.registerView(VIEW_LEDGER, (l) => new LedgerView(l, this));
     this.registerView(VIEW_EISENHOWER, (l) => new EisenhowerView(l, this));
 
     boot.mark("registry+bridge");
@@ -1385,7 +1461,6 @@ export default class SauceGraphPlugin extends Plugin {
       view("Parent Vault Dashboard", "sauce-parent-vault", VIEW_PARENT);
       view("Tasks Board", "sauce-task", VIEW_TASKS);
       view("Inbox", "sauce-ai-inbox", VIEW_INBOX);
-      view("Ledger", "sauce-ledger", VIEW_LEDGER);
       view("Calendar", "sauce-touch", VIEW_CALENDAR);
       view("Eisenhower Matrix", "layout-dashboard", VIEW_EISENHOWER);
       view("Meetings", "sauce-touch", VIEW_MEETINGS);
@@ -1538,12 +1613,6 @@ export default class SauceGraphPlugin extends Plugin {
             .setIcon("sauce-ai-inbox")
             .onClick(() => this.openView(VIEW_INBOX)),
         );
-        m.addItem((i) =>
-          i
-            .setTitle("Ledger")
-            .setIcon("sauce-audit")
-            .onClick(() => this.openView(VIEW_LEDGER)),
-        );
         m.addSeparator();
         m.addItem((i) =>
           i
@@ -1648,14 +1717,6 @@ export default class SauceGraphPlugin extends Plugin {
           .setIcon("sauce-event")
           .onClick(() =>
             new CaptureRecordModal(this.app, this, "event").open(),
-          ),
-      );
-      m.addItem((i) =>
-        i
-          .setTitle("New Ledger Entry")
-          .setIcon("sauce-ledger")
-          .onClick(() =>
-            new CaptureRecordModal(this.app, this, "ledger-entry").open(),
           ),
       );
       m.addItem((i) =>
@@ -1884,6 +1945,131 @@ export default class SauceGraphPlugin extends Plugin {
 
   registerCommands(): void {
     this.addCommand({
+      id: "sauceom-relationship-card",
+      name: "SauceOM: Relationship card (people · touches · ideas)",
+      callback: async () => {
+        // Active note's basename, else ask (mobile-safe modal, not window.prompt).
+        const id =
+          this.activeFile()?.basename ??
+          (await this.promptText({
+            title: "Relationship card for (person/org name):",
+            cta: "Open",
+          })) ??
+          "";
+        if (!id) return;
+        new RelationshipCardModal(this.app, id).open();
+      },
+    });
+    this.addCommand({
+      id: "sauceom-connect-gateway",
+      name: "SauceOM: Connect to Bifrost gateway",
+      callback: async () => {
+        if (!this.settings.gatewayUrl?.trim()) {
+          const url = await this.promptText({
+            title: "Bifrost gateway URL (e.g. https://bifrost.yourvps/v1):",
+            cta: "Connect",
+          });
+          if (!url) return;
+          this.settings.gatewayUrl = url.trim();
+          await this.saveSettings();
+        }
+        const notice = new Notice("Connecting to gateway…", 0);
+        const ok = await this.autoConnectGateway(true);
+        notice.hide();
+        if (!ok) return;
+        // Prompt for the per-client Bifrost virtual key and store it in the
+        // Obsidian-integrated encrypted vault (OS keychain → KeyVault), keyed by
+        // the now-active `bifrost` provider — NEVER in data.json. Blank keeps any
+        // existing vaulted key.
+        if (!(await this.hasCopilotKey())) {
+          const vk = await this.promptText({
+            title: "Bifrost virtual key (stored encrypted in your vault):",
+            password: true,
+            cta: "Save key",
+          });
+          if (vk && vk.trim()) {
+            await this.storeCopilotKey(vk.trim());
+            new Notice("✓ Gateway key saved to the encrypted vault", 5000);
+          }
+        }
+      },
+    });
+    this.addCommand({
+      id: "sauceom-detect-claude-code",
+      name: "SauceOM: Detect Claude Code (use local OAuth as provider)",
+      callback: async () => {
+        const notice = new Notice("Detecting Claude Code…", 0);
+        const d = await detectClaudeCode();
+        notice.hide();
+        if (!d.found) {
+          new Notice(
+            d.error ?? "Claude Code not found. Install it, then retry.",
+            8000,
+          );
+          return;
+        }
+        if (!d.authed) {
+          new Notice(
+            `Found Claude Code at ${d.binPath} but not logged in. Run \`claude\` in a terminal to log in, then retry.`,
+            10000,
+          );
+          return;
+        }
+        // Authenticated via local OAuth — adopt as the SauceBot provider.
+        this.settings.copilot.provider = "claude-code";
+        if (!this.settings.copilot.model)
+          this.settings.copilot.model = "claude-sonnet-4-6";
+        await this.saveSettings();
+        this.copilot?.updateSettings?.({
+          provider: "claude-code",
+          model: this.settings.copilot.model,
+        });
+        new Notice(
+          `✓ Claude Code connected via local OAuth · ${d.models.length} models available (no API key)`,
+          7000,
+        );
+      },
+    });
+    this.addCommand({
+      id: "sauceom-harness-turn",
+      name: "SauceOM: Harness turn (experimental)",
+      callback: async () => {
+        const seed = this.activeFile()?.basename ?? "";
+        // Mobile-safe input (window.prompt is blocked on mobile Obsidian).
+        const prompt = await this.promptText({
+          title: "SauceOM harness — what do you want?",
+          placeholder: seed,
+          cta: "Run",
+        });
+        if (!prompt) return;
+        const runtime = this.copilot;
+        if (!runtime) {
+          new Notice("SauceOM: runtime not ready yet");
+          return;
+        }
+        const notice = new Notice("SauceOM: thinking…", 0);
+        void runtime
+          .runHarnessTurn(prompt)
+          .then((turn) => {
+            notice.hide();
+            // Grounded answer (or the clarifying question when route=ask) +
+            // the top next step — the directive's recap + next_steps surface.
+            const next =
+              turn.nextSteps[0]?.suggestedNextAction ?? "—";
+            new Notice(
+              `[${turn.route}] ${turn.output || turn.recap}\n\nNext: ${next}`,
+              12000,
+            );
+          })
+          .catch((e: unknown) => {
+            notice.hide();
+            new Notice(
+              `SauceOM harness failed: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          });
+      },
+    });
+    this.addCommand({
       id: "new-person",
       name: "New person",
       callback: () => new PersonModal(this.app, this).open(),
@@ -1920,11 +2106,6 @@ export default class SauceGraphPlugin extends Plugin {
     this.addCaptureCommand("new-observation", "New Observation", "observation");
     this.addCaptureCommand("new-task", "New Task", "task");
     this.addCaptureCommand("new-event", "New Event", "event");
-    this.addCaptureCommand(
-      "new-ledger-entry",
-      "New Ledger Entry",
-      "ledger-entry",
-    );
     this.addCaptureCommand(
       "new-pipeline-deal",
       "New Pipeline Deal",
@@ -2107,11 +2288,6 @@ export default class SauceGraphPlugin extends Plugin {
       id: "open-inbox",
       name: "Open Inbox",
       callback: () => this.openView(VIEW_INBOX),
-    });
-    this.addCommand({
-      id: "open-ledger",
-      name: "Open Ledger",
-      callback: () => this.openView(VIEW_LEDGER),
     });
     this.addCommand({
       id: "open-eisenhower",
@@ -2836,6 +3012,53 @@ export default class SauceGraphPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
+  /**
+   * Auto-connect to the hosted Bifrost gateway (our VPS worker node) when a
+   * gatewayUrl is configured: health-probe `/models`, then adopt `bifrost` as
+   * the SauceBot provider (endpoint + a model) so installed clients route
+   * through the central gateway with zero manual setup. Best-effort; silent on
+   * load (announce=true for the manual command). Uses requestUrl (CORS-bypass).
+   */
+  async autoConnectGateway(announce = false): Promise<boolean> {
+    const url = this.settings.gatewayUrl?.trim().replace(/\/+$/, "");
+    if (!url) return false;
+    try {
+      const r = await requestUrl({
+        url: `${url}/models`,
+        method: "GET",
+        throw: false,
+      });
+      if (r.status < 200 || r.status >= 300) {
+        if (announce)
+          new Notice(`Gateway not reachable (HTTP ${r.status}). Check the URL.`);
+        return false;
+      }
+      const data = (r.json?.data ?? []) as Array<{ id?: string }>;
+      const firstModel = data[0]?.id ?? this.settings.copilot.model;
+      this.settings.copilot.provider = "bifrost";
+      this.settings.copilot.baseUrl = url;
+      if (firstModel) this.settings.copilot.model = firstModel;
+      await this.saveSettings();
+      this.copilot?.updateSettings?.({
+        provider: "bifrost",
+        baseUrl: url,
+        ...(firstModel ? { model: firstModel } : {}),
+      });
+      if (announce)
+        new Notice(
+          `✓ Connected to Bifrost gateway · ${data.length} models (hybrid cloud + local)`,
+          6000,
+        );
+      return true;
+    } catch (e) {
+      if (announce)
+        new Notice(
+          `Gateway connect failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      return false;
+    }
+  }
+
   async validateAll(): Promise<number> {
     let n = 0;
     for (const f of this.app.vault.getMarkdownFiles()) {
@@ -3138,6 +3361,37 @@ export default class SauceGraphPlugin extends Plugin {
     }
   }
 
+  /**
+   * Vault status for the Settings indicator: whether an encrypted store is
+   * available (OS keychain → KeyVault), the per-source breakdown, and which
+   * known secrets are actually stored at rest. Probes are read-only.
+   */
+  async vaultStatus(): Promise<{
+    encryptedAtRest: boolean;
+    sources: { label: string; available: boolean; active: boolean }[];
+    secrets: { label: string; service: string; present: boolean }[];
+  }> {
+    const chain = this.credentialChain;
+    const sources = chain?.describe?.() ?? [];
+    const probe = async (label: string, service: string) => ({
+      label,
+      service,
+      present: !!(await chain?.get(service).catch(() => null))?.trim(),
+    });
+    // Probe the cloud/gateway providers + the shared pairing tokens.
+    const cloud = ["anthropic", "openai", "nim", "bifrost", "openrouter", "groq", "gemini"];
+    const secrets = await Promise.all([
+      ...cloud.map((p) => probe(`${p} API key`, `copilot:${p}:api-key`)),
+      probe("Mobile bridge pairing token", "bridge:pairing-token"),
+      probe("Daemon pairing token", "daemon:pairing-token"),
+    ]);
+    return {
+      encryptedAtRest: chain?.available() ?? false,
+      sources,
+      secrets: secrets.filter((s) => s.present || s.service.startsWith("copilot:")),
+    };
+  }
+
   // ── Brain build (snowflake matrix) ────────────────────────────────────────
   /** A provider is "configured" when it can actually answer: local providers
    *  need no key; cloud providers need a stored/session key. */
@@ -3168,7 +3422,7 @@ export default class SauceGraphPlugin extends Plugin {
     const act = activity.start("SauceDB: syncing brain to hosted edge…");
     let digests: Record<string, unknown> | undefined;
     try {
-      const p = `${this.settings.brainFolder ?? "_brain"}/brain-crystal.json`;
+      const p = `${this.settings.brainFolder ?? DEFAULT_PATHS.brain}/brain-crystal.json`;
       if (await this.app.vault.adapter.exists(p)) {
         digests = JSON.parse(await this.app.vault.adapter.read(p)).entries;
       }
@@ -3689,7 +3943,6 @@ export default class SauceGraphPlugin extends Plugin {
         VIEW_CALENDAR,
         VIEW_TASKS,
         VIEW_INBOX,
-        VIEW_LEDGER,
         VIEW_EISENHOWER,
       ]) {
         for (const leaf of this.app.workspace.getLeavesOfType(type)) {

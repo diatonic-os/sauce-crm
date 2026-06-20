@@ -83,7 +83,6 @@ export class DashboardView extends BaseView {
     const observations = this.plugin.entityService.allObservations();
     const tasks = this.plugin.entityService.allTasks();
     const events = this.plugin.entityService.allEvents();
-    const ledger = this.plugin.entityService.allLedgerEntries();
     const deals = this.plugin.entityService.allPipelineDeals();
     const prospects = people.filter((e) =>
       (e.frontmatter.roles ?? []).includes("prospect"),
@@ -104,7 +103,6 @@ export class DashboardView extends BaseView {
       ["Observations", observations.length, "cyan"],
       ["Tasks", tasks.length, "orange"],
       ["Events", events.length, "green"],
-      ["Ledger", ledger.length, "red"],
       ["Pipeline", deals.length, "gold"],
       ["Prospects", prospects, "purple"],
       ["Overdue", overdue, overdue ? "red" : "green"],

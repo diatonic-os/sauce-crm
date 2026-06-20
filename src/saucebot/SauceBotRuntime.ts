@@ -24,7 +24,7 @@ import {
   ObsidianConversationHost,
 } from "./SauceBotHostAdapters";
 import { App, TFile, normalizePath } from "obsidian";
-import { EntityService } from "../services/EntityService";
+import { EntityService, DEFAULT_PATHS } from "../services/EntityService";
 import { SearchService } from "../services/SearchService";
 import type { LanceVectorIndex } from "../backend/lance";
 import { SlashCommand, defaultSlashCommands } from "./SlashCommands";
@@ -33,6 +33,16 @@ import {
   brainSystemPrompt,
   parseBrainAnswer,
 } from "./BrainAsk";
+import { defaultKeepWarm } from "./ModelLifecycle";
+import { selfConsistency } from "./harness/VerifyStage";
+import { createLiveHarness } from "./harness/LiveHarness";
+import type { TurnResult } from "./harness/ControlLoop";
+import {
+  resolveAgentModel,
+  type AgentRole,
+  type AgentModelConfig,
+  type ResolvedAgentModel,
+} from "./harness/AgentModelRegistry";
 import { BrainCrystalCache, buildEntityDigest, hashBody } from "./BrainCrystal";
 import {
   Distiller,
@@ -98,6 +108,26 @@ export interface SauceBotSettings {
   /** Override the embedding model id for the realtime embeddings lane; falls
    *  back to embedModel, then the chat model. */
   preferredEmbeddingModel?: string;
+  /** Verify-stage quality lever (harness/VerifyStage). Off by default; trades
+   *  wall-clock (free on local) for correctness via self-consistency voting +
+   *  critique-revise. Highest-ROI quality upgrade for small local models. */
+  verify?: VerifySettings;
+  /** Force constrained decoding (LM Studio json_schema response_format) whenever
+   *  a structured result is requested. Eliminates malformed-output failures. */
+  structuredOutput?: boolean;
+  /** Per-role model overrides for runtime subagents (chat/planner/enrichment/
+   *  verify/socratic/distill/context_extraction/embed). Unset roles fall back to
+   *  {provider, model}. See harness/AgentModelRegistry. */
+  agentModels?: Partial<Record<AgentRole, AgentModelConfig>>;
+}
+
+export interface VerifySettings {
+  /** Master switch. Default off (single-pass) to keep latency low until opted in. */
+  enabled?: boolean;
+  /** Self-consistency samples (1 ⇒ no voting). Typical 3 for local fleets. */
+  samples?: number;
+  /** Max critique→revise rounds applied to the voted winner. Default 1. */
+  critiqueRounds?: number;
 }
 
 /** Knobs for closing the local-vs-cloud quality gap. Cloud providers ignore
@@ -161,7 +191,7 @@ export const COPILOT_DEFAULTS: SauceBotSettings = {
   slashCommands: defaultSlashCommands(),
   stream: true,
   contextTurns: 15,
-  promptsFolder: "copilot/sauce-commands",
+  promptsFolder: DEFAULT_PATHS.saucebotPrompts,
   distill: {
     enabled: true,
     autoSelectLocal: true,
@@ -177,7 +207,8 @@ export const COPILOT_DEFAULTS: SauceBotSettings = {
   },
   disabledModels: [],
   knownGoodModels: [],
-  keepModelWarm: false,
+  // keepModelWarm intentionally unset → defaults ON for local providers via
+  // defaultKeepWarm() (no per-message cold reload). User can override.
   modelTtlSeconds: 240,
 };
 
@@ -196,6 +227,19 @@ export class SauceBotRuntime {
   private onSettingsChanged?: () => void;
   private lastEmbedModel = "";
   private keepWarmTimer: ReturnType<typeof setInterval> | null = null;
+  /** Always-included RAG paths (pin-boost). Settable via setPinnedPaths. */
+  private pinnedPaths: string[] = [];
+
+  /** Public getter for the active embed model id (e.g. so MirrorSync can stamp
+   *  the real model on stored vectors instead of a placeholder). */
+  get activeEmbedModel(): string {
+    return this.lastEmbedModel;
+  }
+
+  /** Set the paths that should always be included + boosted in RAG context. */
+  setPinnedPaths(paths: string[]): void {
+    this.pinnedPaths = paths;
+  }
 
   constructor(
     private app: App,
@@ -212,13 +256,19 @@ export class SauceBotRuntime {
       app,
       entities,
       search,
-      () => [],
+      // Read from a mutable field so pinned paths can actually be set (was a
+      // hardcoded `() => []`, making the pin-boost permanently inoperative).
+      () => this.pinnedPaths,
       ragVectorIndex,
       embedFn,
     );
     this.rag = new RagAssembler(this.ragHost);
+    // Resolve the session root from the SAME paths the chat-history UI reads
+    // (entities.paths == plugin settings.paths), so persisted sessions and the
+    // history list never split-brain under a custom paths config.
     this.conversations = new ConversationStore(
       new ObsidianConversationHost(app),
+      `${entities.paths?.addenda ?? DEFAULT_PATHS.addenda}/_copilot`,
     );
     this.toolUse = new ToolUseAdapter();
 
@@ -265,9 +315,15 @@ export class SauceBotRuntime {
         ensureModel: (mid) => this.ensureEmbedModelLoaded(mid),
         embed: (t, m) => this.rawEmbed(t, m),
       },
-      { model: "", enabled: true },
+      // Start DISABLED with no model — the realtime lane is enabled via
+      // setConfig once a real embed model is resolved. (Was enabled:true with an
+      // empty model, so a first embed() before setConfig hit an empty id.)
+      { model: "", enabled: false },
     );
-    if (this.settings.keepModelWarm) {
+    // Keep-warm defaults ON for local providers (no per-message cold reload);
+    // the user's explicit keepModelWarm setting overrides.
+    const warm = this.settings.keepModelWarm ?? defaultKeepWarm(this.settings.provider);
+    if (warm) {
       this.setKeepWarm(true, this.settings.modelTtlSeconds ?? 240);
     }
   }
@@ -322,6 +378,32 @@ export class SauceBotRuntime {
     return { ok: true };
   }
 
+  /**
+   * Format the RAG addenda tail into the system prompt. The addenda bodies are
+   * the corrections/enrichments overlaid on entities; they were assembled into
+   * ctx.addenda but never injected (bug) — so the model never saw them. Bounded
+   * so a large addenda set can't blow the context.
+   */
+  private formatAddenda(
+    addenda: Record<string, { id: string; date: string; body: string }[]>,
+  ): string {
+    const blocks: string[] = [];
+    let used = 0;
+    const CEILING = 4000; // chars (~1k tokens) across all addenda
+    for (const [path, tail] of Object.entries(addenda)) {
+      for (const a of tail) {
+        const body = (a.body ?? "").trim();
+        if (!body) continue;
+        if (used + body.length > CEILING) break;
+        used += body.length;
+        blocks.push(`- (${a.date || "?"}) ${path}: ${body}`);
+      }
+      if (used >= CEILING) break;
+    }
+    if (blocks.length === 0) return "";
+    return `\n\n## Addenda (corrections/enrichments — trust these over older note text)\n${blocks.join("\n")}`;
+  }
+
   /** Embeddings-lane seam: POST one embedding via the active embed provider. */
   private async rawEmbed(
     text: string,
@@ -331,7 +413,14 @@ export class SauceBotRuntime {
     const prov = c ? this.embedProvider(c) : this.provider();
     try {
       return await prov.embed(text, model);
-    } catch {
+    } catch (e) {
+      // Surface the failure (was silently swallowed → null vectors with no
+      // signal). Common cause: no dedicated embedConfig so this fell back to a
+      // chat provider that can't embed (e.g. Anthropic). Visible now.
+      console.warn(
+        `[saucebot] embed failed (model=${model}, provider=${prov.name}):`,
+        e instanceof Error ? e.message : String(e),
+      );
       return null;
     }
   }
@@ -486,7 +575,7 @@ export class SauceBotRuntime {
   // Only inline when there are centered paths to show content for.
   private static readonly ENTITY_INLINE_TOP_N = 6;
   private crystal: BrainCrystalCache | null = null;
-  private brainFolder = "_brain";
+  private brainFolder = DEFAULT_PATHS.brain;
   private _distiller: Distiller | null = null;
   private distillCache: DistillCache | null = null;
   /** Strip leading YAML frontmatter block from a markdown string. */
@@ -496,7 +585,7 @@ export class SauceBotRuntime {
 
   /** Point the crystal manifest at the configured brain folder. */
   setBrainFolder(folder: string): void {
-    const next = folder.trim() || "_brain";
+    const next = folder.trim() || DEFAULT_PATHS.brain;
     if (next !== this.brainFolder) {
       this.brainFolder = next;
       this.crystal = null; // re-load from the new location lazily
@@ -795,8 +884,12 @@ export class SauceBotRuntime {
       { temperature: 0, maxTokens: 512 },
     );
     if (!summary) return prior; // compaction failed → keep full history
+    // Role MUST be "assistant": `recent` starts with the last user turn, and
+    // ask() appends the current user turn — a "user" memo here would produce two
+    // consecutive user messages and a 400 on strict providers (Anthropic). The
+    // summary reads naturally as the assistant recalling earlier context.
     const memo: ChatMessage = {
-      role: "user",
+      role: "assistant",
       content: `[Earlier conversation summary]\n${summary}`,
     };
     return [memo, ...recent];
@@ -1169,7 +1262,11 @@ export class SauceBotRuntime {
   async askBrainStructured(question: string): Promise<BrainAnswer> {
     let system = brainSystemPrompt();
     try {
-      const ctx = await this.rag.assemble(question);
+      // Pass the active note as focus so Brain Ask gets the 1-hop graph
+      // expansion around the note the user is looking at (was dropped → no
+      // focus/expansion for the structured path).
+      const focus = this.app.workspace.getActiveFile()?.path;
+      const ctx = await this.rag.assemble(question, focus);
       const centered =
         ctx.centered.length > 0
           ? ctx.centered
@@ -1182,25 +1279,86 @@ export class SauceBotRuntime {
           "\n\n## Candidate vault paths (cite these by path:line)\n" +
           centered.map((p) => `- ${p}`).join("\n");
         system += await this.inlineEntityContent(centered, question);
+        system += this.formatAddenda(ctx.addenda);
       }
     } catch {
       /* RAG context is best-effort; the model can still answer "I don't have that". */
     }
 
-    let text = "";
-    for await (const ev of this.completeResilient(this.provider(), {
-      model: this.settings.model,
-      messages: [{ role: "user", content: question }],
-      systemPrompt: system,
-      temperature: 0,
-      maxTokens: Math.max(this.settings.maxTokens, 1024),
-      stream: false,
-    })) {
-      if (ev.type === "text") text += ev.delta;
-      else if (ev.type === "done" && ev.reason === "error")
-        throw new Error(ev.error ?? "ask failed");
+    // One non-streamed completion at a given temperature → raw text.
+    const runOnce = async (temp: number): Promise<string> => {
+      let text = "";
+      let reasoning = "";
+      for await (const ev of this.completeResilient(this.provider(), {
+        model: this.settings.model,
+        messages: [{ role: "user", content: question }],
+        systemPrompt: system,
+        temperature: temp,
+        maxTokens: Math.max(this.settings.maxTokens, 1024),
+        stream: false,
+      })) {
+        if (ev.type === "text") text += ev.delta;
+        else if (ev.type === "reasoning") reasoning += ev.delta;
+        else if (ev.type === "done" && ev.reason === "error")
+          throw new Error(ev.error ?? "ask failed");
+      }
+      // Reasoning models (qwen3/deepseek-r1) can exhaust their budget in
+      // reasoning_content and emit empty text — fall back to it rather than
+      // returning a blank answer for parseBrainAnswer to choke on.
+      return text.trim() ? text : reasoning;
+    };
+
+    // VERIFY STAGE (quality lattice): when enabled, sample N times with rising
+    // temperature and majority-vote on the headline answer. The modal answer is
+    // far more reliable than any single draft — the single highest-ROI quality
+    // lever for local models. Off ⇒ one deterministic pass (temperature 0).
+    const v = this.settings.verify;
+    const samples = v?.enabled ? Math.max(1, v.samples ?? 3) : 1;
+    if (samples > 1) {
+      const voted = await selfConsistency(
+        (i) => runOnce(i === 0 ? 0 : 0.3 + 0.1 * i),
+        {
+          n: samples,
+          key: (t) => parseBrainAnswer(t).lead.trim().toLowerCase(),
+        },
+      );
+      return parseBrainAnswer(voted.winner);
     }
-    return parseBrainAnswer(text);
+    return parseBrainAnswer(await runOnce(0));
+  }
+
+  /**
+   * Run ONE deterministic SauceOM harness turn (SAUCEOM_HARNESS_DIRECTIVE
+   * @control_loop) against the active provider. The LLM is the injected planner
+   * (candidate-generator); routing, cell collapse, recap, and next-steps are all
+   * deterministic and replayable. Returns the full turn — output + recap +
+   * ranked next_steps + the appended event arc — so a UI can render the
+   * grounded answer AND what the user should do next. Additive: does not touch
+   * the streaming chat path.
+   */
+  /**
+   * Resolve the effective provider+model for a runtime subagent role. Every
+   * subagent (planner/enrichment/verify/socratic/distill/context_extraction/
+   * embed) routes its model through here, so users can assign cheap local models
+   * to cheap roles and reasoning models to hard roles via settings.agentModels.
+   * Unset roles fall back to the chat default — no behavior change until configured.
+   */
+  resolveModelFor(role: AgentRole): ResolvedAgentModel {
+    return resolveAgentModel(role, {
+      defaults: { provider: this.settings.provider, model: this.settings.model },
+      ...(this.settings.agentModels ? { roles: this.settings.agentModels } : {}),
+    });
+  }
+
+  async runHarnessTurn(text: string): Promise<TurnResult> {
+    // The planner subagent uses its per-role model (falls back to chat model).
+    const planner = this.resolveModelFor("planner");
+    const harness = createLiveHarness({
+      provider: this.provider(),
+      model: planner.model,
+      basePrompt: this.settings.systemPrompt,
+    });
+    return harness.runTurn(text);
   }
 
   /**
@@ -1413,7 +1571,19 @@ export class SauceBotRuntime {
           emitted = true;
         yield ev;
       }
-      if (!errored) return;
+      if (!errored) {
+        // The generator ended without a done:error AND without emitting any
+        // content (empty stream from a "reachable" provider) — surface it rather
+        // than silently dropping the user's message with no answer.
+        if (!emitted) {
+          yield {
+            type: "done",
+            reason: "error",
+            error: `${provider.name} returned an empty response. Try again or pick another model.`,
+          };
+        }
+        return;
+      }
       if (
         !emitted &&
         attempt < maxAttempts &&
@@ -1490,6 +1660,7 @@ export class SauceBotRuntime {
     // all inlined notes; each note is capped at ENTITY_INLINE_PER_NOTE chars.
     // Best-effort: any vault read failure silently falls back to path-only mode.
     systemPlus += await this.inlineEntityContent(centered, query);
+    systemPlus += this.formatAddenda(ctx.addenda);
 
     // T7: append harvested-document context when available.
     if (this.docSearch) {
@@ -1556,6 +1727,12 @@ export class SauceBotRuntime {
         | "error"
         | null = null;
       let endError: string | undefined;
+      // Load-failure classification carried on the provider's done event, so the
+      // terminal done re-emits it (UI shows OOM/arch/not-found + a fallback model
+      // instead of a bare error).
+      let endKind: LoadFailureKind | undefined;
+      let endUserMessage: string | undefined;
+      let endFallback: string | null | undefined;
 
       for await (const ev of this.completeResilient(provider, {
         model: this.settings.model,
@@ -1581,6 +1758,9 @@ export class SauceBotRuntime {
         } else if (ev.type === "done") {
           endReason = ev.reason;
           endError = ev.error;
+          endKind = ev.kind;
+          endUserMessage = ev.userMessage;
+          endFallback = ev.fallback;
         } else {
           yield ev;
         }
@@ -1640,6 +1820,9 @@ export class SauceBotRuntime {
           type: "done",
           reason: endReason ?? "end_turn",
           ...(endError ? { error: endError } : {}),
+          ...(endKind ? { kind: endKind } : {}),
+          ...(endUserMessage ? { userMessage: endUserMessage } : {}),
+          ...(endFallback !== undefined ? { fallback: endFallback } : {}),
         };
         return;
       }

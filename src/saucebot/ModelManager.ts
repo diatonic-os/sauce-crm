@@ -182,37 +182,42 @@ export class ModelManager {
    *   - "loaded"   — host.loadModel() was called and succeeded.
    *   - "jit"      — host has no loadModel(); provider will load on demand.
    *
-   * On host.loadModel() failure, the error is recorded (possibly adding to
-   * blocklist) and returned alongside status "loaded" (load was attempted but
-   * failed — callers inspect the error field to decide how to proceed).
+   * The `ok` field unambiguously signals whether the model is ready to use:
+   *   - true  — status is "already", "loaded" (success), or "jit".
+   *   - false — status is "blocked", or "loaded" with a non-undefined error
+   *             (load was attempted but failed; `error` carries the details).
+   *
+   * Callers should inspect `ok` first; check `error` for diagnosis on failure.
    */
   async ensureLoaded(id: string): Promise<{
     status: "already" | "loaded" | "jit" | "blocked";
+    /** true when the model is ready (or will self-load on first request). */
+    ok: boolean;
     error?: ModelLoadError;
   }> {
     if (this.isBlocked(id)) {
-      return { status: "blocked" };
+      return { status: "blocked", ok: false };
     }
 
     const catalog = await this.host.listModels();
     const entry = catalog.find((m) => m.id === id);
     if (entry?.loaded) {
-      return { status: "already" };
+      return { status: "already", ok: true };
     }
 
     if (this.host.loadModel) {
       try {
         await this.host.loadModel(id);
-        return { status: "loaded" };
+        return { status: "loaded", ok: true };
       } catch (e: unknown) {
         const raw = e instanceof Error ? e.message : String(e);
         const error = this.recordFailure(id, raw);
-        return { status: "loaded", error };
+        return { status: "loaded", ok: false, error };
       }
     }
 
     // JIT: provider loads on first request — nothing to do here.
-    return { status: "jit" };
+    return { status: "jit", ok: true };
   }
 
   /**
