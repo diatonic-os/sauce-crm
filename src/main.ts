@@ -84,6 +84,7 @@ import {
   activeEmbeddingProvider,
 } from "./settings/FeatureSettings";
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
+import { CommandReferenceService } from "./services/CommandReferenceService";
 import { ContractValidator } from "./contract/ContractValidator";
 import { RegistryService } from "./federation/RegistryService";
 import { FederationValidator } from "./federation/FederationValidator";
@@ -1439,6 +1440,17 @@ export default class SauceGraphPlugin extends Plugin {
     this.registerCommands();
     this.addSettingTab(new SauceGraphSettingTab(this.app, this));
     boot.mark("commands+settings-tab");
+
+    // Auto-install/refresh the vault-root command reference + hotkey matrix from
+    // the live registry (now that registerCommands has run). Deferred off the
+    // boot path; idempotent (replaces only its managed block, keeps user prose).
+    this.deferredPostLayout.push(() =>
+      new CommandReferenceService(this.app, this.manifest.id)
+        .ensure(new Date().toISOString())
+        .catch(() => {
+          /* non-fatal: reference doc is convenience, not core */
+        }),
+    );
 
     // Primary launcher — a single "open any view" dropdown grouped by
     // category (CRM dashboards / Analytics / Logs & Activity / AI & Brain /
