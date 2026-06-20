@@ -30,6 +30,7 @@ import {
 import type { EmbedProviderId } from "../../../settings/FeatureSettings";
 import { SlashSuggest, type SlashItem } from "../../widgets/SlashSuggest";
 import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
+import { openVaultPath } from "../../util/openVaultFile";
 import {
   FloatingDropdown,
   type FloatingOption,
@@ -962,9 +963,7 @@ export class SauceBotChatView extends ItemView {
           text: path.split("/").pop()?.replace(/\.md$/, "") ?? path,
         });
         row.onclick = () => {
-          const f = this.app.vault.getAbstractFileByPath(path);
-          if (f instanceof TFile)
-            void this.app.workspace.getLeaf(false).openFile(f);
+          openVaultPath(this.app, path);
           modal.close();
         };
       }

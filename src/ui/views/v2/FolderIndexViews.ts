@@ -8,6 +8,7 @@
 // than rendering a near-empty one-column list.
 
 import { ItemView, WorkspaceLeaf, TFile, setIcon } from "obsidian";
+import { openVaultPath } from "../../util/openVaultFile";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
@@ -345,10 +346,7 @@ abstract class FolderIndexView extends ItemView {
 
   /** Resolve a vault path and open it in the active leaf (guarded). */
   protected openPath(path: string): void {
-    const f = this.plugin.app.vault.getAbstractFileByPath(path);
-    if (f instanceof TFile) {
-      void this.plugin.app.workspace.getLeaf(false).openFile(f);
-    }
+    openVaultPath(this.plugin.app, path);
   }
 
   private collectRows(): IndexRow[] {

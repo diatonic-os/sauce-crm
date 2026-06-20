@@ -47,7 +47,10 @@ abstract class BaseView extends ItemView {
         new OrgModal(this.app, this.plugin, file).open(),
       );
     } else {
-      void this.app.workspace.openLinkText(file.path, "", false);
+      // `file` is already a resolved TFile — open it directly. The old
+      // openLinkText(file.path, …) could crash with "e.toLowerCase is not a
+      // function" when the workspace fed it a non-string eState.
+      void this.app.workspace.getLeaf(false).openFile(file);
     }
   }
 }

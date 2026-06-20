@@ -9,7 +9,8 @@
 // wired into the ribbon + command palette. The drawing logic is consolidated
 // here so the wired surface renders real data. See W4 nav-surface notes.
 
-import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
+import { ItemView, WorkspaceLeaf } from "obsidian";
+import { openVaultPath } from "../../util/openVaultFile";
 import type SauceGraphPlugin from "../../../main";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
@@ -134,10 +135,7 @@ export class MapViewReal extends ItemView {
   /** Resolve a vault `path` and open it via a real TFile (never `openLinkText`,
    *  which can create a phantom tab for a stale path). Mirrors CalendarView. */
   private openPath(path: string): void {
-    const f = this.plugin.app.vault.getAbstractFileByPath(path);
-    if (f instanceof TFile) {
-      void this.plugin.app.workspace.getLeaf(false).openFile(f);
-    }
+    openVaultPath(this.plugin.app, path);
   }
 
   private collect(): Plot[] {

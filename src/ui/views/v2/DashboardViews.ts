@@ -2,7 +2,8 @@
 // Svelte, collect vault rows, unmount on close) so we factor them here
 // to keep main.ts's view registrations small.
 
-import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
+import { ItemView, WorkspaceLeaf } from "obsidian";
+import { openVaultPath } from "../../util/openVaultFile";
 import { mount, unmount } from "svelte";
 import TasksDashboard from "../../svelte/TasksDashboard.svelte";
 import InboxDashboard from "../../svelte/InboxDashboard.svelte";
@@ -36,11 +37,7 @@ abstract class SvelteDashboardView extends ItemView {
    *  dashboard blank. Mirrors CalendarView.openPath's resolve-and-guard pattern:
    *  a missing/stale path resolves to nothing rather than a phantom tab. */
   protected openPath(path: string): void {
-    const f = this.plugin.app.vault.getAbstractFileByPath(path);
-    if (f instanceof TFile) {
-      void this.plugin.app.workspace.getLeaf(false).openFile(f);
-    }
-    // else: path no longer resolves to a file — nothing to open.
+    openVaultPath(this.plugin.app, path);
   }
 }
 
@@ -192,4 +189,3 @@ export class InboxView extends SvelteDashboardView {
     return out;
   }
 }
-

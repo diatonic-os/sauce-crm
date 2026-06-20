@@ -2,7 +2,8 @@
 // component. Pulls events from the vault's touches/tasks/followups
 // folders, mapping each frontmatter type to a date dot.
 
-import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
+import { ItemView, WorkspaceLeaf } from "obsidian";
+import { openVaultPath } from "../../util/openVaultFile";
 import { mount, unmount } from "svelte";
 import Calendar from "../../svelte/Calendar.svelte";
 import type { CalendarEvent } from "../../svelte/CalendarTypes";
@@ -65,11 +66,7 @@ export class CalendarView extends ItemView {
    *  a missing/stale path (e.g. a deleted touch) is silently ignored rather
    *  than routed through `openLinkText`, which would create a phantom tab. */
   openPath(path: string): void {
-    const f = this.plugin.app.vault.getAbstractFileByPath(path);
-    if (f instanceof TFile) {
-      void this.plugin.app.workspace.getLeaf(false).openFile(f);
-    }
-    // else: path no longer resolves to a file — nothing to open.
+    openVaultPath(this.plugin.app, path);
   }
 
   /** Reads vault for touch / task / followup files and maps each into
