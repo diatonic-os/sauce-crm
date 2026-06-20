@@ -86,6 +86,7 @@ import {
 import { VaultBootstrapper } from "./services/VaultBootstrapper";
 import { CommandReferenceService } from "./services/CommandReferenceService";
 import { VaultEventBus } from "./services/VaultEventBus";
+import { resolveSauceRoute } from "./saucebot/GatewayRouter";
 import { ContractValidator } from "./contract/ContractValidator";
 import { RegistryService } from "./federation/RegistryService";
 import { FederationValidator } from "./federation/FederationValidator";
@@ -3006,6 +3007,26 @@ export default class SauceGraphPlugin extends Plugin {
         return false;
       }
       const data = (r.json?.data ?? []) as Array<{ id?: string }>;
+      // Don't clobber a currently-selected LOCAL model: the gateway can't reach
+      // the client's localhost, so a local pick must stay on loopback even with
+      // a gateway connected (GatewayRouter.resolveSauceRoute). Only repoint the
+      // active provider at the gateway when the current model isn't local.
+      const route = resolveSauceRoute({
+        model: this.settings.copilot.model,
+        gatewayUrl: url,
+        local: {
+          lmstudio: this.settings.features.localLLM.lmstudio,
+          ollama: this.settings.features.localLLM.ollama,
+        },
+      });
+      if (route.target === "local") {
+        if (announce)
+          new Notice(
+            `✓ Gateway reachable (${data.length} models). Keeping your local model on loopback.`,
+            6000,
+          );
+        return true;
+      }
       const firstModel = data[0]?.id ?? this.settings.copilot.model;
       this.settings.copilot.provider = "bifrost";
       this.settings.copilot.baseUrl = url;

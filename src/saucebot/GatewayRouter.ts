@@ -34,6 +34,40 @@ export interface RouteDecision {
  *   3. No gateway but a local endpoint → local fallback.
  *   4. Nothing reachable → none.
  */
+/** Local-provider config slice needed to decide routing (from localLLM settings). */
+export interface LocalRouteConfig {
+  endpoint: string;
+  model: string;
+}
+
+/**
+ * Adapt plugin settings into a {@link RouteInput} and decide the route for the
+ * currently-selected `model`. The "local fleet" is the set of models the user
+ * has configured on their own LM Studio / Ollama endpoints; if the active model
+ * is one of those AND a local endpoint exists, it stays on loopback even when a
+ * gateway is connected (the gateway cannot reach the client's localhost).
+ */
+export function resolveSauceRoute(args: {
+  model: string;
+  gatewayUrl?: string;
+  local: { lmstudio?: LocalRouteConfig; ollama?: LocalRouteConfig };
+}): RouteDecision {
+  const localModels: string[] = [];
+  let localEndpoint: string | undefined;
+  for (const cfg of [args.local.lmstudio, args.local.ollama]) {
+    if (cfg?.model) {
+      localModels.push(cfg.model);
+      if (!localEndpoint && cfg.endpoint) localEndpoint = cfg.endpoint;
+    }
+  }
+  return decideRoute({
+    model: args.model,
+    localModels,
+    ...(localEndpoint !== undefined ? { localEndpoint } : {}),
+    ...(args.gatewayUrl ? { gatewayUrl: args.gatewayUrl } : {}),
+  });
+}
+
 export function decideRoute(input: RouteInput): RouteDecision {
   const isLocalModel = input.localModels.includes(input.model);
 
