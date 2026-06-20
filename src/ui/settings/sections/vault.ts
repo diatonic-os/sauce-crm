@@ -108,13 +108,6 @@ export function renderVault(
   pathSetting(
     containerEl,
     plugin,
-    "ledger",
-    "Ledger folder",
-    "Where ERP-lite ledger entries, commitments, AR/AP notes, and relationship balances are stored.",
-  );
-  pathSetting(
-    containerEl,
-    plugin,
     "pipeline",
     "Pipeline folder",
     "Where pipeline deal and opportunity records are stored.",

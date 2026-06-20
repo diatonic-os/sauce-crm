@@ -22,7 +22,6 @@ export class VaultBootstrapper {
       this.paths.observations,
       this.paths.tasks,
       this.paths.events,
-      this.paths.ledger,
       this.paths.pipeline,
       this.paths.templates,
       this.paths.playbooks,
@@ -38,6 +37,13 @@ export class VaultBootstrapper {
       this.paths.saucebot,
       this.paths.saucebotAgents,
       this.paths.saucebotPrompts,
+      // Capture lane + machine-generated tiers (all hidden under .sauceBrain).
+      this.paths.inbox,
+      this.paths.brain,
+      this.paths.cache,
+      this.paths.tmp,
+      this.paths.artifacts,
+      this.paths.dashboards,
     ]) {
       const folder = this.app.vault.getAbstractFileByPath(normalizePath(p));
       if (folder) existing.push(p);
@@ -47,20 +53,23 @@ export class VaultBootstrapper {
       }
     }
 
+    // CLAUDE.md (vault contract) stays at root; dashboard surfaces seed into
+    // the hidden .sauceBrain/dashboards/ folder (the interactive Sauce views
+    // are the primary UI; these are the file-native rollup surfaces).
+    const dash = this.paths.dashboards;
     await this.ensureFile("CLAUDE.md", CLAUDE_SEED);
-    await this.ensureFile("_README.md", README_SEED);
-    await this.ensureFile("_MOC.md", MOC_SEED);
-    await this.ensureFile("_DASHBOARD.md", DASHBOARD_SEED);
-    await this.ensureFile("_TASKS.md", TASKS_SEED);
-    await this.ensureFile("_ADDENDA.md", ADDENDA_SEED);
-    await this.ensureFile("_IDEAS.md", IDEAS_SEED);
-    await this.ensureFile("_EVENTS.md", EVENTS_SEED);
-    await this.ensureFile("_LEDGER.md", LEDGER_SEED);
-    await this.ensureFile("_POLICY.md", POLICY_SEED);
-    await this.ensureFile("_PLUGIN-CONFIG.md", PLUGIN_CONFIG_SEED);
-    await this.ensureFile("_MEETINGS.md", MEETINGS_SEED);
-    await this.ensureFile("_LANES.md", LANES_SEED);
-    await this.ensureFile("_WEEKLY.md", WEEKLY_SEED);
+    await this.ensureFile(`${dash}/_README.md`, README_SEED);
+    await this.ensureFile(`${dash}/_MOC.md`, MOC_SEED);
+    await this.ensureFile(`${dash}/_DASHBOARD.md`, DASHBOARD_SEED);
+    await this.ensureFile(`${dash}/_TASKS.md`, TASKS_SEED);
+    await this.ensureFile(`${dash}/_ADDENDA.md`, ADDENDA_SEED);
+    await this.ensureFile(`${dash}/_IDEAS.md`, IDEAS_SEED);
+    await this.ensureFile(`${dash}/_EVENTS.md`, EVENTS_SEED);
+    await this.ensureFile(`${dash}/_POLICY.md`, POLICY_SEED);
+    await this.ensureFile(`${dash}/_PLUGIN-CONFIG.md`, PLUGIN_CONFIG_SEED);
+    await this.ensureFile(`${dash}/_MEETINGS.md`, MEETINGS_SEED);
+    await this.ensureFile(`${dash}/_LANES.md`, LANES_SEED);
+    await this.ensureFile(`${dash}/_WEEKLY.md`, WEEKLY_SEED);
     // SauceBot agent workspace seeds.
     await this.ensureFile(
       `${this.paths.saucebot}/_README.md`,
@@ -168,7 +177,7 @@ Weekly briefings. Generate with the **SauceBot: Weekly Briefing** command;
 each briefing is written to \`_weekly/\`.
 
 \`\`\`sauce-dql
-TABLE date FROM "_weekly" SORT date DESC LIMIT 12
+TABLE date FROM ".sauceBrain/weekly" SORT date DESC LIMIT 12
 \`\`\`
 `;
 
@@ -235,7 +244,6 @@ TABLE last_touch, cadence, closeness FROM "people" WHERE type == "warm-contact" 
 - [[_ADDENDA]]
 - [[_IDEAS]]
 - [[_EVENTS]]
-- [[_LEDGER]]
 - [[_POLICY]]
 `;
 
@@ -277,7 +285,7 @@ tags: [addenda, index, live]
 # _ADDENDA
 
 \`\`\`sauce-dql
-TABLE addends, kind, date, author FROM "_addenda" SORT date DESC
+TABLE addends, kind, date, author FROM ".sauceBrain/addenda" SORT date DESC
 \`\`\`
 `;
 
@@ -304,19 +312,6 @@ tags: [events, calendar, live]
 
 \`\`\`sauce-dql
 TABLE title, date, start, end, contact, org FROM "events" SORT date ASC LIMIT 50
-\`\`\`
-`;
-
-const LEDGER_SEED = `---
-type: dashboard
-view: ledger
-tags: [ledger, erp, live]
----
-
-# _LEDGER
-
-\`\`\`sauce-dql
-TABLE title, date, direction, amount, currency, category, contact, org FROM "ledger" SORT date DESC LIMIT 50
 \`\`\`
 `;
 
@@ -367,17 +362,24 @@ contract: simple
 subtype_of: Entity
 mutable: [enums, edge_rules, hotkeys, addendum_policy, compat_config, semiring_choices, search_config]
 enums:
-  primary_type_person: [co-founder, family, advisor, mentor, connector, peer-founder, community, past-colleague, prospect]
+  primary_type_person: [co-founder, family, advisor, mentor, connector, peer-founder, community, past-colleague]
   roles_person: [co-founder, family, advisor, mentor, connector, peer-founder, community, past-colleague, prospect]
-  cadence: [monthly, quarterly, bi-annual, ad-hoc]
+  closeness: [1, 2, 3, 4, 5]
+  cadence: [weekly, monthly, quarterly, bi-annual, ad-hoc]
   channel: [in-person, call, text, dinner, email, event]
-  outcome_tag: [update-given, advice-received, intro-offered, intro-made, asked-for-intro]
+  playbook_used: [ff-1, ff-2, ff-3, ff-4, ment-1, ment-2, ment-3, ment-4, ""]
+  outcome_tags: [update-given, advice-received, intro-offered, intro-made, asked-for-intro]
   status_org: [active, customer, vendor, competitor, defunct, prospect]
+  status_lane: [active, exploratory, dormant]
+  lane_axis: [experience, expertise]
   kind_addendum: [correction, enrichment, context, deprecation, merge-note]
+  kind_meeting: [held, prep, agenda]
   task_status: [todo, in_progress, blocked, done, cancelled]
   task_priority: [low, medium, high, urgent]
   idea_stage: [seed, shaping, planned, active, shipped, archived]
+  impact_idea: [low, medium, high]
   pipeline_stage: [prospect, first-touch, discovery, proposal, closed-won, closed-lost]
+  observation_kind: [connecting-organization, connecting-person, analysis]
   observation_signal: [relationship, opportunity, risk, timing, access, pattern]
 compat_config:
   rho_adm: 0.5

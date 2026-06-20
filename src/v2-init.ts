@@ -282,9 +282,20 @@ export async function initV2(
   // location. No absolute base path ⇒ no Lance backend (graph-RAG fallback).
   const lanceDir = centralDataDir;
   const pluginSettings = (
-    plugin as unknown as { settings?: { lancedb?: { embeddingDim?: number } } }
+    plugin as unknown as {
+      settings?: {
+        features?: { rag?: { embeddingDim?: number | null } };
+        lancedb?: { embeddingDim?: number };
+      };
+    }
   ).settings; // Plugin subclass field; base Plugin type lacks it
-  const embeddingDim = pluginSettings?.lancedb?.embeddingDim;
+  // The user-configured dim lives at features.rag.embeddingDim (RAG settings
+  // section). Fall back to the legacy lancedb.embeddingDim, then the caller's
+  // default — reading the wrong path silently ignored the user's dimension.
+  const embeddingDim =
+    pluginSettings?.features?.rag?.embeddingDim ??
+    pluginSettings?.lancedb?.embeddingDim ??
+    undefined;
 
   // ─── Backend: LanceDB single-backend (require-install) ───────────────
   // LanceDB is the sole persistence engine. If its native binding is not yet

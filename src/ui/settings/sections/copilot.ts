@@ -1,5 +1,10 @@
 // V2 copilot section. Uses ProviderPicker (auto model indexing) instead of
 // free-text inputs so users pick from a live, per-provider catalog.
+import { DEFAULT_PATHS } from "../../../services/EntityService";
+import {
+  AGENT_ROLES,
+  AGENT_ROLE_META,
+} from "../../../saucebot/harness/AgentModelRegistry";
 import { Platform, Setting } from "obsidian";
 import type SauceGraphPlugin from "../../../main";
 import { ProviderPicker } from "../../components/v2/ProviderPicker";
@@ -324,7 +329,7 @@ export function renderCopilot(
       )
       .addText((t) =>
         t
-          .setPlaceholder("copilot/sauce-commands")
+          .setPlaceholder(DEFAULT_PATHS.saucebotPrompts)
           .setValue(cfgStr("promptsFolder"))
           .onChange(async (v) => {
             cfg.promptsFolder = v || undefined;
@@ -384,8 +389,99 @@ export function renderCopilot(
   renderModelManagement(containerEl, plugin);
   // Sauce Brain dashboard folder.
   renderBrain(containerEl, plugin);
+  // Per-role subagent model overrides.
+  renderAgentModels(containerEl, plugin);
+  // Encrypted-vault status (which secrets are stored + safeStorage availability).
+  renderVaultStatus(containerEl, plugin);
   // Brain tier + SauceDB (hosted LanceDB edge) upgrade.
   renderSauceDb(containerEl, plugin);
+}
+
+/** Vault status — proves to the client their keys are encrypted at rest and
+ *  shows exactly which secrets are stored (in the Obsidian-integrated KeyVault /
+ *  OS keychain), never in data.json. */
+function renderVaultStatus(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
+  containerEl.createEl("h3", { text: "Vault status (secrets)" });
+  const body = containerEl.createDiv({ cls: "setting-item-description" });
+  body.setText("Checking encrypted store…");
+
+  const refresh = async (): Promise<void> => {
+    body.empty();
+    const st = await plugin.vaultStatus();
+    // Headline: encrypted at rest or not.
+    const head = body.createEl("div");
+    head.createEl("strong", {
+      text: st.encryptedAtRest
+        ? "🔒 Encrypted at rest"
+        : "⚠️ No encrypted store available",
+    });
+    head.createEl("div", {
+      text: st.encryptedAtRest
+        ? "Keys are stored in your OS keychain / encrypted KeyVault — never in data.json."
+        : "safeStorage + KeyVault unavailable on this OS; keys are kept in memory for the session only. Set a master password or enable an OS keychain.",
+    });
+    // Per-source breakdown.
+    const srcUl = body.createEl("ul");
+    for (const s of st.sources) {
+      srcUl.createEl("li", {
+        text: `${s.available ? "✓" : "✗"} ${s.label}${s.active ? "  (active — writes here)" : ""}`,
+      });
+    }
+    // Stored secrets.
+    body.createEl("div", { text: "Secrets:" });
+    const secUl = body.createEl("ul");
+    const present = st.secrets.filter((x) => x.present);
+    if (present.length === 0) {
+      secUl.createEl("li", { text: "None stored yet." });
+    } else {
+      for (const x of present) secUl.createEl("li", { text: `🔑 ${x.label}` });
+    }
+  };
+
+  new Setting(containerEl).addButton((b) => {
+    b.setButtonText("Refresh").onClick(() => void refresh());
+  });
+  void refresh();
+}
+
+/** Per-role model selection: assign each runtime subagent its own model
+ *  (cheap local for enrichment, reasoning model for verify, …). Blank = use the
+ *  chat default. See harness/AgentModelRegistry. */
+function renderAgentModels(
+  containerEl: HTMLElement,
+  plugin: SauceGraphPlugin,
+): void {
+  containerEl.createEl("h3", { text: "Agent models (per role)" });
+  containerEl.createEl("p", {
+    cls: "setting-item-description",
+    text:
+      "Assign a model per subagent. Leave blank to use the chat model. " +
+      "Tip: cheap local models for enrichment/socratic, a reasoning model for verify/planner.",
+  });
+  const defModel = plugin.settings.copilot.model || "(chat default)";
+  for (const role of AGENT_ROLES) {
+    const meta = AGENT_ROLE_META[role];
+    new Setting(containerEl)
+      .setName(meta.label)
+      .setDesc(meta.hint)
+      .addText((t) => {
+        t.setPlaceholder(defModel);
+        t.setValue(plugin.settings.copilot.agentModels?.[role]?.model ?? "");
+        t.onChange(async (v) => {
+          const map = (plugin.settings.copilot.agentModels ??= {});
+          const model = v.trim();
+          if (model) map[role] = { ...(map[role] ?? {}), model };
+          else if (map[role]) delete map[role];
+          await plugin.saveSettings();
+          plugin.copilot?.updateSettings?.({
+            agentModels: plugin.settings.copilot.agentModels,
+          });
+        });
+      });
+  }
 }
 
 /** Model management — keep-warm (defeat LM Studio's idle-TTL cold reloads), the
@@ -812,10 +908,10 @@ function renderBrain(containerEl: HTMLElement, plugin: SauceGraphPlugin): void {
     )
     .addText((t) =>
       t
-        .setPlaceholder("_brain")
-        .setValue(plugin.settings.brainFolder ?? "_brain")
+        .setPlaceholder(DEFAULT_PATHS.brain)
+        .setValue(plugin.settings.brainFolder ?? DEFAULT_PATHS.brain)
         .onChange(async (v) => {
-          plugin.settings.brainFolder = v.trim() || "_brain";
+          plugin.settings.brainFolder = v.trim() || DEFAULT_PATHS.brain;
           await plugin.saveSettings();
           plugin.copilot?.setBrainFolder(plugin.settings.brainFolder);
         }),

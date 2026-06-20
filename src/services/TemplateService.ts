@@ -266,44 +266,6 @@ export const TemplateService = {
     };
   },
 
-  ledgerEntryFrontmatter(
-    input: Partial<Record<string, any>>,
-  ): Record<string, any> {
-    return {
-      type: "ledger-entry",
-      contract: input.contract ?? "simple",
-      subtype_of: "Entity",
-      title: input.title,
-      date: input.date ?? todayIso(),
-      contact: input.contact ?? null,
-      org: input.org ?? null,
-      category: input.category ?? "relationship",
-      direction: input.direction ?? "out",
-      amount: input.amount ?? 0,
-      currency: input.currency ?? "USD",
-      approval_required: input.approval_required ?? true,
-      notes: input.notes ?? null,
-      mutable: [
-        "title",
-        "date",
-        "contact",
-        "org",
-        "category",
-        "direction",
-        "amount",
-        "currency",
-        "approval_required",
-        "notes",
-        "tags",
-      ],
-      constrains: [
-        "direction_enum: direction in [in, out]",
-        "amount_non_negative: amount >= 0",
-      ],
-      tags: input.tags ?? ["ledger"],
-    };
-  },
-
   pipelineDealFrontmatter(
     input: Partial<Record<string, any>>,
   ): Record<string, any> {

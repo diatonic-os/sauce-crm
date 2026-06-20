@@ -54,10 +54,31 @@ export class AnthropicProvider implements ISauceBotProvider {
       max_tokens: req.maxTokens ?? 4096,
       temperature: req.temperature ?? 0.7,
       system: req.systemPrompt,
-      messages: req.messages.map((m) => ({
-        role: m.role === "tool" ? "user" : m.role,
-        content: m.content,
-      })),
+      messages: req.messages.map((m) => {
+        // Anthropic Messages API requires tool results to be a user-role
+        // message whose content is an array of tool_result blocks, not a bare
+        // string.  The tool_use_id links the result back to the assistant's
+        // tool_use block from the prior turn.
+        if (m.role === "tool") {
+          return {
+            role: "user" as const,
+            content: [
+              {
+                type: "tool_result" as const,
+                tool_use_id: m.toolCallId ?? "",
+                content:
+                  typeof m.content === "string"
+                    ? m.content
+                    : JSON.stringify(m.content),
+              },
+            ],
+          };
+        }
+        return {
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        };
+      }),
       tools: req.tools?.map((t) => ({
         name: t.name,
         description: t.description,

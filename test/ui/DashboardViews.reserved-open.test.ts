@@ -1,4 +1,4 @@
-// Regression guard for the dashboard-render bug (Tasks/Inbox/Ledger).
+// Regression guard for the dashboard-render bug (Tasks/Inbox).
 //
 // Root cause: SvelteDashboardView defined a click handler named `open(path)`,
 // which SHADOWS Obsidian's internal `View.open(eState)` lifecycle method. During
@@ -18,13 +18,8 @@ import { ItemView } from "obsidian";
 // DashboardViews imports — we only exercise the TypeScript view classes here.
 vi.mock("@/ui/svelte/TasksDashboard.svelte", () => ({ default: function () {} }));
 vi.mock("@/ui/svelte/InboxDashboard.svelte", () => ({ default: function () {} }));
-vi.mock("@/ui/svelte/LedgerDashboard.svelte", () => ({ default: function () {} }));
 
-import {
-  TasksView,
-  InboxView,
-  LedgerView,
-} from "@/ui/views/v2/DashboardViews";
+import { TasksView, InboxView } from "@/ui/views/v2/DashboardViews";
 
 /** Own method names declared between `cls` and ItemView (exclusive). */
 function ownMethodsAboveItemView(cls: new (...a: never[]) => unknown): Set<string> {
@@ -40,7 +35,7 @@ function ownMethodsAboveItemView(cls: new (...a: never[]) => unknown): Set<strin
 }
 
 describe("DashboardViews do not shadow Obsidian View.open", () => {
-  for (const View of [TasksView, InboxView, LedgerView]) {
+  for (const View of [TasksView, InboxView]) {
     it(`${View.name} must not define a method named 'open'`, () => {
       const methods = ownMethodsAboveItemView(View);
       expect(methods.has("open")).toBe(false);

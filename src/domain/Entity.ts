@@ -73,7 +73,6 @@ export const ENTITY_TYPES = [
   "observation",
   "task",
   "event",
-  "ledger-entry",
   "pipeline-deal",
   "user-agent",
   "sub-vault",

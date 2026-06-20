@@ -98,10 +98,6 @@ const CUSTOM_ICONS: ReadonlyArray<{ name: string; svg: string }> = [
     svg: '<rect x="18" y="24" width="64" height="58" rx="6" fill="none" stroke="currentColor" stroke-width="6"/><path d="M18 42 L82 42 M34 14 L34 30 M66 14 L66 30" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><circle cx="38" cy="58" r="4" fill="currentColor"/><circle cx="54" cy="58" r="4" fill="currentColor"/>',
   },
   {
-    name: "sauce-ledger",
-    svg: '<rect x="18" y="16" width="64" height="68" rx="4" fill="none" stroke="currentColor" stroke-width="6"/><path d="M32 34 L68 34 M32 50 L68 50 M32 66 L50 66" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M62 62 L74 74" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>',
-  },
-  {
     name: "sauce-pipeline",
     svg: '<path d="M16 24 H84 L64 50 V76 L36 86 V50 Z" fill="none" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/><path d="M30 36 H70" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>',
   },

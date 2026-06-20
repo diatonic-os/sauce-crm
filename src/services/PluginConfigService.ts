@@ -82,14 +82,14 @@ export function defaultProfiles(): CanonicalProfile[] {
       settings: {
         folder: "_events/daily",
         format: "YYYY-MM-DD",
-        template: "_templates/daily.md",
+        template: ".sauceBrain/templates/daily.md",
       },
     },
     {
       id: "templates",
       kind: "core",
       label: "Templates",
-      settings: { folder: "_templates" },
+      settings: { folder: ".sauceBrain/templates" },
     },
     {
       id: "obsidian-tasks-plugin",
@@ -112,7 +112,7 @@ export function defaultProfiles(): CanonicalProfile[] {
       kind: "community",
       label: "Templater",
       settings: {
-        templates_folder: "_templates",
+        templates_folder: ".sauceBrain/templates",
         trigger_on_file_creation: false,
       },
     },

@@ -49,7 +49,7 @@ export interface EmbedResult {
 class LruCache<K, V> {
   private readonly map: Map<K, V> = new Map();
 
-  constructor(private readonly capacity: number) {}
+  constructor(readonly capacity: number) {}
 
   get(key: K): V | undefined {
     const value = this.map.get(key);
@@ -126,16 +126,20 @@ export class EmbeddingsLane {
    */
   setConfig(cfg: EmbedLaneConfig): void {
     const modelChanged = cfg.model !== this.cfg.model;
+    const newSize = cfg.cacheSize ?? DEFAULT_CACHE_SIZE;
     this.cfg = { ...cfg };
     if (modelChanged) {
       this.modelReady = false;
       this.modelEnsuring = null;
-      this.cache.clear();
+      // Rebuild the cache for the new model (different key-space).
+      this.cache = new LruCache<string, Float32Array>(newSize);
+    } else if (newSize !== this.cache.capacity) {
+      // Same model, but capacity changed — rebuild preserving no entries
+      // (simpler than rehashing; cache will warm back up naturally).
+      this.cache = new LruCache<string, Float32Array>(newSize);
     }
-    // Always rebuild the cache with the (possibly new) cacheSize.
-    const newSize = cfg.cacheSize ?? DEFAULT_CACHE_SIZE;
-    // Replace the cache object; the old one becomes GC-eligible.
-    this.cache = new LruCache<string, Float32Array>(newSize);
+    // If neither the model nor the capacity changed, keep the existing
+    // cache intact so callers do not lose previously computed vectors.
   }
 
   /**
@@ -173,6 +177,9 @@ export class EmbeddingsLane {
       }
       const ensureResult = await this.modelEnsuring;
       if (!ensureResult.ok) {
+        // Clear the promise so subsequent calls can retry rather than
+        // re-awaiting the same permanently-failed settled promise.
+        this.modelEnsuring = null;
         this._failures++;
         return {
           vec: null,

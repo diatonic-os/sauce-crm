@@ -6,7 +6,8 @@
 // All values land in KeyVault via IntegrationCredentials. Modal refuses to
 // open and surfaces an explicit unlock prompt if the vault is locked.
 
-import { Modal, Notice, Setting } from "obsidian";
+import { Modal, Notice, Setting, requestUrl } from "obsidian";
+import { pingAnthropic } from "../../../saucebot/AnthropicPing";
 import type SauceGraphPlugin from "../../../main";
 import { InlineStatus } from "../../components/v2/InlineStatus";
 import {
@@ -14,6 +15,19 @@ import {
   PROVIDER_MANIFESTS,
   type CredentialProviderId,
 } from "../../../integrations/IntegrationCredentials";
+import { testProviderConnection } from "../../../saucebot/testProviderConnection";
+import {
+  sharedModelCatalog,
+  type ProviderId,
+} from "../../../saucebot/ModelCatalog";
+
+/** Credential providers that are also SauceBot chat/embedding providers — saving
+ *  a key for these triggers a live auth + model-load probe. */
+const AI_PROVIDER_IDS = new Set<CredentialProviderId>([
+  "anthropic",
+  "openai",
+  "nim",
+]);
 
 export class IntegrationCredentialsModal extends Modal {
   constructor(
@@ -235,7 +249,47 @@ export class IntegrationCredentialsModal extends Modal {
           const fieldVal = values[f.id];
           if (fieldVal) await creds.putKey(this.providerId, f.id, fieldVal);
         }
-        status.success(`${m.label} credentials saved to vault`);
+        // For AI providers, immediately validate the key + load the model
+        // catalog so the user sees auth health + available models (and the
+        // SauceBot picker is populated). The key is already in the secure
+        // KeyVault; this probe is live and secret-free.
+        if (AI_PROVIDER_IDS.has(this.providerId)) {
+          status.pending("Validating key + loading models…");
+          const apiKey = values[m.keyFields![0]!.id];
+          // Anthropic has no live /models endpoint, so do a real 1-token auth
+          // ping (catches a bad key the static catalog would miss) before the
+          // model-load probe.
+          if (this.providerId === "anthropic" && apiKey) {
+            const ping = await pingAnthropic(apiKey, (url, init) =>
+              requestUrl({
+                url,
+                method: init.method,
+                headers: init.headers,
+                body: init.body,
+                throw: false,
+              }).then((rr) => ({ status: rr.status })),
+            );
+            if (!ping.ok) {
+              status.error(ping.error ?? "Anthropic key check failed.");
+              return;
+            }
+          }
+          const r = await testProviderConnection({
+            provider: this.providerId as ProviderId,
+            ...(apiKey ? { apiKey } : {}),
+            logger: this.plugin.logger ?? null,
+          });
+          if (r.ok) {
+            status.success(
+              `✓ Authenticated · ${r.modelCount} model${r.modelCount === 1 ? "" : "s"} available`,
+            );
+            this.autoConfigureSauceBot();
+          } else {
+            status.error(`Saved, but key check failed: ${r.detail}`);
+          }
+        } else {
+          status.success(`${m.label} credentials saved to vault`);
+        }
       } catch (e: unknown) {
         status.error(e instanceof Error ? e.message : String(e));
       }
@@ -253,6 +307,28 @@ export class IntegrationCredentialsModal extends Modal {
           status.error(e instanceof Error ? e.message : String(e));
         }
       };
+  }
+
+  /**
+   * On first-time setup (no chat model chosen yet) adopt this provider for
+   * SauceBot so chat works straight after key entry — endpoint is built in for
+   * cloud providers (ModelCatalog default base URLs). Never hijacks an
+   * already-configured provider. Always refreshes the catalog so the picker
+   * shows the newly-authorized models.
+   */
+  private autoConfigureSauceBot(): void {
+    try {
+      const cfg = this.plugin.settings.copilot;
+      if (!cfg.model) {
+        cfg.provider = this.providerId as ProviderId;
+        void this.plugin.saveSettings();
+        this.plugin.copilot?.updateSettings?.({ provider: cfg.provider });
+      }
+      // Bust the 30s catalog cache so the picker reflects the new auth now.
+      sharedModelCatalog(this.plugin.logger ?? null).invalidate();
+    } catch {
+      /* best-effort auto-config; the key + validation already succeeded */
+    }
   }
 
   override onClose(): void {

@@ -24,6 +24,7 @@ import type {
 } from "./ISauceBotProvider";
 import { parseSse } from "./StreamParsers";
 import { parseToolArgs, extractTextToolCalls } from "./LocalToolParse";
+import { toOpenAiMessages } from "./OpenAiMessageMap";
 import { classifyLoadFailure } from "./ModelManager";
 
 export interface OpenAICompatSpec {
@@ -49,15 +50,6 @@ export interface OpenAICompatSpec {
 export class OpenAICompatibleProvider implements ISauceBotProvider {
   readonly name: string;
   models: ModelDescriptor[];
-
-  /**
-   * Optional pre-flight hook set by SauceBotRuntime: ensure the embedding model
-   * is actually loaded before embed() POSTs. Without it the embed lane silently
-   * fails (the model never JIT-loads) and the chat falls back to lexical search.
-   */
-  _ensureEmbedModel?: (
-    model: string,
-  ) => Promise<{ ok: boolean; error?: string }>;
 
   /** Build a classified `done`/error event from a raw load-failure string. */
   protected errorDone(
@@ -124,19 +116,12 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
   }
 
   protected buildBody(req: CompletionRequest): Record<string, unknown> {
-    const messages = req.systemPrompt
-      ? [
-          { role: "system" as const, content: req.systemPrompt },
-          ...req.messages,
-        ]
-      : req.messages;
     const body: Record<string, unknown> = {
       model: this.modelOf(req),
-      messages: messages.map((m) => ({
-        role: m.role === "tool" ? "tool" : m.role,
-        content: m.content,
-        tool_call_id: m.toolCallId,
-      })),
+      // Translate canonical content blocks → OpenAI wire shape (assistant
+      // tool_calls + tool-role tool_call_id). Passing the blocks through
+      // verbatim broke multi-turn tool calling on LM Studio.
+      messages: toOpenAiMessages(req.messages, req.systemPrompt),
       temperature: req.temperature ?? 0.7,
       max_tokens: req.maxTokens ?? 4096,
     };
@@ -149,6 +134,8 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
           parameters: t.inputSchema,
         },
       }));
+      // Let the model decide when to call a tool — LM Studio honors "auto".
+      body.tool_choice = "auto";
     }
     return body;
   }
@@ -202,7 +189,14 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
           | undefined;
         // Accumulate streamed text so we can salvage a text-embedded tool call
         // (local models often "speak" the call instead of emitting tool_calls).
+        // When tools are registered we BUFFER text deltas rather than yielding
+        // them immediately: this prevents raw <tool_call>…</tool_call> JSON from
+        // being painted into the chat body before we detect the salvage case.
+        // When no tools are registered there is nothing to salvage, so we stream
+        // deltas immediately for the lowest-latency display.
+        const toolsRegistered = !!req.tools?.length;
         let streamedText = "";
+        const pendingTextDeltas: string[] = [];
         try {
           for await (const evt of parseSse(resp.iter)) {
             let parsed: Chunk;
@@ -219,7 +213,12 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
             if (reasoning) yield { type: "reasoning", delta: reasoning };
             if (d?.content) {
               streamedText += d.content;
-              yield { type: "text", delta: d.content };
+              if (toolsRegistered) {
+                // Hold the delta — we'll flush or discard after salvage check.
+                pendingTextDeltas.push(d.content);
+              } else {
+                yield { type: "text", delta: d.content };
+              }
             }
             if (d?.tool_calls) {
               for (const tc of d.tool_calls) {
@@ -273,6 +272,16 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
           }
           if (emittedToolCall && finishReason === "stop")
             finishReason = "tool_calls";
+        }
+        // Flush buffered text deltas now that we know whether a tool was salvaged.
+        // When a tool_use was emitted (either structured or salvaged) we suppress
+        // the text entirely — the chat body should show the tool call, not the raw
+        // JSON prose the model spoke. When no tool call was found, emit everything
+        // we held back so the response renders normally.
+        if (toolsRegistered && !emittedToolCall) {
+          for (const delta of pendingTextDeltas) {
+            yield { type: "text", delta };
+          }
         }
         yield {
           type: "usage",
@@ -396,13 +405,6 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
   async embed(text: string, model: string): Promise<Float32Array> {
     if (!this.supportsEmbeddings())
       throw new Error(`${this.name} does not provide an embeddings endpoint.`);
-    // Ensure the embed model is actually loaded on its lane before POSTing —
-    // otherwise a not-loaded embedding model 4xx's and the lane goes dark.
-    if (this._ensureEmbedModel) {
-      const r = await this._ensureEmbedModel(model);
-      if (!r.ok)
-        throw new Error(r.error ?? `embed model ${model} could not be loaded`);
-    }
     const resp = await this.host.fetch(`${this.base()}/embeddings`, {
       method: "POST",
       headers: await this.headers(),
@@ -425,8 +427,11 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
 }
 
 /** Map an OpenAI `finish_reason` to the normalized CompletionEvent done reason. */
-function mapFinish(reason: string | null): "tool_use" | "end_turn" | "stop" {
+function mapFinish(
+  reason: string | null,
+): "tool_use" | "end_turn" | "max_tokens" | "stop" {
   if (reason === "tool_calls") return "tool_use";
   if (reason === "stop") return "end_turn";
+  if (reason === "length" || reason === "max_tokens") return "max_tokens";
   return "stop";
 }

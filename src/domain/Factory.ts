@@ -10,7 +10,6 @@ import { Idea } from "./Idea";
 import { Observation } from "./Observation";
 import { TaskEntity } from "./TaskEntity";
 import { EventEntity } from "./EventEntity";
-import { LedgerEntry } from "./LedgerEntry";
 import { PipelineDeal } from "./PipelineDeal";
 import { UserAgent } from "./UserAgent";
 import { SubVault } from "./SubVault";
@@ -42,8 +41,6 @@ export function entityFromFrontmatter(
       return new TaskEntity(file, fm);
     case EventEntity.TYPE:
       return new EventEntity(file, fm);
-    case LedgerEntry.TYPE:
-      return new LedgerEntry(file, fm);
     case PipelineDeal.TYPE:
       return new PipelineDeal(file, fm);
     case UserAgent.TYPE:

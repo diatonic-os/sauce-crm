@@ -15,10 +15,10 @@ describe("ParentVaultBootstrapper.ensure", () => {
     // these literals are already canonical, so the exact normalized form is the
     // literal itself — proving the call routed through normalizePath.
     expect(getSpy).toHaveBeenCalledWith("vaults");
-    expect(getSpy).toHaveBeenCalledWith("_addenda");
+    expect(getSpy).toHaveBeenCalledWith(".sauceBrain/addenda");
     expect(getSpy).toHaveBeenCalledWith("PARENT-VAULT.md");
     expect(folderSpy).toHaveBeenCalledWith("vaults");
-    expect(folderSpy).toHaveBeenCalledWith("_addenda");
+    expect(folderSpy).toHaveBeenCalledWith(".sauceBrain/addenda");
     expect(createSpy.mock.calls[0]![0]).toBe("PARENT-VAULT.md");
 
     // No path argument may contain a backslash or a leading slash.

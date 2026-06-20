@@ -1,5 +1,6 @@
 import { App, normalizePath, TFile } from "obsidian";
 import { todayIso } from "../util/DateUtil";
+import { DEFAULT_PATHS } from "../services/EntityService";
 
 // Vault paths handed to Obsidian Vault APIs are normalized once, here, so the
 // separators + leading-slash safety that normalizePath provides apply uniformly
@@ -7,7 +8,7 @@ import { todayIso } from "../util/DateUtil";
 // EdgeSyncService, ObsidianAdapters, main.ts). Defined as constants so the
 // getAbstractFileByPath check and the create/createFolder call can never drift.
 const VAULTS_DIR = normalizePath("vaults");
-const ADDENDA_DIR = normalizePath("_addenda");
+const ADDENDA_DIR = normalizePath(DEFAULT_PATHS.addenda);
 const PARENT_VAULT_FILE = normalizePath("PARENT-VAULT.md");
 
 export class ParentVaultBootstrapper {

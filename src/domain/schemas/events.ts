@@ -1,43 +1,60 @@
-// CON-OBS-INTEG-001 · T-E-01 · ENT-events — predicate schema (no Zod).
-// Emitted by the MutationContract (ev-<ulid>) and other sources.
+// Canonical calendar event (CLAUDE.md v1.6.0 §2.9). Matches the live
+// EventEntity domain class (title/date/start/end/attendees). The previous
+// event-sourcing shape (eventType/payload_json) was dead schema — nothing
+// wrote it; MutationContract's ev-<ulid> ContractEvent is in-memory only.
 
 import {
   type EntitySchema,
   type ValidationError,
   isString,
+  isStringArray,
   isIsoDate,
 } from "./index";
 
 export interface EventFrontmatter extends Record<string, unknown> {
   type: "event";
-  ts: string;
-  eventType: string;
-  payload_json?: string;
-  emittedBy?: string;
-  correlationId?: string;
-  canonized?: boolean;
+  title: string;
+  date: string;
+  start?: string;
+  end?: string;
+  location?: string;
+  contact?: string;
+  org?: string;
+  attendees?: string[];
+  tags?: string[];
 }
 
 export const EventSchema: EntitySchema<EventFrontmatter> = {
   type: "event",
-  description: "A domain event (mutation, sync, integration signal).",
+  description: "A calendared event (CLAUDE.md §2.9).",
   defaultFrontmatter: () => ({
     type: "event",
-    ts: new Date().toISOString(),
-    eventType: "",
+    title: "",
+    date: new Date().toISOString().slice(0, 10),
+    tags: ["event"],
   }),
   validate(fm) {
     const e: ValidationError[] = [];
     if (fm.type !== "event")
       e.push({ field: "type", message: 'expected "event"', severity: "error" });
-    if (!isString(fm.eventType))
+    if (!isString(fm.title))
       e.push({
-        field: "eventType",
-        message: "eventType must be a string",
+        field: "title",
+        message: "title must be a string",
         severity: "error",
       });
-    if ("ts" in fm && !isIsoDate(fm.ts))
-      e.push({ field: "ts", message: "ts must be ISO", severity: "warn" });
+    if (!isIsoDate(fm.date))
+      e.push({
+        field: "date",
+        message: "date must be ISO YYYY-MM-DD",
+        severity: "error",
+      });
+    if ("attendees" in fm && !isStringArray(fm.attendees))
+      e.push({
+        field: "attendees",
+        message: "attendees must be string[]",
+        severity: "error",
+      });
     return {
       passed: e.filter((x) => x.severity === "error").length === 0,
       errors: e,

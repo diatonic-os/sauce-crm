@@ -14,7 +14,6 @@ export type GraphKind =
   | "observation"
   | "task"
   | "event"
-  | "ledger"
   | "pipeline"
   | "addendum"
   | "vault"
@@ -79,7 +78,6 @@ const STYLE_BY_KIND: Record<GraphKind, StyleDef> = {
   observation: { color: "#14b8a6", icon: "sauce-observation", layer: 3 },
   task: { color: "#fb923c", icon: "sauce-task", layer: 2 },
   event: { color: "#a3e635", icon: "sauce-event", layer: 2 },
-  ledger: { color: "#ef4444", icon: "sauce-ledger", layer: 2 },
   pipeline: { color: "#eab308", icon: "sauce-pipeline", layer: 2 },
   addendum: { color: "#94a3b8", icon: "sauce-addendum", layer: 3 },
   vault: { color: "#c084fc", icon: "sauce-parent-vault", layer: 0 },
@@ -120,7 +118,6 @@ const TYPE_TO_KIND: Record<string, GraphKind> = {
   observation: "observation",
   task: "task",
   event: "event",
-  "ledger-entry": "ledger",
   "pipeline-deal": "pipeline",
   addendum: "addendum",
   "parent-vault": "vault",
@@ -137,7 +134,6 @@ const KIND_WEIGHTS: Record<GraphKind, number> = {
   observation: 1.0,
   task: 1.0,
   event: 1.0,
-  ledger: 1.1,
   pipeline: 1.1,
   addendum: 0.8,
   vault: 1.6,
@@ -389,10 +385,6 @@ export class GraphAtlasService {
           out.push({ relation: "related_contacts", target, symmetric: true });
       }
     }
-    if (node.kind === "ledger") {
-      const target = this.extractTargetString(String(fm.contact ?? ""));
-      if (target) out.push({ relation: "contact", target, symmetric: false });
-    }
     if (node.kind === "event") {
       const contact = this.extractTargetString(String(fm.contact ?? ""));
       if (contact)
@@ -548,10 +540,10 @@ export class GraphAtlasService {
     if (kind === "event") return 2.5;
     if (kind === "task")
       return String(fm.status ?? "todo") === "done" ? 0.5 : 2;
-    if (kind === "idea")
-      return String(fm.status ?? "open") === "shipped" ? 0.8 : 1.6;
-    if (kind === "ledger")
-      return Math.min(4, Math.log10(Math.abs(Number(fm.amount ?? 0)) + 10));
+    if (kind === "idea") {
+      const stage = String(fm.stage ?? fm.status ?? "seed");
+      return stage === "shipped" || stage === "archived" ? 0.8 : 1.6;
+    }
     if (kind === "note" || kind === "observation")
       return (Array.isArray(fm.tags) ? fm.tags.length : 0) * 0.4 + 1;
     if (kind === "person" || kind === "org")

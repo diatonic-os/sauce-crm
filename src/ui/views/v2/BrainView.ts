@@ -12,6 +12,7 @@
  * health checks, and the citation/honesty contract. See SauceBotRuntime.
  * askBrainStructured + BrainAsk.ts.
  */
+import { DEFAULT_PATHS } from "../../../services/EntityService";
 import { ItemView, Notice, WorkspaceLeaf, normalizePath } from "obsidian";
 import { type ViewTypeId, asViewTypeId } from "@/types/brands";
 import type SauceGraphPlugin from "../../../main";
@@ -19,7 +20,7 @@ import { SauceViewHelp } from "../../components/v2/SauceViewHelp";
 
 export const VIEW_BRAIN: ViewTypeId = asViewTypeId("sauce-brain");
 
-const DEFAULT_BRAIN_FOLDER = "_brain";
+const DEFAULT_BRAIN_FOLDER = DEFAULT_PATHS.brain;
 
 export class BrainView extends ItemView {
   current: string | null = null; // vault-relative path of the loaded build

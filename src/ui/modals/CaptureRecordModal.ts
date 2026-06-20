@@ -12,7 +12,6 @@ export type CaptureRecordKind =
   | "observation"
   | "task"
   | "event"
-  | "ledger-entry"
   | "pipeline-deal";
 
 interface CaptureDef {
@@ -60,13 +59,6 @@ const CAPTURE_DEFS: Record<CaptureRecordKind, CaptureDef> = {
     icon: "sauce-event",
     template: (input) => TemplateService.eventFrontmatter(input),
     bodyHeading: "Agenda",
-  },
-  "ledger-entry": {
-    title: "Ledger Entry",
-    folder: (p) => p.settings.paths.ledger,
-    icon: "sauce-ledger",
-    template: (input) => TemplateService.ledgerEntryFrontmatter(input),
-    bodyHeading: "Ledger Notes",
   },
   "pipeline-deal": {
     title: "Pipeline Deal",
@@ -253,28 +245,6 @@ export class CaptureRecordModal extends Modal {
         .setName("Attendees")
         .setDesc("Comma-separated wikilinks or names.")
         .addText((t) => t.onChange((v) => (this.fm.attendees = splitCsv(v))));
-    } else if (this.kind === "ledger-entry") {
-      new Setting(contentEl)
-        .setName("Category")
-        .addText((t) =>
-          t
-            .setValue("relationship")
-            .onChange((v) => (this.fm.category = v || "relationship")),
-        );
-      new Setting(contentEl).setName("Direction").addDropdown((d) => {
-        d.addOption("out", "out").addOption("in", "in");
-        d.setValue("out").onChange((v) => (this.fm.direction = v));
-      });
-      new Setting(contentEl)
-        .setName("Amount")
-        .addText((t) =>
-          t.setValue("0").onChange((v) => (this.fm.amount = Number(v) || 0)),
-        );
-      new Setting(contentEl)
-        .setName("Currency")
-        .addText((t) =>
-          t.setValue("USD").onChange((v) => (this.fm.currency = v || "USD")),
-        );
     } else if (this.kind === "pipeline-deal") {
       new Setting(contentEl).setName("Stage").addDropdown((d) => {
         for (const v of [

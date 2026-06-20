@@ -1,0 +1,80 @@
+# Bifrost gateway — production starter values for SauceOM hybrid routing.
+# VERIFY each key against the pinned chart version (artifacthub: bifrost/bifrost)
+# before applying — the chart schema evolves between releases. Secrets come from
+# a pre-created k8s Secret, never inline.
+
+replicaCount: 2
+
+image:
+  repository: maximhq/bifrost
+  pullPolicy: IfNotPresent
+  # tag: pin an explicit version, do not float :latest in production.
+
+# HA: Postgres-backed config/governance store (SQLite StatefulSet is single-node).
+postgres:
+  mode: external            # or "embedded" for a bundled instance
+  existingSecret: bifrost-pg
+  # host/db/user filled from the secret.
+
+# Semantic caching — point at a vector store (e.g. an in-cluster service).
+semanticCache:
+  enabled: true
+  vectorStore: weaviate     # confirm supported backends in the chart docs
+
+# Upstream providers: cloud APIs + the LOCAL fleet, all behind one endpoint.
+# Keys are referenced from the bifrost-providers Secret (envFrom), never inline.
+providers:
+  anthropic:
+    keys:
+      - name: anthropic-main          # value from Secret env ANTHROPIC_API_KEY
+  openai:
+    keys:
+      - name: openai-main
+  # Local fleet as OpenAI-compatible custom providers (no key needed):
+  lmstudio:
+    type: openai                       # OpenAI-compatible
+    baseUrl: http://lmstudio.lan:1234/v1
+  ollama:
+    type: openai
+    baseUrl: http://ollama.sauce.svc.cluster.local:11434/v1
+
+# Routing: prefer local for cheap/embedding work, fail over to cloud.
+routing:
+  loadBalancer: adaptive
+  fallbacks:
+    enabled: true
+    # e.g. local model → cloud model on error/timeout (confirm key names in chart)
+
+# Governance: a virtual key SauceOM uses; scopes providers + budget.
+governance:
+  virtualKeys:
+    - name: sauceom
+      provider_configs:
+        - provider: lmstudio
+        - provider: ollama
+        - provider: anthropic
+        - provider: openai
+      budget:
+        max_usd_per_month: 50
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: bifrost.internal
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: bifrost-tls
+      hosts: [bifrost.internal]
+
+resources:
+  requests: { cpu: "250m", memory: "256Mi" }
+  limits: { cpu: "1", memory: "512Mi" }

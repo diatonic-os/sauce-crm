@@ -18,6 +18,7 @@ import type {
 import type { CredentialSource } from "./CredentialSource";
 import { OpenAICompatibleProvider } from "./OpenAICompatibleProvider";
 import { AnthropicProvider } from "./AnthropicProvider";
+import { ClaudeCodeProvider } from "./ClaudeCodeProvider";
 import { OllamaProvider } from "./OllamaProvider";
 import { LMStudioSdkProvider } from "./LMStudioSdkProvider";
 
@@ -30,13 +31,16 @@ export type ProviderId =
   | "nim"
   | "openrouter"
   | "groq"
-  | "gemini";
+  | "gemini"
+  | "claude-code"
+  | "bifrost";
 
 export type ProviderHarness =
   | "anthropic"
   | "openai-compat"
   | "ollama"
-  | "lmstudio-sdk";
+  | "lmstudio-sdk"
+  | "claude-code";
 
 export interface ProviderSpec {
   id: ProviderId;
@@ -166,6 +170,37 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderSpec> = {
     kind: "local",
     baseUrl: "ws://localhost:1234",
     authHeader: "none",
+    capabilities: { toolUse: true, embeddings: true, streaming: true },
+    catalog: "dynamic",
+    endpointConfigurable: true,
+    chat: true,
+  },
+  "claude-code": {
+    id: "claude-code",
+    label: "Claude Code (local OAuth — no API key)",
+    harness: "claude-code",
+    kind: "local",
+    authHeader: "none",
+    capabilities: { toolUse: false, embeddings: false, streaming: false },
+    catalog: "static",
+    staticModels: [
+      { id: "claude-opus-4-8", label: "Claude Opus 4.8", contextTokens: 200_000 },
+      { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", contextTokens: 200_000 },
+      { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", contextTokens: 200_000 },
+    ],
+    chat: true,
+  },
+  bifrost: {
+    id: "bifrost",
+    label: "Bifrost gateway (hybrid cloud + local routing)",
+    harness: "openai-compat",
+    // Self-hosted gateway; server-managed (no JIT/keep-warm) — it fronts both
+    // cloud APIs and the local fleet (LM Studio/Ollama/vLLM) behind one
+    // OpenAI-compatible endpoint. Default is the Bifrost local dev port.
+    kind: "cloud",
+    baseUrl: "http://localhost:8080/v1",
+    authHeader: "bearer",
+    credentialKey: "copilot:bifrost:api-key",
     capabilities: { toolUse: true, embeddings: true, streaming: true },
     catalog: "dynamic",
     endpointConfigurable: true,
@@ -312,6 +347,9 @@ export function buildProvider(
         { baseUrl },
         opts.sdkLoader,
       );
+    case "claude-code":
+      // Local Claude Code CLI + OAuth — no API key. Desktop-only (child_process).
+      return new ClaudeCodeProvider({});
     case "openai-compat":
     default: {
       const authHeader =

@@ -11,6 +11,7 @@
 // Persistence is an injected seam (Obsidian's vault.adapter satisfies it), so
 // the whole builder is unit-testable without Obsidian.
 
+import { DEFAULT_PATHS } from "../services/EntityService";
 import {
   Lexicon,
   Taxonomy,
@@ -66,7 +67,7 @@ export class BrainBuilder {
 
   constructor(
     private store: BrainPersistence,
-    private folder = "_brain",
+    private folder = DEFAULT_PATHS.brain,
     now: () => number = () => Date.now(),
   ) {
     this.now = now;
@@ -136,7 +137,7 @@ export class BrainBuilder {
   }
 
   setFolder(folder: string): void {
-    this.folder = folder.trim() || "_brain";
+    this.folder = folder.trim() || DEFAULT_PATHS.brain;
   }
 
   private async ensureFolder(): Promise<void> {

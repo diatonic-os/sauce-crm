@@ -7,7 +7,8 @@ import {
   TaskSchema,
   FollowupSchema,
   IdeaSchema,
-  LedgerEntrySchema,
+  LaneSchema,
+  MeetingSchema,
   RollupSchema,
   validateEntity,
 } from "../../src/domain/schemas";
@@ -71,30 +72,37 @@ describe("TaskSchema", () => {
   });
 });
 
-describe("LedgerEntrySchema", () => {
-  it("validates a full entry", () => {
-    const r = LedgerEntrySchema.validate({
-      type: "ledger-entry",
-      contact: "[[Bob]]",
-      date: "2026-05-23",
-      category: "favor",
-      amount: 100,
-      currency: "USD",
-      direction: "in",
-    });
-    expect(r.passed).toBe(true);
+describe("LaneSchema", () => {
+  it("validates a full lane and rejects a bad axis", () => {
+    expect(
+      LaneSchema.validate({
+        type: "lane",
+        owner: "[[Malcolm Sullivan]]",
+        lane_axis: "expertise",
+        primary_domain: "commercial-real-estate",
+        status: "active",
+      }).passed,
+    ).toBe(true);
+    expect(
+      LaneSchema.validate({
+        type: "lane",
+        owner: "[[X]]",
+        lane_axis: "nope",
+        primary_domain: "x",
+        status: "dormant",
+      }).passed,
+    ).toBe(false);
   });
-  it("rejects non-numeric amount", () => {
-    const r = LedgerEntrySchema.validate({
-      type: "ledger-entry",
-      contact: "[[Bob]]",
-      date: "2026-05-23",
-      category: "favor",
-      amount: "twenty",
-      currency: "USD",
-      direction: "in",
-    });
-    expect(r.passed).toBe(false);
+});
+
+describe("MeetingSchema", () => {
+  it("requires an ISO date", () => {
+    expect(
+      MeetingSchema.validate({ type: "meeting", date: "2026-05-24" }).passed,
+    ).toBe(true);
+    expect(
+      MeetingSchema.validate({ type: "meeting", date: "5/24/26" }).passed,
+    ).toBe(false);
   });
 });
 
@@ -121,7 +129,8 @@ describe("default frontmatter", () => {
       TaskSchema,
       FollowupSchema,
       IdeaSchema,
-      LedgerEntrySchema,
+      LaneSchema,
+      MeetingSchema,
       RollupSchema,
     ];
     for (const s of schemas) {

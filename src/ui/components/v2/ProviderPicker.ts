@@ -12,6 +12,11 @@ import {
   type CatalogModel,
   type ProviderId,
 } from "../../../saucebot/ModelCatalog";
+import {
+  gateModels,
+  type CapabilityModel,
+} from "../../../saucebot/lmstudio/LMStudioCapability";
+import { deriveLearnedCeiling } from "../../../saucebot/lmstudio/HostProbe";
 
 export interface ProviderPickerOptions {
   /** Container DOM to render into (caller owns the parent). */
@@ -149,8 +154,37 @@ export class ProviderPicker {
       this.populateModels([]);
       return;
     }
-    this.statusEl.textContent = `${models.length} model${models.length === 1 ? "" : "s"}`;
-    this.populateModels(models);
+    const { shown, hidden } = this.gateForHost(models);
+    this.statusEl.textContent =
+      hidden > 0
+        ? `${shown.length} model${shown.length === 1 ? "" : "s"} · ${hidden} too big`
+        : `${shown.length} model${shown.length === 1 ? "" : "s"}`;
+    this.populateModels(shown);
+  }
+
+  /**
+   * Hide local models that won't load on this host. The only signal available
+   * inside Obsidian (no GPU probe) is the LEARNED ceiling — the largest model
+   * we've actually loaded (settings.copilot.knownGoodModels). We add 25%
+   * headroom so a model only slightly larger than the biggest success isn't
+   * hidden (it might still fit), and we NEVER gate when no ceiling is known yet
+   * (fresh install) or for cloud providers — honoring "never hide on unknown".
+   */
+  private gateForHost(models: CatalogModel[]): {
+    shown: CatalogModel[];
+    hidden: number;
+  } {
+    const provider = this.provider;
+    const isLocal = provider === "lmstudio" || provider === "ollama";
+    if (!isLocal) return { shown: models, hidden: 0 };
+    const caps = models as CapabilityModel[];
+    const known = this.opts.plugin.settings?.copilot?.knownGoodModels ?? [];
+    const ceiling = deriveLearnedCeiling(known, caps);
+    if (ceiling <= 0) return { shown: models, hidden: 0 }; // unknown host → show all
+    const { loadable, hidden } = gateModels(caps, {
+      learnedMaxLoadedBytes: ceiling * 1.25,
+    });
+    return { shown: loadable, hidden: hidden.length };
   }
 
   private populateModels(models: CatalogModel[]): void {
