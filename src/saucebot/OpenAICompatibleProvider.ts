@@ -26,6 +26,7 @@ import { parseSse } from "./StreamParsers";
 import { parseToolArgs, extractTextToolCalls } from "./LocalToolParse";
 import { toOpenAiMessages } from "./OpenAiMessageMap";
 import { classifyLoadFailure } from "./ModelManager";
+import { withRetry } from "./httpRetry";
 
 export interface OpenAICompatSpec {
   /** Provider id (matches the registry id), surfaced as `name`. */
@@ -405,11 +406,14 @@ export class OpenAICompatibleProvider implements ISauceBotProvider {
   async embed(text: string, model: string): Promise<Float32Array> {
     if (!this.supportsEmbeddings())
       throw new Error(`${this.name} does not provide an embeddings endpoint.`);
-    const resp = await this.host.fetch(`${this.base()}/embeddings`, {
-      method: "POST",
-      headers: await this.headers(),
-      body: JSON.stringify({ model, input: text }),
-    });
+    const headers = await this.headers();
+    const body = JSON.stringify({ model, input: text });
+    // Retry on 429 / 5xx with backoff (Retry-After honored). A full-vault
+    // resync against the OpenAI default can burst into rate limits; without
+    // this a single 429 aborts the whole embedding of that note (EMB-3).
+    const resp = await withRetry(() =>
+      this.host.fetch(`${this.base()}/embeddings`, { method: "POST", headers, body }),
+    );
     if (resp.status >= 400) throw new Error(resp.body);
     let j: { data?: Array<{ embedding: number[] }> };
     try {
