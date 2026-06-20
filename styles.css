@@ -1430,6 +1430,28 @@
   .sauce-view, .sauce-copilot { padding: var(--sg-gap-5); }
 }
 
+/* ===== Mobile analytics overrides (≤600px) ===== */
+@media (max-width: 600px) {
+  /* Matrix + heatmap: keep their natural width but make the wrapper the
+     scroll boundary so the PAGE never scrolls; add an inertia scroll. */
+  .sauce-matrix-wrap, .sauce-heatmap-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .sauce-heatmap-months { min-width: 0; }          /* was 610px — let it ride the scroll wrapper */
+  /* Kanban: stack lanes vertically instead of a horizontal rail. */
+  .sauce-kanban { grid-template-columns: 1fr !important; }
+  /* Dashboard: force single-column KPIs + columns below the auto-fit floor. */
+  .sauce-view-kpis { grid-template-columns: repeat(2, 1fr) !important; }
+  .sauce-dashboard-columns { grid-template-columns: 1fr !important; }
+  /* Modal: tighter than 38rem on a phone. */
+  :root { --sg-modal-w: min(94vw, 38rem); }
+}
+@media (max-width: 380px) {
+  .sauce-view-kpis { grid-template-columns: 1fr !important; }
+}
+
 /* ---------- RTL ---------- */
 
 [dir="rtl"] .sauce-copilot-assistant .sauce-copilot-body {
@@ -2080,3 +2102,13 @@ select.sauce-input {
 .sauce-attention-sev--critical { background: var(--color-red, #e5534b); color: #fff; }
 .sauce-attention-sev--warning { background: var(--color-orange, #d99e00); color: #1a1a1a; }
 .sauce-attention-sev--info { background: var(--color-blue, #4c8dff); color: #fff; }
+
+/* ===== Mobile compat pair list (.sauce-compat-pairlist) ===== */
+/* Flex column of .sauce-attention-row items; reuses the attention-row
+   design tokens for visual consistency with the dashboard attention panel. */
+.sauce-compat-pairlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-gap-5, 5px);
+  padding: var(--sg-gap-8, 8px);
+}
