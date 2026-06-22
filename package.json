@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit && node esbuild.config.mjs production",
+    "install:vault": "node scripts/install-to-vault.mjs",
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc -noEmit",
     "test": "vitest run",

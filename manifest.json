@@ -3,7 +3,7 @@
   "name": "SauceOM",
   "version": "0.5.0",
   "minAppVersion": "1.5.0",
-  "description": "SauceOM (Sauce Operating Memory) \u2014 your relationship graph + Sauce Brain in one vault: people, organizations, touch logs, and addenda, an encrypted KeyVault for credentials, and the SauceBot AI copilot for local (LM Studio / Ollama) and cloud (Anthropic / OpenAI / NVIDIA NIM) models.",
+  "description": "Relationship graph + Sauce Brain in one vault: people, organizations, touch logs, addenda, an encrypted KeyVault for credentials, and the SauceBot AI copilot for local (LM Studio / Ollama) and cloud (Anthropic / OpenAI / NVIDIA NIM) models.",
   "author": "Drew Fortini",
   "authorUrl": "https://github.com/Diatonic-OS",
   "isDesktopOnly": false
